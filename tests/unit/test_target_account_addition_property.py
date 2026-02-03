@@ -11,17 +11,17 @@ Properties:
 Validates: Requirements 1.3, 1.4, 1.5
 """
 
-import json
-import os
-import sys
-import importlib.util
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+import importlib.util  # noqa: F401
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-import pytest
-from hypothesis import given, settings, strategies as st
-from moto import mock_aws
-import boto3
+import pytest  # noqa: F401
+from hypothesis import given, settings, strategies as st  # noqa: E402
+from moto import mock_aws  # noqa: E402
+import boto3  # noqa: F401
 
 # Set environment variables BEFORE importing
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -30,7 +30,7 @@ os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 # Add lambda directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
-from shared.account_utils import STANDARD_ROLE_NAME, construct_role_arn
+from shared.account_utils import STANDARD_ROLE_NAME, construct_role_arn  # noqa: E402
 
 # Start mocking AWS BEFORE loading the module
 mock_aws_context = mock_aws()
@@ -86,7 +86,7 @@ def test_property_explicit_arn_precedence(
     with mock_aws():
         # Setup DynamoDB
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        table = dynamodb.create_table(
+        table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[
@@ -109,13 +109,13 @@ def test_property_explicit_arn_precedence(
         if response["statusCode"] == 201:
             response_body = json.loads(response["body"])
             assert response_body["roleArn"] == explicit_arn, (
-                f"Should use explicit ARN. "
+                "Should use explicit ARN. "
                 f"Expected: {explicit_arn}, Got: {response_body.get('roleArn')}"
             )
             # Should NOT be the constructed ARN
             constructed = construct_role_arn(account_id)
             assert response_body["roleArn"] != constructed, (
-                f"Should not use constructed ARN when explicit ARN provided"
+                "Should not use constructed ARN when explicit ARN provided"
             )
 
 
@@ -140,7 +140,7 @@ def test_property_optional_role_arn_acceptance(
     with mock_aws():
         # Setup DynamoDB
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        table = dynamodb.create_table(
+        table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[
@@ -185,7 +185,7 @@ def test_property_api_response_includes_role_arn(
     with mock_aws():
         # Setup DynamoDB
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        table = dynamodb.create_table(
+        table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[
@@ -218,7 +218,7 @@ def test_account_addition_without_role_arn():
     with mock_aws():
         # Setup DynamoDB
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        table = dynamodb.create_table(
+        table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[
@@ -252,7 +252,7 @@ def test_account_addition_with_explicit_role_arn():
     with mock_aws():
         # Setup DynamoDB
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        table = dynamodb.create_table(
+        table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[

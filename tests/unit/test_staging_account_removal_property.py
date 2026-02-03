@@ -9,25 +9,25 @@ staging accounts list while all other staging accounts remain unchanged.
 Validates: Requirements 2.2, 8.4
 """
 
-import json
-import os
-from typing import Dict, List
-from unittest.mock import patch
+import json  # noqa: F401
+import os  # noqa: E402
+from typing import Dict, List  # noqa: F401  # noqa: F401
+from unittest.mock import patch  # noqa: F401
 
-import boto3
-import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck
-from moto import mock_aws
+import boto3  # noqa: F401
+import pytest  # noqa: F401
+from hypothesis import given, settings, strategies as st, HealthCheck  # noqa: E402
+from moto import mock_aws  # noqa: E402
 
 # Set environment variables before importing handler
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 # Add lambda directory to path
-import sys
+import sys  # noqa: E402
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
-from shared.staging_account_models import (
+from shared.staging_account_models import (  # noqa: E402
     add_staging_account,
     remove_staging_account,
     get_staging_accounts,
@@ -63,7 +63,7 @@ def dynamodb_setup():
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 
         # Create Target Accounts table
-        table = dynamodb.create_table(
+        table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[
@@ -102,7 +102,7 @@ def test_property_staging_account_removal_completeness(
         removal_index = len(staging_accounts) - 1
 
     # Setup: Create target account
-    table = dynamodb_setup
+    table = dynamodb_setup  # noqa: F841
     table.put_item(
         Item={
             "accountId": target_account_id,
@@ -130,7 +130,7 @@ def test_property_staging_account_removal_completeness(
     staging_id_to_remove = staging_to_remove["accountId"]
 
     # Remove the staging account
-    result = remove_staging_account(target_account_id, staging_id_to_remove)
+    result = remove_staging_account(target_account_id, staging_id_to_remove)  # noqa: F841
 
     # Verify removal was successful
     assert result["success"] is True
@@ -208,7 +208,7 @@ def test_property_remove_all_staging_accounts_sequentially(
     should result in an empty staging accounts list.
     """
     # Setup: Create target account
-    table = dynamodb_setup
+    table = dynamodb_setup  # noqa: F841
     table.put_item(
         Item={
             "accountId": target_account_id,
@@ -228,7 +228,7 @@ def test_property_remove_all_staging_accounts_sequentially(
     # Remove all staging accounts one by one
     for staging_account in staging_accounts:
         staging_id = staging_account["accountId"]
-        result = remove_staging_account(target_account_id, staging_id)
+        result = remove_staging_account(target_account_id, staging_id)  # noqa: F841
         assert result["success"] is True
 
     # Verify final state has no staging accounts
@@ -243,11 +243,11 @@ def test_remove_nonexistent_staging_account(dynamodb_setup):
     """
     Edge case: Removing a staging account that doesn't exist should fail
     """
-    target_account_id = "123456789012"
+    target_account_id = "123456789012"  # noqa: F841
     nonexistent_staging_id = "999999999999"
 
     # Setup: Create target account with no staging accounts
-    table = dynamodb_setup
+    table = dynamodb_setup  # noqa: F841
     table.put_item(
         Item={
             "accountId": target_account_id,

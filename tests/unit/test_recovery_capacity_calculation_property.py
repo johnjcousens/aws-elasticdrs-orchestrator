@@ -13,8 +13,8 @@ DRS Quota: 300 replicating servers per account PER REGION
 **Validates: Requirements 10.2, 10.3, 10.4, 10.5**
 """
 
-import sys
-from pathlib import Path
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 # Clear any existing index module to avoid conflicts
 if "index" in sys.modules:
@@ -26,11 +26,11 @@ query_handler_dir = (
 )
 sys.path.insert(0, str(query_handler_dir))
 
-from hypothesis import given, strategies as st, settings
-import pytest
+from hypothesis import given, strategies as st, settings  # noqa: E402
+import pytest  # noqa: F401
 
 # Import the function under test
-from index import calculate_recovery_capacity
+from index import calculate_recovery_capacity  # noqa: E402
 
 
 # ============================================================================
@@ -65,8 +65,8 @@ def test_property_recovery_capacity_status_calculation(target_servers):
     6. Percentage and available slots are calculated correctly
     """
     # Calculate recovery capacity
-    result = calculate_recovery_capacity(target_servers)
-    
+    result = calculate_recovery_capacity(target_servers)  # noqa: F841
+
     # Property 1: Result contains all required fields
     assert "currentServers" in result, "Missing currentServers field"
     assert "maxRecoveryInstances" in result, (
@@ -75,19 +75,19 @@ def test_property_recovery_capacity_status_calculation(target_servers):
     assert "percentUsed" in result, "Missing percentUsed field"
     assert "availableSlots" in result, "Missing availableSlots field"
     assert "status" in result, "Missing status field"
-    
+
     # Property 2: Current servers matches input
     assert result["currentServers"] == target_servers, (
         f"Current servers mismatch: expected {target_servers}, "
         f"got {result['currentServers']}"
     )
-    
+
     # Property 3: Max recovery instances is always 4,000
     assert result["maxRecoveryInstances"] == 4000, (
-        f"Max recovery instances should be 4,000, "
+        "Max recovery instances should be 4,000, "
         f"got {result['maxRecoveryInstances']}"
     )
-    
+
     # Property 4: Percentage used calculation
     expected_percent = (target_servers / 4000) * 100
     # Allow small floating point differences
@@ -95,18 +95,18 @@ def test_property_recovery_capacity_status_calculation(target_servers):
         f"Percent used mismatch: expected {expected_percent:.2f}, "
         f"got {result['percentUsed']}"
     )
-    
+
     # Property 5: Available slots calculation
     expected_available = 4000 - target_servers
     assert result["availableSlots"] == expected_available, (
         f"Available slots mismatch: expected {expected_available}, "
         f"got {result['availableSlots']}"
     )
-    
+
     # Property 6: Status thresholds
     percent_used = result["percentUsed"]
     status = result["status"]
-    
+
     if percent_used < 80:
         assert status == "OK", (
             f"Status should be OK for {percent_used:.2f}% usage "
@@ -140,18 +140,18 @@ def test_property_recovery_capacity_excludes_staging_accounts(
     only considers the target account parameter.
     """
     # Calculate recovery capacity with only target servers
-    result = calculate_recovery_capacity(target_servers)
-    
+    result = calculate_recovery_capacity(target_servers)  # noqa: F841
+
     # The result should only reflect target servers, not staging
     assert result["currentServers"] == target_servers, (
-        f"Recovery capacity should only count target servers "
+        "Recovery capacity should only count target servers "
         f"({target_servers}), not staging servers ({staging_servers})"
     )
-    
+
     # Verify percentage is based only on target servers
     expected_percent = (target_servers / 4000) * 100
     assert abs(result["percentUsed"] - expected_percent) < 0.01, (
-        f"Percentage should be based only on target servers"
+        "Percentage should be based only on target servers"
     )
 
 
@@ -159,7 +159,7 @@ def test_property_recovery_capacity_excludes_staging_accounts(
 @given(servers=st.integers(min_value=0, max_value=3199))
 def test_property_ok_status_threshold(servers):
     """Test OK status threshold (< 80% = < 3,200 servers)."""
-    result = calculate_recovery_capacity(servers)
+    result = calculate_recovery_capacity(servers)  # noqa: F841
     assert result["status"] == "OK", (
         f"Status should be OK for {servers} servers (< 3,200)"
     )
@@ -169,7 +169,7 @@ def test_property_ok_status_threshold(servers):
 @given(servers=st.integers(min_value=3200, max_value=3599))
 def test_property_warning_status_threshold(servers):
     """Test WARNING status threshold (80-90% = 3,200-3,599 servers)."""
-    result = calculate_recovery_capacity(servers)
+    result = calculate_recovery_capacity(servers)  # noqa: F841
     assert result["status"] == "WARNING", (
         f"Status should be WARNING for {servers} servers (3,200-3,599)"
     )
@@ -179,7 +179,7 @@ def test_property_warning_status_threshold(servers):
 @given(servers=st.integers(min_value=3600, max_value=4500))
 def test_property_critical_status_threshold(servers):
     """Test CRITICAL status threshold (>= 90% = >= 3,600 servers)."""
-    result = calculate_recovery_capacity(servers)
+    result = calculate_recovery_capacity(servers)  # noqa: F841
     assert result["status"] == "CRITICAL", (
         f"Status should be CRITICAL for {servers} servers (>= 3,600)"
     )
@@ -192,7 +192,7 @@ def test_property_critical_status_threshold(servers):
 
 def test_edge_case_zero_servers():
     """Test with zero servers."""
-    result = calculate_recovery_capacity(0)
+    result = calculate_recovery_capacity(0)  # noqa: F841
     assert result["currentServers"] == 0
     assert result["percentUsed"] == 0.0
     assert result["availableSlots"] == 4000
@@ -201,21 +201,21 @@ def test_edge_case_zero_servers():
 
 def test_edge_case_exactly_80_percent():
     """Test exactly at 80% threshold (3,200 servers)."""
-    result = calculate_recovery_capacity(3200)
+    result = calculate_recovery_capacity(3200)  # noqa: F841
     assert result["percentUsed"] == 80.0
     assert result["status"] == "WARNING"
 
 
 def test_edge_case_exactly_90_percent():
     """Test exactly at 90% threshold (3,600 servers)."""
-    result = calculate_recovery_capacity(3600)
+    result = calculate_recovery_capacity(3600)  # noqa: F841
     assert result["percentUsed"] == 90.0
     assert result["status"] == "CRITICAL"
 
 
 def test_edge_case_at_limit():
     """Test at the 4,000 server limit."""
-    result = calculate_recovery_capacity(4000)
+    result = calculate_recovery_capacity(4000)  # noqa: F841
     assert result["currentServers"] == 4000
     assert result["percentUsed"] == 100.0
     assert result["availableSlots"] == 0
@@ -224,12 +224,11 @@ def test_edge_case_at_limit():
 
 def test_edge_case_beyond_limit():
     """Test beyond the 4,000 server limit."""
-    result = calculate_recovery_capacity(4500)
+    result = calculate_recovery_capacity(4500)  # noqa: F841
     assert result["currentServers"] == 4500
     assert result["percentUsed"] == 112.5
     assert result["availableSlots"] == -500
     assert result["status"] == "CRITICAL"
-
 
 
 @st.composite
@@ -259,8 +258,8 @@ def test_property_recovery_capacity_status_calculation(target_servers):
     6. Percentage and available slots are calculated correctly
     """
     # Calculate recovery capacity
-    result = calculate_recovery_capacity(target_servers)
-    
+    result = calculate_recovery_capacity(target_servers)  # noqa: F841
+
     # Property 1: Result contains all required fields
     assert "currentServers" in result, "Missing currentServers field"
     assert "maxRecoveryInstances" in result, (
@@ -269,19 +268,19 @@ def test_property_recovery_capacity_status_calculation(target_servers):
     assert "percentUsed" in result, "Missing percentUsed field"
     assert "availableSlots" in result, "Missing availableSlots field"
     assert "status" in result, "Missing status field"
-    
+
     # Property 2: Current servers matches input
     assert result["currentServers"] == target_servers, (
         f"Current servers mismatch: expected {target_servers}, "
         f"got {result['currentServers']}"
     )
-    
+
     # Property 3: Max recovery instances is always 4,000
     assert result["maxRecoveryInstances"] == 4000, (
-        f"Max recovery instances should be 4,000, "
+        "Max recovery instances should be 4,000, "
         f"got {result['maxRecoveryInstances']}"
     )
-    
+
     # Property 4: Percentage used calculation
     expected_percent = (target_servers / 4000) * 100
     # Allow small floating point differences
@@ -289,18 +288,18 @@ def test_property_recovery_capacity_status_calculation(target_servers):
         f"Percent used mismatch: expected {expected_percent:.2f}, "
         f"got {result['percentUsed']}"
     )
-    
+
     # Property 5: Available slots calculation
     expected_available = 4000 - target_servers
     assert result["availableSlots"] == expected_available, (
         f"Available slots mismatch: expected {expected_available}, "
         f"got {result['availableSlots']}"
     )
-    
+
     # Property 6: Status thresholds
     percent_used = result["percentUsed"]
     status = result["status"]
-    
+
     if percent_used < 80:
         assert status == "OK", (
             f"Status should be OK for {percent_used:.2f}% usage "
@@ -334,18 +333,18 @@ def test_property_recovery_capacity_excludes_staging_accounts(
     only considers the target account parameter.
     """
     # Calculate recovery capacity with only target servers
-    result = calculate_recovery_capacity(target_servers)
-    
+    result = calculate_recovery_capacity(target_servers)  # noqa: F841
+
     # The result should only reflect target servers, not staging
     assert result["currentServers"] == target_servers, (
-        f"Recovery capacity should only count target servers "
+        "Recovery capacity should only count target servers "
         f"({target_servers}), not staging servers ({staging_servers})"
     )
-    
+
     # Verify percentage is based only on target servers
     expected_percent = (target_servers / 4000) * 100
     assert abs(result["percentUsed"] - expected_percent) < 0.01, (
-        f"Percentage should be based only on target servers"
+        "Percentage should be based only on target servers"
     )
 
 
@@ -353,7 +352,7 @@ def test_property_recovery_capacity_excludes_staging_accounts(
 @given(servers=st.integers(min_value=0, max_value=3199))
 def test_property_ok_status_threshold(servers):
     """Test OK status threshold (< 80% = < 3,200 servers)."""
-    result = calculate_recovery_capacity(servers)
+    result = calculate_recovery_capacity(servers)  # noqa: F841
     assert result["status"] == "OK", (
         f"Status should be OK for {servers} servers (< 3,200)"
     )
@@ -363,7 +362,7 @@ def test_property_ok_status_threshold(servers):
 @given(servers=st.integers(min_value=3200, max_value=3599))
 def test_property_warning_status_threshold(servers):
     """Test WARNING status threshold (80-90% = 3,200-3,599 servers)."""
-    result = calculate_recovery_capacity(servers)
+    result = calculate_recovery_capacity(servers)  # noqa: F841
     assert result["status"] == "WARNING", (
         f"Status should be WARNING for {servers} servers (3,200-3,599)"
     )
@@ -373,7 +372,7 @@ def test_property_warning_status_threshold(servers):
 @given(servers=st.integers(min_value=3600, max_value=4500))
 def test_property_critical_status_threshold(servers):
     """Test CRITICAL status threshold (>= 90% = >= 3,600 servers)."""
-    result = calculate_recovery_capacity(servers)
+    result = calculate_recovery_capacity(servers)  # noqa: F841
     assert result["status"] == "CRITICAL", (
         f"Status should be CRITICAL for {servers} servers (>= 3,600)"
     )
@@ -386,7 +385,7 @@ def test_property_critical_status_threshold(servers):
 
 def test_edge_case_zero_servers():
     """Test with zero servers."""
-    result = calculate_recovery_capacity(0)
+    result = calculate_recovery_capacity(0)  # noqa: F841
     assert result["currentServers"] == 0
     assert result["percentUsed"] == 0.0
     assert result["availableSlots"] == 4000
@@ -395,21 +394,21 @@ def test_edge_case_zero_servers():
 
 def test_edge_case_exactly_80_percent():
     """Test exactly at 80% threshold (3,200 servers)."""
-    result = calculate_recovery_capacity(3200)
+    result = calculate_recovery_capacity(3200)  # noqa: F841
     assert result["percentUsed"] == 80.0
     assert result["status"] == "WARNING"
 
 
 def test_edge_case_exactly_90_percent():
     """Test exactly at 90% threshold (3,600 servers)."""
-    result = calculate_recovery_capacity(3600)
+    result = calculate_recovery_capacity(3600)  # noqa: F841
     assert result["percentUsed"] == 90.0
     assert result["status"] == "CRITICAL"
 
 
 def test_edge_case_at_limit():
     """Test at the 4,000 server limit."""
-    result = calculate_recovery_capacity(4000)
+    result = calculate_recovery_capacity(4000)  # noqa: F841
     assert result["currentServers"] == 4000
     assert result["percentUsed"] == 100.0
     assert result["availableSlots"] == 0
@@ -418,7 +417,7 @@ def test_edge_case_at_limit():
 
 def test_edge_case_beyond_limit():
     """Test beyond the 4,000 server limit."""
-    result = calculate_recovery_capacity(4500)
+    result = calculate_recovery_capacity(4500)  # noqa: F841
     assert result["currentServers"] == 4500
     assert result["percentUsed"] == 112.5
     assert result["availableSlots"] == -500

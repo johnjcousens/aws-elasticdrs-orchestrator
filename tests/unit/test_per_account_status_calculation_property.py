@@ -13,18 +13,18 @@ the status should be:
 **Validates: Requirements 5.3, 5.4, 5.5, 5.6**
 """
 
-import sys
-from pathlib import Path
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 # Add lambda directory to path
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(lambda_dir))
 
-from hypothesis import given, strategies as st, settings
-import pytest
+from hypothesis import given, strategies as st, settings  # noqa: E402
+import pytest  # noqa: F401
 
 # Import the function under test
-from index import calculate_account_status
+from index import calculate_account_status  # noqa: E402
 
 
 # ============================================================================

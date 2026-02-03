@@ -15,18 +15,18 @@ at 300 (target account limit), not per-account.
 - Max capacity is always 300, regardless of number of staging accounts
 """
 
-import sys
-from pathlib import Path
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 # Add lambda directory to path
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(lambda_dir))
 
-from hypothesis import given, strategies as st, settings
-import pytest
+from hypothesis import given, strategies as st, settings  # noqa: E402
+import pytest  # noqa: F401
 
 # Import the function under test
-from index import calculate_combined_metrics
+from index import calculate_combined_metrics  # noqa: E402
 
 
 # ============================================================================
@@ -95,7 +95,7 @@ def test_property_combined_capacity_aggregation(account_results):
     Note: Staging accounts provide extended source servers but don't add to replicating capacity.
     """
     # Calculate combined metrics
-    result = calculate_combined_metrics(account_results)
+    result = calculate_combined_metrics(account_results)  # noqa: F841
 
     # Filter accessible accounts
     accessible_accounts = [
@@ -178,7 +178,7 @@ def test_property_uniform_capacity_distribution(
     - Max capacity = 300 (fixed target account limit)
     """
     # Create uniform account results
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": f"{i:012d}",
             "accountName": f"Account_{i}",
@@ -191,7 +191,7 @@ def test_property_uniform_capacity_distribution(
         for i in range(num_accounts)
     ]
 
-    result = calculate_combined_metrics(account_results)
+    result = calculate_combined_metrics(account_results)  # noqa: F841
 
     # Verify uniform distribution properties
     assert result["totalReplicating"] == num_accounts * servers_per_account
@@ -213,7 +213,7 @@ def test_property_inaccessible_accounts_excluded(account_results):
 
     Note: Max capacity is fixed at 300 regardless of accessible accounts.
     """
-    result = calculate_combined_metrics(account_results)
+    result = calculate_combined_metrics(account_results)  # noqa: F841
 
     # Count accessible vs inaccessible
     accessible = [a for a in account_results if a.get("accessible", False)]
@@ -240,7 +240,7 @@ def test_property_inaccessible_accounts_excluded(account_results):
 
 def test_edge_case_no_accounts():
     """Edge case: Empty account list."""
-    result = calculate_combined_metrics([])
+    result = calculate_combined_metrics([])  # noqa: F841
 
     assert result["totalReplicating"] == 0
     assert result["totalServers"] == 0
@@ -255,7 +255,7 @@ def test_edge_case_no_accounts():
 
 def test_edge_case_all_accounts_inaccessible():
     """Edge case: All accounts are inaccessible."""
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": f"{i:012d}",
             "accountName": f"Account_{i}",
@@ -269,7 +269,7 @@ def test_edge_case_all_accounts_inaccessible():
         for i in range(5)
     ]
 
-    result = calculate_combined_metrics(account_results)
+    result = calculate_combined_metrics(account_results)  # noqa: F841
 
     assert result["totalReplicating"] == 0
     # Multi-account model: 0 accessible accounts × 300 = 0
@@ -282,7 +282,7 @@ def test_edge_case_all_accounts_inaccessible():
 def test_edge_case_at_max_capacity():
     """Edge case: All accounts at maximum capacity (300 servers each)."""
     # Multi-account model: each account has 300 limit
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": "000000000000",
             "accountName": "Target",
@@ -312,7 +312,7 @@ def test_edge_case_at_max_capacity():
         },
     ]
 
-    result = calculate_combined_metrics(account_results)
+    result = calculate_combined_metrics(account_results)  # noqa: F841
 
     # Total replicating = 300 + 300 + 300 = 900
     assert result["totalReplicating"] == 900
@@ -324,7 +324,7 @@ def test_edge_case_at_max_capacity():
 
 def test_edge_case_mixed_accessibility():
     """Edge case: Mix of accessible and inaccessible accounts."""
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": "111111111111",
             "accountName": "Target",
@@ -355,7 +355,7 @@ def test_edge_case_mixed_accessibility():
         },
     ]
 
-    result = calculate_combined_metrics(account_results)
+    result = calculate_combined_metrics(account_results)  # noqa: F841
 
     # Total replicating = 150 + 100 = 250 (only accessible accounts)
     assert result["totalReplicating"] == 250

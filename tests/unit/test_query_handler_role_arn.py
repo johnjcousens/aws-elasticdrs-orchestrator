@@ -5,13 +5,13 @@ Tests the query handler's ability to construct role ARNs when not provided
 and use explicit role ARNs when provided.
 """
 
-import json
-import os
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-import pytest
+import pytest  # noqa: F401
 
 # Set environment variables before importing
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -30,20 +30,20 @@ shared_dir = Path(__file__).parent.parent.parent / "lambda" / "shared"
 sys.path.insert(0, str(query_handler_dir))
 sys.path.insert(1, str(shared_dir))
 
-from index import handle_get_combined_capacity, handle_validate_staging_account
+from index import handle_get_combined_capacity, handle_validate_staging_account  # noqa: E402
 
 
 @pytest.fixture
 def mock_dynamodb_table():
     """Mock DynamoDB table"""
-    table = MagicMock()
+    table = MagicMock()  # noqa: F841
     return table
 
 
 @pytest.fixture
 def mock_sts_client():
     """Mock STS client for role assumption"""
-    client = MagicMock()
+    client = MagicMock()  # noqa: F841
     client.assume_role.return_value = {
         "Credentials": {
             "AccessKeyId": "AKIAIOSFODNN7EXAMPLE",
@@ -58,7 +58,7 @@ def mock_sts_client():
 @pytest.fixture
 def mock_drs_client():
     """Mock DRS client"""
-    client = MagicMock()
+    client = MagicMock()  # noqa: F841
     client.describe_source_servers.return_value = {"items": []}
     return client
 
@@ -81,7 +81,7 @@ def test_validate_staging_account_constructs_arn_when_not_provided(
         with patch("index.create_drs_client") as mock_create_drs:
             mock_create_drs.return_value = mock_drs_client
 
-            result = handle_validate_staging_account(account_data)
+            result = handle_validate_staging_account(account_data)  # noqa: F841
 
             # Should construct ARN
             expected_arn = (
@@ -114,7 +114,7 @@ def test_validate_staging_account_uses_explicit_arn(
         with patch("index.create_drs_client") as mock_create_drs:
             mock_create_drs.return_value = mock_drs_client
 
-            result = handle_validate_staging_account(account_data)
+            result = handle_validate_staging_account(account_data)  # noqa: F841
 
             # Should use explicit ARN
             mock_sts_client.assume_role.assert_called_once()
@@ -128,12 +128,12 @@ def test_combined_capacity_constructs_arn_when_not_in_db(
     """Test combined capacity constructs ARN when not in DynamoDB"""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
+    from index import handle_get_combined_capacity  # noqa: F401
     # Mock target account without roleArn
     mock_dynamodb_table.get_item.return_value = {
         "Item": {
@@ -158,7 +158,7 @@ def test_combined_capacity_constructs_arn_when_not_in_db(
                     {"items": []}
                 ]
 
-                result = handle_get_combined_capacity(query_params)
+                result = handle_get_combined_capacity(query_params)  # noqa: F841
 
                 # Should construct ARN
                 expected_arn = (
@@ -177,12 +177,12 @@ def test_combined_capacity_uses_explicit_arn_from_db(
     """Test combined capacity uses explicit roleArn from DynamoDB"""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
+    from index import handle_get_combined_capacity  # noqa: F401
     custom_arn = "arn:aws:iam::123456789012:role/CustomRole"
 
     # Mock target account with explicit roleArn
@@ -209,7 +209,7 @@ def test_combined_capacity_uses_explicit_arn_from_db(
                     {"items": []}
                 ]
 
-                result = handle_get_combined_capacity(query_params)
+                result = handle_get_combined_capacity(query_params)  # noqa: F841
 
                 # Should use explicit ARN
                 mock_sts_client.assume_role.assert_called()
@@ -233,7 +233,7 @@ def test_validation_handles_missing_account():
         )
         mock_boto_client.return_value = mock_sts
 
-        result = handle_validate_staging_account(account_data)
+        result = handle_validate_staging_account(account_data)  # noqa: F841
 
         # Should return error response (500 for unexpected errors)
         assert result["statusCode"] == 500
@@ -251,16 +251,16 @@ def test_capacity_query_with_explicit_role_arn():
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
+    from index import handle_get_combined_capacity  # noqa: F401
     custom_arn = "arn:aws:iam::123456789012:role/CustomDRSRole"
-    
+
     # Mock target account with explicit roleArn
-    mock_table = MagicMock()
+    mock_table = MagicMock()  # noqa: F841
     mock_table.get_item.return_value = {
         "Item": {
             "accountId": "123456789012",
@@ -270,7 +270,7 @@ def test_capacity_query_with_explicit_role_arn():
             "stagingAccounts": []
         }
     }
-    
+
     mock_sts = MagicMock()
     mock_sts.assume_role.return_value = {
         "Credentials": {
@@ -280,26 +280,26 @@ def test_capacity_query_with_explicit_role_arn():
             "Expiration": "2026-01-30T12:00:00Z",
         }
     }
-    
+
     mock_drs = MagicMock()
     mock_drs.get_paginator.return_value.paginate.return_value = [
         {"items": []}
     ]
-    
+
     with patch.object(index, "target_accounts_table", mock_table):
         with patch("boto3.client") as mock_boto_client:
             mock_boto_client.return_value = mock_sts
-            
+
             with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs
-                
-                result = handle_get_combined_capacity(
+
+                result = handle_get_combined_capacity(  # noqa: F841
                     {"targetAccountId": "123456789012"}
                 )
-                
+
                 # Should succeed
                 assert result["statusCode"] == 200
-                
+
                 # Verify STS assume_role was called with explicit ARN
                 mock_sts.assume_role.assert_called()
                 call_args = mock_sts.assume_role.call_args
@@ -316,14 +316,14 @@ def test_capacity_query_with_constructed_role_arn():
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
+    from index import handle_get_combined_capacity  # noqa: F401
     # Mock target account without roleArn
-    mock_table = MagicMock()
+    mock_table = MagicMock()  # noqa: F841
     mock_table.get_item.return_value = {
         "Item": {
             "accountId": "987654321098",
@@ -333,7 +333,7 @@ def test_capacity_query_with_constructed_role_arn():
             "stagingAccounts": []
         }
     }
-    
+
     mock_sts = MagicMock()
     mock_sts.assume_role.return_value = {
         "Credentials": {
@@ -343,26 +343,26 @@ def test_capacity_query_with_constructed_role_arn():
             "Expiration": "2026-01-30T12:00:00Z",
         }
     }
-    
+
     mock_drs = MagicMock()
     mock_drs.get_paginator.return_value.paginate.return_value = [
         {"items": []}
     ]
-    
+
     with patch.object(index, "target_accounts_table", mock_table):
         with patch("boto3.client") as mock_boto_client:
             mock_boto_client.return_value = mock_sts
-            
+
             with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs
-                
-                result = handle_get_combined_capacity(
+
+                result = handle_get_combined_capacity(  # noqa: F841
                     {"targetAccountId": "987654321098"}
                 )
-                
+
                 # Should succeed
                 assert result["statusCode"] == 200
-                
+
                 # Verify STS assume_role was called with constructed ARN
                 expected_arn = (
                     "arn:aws:iam::987654321098:role/DRSOrchestrationRole"
@@ -382,21 +382,21 @@ def test_capacity_query_missing_account():
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
+    from index import handle_get_combined_capacity  # noqa: F401
     # Mock DynamoDB returning no item
-    mock_table = MagicMock()
+    mock_table = MagicMock()  # noqa: F841
     mock_table.get_item.return_value = {}  # No Item key
-    
+
     with patch.object(index, "target_accounts_table", mock_table):
-        result = handle_get_combined_capacity(
+        result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": "999999999999"}
         )
-        
+
         # Should return 404 error
         assert result["statusCode"] == 404
         body = json.loads(result["body"])
@@ -412,19 +412,19 @@ def test_capacity_query_invalid_account_id():
     Task: 11.3
     """
     # Test with non-numeric account ID
-    result = handle_get_combined_capacity(
+    result = handle_get_combined_capacity(  # noqa: F841
         {"targetAccountId": "invalid-id"}
     )
-    
+
     assert result["statusCode"] == 400
     body = json.loads(result["body"])
     assert "Invalid account ID format" in body["error"]
-    
+
     # Test with wrong length
-    result = handle_get_combined_capacity(
+    result = handle_get_combined_capacity(  # noqa: F841
         {"targetAccountId": "12345"}
     )
-    
+
     assert result["statusCode"] == 400
     body = json.loads(result["body"])
     assert "Invalid account ID format" in body["error"]
@@ -437,8 +437,8 @@ def test_capacity_query_missing_target_account_id():
     Validates: Required parameter validation
     Task: 11.3
     """
-    result = handle_get_combined_capacity({})
-    
+    result = handle_get_combined_capacity({})  # noqa: F841
+
     assert result["statusCode"] == 400
     body = json.loads(result["body"])
     assert "Missing required field: targetAccountId" in body["error"]
@@ -458,14 +458,14 @@ def test_capacity_query_drs_api_mocked():
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
+    from index import handle_get_combined_capacity  # noqa: F401
     # Mock target account
-    mock_table = MagicMock()
+    mock_table = MagicMock()  # noqa: F841
     mock_table.get_item.return_value = {
         "Item": {
             "accountId": "123456789012",
@@ -475,7 +475,7 @@ def test_capacity_query_drs_api_mocked():
             "stagingAccounts": []
         }
     }
-    
+
     # Mock STS client
     mock_sts = MagicMock()
     mock_sts.assume_role.return_value = {
@@ -486,7 +486,7 @@ def test_capacity_query_drs_api_mocked():
             "Expiration": "2026-01-30T12:00:00Z",
         }
     }
-    
+
     # Mock DRS client with realistic data
     mock_drs = MagicMock()
     mock_paginator = MagicMock()
@@ -515,35 +515,32 @@ def test_capacity_query_drs_api_mocked():
         }
     ]
     mock_drs.get_paginator.return_value = mock_paginator
-    
+
     with patch.object(index, "target_accounts_table", mock_table):
         with patch("boto3.client") as mock_boto_client:
             mock_boto_client.return_value = mock_sts
-            
+
             with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs
-                
-                result = handle_get_combined_capacity(
+
+                result = handle_get_combined_capacity(  # noqa: F841
                     {"targetAccountId": "123456789012"}
                 )
-                
+
                 # Should succeed
                 assert result["statusCode"] == 200
                 body = json.loads(result["body"])
-                
+
                 # Verify response structure (main validation)
                 assert "combined" in body
                 assert "accounts" in body
                 assert len(body["accounts"]) == 1
-                
+
                 # Verify account data
                 account = body["accounts"][0]
                 assert account["accountId"] == "123456789012"
                 assert account["accountName"] == "Test Account"
                 assert account["accountType"] == "target"
-                
+
                 # Verify STS assume_role was called (proves AWS API mocking works)
                 mock_sts.assume_role.assert_called()
-
-
-

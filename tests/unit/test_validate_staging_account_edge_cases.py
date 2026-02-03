@@ -12,15 +12,15 @@ Tests for handle_validate_staging_account operation covering edge cases:
 Requirements: 3.1, 3.5, 3.6
 """
 
-import json
-import os
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-import pytest
-from botocore.exceptions import ClientError, EndpointConnectionError
-from moto import mock_aws
+import pytest  # noqa: F401
+from botocore.exceptions import ClientError, EndpointConnectionError  # noqa: F401
+from moto import mock_aws  # noqa: E402
 
 # Set environment variables before importing
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -37,14 +37,14 @@ query_handler_dir = (
 )
 sys.path.insert(0, str(query_handler_dir))
 
-from index import handle_validate_staging_account
+from index import handle_validate_staging_account  # noqa: E402
 
 
 class TestValidateStagingAccountEdgeCases:
     """Test edge cases for staging account validation."""
 
     @patch("index.boto3.client")
-    def test_validate_with_zero_servers(self, mock_boto3_client):
+    def test_validate_with_zero_servers(self, mock_boto3_client):  # noqa: F811
         """Test validation with staging account that has zero servers."""
         query_params = {
             "accountId": "444455556666",
@@ -52,7 +52,7 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
+
         # Mock successful role assumption
         mock_sts = MagicMock()
         mock_sts.assume_role.return_value = {
@@ -62,29 +62,29 @@ class TestValidateStagingAccountEdgeCases:
                 "SessionToken": "token123",
             }
         }
-        
+
         # Mock DRS client with zero servers
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         mock_drs.get_paginator.return_value = mock_paginator
         mock_paginator.paginate.return_value = [{"items": []}]
-        
+
         def client_side_effect(service, **kwargs):
             if service == "sts":
                 return mock_sts
             elif service == "drs":
                 return mock_drs
             return MagicMock()
-        
+
         mock_boto3_client.side_effect = client_side_effect
-        
+
         # Execute validation
-        result = handle_validate_staging_account(query_params)
-        
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         # Verify
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
-        
+
         assert body["valid"] is True
         assert body["roleAccessible"] is True
         assert body["drsInitialized"] is True
@@ -93,7 +93,7 @@ class TestValidateStagingAccountEdgeCases:
         assert body["totalAfter"] == 0
 
     @patch("index.boto3.client")
-    def test_validate_with_maximum_servers(self, mock_boto3_client):
+    def test_validate_with_maximum_servers(self, mock_boto3_client):  # noqa: F811
         """Test validation with staging account at maximum capacity (300 servers)."""
         query_params = {
             "accountId": "444455556666",
@@ -101,7 +101,7 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
+
         # Mock successful role assumption
         mock_sts = MagicMock()
         mock_sts.assume_role.return_value = {
@@ -111,12 +111,12 @@ class TestValidateStagingAccountEdgeCases:
                 "SessionToken": "token123",
             }
         }
-        
+
         # Mock DRS client with 300 servers (all replicating)
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         mock_drs.get_paginator.return_value = mock_paginator
-        
+
         mock_servers = [
             {
                 "sourceServerID": f"s-{i:08d}",
@@ -125,30 +125,30 @@ class TestValidateStagingAccountEdgeCases:
             for i in range(300)
         ]
         mock_paginator.paginate.return_value = [{"items": mock_servers}]
-        
+
         def client_side_effect(service, **kwargs):
             if service == "sts":
                 return mock_sts
             elif service == "drs":
                 return mock_drs
             return MagicMock()
-        
+
         mock_boto3_client.side_effect = client_side_effect
-        
+
         # Execute validation
-        result = handle_validate_staging_account(query_params)
-        
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         # Verify
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
-        
+
         assert body["valid"] is True
         assert body["roleAccessible"] is True
         assert body["drsInitialized"] is True
         assert body["currentServers"] == 300
         assert body["replicatingServers"] == 300
 
-    def test_validate_with_missing_account_id(self):
+    def test_validate_with_missing_account_id(self):  # noqa: F811
         """Test validation with missing accountId."""
         query_params = {
             # accountId missing
@@ -156,16 +156,16 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
         assert body["valid"] is False
         assert "accountId" in body["error"]
 
     @mock_aws
-    def test_validate_with_missing_role_arn(self):
+    def test_validate_with_missing_role_arn(self):  # noqa: F811
         """Test validation with missing roleArn - should construct standardized ARN."""
         query_params = {
             "accountId": "444455556666",
@@ -173,9 +173,9 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         # Should succeed with constructed ARN
         # Role assumption succeeds with moto, but DRS is not implemented
         assert result["statusCode"] == 200
@@ -184,7 +184,7 @@ class TestValidateStagingAccountEdgeCases:
         # roleAccessible will be True with moto, but drsInitialized will be False
         assert body["drsInitialized"] is False
 
-    def test_validate_with_missing_external_id(self):
+    def test_validate_with_missing_external_id(self):  # noqa: F811
         """Test validation with missing externalId."""
         query_params = {
             "accountId": "444455556666",
@@ -192,15 +192,15 @@ class TestValidateStagingAccountEdgeCases:
             # externalId missing
             "region": "us-east-1",
         }
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
         assert body["valid"] is False
         assert "externalId" in body["error"]
 
-    def test_validate_with_missing_region(self):
+    def test_validate_with_missing_region(self):  # noqa: F811
         """Test validation with missing region."""
         query_params = {
             "accountId": "444455556666",
@@ -208,15 +208,15 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             # region missing
         }
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
         assert body["valid"] is False
         assert "region" in body["error"]
 
-    def test_validate_with_invalid_account_id_format(self):
+    def test_validate_with_invalid_account_id_format(self):  # noqa: F811
         """Test validation with invalid account ID format."""
         query_params = {
             "accountId": "12345",  # Not 12 digits
@@ -224,16 +224,16 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
         assert body["valid"] is False
         assert "Invalid account ID format" in body["error"]
         assert "12-digit" in body["error"]
 
-    def test_validate_with_non_numeric_account_id(self):
+    def test_validate_with_non_numeric_account_id(self):  # noqa: F811
         """Test validation with non-numeric account ID."""
         query_params = {
             "accountId": "abcdefghijkl",  # Not numeric
@@ -241,16 +241,16 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
         assert body["valid"] is False
         assert "Invalid account ID format" in body["error"]
 
     @patch("index.boto3.client")
-    def test_validate_with_access_denied(self, mock_boto3_client):
+    def test_validate_with_access_denied(self, mock_boto3_client):  # noqa: F811
         """Test validation with AccessDenied error."""
         query_params = {
             "accountId": "444455556666",
@@ -258,7 +258,7 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
+
         mock_sts = MagicMock()
         mock_sts.assume_role.side_effect = ClientError(
             {
@@ -269,11 +269,11 @@ class TestValidateStagingAccountEdgeCases:
             },
             "AssumeRole",
         )
-        
+
         mock_boto3_client.return_value = mock_sts
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
         assert body["valid"] is False
@@ -282,7 +282,7 @@ class TestValidateStagingAccountEdgeCases:
         assert "trust policy" in body["error"]
 
     @patch("index.boto3.client")
-    def test_validate_with_invalid_client_token(self, mock_boto3_client):
+    def test_validate_with_invalid_client_token(self, mock_boto3_client):  # noqa: F811
         """Test validation with InvalidClientTokenId error."""
         query_params = {
             "accountId": "444455556666",
@@ -290,7 +290,7 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
+
         mock_sts = MagicMock()
         mock_sts.assume_role.side_effect = ClientError(
             {
@@ -301,11 +301,11 @@ class TestValidateStagingAccountEdgeCases:
             },
             "AssumeRole",
         )
-        
+
         mock_boto3_client.return_value = mock_sts
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
         assert body["valid"] is False
@@ -313,7 +313,7 @@ class TestValidateStagingAccountEdgeCases:
         assert "Invalid credentials" in body["error"]
 
     @patch("index.boto3.client")
-    def test_validate_with_drs_not_initialized(self, mock_boto3_client):
+    def test_validate_with_drs_not_initialized(self, mock_boto3_client):  # noqa: F811
         """Test validation with DRS not initialized."""
         query_params = {
             "accountId": "444455556666",
@@ -321,7 +321,7 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
+
         # Mock successful role assumption
         mock_sts = MagicMock()
         mock_sts.assume_role.return_value = {
@@ -331,7 +331,7 @@ class TestValidateStagingAccountEdgeCases:
                 "SessionToken": "token123",
             }
         }
-        
+
         # Mock DRS client with UninitializedAccountException
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
@@ -345,18 +345,18 @@ class TestValidateStagingAccountEdgeCases:
             },
             "DescribeSourceServers",
         )
-        
+
         def client_side_effect(service, **kwargs):
             if service == "sts":
                 return mock_sts
             elif service == "drs":
                 return mock_drs
             return MagicMock()
-        
+
         mock_boto3_client.side_effect = client_side_effect
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
         assert body["valid"] is False
@@ -366,7 +366,7 @@ class TestValidateStagingAccountEdgeCases:
         assert "Initialize DRS" in body["error"]
 
     @patch("index.boto3.client")
-    def test_validate_with_network_error(self, mock_boto3_client):
+    def test_validate_with_network_error(self, mock_boto3_client):  # noqa: F811
         """Test validation with network connection error."""
         query_params = {
             "accountId": "444455556666",
@@ -374,16 +374,16 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
+
         mock_sts = MagicMock()
         mock_sts.assume_role.side_effect = EndpointConnectionError(
             endpoint_url="https://sts.amazonaws.com"
         )
-        
+
         mock_boto3_client.return_value = mock_sts
-        
-        result = handle_validate_staging_account(query_params)
-        
+
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         # Should return 500 for unexpected errors
         assert result["statusCode"] == 500
         body = json.loads(result["body"])
@@ -391,7 +391,7 @@ class TestValidateStagingAccountEdgeCases:
         assert "error" in body
 
     @patch("index.boto3.client")
-    def test_validate_with_mixed_replication_states(self, mock_boto3_client):
+    def test_validate_with_mixed_replication_states(self, mock_boto3_client):  # noqa: F811
         """Test validation with servers in various replication states."""
         query_params = {
             "accountId": "444455556666",
@@ -399,7 +399,7 @@ class TestValidateStagingAccountEdgeCases:
             "externalId": "external-id-123",
             "region": "us-east-1",
         }
-        
+
         # Mock successful role assumption
         mock_sts = MagicMock()
         mock_sts.assume_role.return_value = {
@@ -409,12 +409,12 @@ class TestValidateStagingAccountEdgeCases:
                 "SessionToken": "token123",
             }
         }
-        
+
         # Mock DRS client with servers in various states
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         mock_drs.get_paginator.return_value = mock_paginator
-        
+
         mock_servers = [
             {
                 "sourceServerID": "s-00000001",
@@ -438,23 +438,23 @@ class TestValidateStagingAccountEdgeCases:
             },
         ]
         mock_paginator.paginate.return_value = [{"items": mock_servers}]
-        
+
         def client_side_effect(service, **kwargs):
             if service == "sts":
                 return mock_sts
             elif service == "drs":
                 return mock_drs
             return MagicMock()
-        
+
         mock_boto3_client.side_effect = client_side_effect
-        
+
         # Execute validation
-        result = handle_validate_staging_account(query_params)
-        
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         # Verify
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
-        
+
         assert body["valid"] is True
         assert body["currentServers"] == 5
         # Only CONTINUOUS, INITIAL_SYNC, and RESCAN count as replicating

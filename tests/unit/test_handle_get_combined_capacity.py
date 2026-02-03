@@ -7,14 +7,14 @@ and edge cases.
 **Validates: Requirements 4.1, 9.5**
 """
 
-import json
-import os
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-import pytest
-from moto import mock_aws
+import pytest  # noqa: F401
+from moto import mock_aws  # noqa: E402
 
 # Set environment variables BEFORE importing index
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -28,7 +28,7 @@ if "index" in sys.modules:
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(lambda_dir))
 
-from index import handle_get_combined_capacity
+from index import handle_get_combined_capacity  # noqa: E402
 
 
 @mock_aws
@@ -43,33 +43,33 @@ def test_combined_capacity_no_staging_accounts():
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
-    
+    from index import handle_get_combined_capacity  # noqa: F401
+
     # Create mock DynamoDB table using moto
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    
+
     # Delete existing table if it exists
     try:
-        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table = dynamodb.Table("test-target-accounts-table")  # noqa: F841
         existing_table.delete()
         existing_table.wait_until_not_exists()
-    except:
+    except Exception:  # noqa: E722
         pass
-    
+
     # Create fresh table
-    table = dynamodb.create_table(
+    table = dynamodb.create_table(  # noqa: F841
         TableName="test-target-accounts-table",
         KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
         AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
     )
-    
-    target_account_id = "111122223333"
+
+    target_account_id = "111122223333"  # noqa: F841
 
     # Target account with NO staging accounts
     target_account = {
@@ -79,7 +79,7 @@ def test_combined_capacity_no_staging_accounts():
         "externalId": f"test-external-id-{target_account_id}",
         "stagingAccounts": [],  # Empty list
     }
-    
+
     # Put the target account in the table
     table.put_item(Item=target_account)
 
@@ -107,7 +107,7 @@ def test_combined_capacity_no_staging_accounts():
 
     with patch.object(index, "target_accounts_table", table), \
          patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts):
-        result = handle_get_combined_capacity(
+        result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
         )
 
@@ -143,32 +143,32 @@ def test_combined_capacity_multiple_staging_accounts():
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
-    
+    from index import handle_get_combined_capacity  # noqa: F401
+
     # Create mock DynamoDB table using moto
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    
+
     # Delete existing table if it exists
     try:
-        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table = dynamodb.Table("test-target-accounts-table")  # noqa: F841
         existing_table.delete()
         existing_table.wait_until_not_exists()
-    except:
+    except Exception:  # noqa: E722
         pass
-    
+
     # Create fresh table
-    table = dynamodb.create_table(
+    table = dynamodb.create_table(  # noqa: F841
         TableName="test-target-accounts-table",
         KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
         AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
     )
-    target_account_id = "111122223333"
+    target_account_id = "111122223333"  # noqa: F841
 
     # Target account with 3 staging accounts
     target_account = {
@@ -274,10 +274,10 @@ def test_combined_capacity_multiple_staging_accounts():
     with (
         patch.object(index, "target_accounts_table", table),
         patch.object(index, "query_all_accounts_parallel",
-            side_effect=mock_query_all_accounts,
-        ),
+                     side_effect=mock_query_all_accounts,
+                     ),
     ):
-        result = handle_get_combined_capacity(
+        result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
         )
 
@@ -329,32 +329,32 @@ def test_combined_capacity_one_staging_account_inaccessible():
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
-    
+    from index import handle_get_combined_capacity  # noqa: F401
+
     # Create mock DynamoDB table using moto
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    
+
     # Delete existing table if it exists
     try:
-        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table = dynamodb.Table("test-target-accounts-table")  # noqa: F841
         existing_table.delete()
         existing_table.wait_until_not_exists()
-    except:
+    except Exception:  # noqa: E722
         pass
-    
+
     # Create fresh table
-    table = dynamodb.create_table(
+    table = dynamodb.create_table(  # noqa: F841
         TableName="test-target-accounts-table",
         KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
         AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
     )
-    target_account_id = "111122223333"
+    target_account_id = "111122223333"  # noqa: F841
 
     # Target account with 2 staging accounts
     target_account = {
@@ -431,10 +431,10 @@ def test_combined_capacity_one_staging_account_inaccessible():
     with (
         patch.object(index, "target_accounts_table", table),
         patch.object(index, "query_all_accounts_parallel",
-            side_effect=mock_query_all_accounts,
-        ),
+                     side_effect=mock_query_all_accounts,
+                     ),
     ):
-        result = handle_get_combined_capacity(
+        result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
         )
 
@@ -470,32 +470,32 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
-    
+    from index import handle_get_combined_capacity  # noqa: F401
+
     # Create mock DynamoDB table using moto
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    
+
     # Delete existing table if it exists
     try:
-        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table = dynamodb.Table("test-target-accounts-table")  # noqa: F841
         existing_table.delete()
         existing_table.wait_until_not_exists()
-    except:
+    except Exception:  # noqa: E722
         pass
-    
+
     # Create fresh table
-    table = dynamodb.create_table(
+    table = dynamodb.create_table(  # noqa: F841
         TableName="test-target-accounts-table",
         KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
         AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
     )
-    target_account_id = "111122223333"
+    target_account_id = "111122223333"  # noqa: F841
 
     # Target account with 2 staging accounts
     target_account = {
@@ -568,10 +568,10 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
     with (
         patch.object(index, "target_accounts_table", table),
         patch.object(index, "query_all_accounts_parallel",
-            side_effect=mock_query_all_accounts,
-        ),
+                     side_effect=mock_query_all_accounts,
+                     ),
     ):
-        result = handle_get_combined_capacity(
+        result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
         )
 
@@ -605,7 +605,7 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
 @mock_aws
 def test_combined_capacity_missing_target_account_id():
     """Test error handling when targetAccountId is missing."""
-    result = handle_get_combined_capacity({})
+    result = handle_get_combined_capacity({})  # noqa: F841
 
     assert result["statusCode"] == 400
     body = json.loads(result["body"])
@@ -616,7 +616,7 @@ def test_combined_capacity_missing_target_account_id():
 @mock_aws
 def test_combined_capacity_invalid_account_id_format():
     """Test error handling when account ID format is invalid."""
-    result = handle_get_combined_capacity({"targetAccountId": "invalid-id"})
+    result = handle_get_combined_capacity({"targetAccountId": "invalid-id"})  # noqa: F841
 
     assert result["statusCode"] == 400
     body = json.loads(result["body"])
@@ -629,37 +629,37 @@ def test_combined_capacity_target_account_not_found():
     """Test error handling when target account doesn't exist in DynamoDB."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
-    
+    from index import handle_get_combined_capacity  # noqa: F401
+
     # Create mock DynamoDB table using moto
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    
+
     # Delete existing table if it exists
     try:
-        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table = dynamodb.Table("test-target-accounts-table")  # noqa: F841
         existing_table.delete()
         existing_table.wait_until_not_exists()
-    except:
+    except Exception:  # noqa: E722
         pass
-    
+
     # Create fresh table
-    table = dynamodb.create_table(
+    table = dynamodb.create_table(  # noqa: F841
         TableName="test-target-accounts-table",
         KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
         AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
     )
-    target_account_id = "999999999999"
+    target_account_id = "999999999999"  # noqa: F841
 
     # Don't put any item in the table - simulating account not found
 
     with patch.object(index, "target_accounts_table", table):
-        result = handle_get_combined_capacity(
+        result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
         )
 

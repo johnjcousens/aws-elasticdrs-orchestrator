@@ -13,17 +13,17 @@ This property test ensures that all CLI operations return well-formed,
 consistent responses that can be reliably parsed and handled by CLI scripts.
 """
 
-import json
-import os
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-import boto3
-import pytest
-from botocore.exceptions import ClientError
-from hypothesis import given, settings, strategies as st, HealthCheck
-from moto import mock_aws
+import boto3  # noqa: F401
+import pytest  # noqa: F401
+from botocore.exceptions import ClientError  # noqa: F401
+from hypothesis import given, settings, strategies as st, HealthCheck  # noqa: E402
+from moto import mock_aws  # noqa: E402
 
 # Set environment variables before importing handlers
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -37,7 +37,7 @@ sys.path.insert(
 )
 
 # Import data management handler
-import importlib.util
+import importlib.util  # noqa: F401
 data_mgmt_path = Path(__file__).parent.parent.parent / "lambda" / "data-management-handler" / "index.py"
 spec_data = importlib.util.spec_from_file_location("data_mgmt_handler", data_mgmt_path)
 data_mgmt_handler = importlib.util.module_from_spec(spec_data)
@@ -96,17 +96,17 @@ def validate_response_structure(response: dict, operation_name: str) -> None:
     assert isinstance(response, dict), (
         f"{operation_name}: Response must be a dictionary"
     )
-    
+
     # Must have statusCode (from Lambda response wrapper)
     assert "statusCode" in response, (
         f"{operation_name}: Response must have statusCode"
     )
-    
+
     # Must have body
     assert "body" in response, (
         f"{operation_name}: Response must have body"
     )
-    
+
     # Body must be valid JSON string
     try:
         body = json.loads(response["body"])
@@ -114,28 +114,28 @@ def validate_response_structure(response: dict, operation_name: str) -> None:
         pytest.fail(
             f"{operation_name}: Response body must be valid JSON string: {e}"
         )
-    
+
     # Body must be a dictionary
     assert isinstance(body, dict), (
         f"{operation_name}: Response body must be a dictionary"
     )
-    
+
     # Must have either 'success', 'valid', or 'error' field
     has_success = "success" in body
     has_valid = "valid" in body
     has_error = "error" in body
-    
+
     assert has_success or has_valid or has_error, (
         f"{operation_name}: Response must have either 'success', 'valid', or 'error' field. "
         f"Got: {list(body.keys())}"
     )
-    
+
     # Validate success field if present
     if has_success:
         assert isinstance(body["success"], bool), (
             f"{operation_name}: 'success' field must be boolean, got {type(body['success'])}"
         )
-        
+
         # If success=True, should have relevant data
         if body["success"]:
             # Should have at least one data field beyond 'success'
@@ -143,13 +143,13 @@ def validate_response_structure(response: dict, operation_name: str) -> None:
             assert len(data_fields) > 0, (
                 f"{operation_name}: Successful response should contain data fields beyond 'success'"
             )
-    
+
     # Validate valid field if present (for validate_staging_account)
     if has_valid:
         assert isinstance(body["valid"], bool), (
             f"{operation_name}: 'valid' field must be boolean, got {type(body['valid'])}"
         )
-        
+
         # If valid=True, should have relevant data
         if body["valid"]:
             # Should have at least one data field beyond 'valid'
@@ -157,7 +157,7 @@ def validate_response_structure(response: dict, operation_name: str) -> None:
             assert len(data_fields) > 0, (
                 f"{operation_name}: Successful validation should contain data fields beyond 'valid'"
             )
-    
+
     # Validate error field if present
     if has_error:
         assert isinstance(body["error"], str), (
@@ -173,9 +173,9 @@ def dynamodb_setup():
     """Set up mock DynamoDB table for testing"""
     with mock_aws():
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        
+
         # Create Target Accounts table
-        table = dynamodb.create_table(
+        table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[
@@ -183,7 +183,7 @@ def dynamodb_setup():
             ],
             BillingMode="PAY_PER_REQUEST",
         )
-        
+
         yield table
 
 
@@ -211,7 +211,7 @@ def test_property_add_staging_account_response_structure(
     containing either success=true with stagingAccounts data, or an error field.
     """
     # Setup: Create target account
-    table = dynamodb_setup
+    table = dynamodb_setup  # noqa: F841
     table.put_item(
         Item={
             "accountId": target_account_id,
@@ -221,21 +221,21 @@ def test_property_add_staging_account_response_structure(
             "stagingAccounts": [],
         }
     )
-    
+
     # Execute: Add staging account
     body = {
         "targetAccountId": target_account_id,
         "stagingAccount": staging_account,
     }
-    
+
     response = data_mgmt_add_staging_account(body)
-    
+
     # Validate response structure
     validate_response_structure(response, "add_staging_account")
-    
+
     # Parse body
     response_body = json.loads(response["body"])
-    
+
     # For successful add, verify specific fields
     if response_body.get("success"):
         assert "stagingAccounts" in response_body, (
@@ -276,10 +276,10 @@ def test_property_remove_staging_account_response_structure(
     # Ensure removal_index is within bounds
     if removal_index >= len(staging_accounts):
         removal_index = len(staging_accounts) - 1
-    
+
     # Setup: Create target account with staging accounts
-    table = dynamodb_setup
-    
+    table = dynamodb_setup  # noqa: F841
+
     # Convert staging accounts to DynamoDB format
     staging_accounts_db = []
     for sa in staging_accounts:
@@ -291,7 +291,7 @@ def test_property_remove_staging_account_response_structure(
             "addedAt": "2024-01-01T00:00:00Z",
             "addedBy": "test",
         })
-    
+
     table.put_item(
         Item={
             "accountId": target_account_id,
@@ -301,22 +301,22 @@ def test_property_remove_staging_account_response_structure(
             "stagingAccounts": staging_accounts_db,
         }
     )
-    
+
     # Execute: Remove staging account
     staging_to_remove = staging_accounts[removal_index]
     body = {
         "targetAccountId": target_account_id,
         "stagingAccountId": staging_to_remove["accountId"],
     }
-    
+
     response = data_mgmt_remove_staging_account(body)
-    
+
     # Validate response structure
     validate_response_structure(response, "remove_staging_account")
-    
+
     # Parse body
     response_body = json.loads(response["body"])
-    
+
     # For successful removal, verify specific fields
     if response_body.get("success"):
         assert "stagingAccounts" in response_body, (
@@ -355,7 +355,7 @@ def test_property_validate_staging_account_response_structure(
         "externalId": external_id,
         "region": region,
     }
-    
+
     with patch.object(query_handler, "boto3") as mock_boto3:
         if validation_succeeds:
             # Mock successful validation
@@ -367,11 +367,11 @@ def test_property_validate_staging_account_response_structure(
                     "SessionToken": "token123",
                 }
             }
-            
+
             mock_drs = MagicMock()
             mock_paginator = MagicMock()
             mock_drs.get_paginator.return_value = mock_paginator
-            
+
             # Generate mock servers
             mock_servers = [
                 {
@@ -383,14 +383,14 @@ def test_property_validate_staging_account_response_structure(
                 for i in range(server_count)
             ]
             mock_paginator.paginate.return_value = [{"items": mock_servers}]
-            
+
             def client_side_effect(service, **kwargs):
                 if service == "sts":
                     return mock_sts
                 elif service == "drs":
                     return mock_drs
                 return MagicMock()
-            
+
             mock_boto3.client.side_effect = client_side_effect
         else:
             # Mock failed validation (role assumption failure)
@@ -405,16 +405,16 @@ def test_property_validate_staging_account_response_structure(
                 "AssumeRole",
             )
             mock_boto3.client.return_value = mock_sts
-        
+
         # Execute validation
         response = handle_validate_staging_account(query_params)
-        
+
         # Validate response structure
         validate_response_structure(response, "validate_staging_account")
-        
+
         # Parse body
         response_body = json.loads(response["body"])
-        
+
         # Validate specific fields for validation operation
         assert "valid" in response_body, (
             "validate_staging_account must include 'valid' field"
@@ -422,14 +422,14 @@ def test_property_validate_staging_account_response_structure(
         assert isinstance(response_body["valid"], bool), (
             "'valid' field must be boolean"
         )
-        
+
         assert "roleAccessible" in response_body, (
             "validate_staging_account must include 'roleAccessible' field"
         )
         assert isinstance(response_body["roleAccessible"], bool), (
             "'roleAccessible' field must be boolean"
         )
-        
+
         # If validation succeeded, check for additional fields
         if response_body["valid"]:
             assert "drsInitialized" in response_body, (
@@ -469,8 +469,8 @@ def test_property_error_responses_have_descriptive_messages(
     For any CLI operation that fails validation, the error message should be
     descriptive and help the user understand what went wrong.
     """
-    table = dynamodb_setup
-    
+    table = dynamodb_setup  # noqa: F841
+
     # Setup target account
     table.put_item(
         Item={
@@ -481,7 +481,7 @@ def test_property_error_responses_have_descriptive_messages(
             "stagingAccounts": [],
         }
     )
-    
+
     # Create invalid request based on test case
     if invalid_input == "missing_target_id":
         body = {
@@ -514,27 +514,27 @@ def test_property_error_responses_have_descriptive_messages(
                 "accountName": "Test",
             }
         }
-    
+
     # Execute operation
     response = data_mgmt_add_staging_account(body)
-    
+
     # Validate response structure
     validate_response_structure(response, "add_staging_account_error")
-    
+
     # Parse body
     response_body = json.loads(response["body"])
-    
+
     # Should have error field
     assert "error" in response_body, (
         "Invalid input should result in error field"
     )
-    
+
     # Error field should be a string
     error_code = response_body["error"]
     assert isinstance(error_code, str), (
         f"Error field must be string, got {type(error_code)}"
     )
-    
+
     # Should also have a message field with descriptive text
     if "message" in response_body:
         error_msg = response_body["message"]
@@ -544,7 +544,7 @@ def test_property_error_responses_have_descriptive_messages(
         assert len(error_msg) >= 10, (
             f"Error message should be descriptive, got: '{error_msg}'"
         )
-        
+
         # Error message should contain relevant keywords
         if invalid_input == "missing_target_id":
             assert "targetAccountId" in error_msg or "required" in error_msg.lower()
@@ -568,21 +568,21 @@ def test_response_structure_consistency_across_operations():
     """
     # This test verifies that all operations use the same response wrapper
     # and follow the same success/error pattern
-    
+
     # Test that all operations return the same top-level structure
     operations = [
         "add_staging_account",
         "remove_staging_account",
         "validate_staging_account",
     ]
-    
+
     for operation in operations:
         # Each operation should return a dict with statusCode and body
         # The body should be JSON with either success or error
         # This is verified by the validate_response_structure function
         # which is called in all the property tests above
         pass
-    
+
     # This test serves as documentation that all operations follow
     # the same pattern, which is verified by the other property tests
 

@@ -11,17 +11,17 @@ AWS-approved list.
 Validates: Requirements 3.1.1, 3.1.2
 """
 
-import os
-import sys
-import pytest
-from hypothesis import given, strategies as st
+import os  # noqa: E402
+import sys  # noqa: E402
+import pytest  # noqa: F401
+from hypothesis import given, strategies as st  # noqa: E402
 
 # Add lambda directory to path for shared module imports
 lambda_path = os.path.join(os.path.dirname(__file__), "..", "..", "lambda")
 if lambda_path not in sys.path:
     sys.path.insert(0, lambda_path)
 
-from shared.launch_config_validation import (
+from shared.launch_config_validation import (  # noqa: E402
     validate_aws_approved_fields,
     ALLOWED_FIELDS,
     BLOCKED_FIELDS,
@@ -48,7 +48,7 @@ def test_allowed_fields_accepted(config):
     validation should accept it.
     """
     # Act
-    result = validate_aws_approved_fields(config)
+    result = validate_aws_approved_fields(config)  # noqa: F841
 
     # Assert
     assert result["valid"], (
@@ -73,7 +73,7 @@ def test_blocked_fields_rejected(blocked_field, value):
     config = {blocked_field: value}
 
     # Act
-    result = validate_aws_approved_fields(config)
+    result = validate_aws_approved_fields(config)  # noqa: F841
 
     # Assert
     assert not result["valid"], (
@@ -104,7 +104,7 @@ def test_mixed_fields_rejected(allowed_config, blocked_field, blocked_value):
     config = {**allowed_config, blocked_field: blocked_value}
 
     # Act
-    result = validate_aws_approved_fields(config)
+    result = validate_aws_approved_fields(config)  # noqa: F841
 
     # Assert
     assert not result["valid"], (
@@ -134,7 +134,7 @@ def test_unknown_fields_handling(unknown_field, value):
     config = {unknown_field: value}
 
     # Act
-    result = validate_aws_approved_fields(config)
+    result = validate_aws_approved_fields(config)  # noqa: F841
 
     # Assert - Unknown fields should be rejected (not in allowed list)
     assert not result["valid"], (

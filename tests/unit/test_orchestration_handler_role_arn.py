@@ -7,12 +7,12 @@ orchestration step functions handler.
 **Validates: Requirements 1.2, 1.3, 2.2, 2.3**
 """
 
-import json
-import os
-import sys
-from unittest.mock import MagicMock, patch
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-import pytest
+import pytest  # noqa: F401
 
 # Add lambda directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../lambda/shared'))
@@ -31,10 +31,10 @@ def mock_boto3_client():
                 "SessionToken": "token123",
             }
         }
-        
+
         # Mock DRS client
         mock_drs = MagicMock()
-        
+
         # Return appropriate mock based on service name
         def client_factory(service, **kwargs):
             if service == "sts":
@@ -42,7 +42,7 @@ def mock_boto3_client():
             elif service == "drs":
                 return mock_drs
             return MagicMock()
-        
+
         mock_boto3.client.side_effect = client_factory
         yield {"boto3": mock_boto3, "sts": mock_sts, "drs": mock_drs}
 
@@ -55,21 +55,21 @@ def test_role_assumption_with_explicit_role_arn(mock_boto3_client):
     """
     # Import after mocking
     from cross_account import create_drs_client
-    
+
     account_context = {
         "accountId": "123456789012",
         "assumeRoleName": "CustomRole",
         "isCurrentAccount": False,
     }
-    
+
     # Create client
-    client = create_drs_client("us-east-1", account_context)
-    
+    client = create_drs_client("us-east-1", account_context)  # noqa: F841
+
     # Verify STS assume_role was called with constructed ARN
     mock_sts = mock_boto3_client["sts"]
     mock_sts.assume_role.assert_called_once()
     call_args = mock_sts.assume_role.call_args
-    
+
     assert call_args[1]["RoleArn"] == "arn:aws:iam::123456789012:role/CustomRole"
     assert "RoleSessionName" in call_args[1]
 
@@ -82,21 +82,21 @@ def test_role_assumption_with_constructed_role_arn(mock_boto3_client):
     """
     # Import after mocking
     from cross_account import create_drs_client
-    
+
     account_context = {
         "accountId": "987654321098",
         "assumeRoleName": "DRSOrchestrationRole",
         "isCurrentAccount": False,
     }
-    
+
     # Create client
-    client = create_drs_client("us-west-2", account_context)
-    
+    client = create_drs_client("us-west-2", account_context)  # noqa: F841
+
     # Verify STS assume_role was called with constructed ARN
     mock_sts = mock_boto3_client["sts"]
     mock_sts.assume_role.assert_called_once()
     call_args = mock_sts.assume_role.call_args
-    
+
     expected_arn = "arn:aws:iam::987654321098:role/DRSOrchestrationRole"
     assert call_args[1]["RoleArn"] == expected_arn
 
@@ -109,13 +109,13 @@ def test_role_assumption_failure_handling(mock_boto3_client):
     """
     # Import after mocking
     from cross_account import create_drs_client
-    
+
     account_context = {
         "accountId": "111111111111",
         "isCurrentAccount": False,
         # Missing assumeRoleName
     }
-    
+
     # Should raise ValueError about missing AssumeRoleName
     with pytest.raises(ValueError, match="AssumeRoleName"):
         create_drs_client("us-east-1", account_context)
@@ -129,15 +129,15 @@ def test_current_account_no_role_assumption(mock_boto3_client):
     """
     # Import after mocking
     from cross_account import create_drs_client
-    
+
     account_context = {
         "accountId": "123456789012",
         "isCurrentAccount": True,
     }
-    
+
     # Create client
-    client = create_drs_client("us-east-1", account_context)
-    
+    client = create_drs_client("us-east-1", account_context)  # noqa: F841
+
     # Verify STS assume_role was NOT called
     mock_sts = mock_boto3_client["sts"]
     mock_sts.assume_role.assert_not_called()
@@ -151,10 +151,10 @@ def test_no_account_context_uses_default_credentials(mock_boto3_client):
     """
     # Import after mocking
     from cross_account import create_drs_client
-    
+
     # Create client without account context
-    client = create_drs_client("us-east-1")
-    
+    client = create_drs_client("us-east-1")  # noqa: F841
+
     # Verify STS assume_role was NOT called
     mock_sts = mock_boto3_client["sts"]
     mock_sts.assume_role.assert_not_called()
@@ -168,12 +168,12 @@ def test_empty_account_id_uses_default_credentials(mock_boto3_client):
     """
     # Import after mocking
     from cross_account import create_drs_client
-    
+
     account_context = {
         "accountId": "",
         "isCurrentAccount": False,
     }
-    
+
     # Should raise ValueError about missing AccountId
     with pytest.raises(ValueError, match="AccountId"):
         create_drs_client("us-east-1", account_context)
@@ -187,13 +187,13 @@ def test_constructed_arn_follows_pattern():
     """
     # Import construct_role_arn directly
     from account_utils import construct_role_arn
-    
-    account_id = "555555555555"
+
+    account_id = "555555555555"  # noqa: F841
     arn = construct_role_arn(account_id)
-    
+
     expected = "arn:aws:iam::555555555555:role/DRSOrchestrationRole"
     assert arn == expected
-    
+
     # Verify pattern components
     assert arn.startswith("arn:aws:iam::")
     assert account_id in arn
@@ -208,19 +208,19 @@ def test_invalid_account_id_raises_error():
     """
     # Import construct_role_arn directly
     from account_utils import construct_role_arn
-    
+
     # Too short
     with pytest.raises(ValueError, match="Invalid account ID"):
         construct_role_arn("12345")
-    
+
     # Too long
     with pytest.raises(ValueError, match="Invalid account ID"):
         construct_role_arn("1234567890123")
-    
+
     # Non-numeric
     with pytest.raises(ValueError, match="Invalid account ID"):
         construct_role_arn("12345678901a")
-    
+
     # Empty
     with pytest.raises(ValueError, match="Invalid account ID"):
         construct_role_arn("")

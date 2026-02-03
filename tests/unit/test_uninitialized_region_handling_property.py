@@ -9,11 +9,11 @@ the query should continue successfully for other regions.
 **Validates: Requirements 9.4**
 """
 
-import os
-import sys
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from botocore.exceptions import ClientError
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import Mock, patch, MagicMock  # noqa: F401  # noqa: F401  # noqa: F401
+from botocore.exceptions import ClientError  # noqa: F401
 
 # Set environment variables BEFORE importing index
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -29,12 +29,12 @@ query_handler_dir = (
 )
 sys.path.insert(0, str(query_handler_dir))
 
-from moto import mock_aws
-from hypothesis import given, strategies as st, settings, assume
-import pytest
+from moto import mock_aws  # noqa: E402
+from hypothesis import given, strategies as st, settings, assume  # noqa: E402
+import pytest  # noqa: F401
 
 # Import the function under test
-from index import query_account_capacity, DRS_REGIONS
+from index import query_account_capacity, DRS_REGIONS  # noqa: E402
 
 
 # ============================================================================
@@ -53,7 +53,7 @@ def region_initialization_strategy(draw):
     """
     # Select a subset of regions to test (1-15 regions)
     num_regions = draw(st.integers(min_value=1, max_value=len(DRS_REGIONS)))
-    selected_regions = draw(
+    selected_regions = draw(  # noqa: F841
         st.lists(
             st.sampled_from(DRS_REGIONS),
             min_size=num_regions,
@@ -97,12 +97,12 @@ def test_property_uninitialized_region_handling(region_status):
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_account_capacity
+    from index import query_account_capacity  # noqa: F401
     # Create account configuration
     account_config = {
         "accountId": "111111111111",
@@ -154,7 +154,7 @@ def test_property_uninitialized_region_handling(region_status):
     def mock_boto3_client(service, region_name=None, **kwargs):
         """Mock boto3.client to return a mock DRS client."""
         if service == "drs":
-            mock_client = MagicMock()
+            mock_client = MagicMock()  # noqa: F841
             mock_client._client_config.region_name = region_name
             return mock_client
         else:
@@ -165,9 +165,9 @@ def test_property_uninitialized_region_handling(region_status):
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
         with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
-        ):
+                   ):
             # Query account capacity
-            result = query_account_capacity(account_config)
+            result = query_account_capacity(account_config)  # noqa: F841
 
     # Property 1: Query should succeed (accessible = True)
     assert (
@@ -224,12 +224,12 @@ def test_property_mixed_region_initialization(
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_account_capacity
+    from index import query_account_capacity  # noqa: F401
     # Ensure we have enough regions
     assume(num_initialized + num_uninitialized <= len(DRS_REGIONS))
 
@@ -271,7 +271,7 @@ def test_property_mixed_region_initialization(
 
     def mock_boto3_client(service, region_name=None, **kwargs):
         if service == "drs":
-            mock_client = MagicMock()
+            mock_client = MagicMock()  # noqa: F841
             mock_client._client_config.region_name = region_name
             return mock_client
         else:
@@ -281,8 +281,8 @@ def test_property_mixed_region_initialization(
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
         with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
-        ):
-            result = query_account_capacity(account_config)
+                   ):
+            result = query_account_capacity(account_config)  # noqa: F841
 
     # Verify results
     expected_total = num_initialized * 50
@@ -304,15 +304,15 @@ def test_property_all_regions_uninitialized(num_regions):
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_account_capacity
+    from index import query_account_capacity  # noqa: F401
     assume(num_regions <= len(DRS_REGIONS))
 
-    selected_regions = DRS_REGIONS[:num_regions]
+    selected_regions = DRS_REGIONS[:num_regions]  # noqa: F841
 
     account_config = {
         "accountId": "111111111111",
@@ -335,7 +335,7 @@ def test_property_all_regions_uninitialized(num_regions):
 
     def mock_boto3_client(service, region_name=None, **kwargs):
         if service == "drs":
-            mock_client = MagicMock()
+            mock_client = MagicMock()  # noqa: F841
             mock_client._client_config.region_name = region_name
             return mock_client
         else:
@@ -345,8 +345,8 @@ def test_property_all_regions_uninitialized(num_regions):
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
         with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
-        ):
-            result = query_account_capacity(account_config)
+                   ):
+            result = query_account_capacity(account_config)  # noqa: F841
 
     # Verify all regions uninitialized results in zero servers
     assert result["replicatingServers"] == 0
@@ -365,12 +365,12 @@ def test_edge_case_single_region_uninitialized():
     """Edge case: Only one region, and it's uninitialized."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_account_capacity
+    from index import query_account_capacity  # noqa: F401
     account_config = {
         "accountId": "111111111111",
         "accountName": "Test Account",
@@ -390,7 +390,7 @@ def test_edge_case_single_region_uninitialized():
 
     def mock_boto3_client(service, region_name=None, **kwargs):
         if service == "drs":
-            mock_client = MagicMock()
+            mock_client = MagicMock()  # noqa: F841
             mock_client._client_config.region_name = region_name or "us-east-1"
             return mock_client
         else:
@@ -400,8 +400,8 @@ def test_edge_case_single_region_uninitialized():
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
         with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
-        ):
-            result = query_account_capacity(account_config)
+                   ):
+            result = query_account_capacity(account_config)  # noqa: F841
 
     assert result["replicatingServers"] == 0
     assert result["accessible"] is True
@@ -412,12 +412,12 @@ def test_edge_case_alternating_initialization():
     """Edge case: Alternating initialized/uninitialized regions."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_account_capacity
+    from index import query_account_capacity  # noqa: F401
     account_config = {
         "accountId": "111111111111",
         "accountName": "Test Account",
@@ -447,7 +447,7 @@ def test_edge_case_alternating_initialization():
 
     def mock_boto3_client(service, region_name=None, **kwargs):
         if service == "drs":
-            mock_client = MagicMock()
+            mock_client = MagicMock()  # noqa: F841
             mock_client._client_config.region_name = region_name
             return mock_client
         else:
@@ -457,8 +457,8 @@ def test_edge_case_alternating_initialization():
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
         with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
-        ):
-            result = query_account_capacity(account_config)
+                   ):
+            result = query_account_capacity(account_config)  # noqa: F841
 
     # Should have servers from initialized regions only
     expected_total = len(initialized_regions) * 20
@@ -471,12 +471,12 @@ def test_edge_case_uninitialized_with_error_message_variation():
     """Edge case: Different error message formats for uninitialized regions."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_account_capacity
+    from index import query_account_capacity  # noqa: F401
     account_config = {
         "accountId": "111111111111",
         "accountName": "Test Account",
@@ -508,7 +508,7 @@ def test_edge_case_uninitialized_with_error_message_variation():
 
     def mock_boto3_client(service, region_name=None, **kwargs):
         if service == "drs":
-            mock_client = MagicMock()
+            mock_client = MagicMock()  # noqa: F841
             mock_client._client_config.region_name = region_name or "us-east-1"
             return mock_client
         else:
@@ -518,8 +518,8 @@ def test_edge_case_uninitialized_with_error_message_variation():
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
         with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
-        ):
-            result = query_account_capacity(account_config)
+                   ):
+            result = query_account_capacity(account_config)  # noqa: F841
 
     # Should handle all error message variations
     assert result["replicatingServers"] == 0

@@ -11,12 +11,12 @@ Validates:
 - Recovery Plan: Warnings for concurrent jobs and conflicts
 """
 
-import json
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import json  # noqa: F401
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-import pytest
+import pytest  # noqa: F401
 
 # Add lambda directory to path - data-management-handler FIRST
 lambda_dir = Path(__file__).parent.parent.parent / "lambda"
@@ -32,7 +32,7 @@ sys.path.insert(0, str(data_mgmt_dir))
 sys.path.insert(1, str(shared_dir))
 
 # Import the data management handler
-import index
+import index  # noqa: E402
 
 # Get the functions we need
 create_protection_group = index.create_protection_group
@@ -54,7 +54,7 @@ def mock_dynamodb_tables():
         # Mock scan to return empty results (no existing PGs/RPs)
         pg_table.scan.return_value = {"Items": []}
         rp_table.scan.return_value = {"Items": []}
-        
+
         # Also patch the shared module's table reference
         with patch("shared.conflict_detection.protection_groups_table", pg_table):
             yield {"protection_groups": pg_table, "recovery_plans": rp_table}
@@ -63,7 +63,7 @@ def mock_dynamodb_tables():
 @pytest.fixture
 def mock_drs_client():
     """Mock DRS client"""
-    client = MagicMock()
+    client = MagicMock()  # noqa: F841
     return client
 
 
@@ -93,7 +93,7 @@ def test_pg_creation_with_100_servers_succeeds(
         index, "check_server_conflicts_for_create", return_value=[]
     ):
         mock_boto3.client.return_value = mock_drs_client
-        result = create_protection_group(body)
+        result = create_protection_group(body)  # noqa: F841
 
     assert result["statusCode"] == 201
     body_data = json.loads(result["body"])
@@ -121,7 +121,7 @@ def test_pg_creation_with_101_servers_fails(
         index, "check_server_conflicts_for_create", return_value=[]
     ):
         mock_boto3.client.return_value = mock_drs_client
-        result = create_protection_group(body)
+        result = create_protection_group(body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -151,7 +151,7 @@ def test_pg_creation_with_150_servers_fails(
         index, "check_server_conflicts_for_create", return_value=[]
     ):
         mock_boto3.client.return_value = mock_drs_client
-        result = create_protection_group(body)
+        result = create_protection_group(body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -183,7 +183,7 @@ def test_pg_creation_tag_based_100_servers_succeeds(
     with patch.object(
         index, "check_tag_conflicts_for_create", return_value=[]
     ), patch.object(index, "query_drs_servers_by_tags", return_value=mock_servers):
-        result = create_protection_group(body)
+        result = create_protection_group(body)  # noqa: F841
 
     assert result["statusCode"] == 201
 
@@ -207,7 +207,7 @@ def test_pg_creation_tag_based_101_servers_fails(
     with patch.object(
         index, "check_tag_conflicts_for_create", return_value=[]
     ), patch.object(index, "query_drs_servers_by_tags", return_value=mock_servers):
-        result = create_protection_group(body)
+        result = create_protection_group(body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -236,7 +236,7 @@ def test_pg_creation_tag_based_200_servers_fails(
     with patch.object(
         index, "check_tag_conflicts_for_create", return_value=[]
     ), patch.object(index, "query_drs_servers_by_tags", return_value=mock_servers):
-        result = create_protection_group(body)
+        result = create_protection_group(body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -360,7 +360,7 @@ def test_rp_creation_total_500_servers_succeeds(mock_dynamodb_tables):
         "shared.conflict_detection.check_concurrent_jobs_limit",
         return_value={"canStartJob": True, "currentJobs": 0, "maxJobs": 20},
     ), patch("shared.conflict_detection.check_server_conflicts", return_value=[]):
-        result = create_recovery_plan(body)
+        result = create_recovery_plan(body)  # noqa: F841
 
     assert result["statusCode"] == 201
     body_data = json.loads(result["body"])
@@ -402,7 +402,7 @@ def test_rp_creation_total_501_servers_fails(mock_dynamodb_tables):
         mock_pg_get_item
     )
 
-    result = create_recovery_plan(body)
+    result = create_recovery_plan(body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -437,7 +437,7 @@ def test_rp_creation_total_1000_servers_fails(mock_dynamodb_tables):
         mock_pg_get_item
     )
 
-    result = create_recovery_plan(body)
+    result = create_recovery_plan(body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -473,7 +473,7 @@ def test_rp_creation_with_concurrent_jobs_warning(mock_dynamodb_tables):
         "shared.conflict_detection.check_concurrent_jobs_limit",
         return_value={"canStartJob": False, "currentJobs": 20, "maxJobs": 20},
     ), patch("shared.conflict_detection.check_server_conflicts", return_value=[]):
-        result = create_recovery_plan(body)
+        result = create_recovery_plan(body)  # noqa: F841
 
     assert result["statusCode"] == 201
     body_data = json.loads(result["body"])
@@ -520,7 +520,7 @@ def test_rp_creation_with_server_conflicts_warning(mock_dynamodb_tables):
         "shared.conflict_detection.check_concurrent_jobs_limit",
         return_value={"canStartJob": True, "currentJobs": 5, "maxJobs": 20},
     ), patch("shared.conflict_detection.check_server_conflicts", return_value=mock_conflicts):
-        result = create_recovery_plan(body)
+        result = create_recovery_plan(body)  # noqa: F841
 
     assert result["statusCode"] == 201
     body_data = json.loads(result["body"])

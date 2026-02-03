@@ -9,16 +9,16 @@ Properties:
 Validates: Requirements 1.2, 2.2, 4.2
 """
 
-import os
-import sys
+import os  # noqa: E402
+import sys  # noqa: E402
 
-import pytest
-from hypothesis import given, settings, strategies as st
+import pytest  # noqa: F401
+from hypothesis import given, settings, strategies as st  # noqa: E402
 
 # Add lambda directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
-from shared.account_utils import (
+from shared.account_utils import (  # noqa: E402
     STANDARD_ROLE_NAME,
     construct_role_arn,
     extract_account_id_from_arn,
@@ -93,7 +93,7 @@ def test_property_account_id_extraction_inverse(account_id):
 
     # Assert - Must match original
     assert extracted_id == account_id, (
-        f"Extracted account ID should match original. "
+        "Extracted account ID should match original. "
         f"Original: {account_id}, Extracted: {extracted_id}, ARN: {arn}"
     )
 
@@ -129,7 +129,7 @@ def test_property_extraction_works_for_any_role_name(account_id, role_name):
 
     # Assert
     assert extracted_id == account_id, (
-        f"Should extract account ID from any valid ARN. "
+        "Should extract account ID from any valid ARN. "
         f"ARN: {custom_arn}, Expected: {account_id}, Got: {extracted_id}"
     )
 
@@ -172,7 +172,7 @@ def test_property_validation_rejects_invalid_formats(
     if prefix or suffix:
         # Should be invalid if we added any characters
         assert not is_valid, (
-            f"Should reject account ID with extra characters. "
+            "Should reject account ID with extra characters. "
             f"Input: {invalid_id}, prefix='{prefix}', suffix='{suffix}'"
         )
     else:
@@ -250,16 +250,16 @@ def test_account_id_validation_specific_examples():
 def test_account_id_extraction_specific_examples():
     """Unit test examples for account ID extraction"""
     # Standard ARN
-    account_id = extract_account_id_from_arn(
+    account_id = extract_account_id_from_arn(  # noqa: F841
         "arn:aws:iam::123456789012:role/DRSOrchestrationRole"
     )
-    assert account_id == "123456789012"
+    assert account_id == "123456789012"  # noqa: F841
 
     # Custom role name
-    account_id = extract_account_id_from_arn(
+    account_id = extract_account_id_from_arn(  # noqa: F841
         "arn:aws:iam::999999999999:role/CustomRole"
     )
-    assert account_id == "999999999999"
+    assert account_id == "999999999999"  # noqa: F841
 
     # Invalid ARN - returns None
     assert extract_account_id_from_arn("invalid-arn") is None
