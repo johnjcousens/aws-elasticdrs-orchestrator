@@ -805,6 +805,7 @@ Resources:
         StagingAccountsValidateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.StagingAccountsValidateResourceId
         AccountsTargetStagingAccountsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetStagingAccountsResourceId
         AccountsTargetStagingAccountsDiscoverResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetStagingAccountsDiscoverResourceId
+        AccountsTargetStagingAccountsSyncResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetStagingAccountsSyncResourceId
         AccountsTargetStagingAccountResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetStagingAccountResourceId
         AccountsTargetCapacityResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetCapacityResourceId
         # Comprehensive DRS Infrastructure Resource IDs from Resources Stack
