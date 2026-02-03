@@ -842,7 +842,7 @@ export const Dashboard: React.FC = () => {
                                 {expandedStagingItems.length > 0 && expandedStagingItems.map((stagingItem) => (
                                   <Container key={`staging-${stagingItem.accountId}`}>
                                     <Box variant="h5" padding={{ bottom: 's' }}>
-                                      Regional Breakdown - {stagingItem.accountName}
+                                      Regional Breakdown
                                     </Box>
                                     <ColumnLayout columns={4} variant="text-grid">
                                       {stagingItem.regionalBreakdown
