@@ -292,8 +292,9 @@ else
 fi
 
 if [ -n "$FLAKE8_CMD" ]; then
-    if $FLAKE8_CMD lambda/ --config .flake8 --count -q 2>&1 | grep -q "^[0-9]"; then
-        echo -e "${YELLOW}  ⚠ flake8: warnings (non-blocking)${NC}"
+    FLAKE8_COUNT=$($FLAKE8_CMD lambda/ --config .flake8 --count -q 2>&1 | tail -1)
+    if [ -n "$FLAKE8_COUNT" ] && [ "$FLAKE8_COUNT" -gt 0 ] 2>/dev/null; then
+        echo -e "${YELLOW}  ⚠ flake8: $FLAKE8_COUNT warnings (non-blocking)${NC}"
     else
         echo -e "${GREEN}  ✓ flake8${NC}"
     fi
