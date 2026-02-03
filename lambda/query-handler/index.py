@@ -3254,20 +3254,20 @@ def calculate_combined_metrics(account_results: List[Dict]) -> Dict:
 
     Requirements: 4.2, 4.3, 9.6
     """
-    # Count accessible accounts (for replicating server sum)
+    # Count accessible accounts
     accessible_accounts = [a for a in account_results if a.get("accessible", False)]
     total_accounts = len(account_results)
 
     # Sum servers across ALL accounts (target + staging)
-    # Include both accessible and inaccessible accounts
-    total_replicating = sum(a.get("replicatingServers", 0) for a in account_results)
-    total_servers = sum(a.get("totalServers", 0) for a in account_results)
+    # But only count accessible accounts for capacity
+    total_replicating = sum(a.get("replicatingServers", 0) for a in accessible_accounts)
+    total_servers = sum(a.get("totalServers", 0) for a in accessible_accounts)
 
-    # Calculate maximum capacity: 300 replicating servers per account per region
+    # Calculate maximum capacity: 300 replicating servers per account
     # Per AWS DRS limits: https://docs.aws.amazon.com/general/latest/gr/drs.html
-    # With multiple staging accounts, capacity = num_accounts × 300
-    # Example: 1 target + 1 staging = 2 accounts × 300 = 600 capacity
-    max_replicating = total_accounts * 300
+    # With multiple staging accounts, capacity = num_accessible_accounts × 300
+    # Example: 1 target + 1 staging (both accessible) = 2 × 300 = 600 capacity
+    max_replicating = len(accessible_accounts) * 300
 
     # Calculate percentage used
     percent_used = (total_replicating / max_replicating * 100) if max_replicating > 0 else 0.0
@@ -3277,7 +3277,7 @@ def calculate_combined_metrics(account_results: List[Dict]) -> Dict:
 
     print(
         f"Combined metrics: {total_replicating}/{max_replicating} ({percent_used:.1f}%) "
-        f"across {total_accounts} account(s)"
+        f"across {len(accessible_accounts)} accessible account(s)"
     )
 
     return {

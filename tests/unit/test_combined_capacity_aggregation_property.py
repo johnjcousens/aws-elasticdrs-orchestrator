@@ -4,15 +4,15 @@ Property-Based Test: Combined Capacity Aggregation
 Feature: staging-accounts-management
 Property 3: For any set of accounts (target + staging) with known server counts,
 the combined replicating servers should equal the sum of replicating servers
-across all accounts. With the staging account model, maximum capacity is fixed
-at 300 (target account limit), not per-account.
+across all accounts. With multiple staging accounts, capacity = num_accounts × 300.
 
 **Validates: Requirements 4.2, 4.3, 9.6**
 
-**Staging Account Model**:
-- Target account has 300 replicating server limit (fixed)
-- Staging accounts provide extended source servers but don't add replicating capacity
-- Max capacity is always 300, regardless of number of staging accounts
+**Multiple Staging Account Model**:
+- Each account (target + staging) has 300 replicating server limit per region
+- Max capacity = number of accounts × 300
+- Example: 1 target + 1 staging = 600 capacity
+- Example: 1 target + 2 staging = 900 capacity
 """
 
 import sys  # noqa: E402
