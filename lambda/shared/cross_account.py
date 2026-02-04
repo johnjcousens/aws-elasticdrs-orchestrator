@@ -495,9 +495,7 @@ def create_ec2_client(region: str, account_context: Optional[Dict] = None):
         raise ValueError("Cross-account operation requires AccountId in account_context")
 
     if not assume_role_name:
-        raise ValueError(
-            f"Cross-account operation requires AssumeRoleName for account {account_id}"
-        )
+        raise ValueError(f"Cross-account operation requires AssumeRoleName for account {account_id}")
 
     # Skip role assumption if already using target account credentials
     current_account_id = get_current_account_id()
