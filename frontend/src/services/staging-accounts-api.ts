@@ -94,7 +94,7 @@ export async function addStagingAccount(
     };
 
     const response = await apiClient["post"]<StagingAccountOperationResponse>(
-      `/api/accounts/${targetAccountId}/staging-accounts`,
+      `/accounts/targets/${targetAccountId}/staging-accounts`,
       request
     );
     return response;
@@ -126,7 +126,7 @@ export async function removeStagingAccount(
 ): Promise<StagingAccountOperationResponse> {
   try {
     const response = await apiClient["delete"]<StagingAccountOperationResponse>(
-      `/api/accounts/${targetAccountId}/staging-accounts/${stagingAccountId}`
+      `/accounts/targets/${targetAccountId}/staging-accounts/${stagingAccountId}`
     );
     return response;
   } catch (error) {
