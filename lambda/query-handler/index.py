@@ -5156,14 +5156,18 @@ def handle_get_all_accounts_capacity() -> Dict:
             all_accounts.extend(account_results)
 
             # Calculate recovery capacity for this target
+            # CRITICAL: Use replicatingServers (not totalServers) because only CONTINUOUS servers can be recovered
             target_account_data = next(
                 (acc for acc in account_results if acc.get("accountType") == "target"),
                 None,
             )
             if target_account_data:
-                total_recovery_servers += target_account_data.get("totalServers", 0)
-                # Each target account has 4,000 recovery instance limit
-                total_recovery_max += 4000
+                total_recovery_servers += target_account_data.get("replicatingServers", 0)
+                # Each target account has 4,000 recovery instance limit per region
+                # Count regions with servers
+                regional_breakdown = target_account_data.get("regionalBreakdown", [])
+                regions_with_servers = len([r for r in regional_breakdown if r.get("replicatingServers", 0) > 0])
+                total_recovery_max += 4000 * max(regions_with_servers, 1)
 
         # Step 3: Calculate overall metrics
         combined_percent_used = (total_replicating / total_max_replicating * 100) if total_max_replicating > 0 else 0.0
