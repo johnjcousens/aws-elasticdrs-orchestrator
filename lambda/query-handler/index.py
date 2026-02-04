@@ -4005,11 +4005,15 @@ def generate_warnings(account_results: List[Dict], combined_metrics: Dict) -> Li
 
 def calculate_recovery_capacity(total_servers: int, regional_breakdown: List[Dict] = None) -> Dict:
     """
-    Calculate recovery capacity metrics for ALL servers (target + staging accounts).
+    Calculate recovery capacity metrics for actively replicating servers (target + staging accounts).
 
     Recovery capacity measures against the 4,000 instance recovery limit PER REGION.
     This includes servers from BOTH target and staging accounts since they all count
     toward the recovery capacity when extended to the target account.
+
+    CRITICAL: Recovery capacity should ONLY count actively replicating servers (CONTINUOUS state).
+    STOPPED servers cannot be recovered and should NOT count toward recovery capacity.
+    Recovery capacity should NEVER exceed replication capacity.
 
     AWS DRS Service Quota (L-E28BE5E0):
     - 4,000 source servers per account PER REGION
@@ -4023,14 +4027,14 @@ def calculate_recovery_capacity(total_servers: int, regional_breakdown: List[Dic
     - CRITICAL: > 90% of total capacity
 
     Args:
-        total_servers: Total number of servers across ALL accounts
-            (target + staging, includes both replicating and extended source servers)
+        total_servers: Total number of ACTIVELY REPLICATING servers across ALL accounts
+            (target + staging, only includes servers in CONTINUOUS state that can be recovered)
         regional_breakdown: List of regional capacity dicts with 'region' key
             Used to count active regions for capacity calculation
 
     Returns:
         Dictionary containing:
-        - currentServers: Total servers across all accounts
+        - currentServers: Total actively replicating servers across all accounts
         - maxRecoveryInstances: Maximum recovery instances (4,000 × regions)
         - percentUsed: Percentage of recovery capacity used
         - availableSlots: Available recovery slots
@@ -4739,11 +4743,14 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             account["warnings"] = account_warnings
 
         # Step 7: Calculate recovery capacity (ALL accounts - target + staging)
-        # Recovery capacity counts ALL servers that can be recovered in the target account
+        # Recovery capacity counts ONLY actively replicating servers (CONTINUOUS state)
         # This includes both target account servers AND staging account extended servers
+        # CRITICAL: Recovery capacity should NEVER exceed replication capacity
+        # STOPPED servers cannot be recovered and should NOT count toward recovery capacity
 
-        # Sum totalServers from all accounts (target + staging)
-        all_total_servers = sum(acc.get("totalServers", 0) for acc in account_results)
+        # Sum replicatingServers from all accounts (target + staging)
+        # Use replicatingServers (not totalServers) because only CONTINUOUS servers can be recovered
+        all_replicating_servers = sum(acc.get("replicatingServers", 0) for acc in account_results)
 
         # Get target account result for later use (jobs query)
         target_account_result = next(
@@ -4753,6 +4760,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
         # Combine regional breakdowns from ALL accounts (target + staging)
         # to get accurate per-region server counts
+        # For recovery capacity, only count actively replicating servers
         combined_regional_breakdown = {}
         for account in account_results:
             for region_data in account.get("regionalBreakdown", []):
@@ -4764,7 +4772,8 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                             "replicatingServers": 0,
                             "totalServers": 0,
                         }
-                    # Sum servers from all accounts in this region
+                    # Sum replicating servers from all accounts in this region
+                    # Recovery capacity should only count actively replicating servers
                     combined_regional_breakdown[region]["replicatingServers"] += region_data.get(
                         "replicatingServers", 0
                     )
@@ -4773,12 +4782,14 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         # Convert to list for calculate_recovery_capacity
         combined_regional_list = list(combined_regional_breakdown.values())
 
-        recovery_capacity = calculate_recovery_capacity(all_total_servers, combined_regional_list)
+        # Pass replicatingServers (not totalServers) for recovery capacity
+        # Recovery capacity = servers that can be recovered (must be actively replicating)
+        recovery_capacity = calculate_recovery_capacity(all_replicating_servers, combined_regional_list)
         print(
             f"Recovery capacity calculated: {recovery_capacity.get('currentServers')}/"
             f"{recovery_capacity.get('maxRecoveryInstances')} "
             f"({len(combined_regional_list)} regions × 4,000 per region, "
-            f"using totalServers from all accounts={all_total_servers})"
+            f"using replicatingServers from all accounts={all_replicating_servers})"
         )
 
         # Step 7.5: Get concurrent jobs and servers in jobs metrics
