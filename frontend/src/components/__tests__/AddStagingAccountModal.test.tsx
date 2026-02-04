@@ -142,7 +142,9 @@ describe("AddStagingAccountModal", () => {
       });
 
       expect(screen.getByText("arn:aws:iam::444455556666:role/DRSOrchestrationRole")).toBeInTheDocument();
-      expect(screen.getByText("drs-orchestration-cross-account")).toBeInTheDocument();
+      // External ID appears twice: once in help text, once in auto-generated config
+      const externalIdElements = screen.getAllByText("drs-orchestration-cross-account");
+      expect(externalIdElements.length).toBe(2);
     });
   });
 
