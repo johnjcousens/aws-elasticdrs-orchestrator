@@ -111,7 +111,7 @@ def discover_staging_accounts_from_drs(
                     # Skip if already discovered or if it's the target account itself
                     if not staging_account_id or staging_account_id in discovered_accounts:
                         continue
-                    
+
                     if staging_account_id == target_account_id:
                         print(f"Skipping {staging_account_id} - target account cannot be its own staging account")
                         continue
