@@ -4856,6 +4856,7 @@ def apply_launch_config_to_servers(
                 "accountId": account_id,
                 "assumeRoleName": assume_role_name,
                 "isCurrentAccount": False,
+                "externalId": "drs-orchestration-cross-account",
             }
             print(f"Using target account {account_id} for launch config application")
         else:
