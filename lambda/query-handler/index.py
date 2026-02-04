@@ -4297,10 +4297,28 @@ def handle_sync_staging_accounts() -> Dict:
                     )
                     continue
 
-                # Discover staging accounts (checks if current account has DRS servers)
-                # Note: role_arn and external_id are not used in new logic
+                # Get role ARN and external ID
+                role_arn = account.get("roleArn")
+                external_id = account.get("externalId")
+
+                if not role_arn:
+                    print(f"No role ARN for account {account_id}, skipping")
+                    sync_results["accountsSkipped"] += 1
+                    sync_results["details"].append(
+                        {
+                            "accountId": account_id,
+                            "accountName": account_name,
+                            "status": "skipped",
+                            "reason": "No role ARN configured",
+                        }
+                    )
+                    continue
+
+                # Discover staging accounts from target account's DRS trusted accounts
                 discovered = discover_staging_accounts_from_drs(
                     target_account_id=account_id,
+                    role_arn=role_arn,
+                    external_id=external_id,
                 )
 
                 # Get current staging accounts from DynamoDB
