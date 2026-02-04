@@ -119,9 +119,9 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
       regionalCapacity[region.region].maxReplicating += (region.maxReplicating || 300);
       regionalCapacity[region.region].accountCount += 1;
       
-      // Recovery capacity: count ALL servers in target account for this region
-      // Use totalServers (includes replicating + other states)
-      regionalCapacity[region.region].recoveryServers += (region.totalServers || region.replicatingServers);
+      // Recovery capacity: count ONLY replicating servers (CONTINUOUS state)
+      // STOPPED servers cannot be recovered
+      regionalCapacity[region.region].recoveryServers += region.replicatingServers;
       regionalCapacity[region.region].recoveryMax = 4000; // Per region limit
     });
     
@@ -147,9 +147,9 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
         regionalCapacity[region.region].maxReplicating += (region.maxReplicating || 300);
         regionalCapacity[region.region].accountCount += 1;
         
-        // Recovery capacity: ADD staging account servers too
-        // All servers (target + staging) count toward recovery capacity
-        regionalCapacity[region.region].recoveryServers += (region.totalServers || region.replicatingServers);
+        // Recovery capacity: count ONLY replicating servers (CONTINUOUS state)
+        // STOPPED servers cannot be recovered
+        regionalCapacity[region.region].recoveryServers += region.replicatingServers;
       });
     });
     
