@@ -54,6 +54,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 # Import shared utilities
+from shared.account_utils import construct_role_arn
 from shared.config_merge import get_effective_launch_config
 from shared.conflict_detection import (
     check_server_conflicts,
@@ -92,6 +93,31 @@ recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TA
 execution_history_table = (
     dynamodb.Table(EXECUTION_HISTORY_TABLE) if EXECUTION_HISTORY_TABLE else None
 )
+
+
+# Helper functions for table access (for compatibility with moved code)
+def get_protection_groups_table():
+    """Get Protection Groups table reference"""
+    return protection_groups_table
+
+
+def get_execution_history_table():
+    """Get Execution History table reference"""
+    return execution_history_table
+
+
+def get_account_context(state: Dict) -> Dict:
+    """
+    Extract account context from state, handling both camelCase and snake_case.
+
+    Supports two input formats:
+    - Initial execution: camelCase (accountContext) from Step Functions input
+    - Resume after pause: snake_case (account_context) from SendTaskSuccess
+
+    Returns:
+        Dict containing accountId, assumeRoleName, and isCurrentAccount flags
+    """
+    return state.get("accountContext") or state.get("account_context", {})
 
 
 def get_cognito_user_from_event(event: Dict) -> Dict:
@@ -1304,6 +1330,398 @@ def start_drs_recovery_for_wave(
             )
 
         return {"jobId": None, "servers": server_results}
+
+
+def apply_launch_config_before_recovery(
+    drs_client,
+    server_ids: List[str],
+    launch_config: Dict,
+    region: str,
+    protection_group: Dict = None,
+) -> None:
+    """
+    Apply Protection Group launch configuration to DRS servers before
+    recovery.
+
+    Updates both DRS launch settings and EC2 launch templates to ensure
+    recovered instances use correct network, security, and instance
+    configurations.
+
+    Supports per-server configuration overrides:
+    - If protection_group contains 'servers' array, applies per-server
+      configs
+    - Server-specific settings override protection group defaults
+    - Supports static private IP assignment per server
+
+    DRS Launch Settings Updated:
+    - copyPrivateIp: Preserve source server private IP
+    - copyTags: Copy source server tags to recovery instance
+    - licensing: OS licensing configuration
+    - targetInstanceTypeRightSizingMethod: Instance sizing strategy
+    - launchDisposition: Launch behavior (STARTED/STOPPED)
+
+    EC2 Launch Template Updated:
+    - InstanceType: EC2 instance type for recovery
+    - NetworkInterfaces: Subnet, security groups, and static private IP
+    - IamInstanceProfile: IAM role for recovered instance
+
+    Args:
+        drs_client: Boto3 DRS client (may be cross-account)
+        server_ids: List of DRS source server IDs
+        launch_config: Protection Group launch configuration dict (group
+                       defaults)
+        region: AWS region for EC2 operations
+        protection_group: Full protection group dict with per-server
+                          configs (optional)
+
+    Note:
+        Failures for individual servers are logged but don't stop
+        recovery. This ensures partial success when some servers have
+        configuration issues.
+    """
+    ec2_client = boto3.client("ec2", region_name=region)
+
+    # Import config merge function for per-server overrides
+    try:
+        from shared.config_merge import get_effective_launch_config
+    except ImportError:
+        print(
+            "Warning: config_merge module not found, per-server configs "
+            "disabled"
+        )
+        get_effective_launch_config = None
+
+    for server_id in server_ids:
+        try:
+            # Get effective config (group defaults + per-server overrides)
+            if protection_group and get_effective_launch_config:
+                effective_config = get_effective_launch_config(
+                    protection_group, server_id
+                )
+            else:
+                effective_config = launch_config
+
+            # Get DRS launch configuration to find EC2 launch template
+            current_config = drs_client.get_launch_configuration(
+                sourceServerID=server_id
+            )
+            template_id = current_config.get("ec2LaunchTemplateID")
+
+            if not template_id:
+                print(f"No launch template found for {server_id}, skipping")
+                continue
+
+            # Update DRS launch configuration settings
+            drs_update = {"sourceServerID": server_id}
+            if "copyPrivateIp" in effective_config:
+                drs_update["copyPrivateIp"] = effective_config["copyPrivateIp"]
+            if "copyTags" in effective_config:
+                drs_update["copyTags"] = effective_config["copyTags"]
+            if "licensing" in effective_config:
+                drs_update["licensing"] = effective_config["licensing"]
+            if "targetInstanceTypeRightSizingMethod" in effective_config:
+                drs_update["targetInstanceTypeRightSizingMethod"] = (
+                    effective_config["targetInstanceTypeRightSizingMethod"]
+                )
+            if "launchDisposition" in effective_config:
+                drs_update["launchDisposition"] = effective_config[
+                    "launchDisposition"
+                ]
+
+            if len(drs_update) > 1:
+                drs_client.update_launch_configuration(**drs_update)
+                print(f"Updated DRS launch config for {server_id}")
+
+            # Update EC2 launch template with network/instance settings
+            template_data = {}
+
+            if effective_config.get("instanceType"):
+                template_data["InstanceType"] = effective_config[
+                    "instanceType"
+                ]
+
+            # Handle network interfaces with static IP support
+            if (
+                effective_config.get("subnetId")
+                or effective_config.get("securityGroupIds")
+                or effective_config.get("staticPrivateIp")
+            ):
+                network_interface = {"DeviceIndex": 0}
+
+                # Static private IP takes precedence
+                if effective_config.get("staticPrivateIp"):
+                    network_interface["PrivateIpAddress"] = effective_config[
+                        "staticPrivateIp"
+                    ]
+                    print(
+                        f"Setting static IP "
+                        f"{effective_config['staticPrivateIp']} for "
+                        f"{server_id}"
+                    )
+
+                if effective_config.get("subnetId"):
+                    network_interface["SubnetId"] = effective_config[
+                        "subnetId"
+                    ]
+                if effective_config.get("securityGroupIds"):
+                    network_interface["Groups"] = effective_config[
+                        "securityGroupIds"
+                    ]
+                template_data["NetworkInterfaces"] = [network_interface]
+
+            if effective_config.get("instanceProfileName"):
+                template_data["IamInstanceProfile"] = {
+                    "Name": effective_config["instanceProfileName"]
+                }
+
+            if template_data:
+                ec2_client.create_launch_template_version(
+                    LaunchTemplateId=template_id,
+                    LaunchTemplateData=template_data,
+                    VersionDescription="DRS Orchestration pre-recovery update",
+                )
+                ec2_client.modify_launch_template(
+                    LaunchTemplateId=template_id, DefaultVersion="$Latest"
+                )
+                print(
+                    f"Updated EC2 launch template {template_id} for "
+                    f"{server_id}"
+                )
+
+        except Exception as e:
+            print(
+                f"Warning: Failed to apply launch config to {server_id}: {e}"
+            )
+            # Continue with other servers - partial success is acceptable
+
+
+def start_wave_recovery(state: Dict, wave_number: int) -> None:
+    """
+    Start DRS recovery for a wave with tag-based server resolution.
+
+    Modifies state in-place (archive pattern) to update current wave
+    tracking, job details, and wave results.
+
+    Workflow:
+    1. Retrieve Protection Group configuration from DynamoDB
+    2. Resolve servers using tag-based discovery (execution-time
+       resolution)
+    3. Apply Protection Group launch configuration to DRS servers
+    4. Start DRS recovery job (drill or production)
+    5. Update state with job details and initial server statuses
+    6. Store wave result in DynamoDB for frontend display
+
+    Tag-Based Resolution (AWSM-1103):
+    Servers are resolved at execution time by querying DRS for servers
+    matching the Protection Group's serverSelectionTags. This enables
+    dynamic discovery without maintaining static server lists. The
+    pattern supports:
+    - Auto-scaling: New servers automatically included if tags match
+    - Multi-tenant: Customer/Environment tags scope recovery operations
+    - Priority-based waves: dr:priority maps to wave numbers
+      (critical→1, high→2, etc.)
+
+    Wave Execution (AWSM-1103):
+    - Sequential waves: This wave must complete before next wave starts
+    - Parallel within wave: All servers launched simultaneously via
+      batch API
+    - Failure tolerance: Individual server failures don't stop wave
+      execution
+
+    Args:
+        state: Complete state object (modified in-place)
+        wave_number: Zero-based wave index to start
+
+    State Updates:
+    - current_wave_number: Set to wave_number
+    - job_id: DRS job ID for tracking
+    - region: AWS region for recovery
+    - server_ids: List of resolved server IDs
+    - wave_completed: Set to False (polling will update)
+    - wave_results: Appended with new wave result
+
+    Note:
+        Failures set wave_completed=True and status='failed' to stop
+        execution. Empty server lists (no tags matched) mark wave
+        complete without error.
+
+    HRP Platform Extension:
+        Other technology adapters (Aurora, ECS, Lambda, Route53) will
+        implement similar start_wave_recovery functions with
+        service-specific APIs while maintaining the same wave execution
+        pattern and state management.
+    """
+    waves = state["waves"]
+    wave = waves[wave_number]
+    is_drill = state["is_drill"]
+    execution_id = state["execution_id"]
+
+    wave_name = wave.get("waveName", f"Wave {wave_number + 1}")
+
+    # Get Protection Group from DynamoDB
+    protection_group_id = wave.get("protectionGroupId")
+    if not protection_group_id:
+        print(f"Wave {wave_number} has no protectionGroupId")
+        state["wave_completed"] = True
+        state["status"] = "failed"
+        state["error"] = "No protectionGroupId in wave"
+        return
+
+    try:
+        pg_response = protection_groups_table.get_item(
+            Key={"groupId": protection_group_id}
+        )
+        if "Item" not in pg_response:
+            print(f"Protection Group {protection_group_id} not found")
+            state["wave_completed"] = True
+            state["status"] = "failed"
+            state["error"] = (
+                f"Protection Group {protection_group_id} not found"
+            )
+            return
+
+        pg = pg_response["Item"]
+        region = pg.get("region", "us-east-1")
+
+        # Tag-based server resolution at execution time
+        selection_tags = pg.get("serverSelectionTags", {})
+
+        if selection_tags:
+            print(
+                f"Resolving servers for PG {protection_group_id} "
+                f"with tags: {selection_tags}"
+            )
+            account_context = state.get("accountContext") or state.get(
+                "account_context", {}
+            )
+            server_ids = query_drs_servers_by_tags(
+                region, selection_tags, account_context
+            )
+            print(f"Resolved {len(server_ids)} servers from tags")
+        else:
+            # Fallback: explicit serverIds from wave (legacy support)
+            server_ids = wave.get("serverIds", [])
+            print(
+                f"Using explicit serverIds from wave: "
+                f"{len(server_ids)} servers"
+            )
+
+        if not server_ids:
+            print(
+                f"Wave {wave_number} has no servers (no tags matched), "
+                f"marking complete"
+            )
+            state["wave_completed"] = True
+            return
+
+        print(
+            f"Starting DRS recovery for wave {wave_number} "
+            f"({wave_name})"
+        )
+        print(
+            f"Region: {region}, Servers: {server_ids}, "
+            f"isDrill: {is_drill}"
+        )
+
+        # Create DRS client with cross-account support
+        account_context = state.get("accountContext") or state.get(
+            "account_context", {}
+        )
+        drs_client = create_drs_client(region, account_context)
+
+        # Apply Protection Group launch config before recovery
+        launch_config = pg.get("launchConfig")
+        if launch_config:
+            print(
+                f"Applying launchConfig to {len(server_ids)} servers "
+                f"before recovery"
+            )
+            apply_launch_config_before_recovery(
+                drs_client, server_ids, launch_config, region, pg
+            )
+
+        source_servers = [
+            {"sourceServerID": sid} for sid in server_ids
+        ]
+
+        response = drs_client.start_recovery(
+            isDrill=is_drill, sourceServers=source_servers
+        )
+
+        job_id = response["job"]["jobID"]
+        print(f"✅ DRS Job created: {job_id}")
+
+        # Build initial serverStatuses - execution-poller enriches
+        # with details
+        server_statuses = []
+        for server_id in server_ids:
+            server_statuses.append(
+                {
+                    "sourceServerId": server_id,
+                    "serverName": server_id,  # Poller updates with Name
+                    "hostname": "",
+                    "launchStatus": "PENDING",
+                    "instanceId": "",
+                    "privateIp": "",
+                    "instanceType": "",
+                    "launchTime": 0,
+                }
+            )
+
+        # Update state in-place (archive pattern - AWSM-1103)
+        state["current_wave_number"] = wave_number
+        state["job_id"] = job_id
+        state["region"] = region
+        state["server_ids"] = server_ids
+        state["wave_completed"] = False
+        state["current_wave_total_wait_time"] = 0
+
+        # Store wave result for frontend display
+        wave_result = {
+            "waveNumber": wave_number,
+            "waveName": wave_name,
+            "status": "STARTED",
+            "jobId": job_id,
+            "startTime": int(time.time()),
+            "serverIds": server_ids,
+            "serverStatuses": server_statuses,
+            "region": region,
+        }
+        state["wave_results"].append(wave_result)
+
+        # Update DynamoDB with wave data at specific index to preserve
+        # completed waves
+        try:
+            execution_history_table.update_item(
+                Key={
+                    "executionId": execution_id,
+                    "planId": state["plan_id"]
+                },
+                UpdateExpression=(
+                    f"SET waves[{wave_number}] = :wave, "
+                    f"drsJobId = :job_id, drsRegion = :region, "
+                    f"#status = :status"
+                ),
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":wave": wave_result,
+                    ":job_id": job_id,
+                    ":region": region,
+                    ":status": "POLLING",
+                },
+                ConditionExpression="attribute_exists(executionId)",
+            )
+        except Exception as e:
+            print(f"Error updating wave start in DynamoDB: {e}")
+
+    except Exception as e:
+        print(f"Error starting DRS recovery: {e}")
+        import traceback
+
+        traceback.print_exc()
+        state["wave_completed"] = True
+        state["status"] = "failed"
+        state["error"] = str(e)
 
 
 def execute_recovery_plan_worker(payload: Dict) -> None:
@@ -2564,6 +2982,26 @@ def lambda_handler(event, context):
             print("Worker invocation detected - executing recovery plan worker")
             execute_recovery_plan_worker(event)
             return {"statusCode": 200, "body": "Worker completed"}
+
+        # Check if this is an action-based invocation (for orchestration)
+        if isinstance(event, dict) and event.get("action"):
+            action = event.get("action")
+            print(f"Action-based invocation detected: {action}")
+            
+            if action == "start_wave_recovery":
+                state = event.get("state", {})
+                wave_number = event.get("wave_number", 0)
+                start_wave_recovery(state, wave_number)
+                return state
+            else:
+                return response(
+                    400,
+                    {
+                        "error": "UNKNOWN_ACTION",
+                        "message": f"Unknown action: {action}",
+                        "supportedActions": ["start_wave_recovery"],
+                    },
+                )
 
         # Check if this is an operation-based invocation (find, poll, finalize)
         if isinstance(event, dict) and event.get("operation"):
