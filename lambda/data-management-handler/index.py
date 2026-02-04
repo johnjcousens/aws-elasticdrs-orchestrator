@@ -301,7 +301,7 @@ from shared.conflict_detection import (
     query_drs_servers_by_tags,
 )
 from shared.config_merge import get_effective_launch_config
-from shared.cross_account import get_current_account_id
+from shared.cross_account import get_current_account_id, create_drs_client
 from shared.response_utils import response
 
 # DRS regions (all regions where DRS is available)
@@ -333,9 +333,7 @@ TAG_SYNC_CONFIG_TABLE = os.environ.get("TAG_SYNC_CONFIG_TABLE")
 # Initialize DynamoDB resources
 dynamodb = boto3.resource("dynamodb")
 stepfunctions = boto3.client("stepfunctions")
-protection_groups_table = (
-    dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
-)
+protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
 recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
 executions_table = dynamodb.Table(EXECUTIONS_TABLE) if EXECUTIONS_TABLE else None
 target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
@@ -666,9 +664,7 @@ def get_active_execution_for_protection_group(
 
         # Handle pagination
         while "LastEvaluatedKey" in plans_result:
-            plans_result = recovery_plans_table.scan(
-                ExclusiveStartKey=plans_result["LastEvaluatedKey"]
-            )
+            plans_result = recovery_plans_table.scan(ExclusiveStartKey=plans_result["LastEvaluatedKey"])
             all_plans.extend(plans_result.get("Items", []))
 
         # Find plan IDs that reference this protection group
@@ -786,9 +782,7 @@ def validate_server_replication_states(region: str, server_ids: List[str]) -> Di
 
             for server in response.get("items", []):
                 server_id = server.get("sourceServerID")
-                replication_state = server.get("dataReplicationInfo", {}).get(
-                    "dataReplicationState", "UNKNOWN"
-                )
+                replication_state = server.get("dataReplicationInfo", {}).get("dataReplicationState", "UNKNOWN")
                 lifecycle_state = server.get("lifeCycle", {}).get("state", "UNKNOWN")
 
                 if replication_state in INVALID_REPLICATION_STATES or lifecycle_state == "STOPPED":
@@ -827,9 +821,7 @@ def validate_server_replication_states(region: str, server_ids: List[str]) -> Di
         }
 
 
-def validate_server_assignments(
-    server_ids: List[str], current_pg_id: Optional[str] = None
-) -> List[Dict]:
+def validate_server_assignments(server_ids: List[str], current_pg_id: Optional[str] = None) -> List[Dict]:
     """
     Validate that servers are not already assigned to other Protection Groups
 
@@ -941,9 +933,7 @@ def check_tag_conflicts_for_create(tags: Dict[str, str], region: str) -> List[Di
     all_pgs = pg_response.get("Items", [])
 
     while "LastEvaluatedKey" in pg_response:
-        pg_response = protection_groups_table.scan(
-            ExclusiveStartKey=pg_response["LastEvaluatedKey"]
-        )
+        pg_response = protection_groups_table.scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
         all_pgs.extend(pg_response.get("Items", []))
 
     for pg in all_pgs:
@@ -965,9 +955,7 @@ def check_tag_conflicts_for_create(tags: Dict[str, str], region: str) -> List[Di
     return conflicts
 
 
-def check_tag_conflicts_for_update(
-    tags: Dict[str, str], region: str, current_pg_id: str
-) -> List[Dict]:
+def check_tag_conflicts_for_update(tags: Dict[str, str], region: str, current_pg_id: str) -> List[Dict]:
     """
     Check if the specified tags would conflict with existing tag-based Protection Groups (excluding current).
     """
@@ -981,9 +969,7 @@ def check_tag_conflicts_for_update(
     all_pgs = pg_response.get("Items", [])
 
     while "LastEvaluatedKey" in pg_response:
-        pg_response = protection_groups_table.scan(
-            ExclusiveStartKey=pg_response["LastEvaluatedKey"]
-        )
+        pg_response = protection_groups_table.scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
         all_pgs.extend(pg_response.get("Items", []))
 
     for pg in all_pgs:
@@ -1066,12 +1052,8 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
 
         pg_cache = {}
         for wave in waves:
-            wave_name = wave.get("waveName") or wave.get(
-                "name", f"Wave {wave.get('waveNumber', '?')}"
-            )
-            pg_id = (
-                wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
-            )
+            wave_name = wave.get("waveName") or wave.get("name", f"Wave {wave.get('waveNumber', '?')}")
+            pg_id = wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
 
             if pg_id:
                 try:
@@ -1215,11 +1197,10 @@ def create_protection_group(body: Dict) -> Dict:
         if "sourceServerIds" in body:
             print(f"DEBUG: sourceServerIds value: {body['sourceServerIds']}")
         if "launchConfig" in body:
-            print(
-                f"DEBUG: launchConfig present with keys: {
-                    list(
-                        body['launchConfig'].keys())}"
-            )
+            print(f"DEBUG: launchConfig present with keys: {list(body['launchConfig'].keys())}")
+
+        print("DEBUG: Starting validation checks...")
+        print("DEBUG: About to validate groupName field")
 
         # Validate required fields - FIXED: camelCase field validation
         if "groupName" not in body:
@@ -1314,12 +1295,25 @@ def create_protection_group(body: Dict) -> Dict:
         # If using explicit server IDs, validate they exist and aren't assigned
         # elsewhere
         if has_servers:
-            # Validate servers exist in DRS
-            regional_drs = boto3.client("drs", region_name=region)
+            print(f"DEBUG: Validating {len(source_server_ids)} explicit server IDs")
+
+            # Create account context for cross-account DRS access
+            account_context = None
+            if body.get("accountId"):
+                current_account_id = get_current_account_id()
+                target_account_id = body.get("accountId")
+                account_context = {
+                    "accountId": target_account_id,
+                    "assumeRoleName": body.get("assumeRoleName"),
+                    "isCurrentAccount": (current_account_id == target_account_id),
+                    "externalId": "drs-orchestration-cross-account",
+                }
+
+            # Use cross-account DRS client
+            regional_drs = create_drs_client(region, account_context)
+            print(f"DEBUG: Created DRS client for region {region} with account context")
             try:
-                drs_response = regional_drs.describe_source_servers(
-                    filters={"sourceServerIDs": source_server_ids}
-                )
+                drs_response = regional_drs.describe_source_servers(filters={"sourceServerIDs": source_server_ids})
                 found_ids = {s["sourceServerID"] for s in drs_response.get("items", [])}
                 missing = set(source_server_ids) - found_ids
                 if missing:
@@ -1445,9 +1439,14 @@ def create_protection_group(body: Dict) -> Dict:
 
             # Get server IDs to apply settings to
             server_ids_to_apply = source_server_ids if has_servers else []
+            print(f"DEBUG: server_ids_to_apply = {server_ids_to_apply}, has_servers = {has_servers}")
+            print(
+                f"DEBUG: has_tags = {has_tags}, len(server_ids_to_apply) = {len(server_ids_to_apply) if server_ids_to_apply else 0}"
+            )
 
             # If using tags, resolve servers first
             if has_tags and not server_ids_to_apply:
+                print("DEBUG: Resolving servers from tags")
                 # Create account context for cross-account access
                 account_context = None
                 if body.get("accountId"):
@@ -1456,26 +1455,40 @@ def create_protection_group(body: Dict) -> Dict:
                         "assumeRoleName": body.get("assumeRoleName"),
                     }
                 resolved = query_drs_servers_by_tags(region, selection_tags, account_context)
-                server_ids_to_apply = [
-                    s.get("sourceServerID") for s in resolved if s.get("sourceServerID")
-                ]
+                server_ids_to_apply = [s.get("sourceServerID") for s in resolved if s.get("sourceServerID")]
+                print(f"DEBUG: Resolved {len(server_ids_to_apply)} servers from tags")
 
             # Apply launchConfig to DRS/EC2 immediately
+            print(
+                f"DEBUG: About to check apply condition: server_ids_to_apply={len(server_ids_to_apply) if server_ids_to_apply else 0}, launch_config={bool(launch_config)}"
+            )
             if server_ids_to_apply and launch_config:
+                # Build protection group dict for account context
+                pg_for_apply = {
+                    "groupId": group_id,
+                    "groupName": name,
+                    "accountId": body.get("accountId", ""),
+                    "assumeRoleName": body.get("assumeRoleName", ""),
+                    "region": region,
+                }
+
+                print(f"Applying launch config to {len(server_ids_to_apply)} servers")
+                print(f"DEBUG: pg_for_apply = {pg_for_apply}")
+
                 launch_config_apply_results = apply_launch_config_to_servers(
                     server_ids_to_apply,
                     launch_config,
                     region,
+                    protection_group=pg_for_apply,
                     protection_group_id=group_id,
                     protection_group_name=name,
                 )
+                print(f"Launch config apply results: {launch_config_apply_results}")
 
                 # If any failed, return error (don't save partial state)
-                if launch_config_apply_results.get("failed", 0) > 0:
+                if launch_config_apply_results and launch_config_apply_results.get("failed", 0) > 0:
                     failed_servers = [
-                        d
-                        for d in launch_config_apply_results.get("details", [])
-                        if d.get("status") == "failed"
+                        d for d in launch_config_apply_results.get("details", []) if d.get("status") == "failed"
                     ]
                     return response(
                         400,
@@ -1486,6 +1499,8 @@ def create_protection_group(body: Dict) -> Dict:
                             "applyResults": launch_config_apply_results,
                         },
                     )
+            elif launch_config:
+                print("WARNING: launchConfig provided but no servers to apply to")
 
             # Store launchConfig in item
             item["launchConfig"] = launch_config
@@ -1573,9 +1588,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             return response(404, {"error": "Protection Group not found"})
 
         existing_group = result["Item"]
-        current_version = existing_group.get(
-            "version", 1
-        )  # FIXED: camelCase - Default to 1 for legacy items
+        current_version = existing_group.get("version", 1)  # FIXED: camelCase - Default to 1 for legacy items
 
         # Optimistic locking: Check if client provided expected version
         client_version = body.get("version") or body.get("Version")
@@ -1818,10 +1831,21 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             if server_ids and launch_config:
                 # Get group name (use updated name if provided, else existing)
                 pg_name = body.get("groupName", existing_group.get("groupName", ""))
+
+                # Build protection group dict for account context
+                pg_for_apply = {
+                    "groupId": group_id,
+                    "groupName": pg_name,
+                    "accountId": existing_group.get("accountId", ""),
+                    "assumeRoleName": existing_group.get("assumeRoleName", ""),
+                    "region": region,
+                }
+
                 launch_config_apply_results = apply_launch_config_to_servers(
                     server_ids,
                     launch_config,
                     region,
+                    protection_group=pg_for_apply,
                     protection_group_id=group_id,
                     protection_group_name=pg_name,
                 )
@@ -1829,9 +1853,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 # If any failed, return error (don't save partial state)
                 if launch_config_apply_results.get("failed", 0) > 0:
                     failed_servers = [
-                        d
-                        for d in launch_config_apply_results.get("details", [])
-                        if d.get("status") == "failed"
+                        d for d in launch_config_apply_results.get("details", []) if d.get("status") == "failed"
                     ]
                     return response(
                         400,
@@ -1893,9 +1915,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 # If any failed, return error (don't save partial state)
                 if servers_apply_results.get("failed", 0) > 0:
                     failed_servers = [
-                        d
-                        for d in servers_apply_results.get("details", [])
-                        if d.get("status") == "failed"
+                        d for d in servers_apply_results.get("details", []) if d.get("status") == "failed"
                     ]
                     return response(
                         400,
@@ -1973,9 +1993,7 @@ def delete_protection_group(group_id: str) -> Dict:
 
         # Handle pagination
         while "LastEvaluatedKey" in plans_result:
-            plans_result = recovery_plans_table.scan(
-                ExclusiveStartKey=plans_result["LastEvaluatedKey"]
-            )
+            plans_result = recovery_plans_table.scan(ExclusiveStartKey=plans_result["LastEvaluatedKey"])
             all_plans.extend(plans_result.get("Items", []))
 
         # Find plans that reference this protection group
@@ -2204,9 +2222,7 @@ def update_server_launch_config(group_id: str, server_id: str, body: Dict) -> Di
         if launch_template.get("staticPrivateIp"):
             static_ip = launch_template["staticPrivateIp"]
             # Get subnet ID (from launch template or group defaults)
-            subnet_id = launch_template.get("subnetId") or protection_group.get(
-                "launchConfig", {}
-            ).get("subnetId")
+            subnet_id = launch_template.get("subnetId") or protection_group.get("launchConfig", {}).get("subnetId")
 
             if not subnet_id:
                 validation_errors.append(
@@ -2226,9 +2242,7 @@ def update_server_launch_config(group_id: str, server_id: str, body: Dict) -> Di
                     validate_no_duplicate_ips,
                 )
 
-                duplicate_check = validate_no_duplicate_ips(
-                    protection_group, server_id, static_ip, subnet_id
-                )
+                duplicate_check = validate_no_duplicate_ips(protection_group, server_id, static_ip, subnet_id)
                 if not duplicate_check.get("valid"):
                     validation_errors.append(duplicate_check)
 
@@ -2236,9 +2250,7 @@ def update_server_launch_config(group_id: str, server_id: str, body: Dict) -> Di
         if launch_template.get("securityGroupIds"):
             sg_ids = launch_template["securityGroupIds"]
             # Get VPC ID from subnet
-            subnet_id = launch_template.get("subnetId") or protection_group.get(
-                "launchConfig", {}
-            ).get("subnetId")
+            subnet_id = launch_template.get("subnetId") or protection_group.get("launchConfig", {}).get("subnetId")
 
             if subnet_id:
                 # Get VPC ID from subnet
@@ -2316,9 +2328,7 @@ def update_server_launch_config(group_id: str, server_id: str, body: Dict) -> Di
         # Add instance metadata if available
         try:
             regional_drs = boto3.client("drs", region_name=region)
-            drs_response = regional_drs.describe_source_servers(
-                filters={"sourceServerIDs": [server_id]}
-            )
+            drs_response = regional_drs.describe_source_servers(filters={"sourceServerIDs": [server_id]})
             if drs_response.get("items"):
                 server_info = drs_response["items"][0]
                 source_props = server_info.get("sourceProperties", {})
@@ -2519,9 +2529,7 @@ def delete_server_launch_config(group_id: str, server_id: str) -> Dict:
 
         # Add note if server had no custom config
         if not had_custom_config:
-            response_data["message"] = (
-                "Server had no custom configuration, " "already using group defaults"
-            )
+            response_data["message"] = "Server had no custom configuration, " "already using group defaults"
 
         return response(200, response_data)
 
@@ -2805,9 +2813,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
 
             if static_ip:
                 # Get subnet ID (from launch template or group defaults)
-                subnet_id = launch_template.get("subnetId") or protection_group.get(
-                    "launchConfig", {}
-                ).get("subnetId")
+                subnet_id = launch_template.get("subnetId") or protection_group.get("launchConfig", {}).get("subnetId")
 
                 if subnet_id:
                     key = (subnet_id, static_ip)
@@ -2875,9 +2881,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
             # Validate static private IP
             if launch_template.get("staticPrivateIp"):
                 static_ip = launch_template["staticPrivateIp"]
-                subnet_id = launch_template.get("subnetId") or protection_group.get(
-                    "launchConfig", {}
-                ).get("subnetId")
+                subnet_id = launch_template.get("subnetId") or protection_group.get("launchConfig", {}).get("subnetId")
 
                 if not subnet_id:
                     validation_errors.append(
@@ -2907,9 +2911,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
                     validate_no_duplicate_ips,
                 )
 
-                duplicate_check = validate_no_duplicate_ips(
-                    protection_group, server_id, static_ip, subnet_id
-                )
+                duplicate_check = validate_no_duplicate_ips(protection_group, server_id, static_ip, subnet_id)
                 if not duplicate_check.get("valid"):
                     validation_errors.append(
                         {
@@ -2923,9 +2925,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
             # Validate security groups
             if launch_template.get("securityGroupIds"):
                 sg_ids = launch_template["securityGroupIds"]
-                subnet_id = launch_template.get("subnetId") or protection_group.get(
-                    "launchConfig", {}
-                ).get("subnetId")
+                subnet_id = launch_template.get("subnetId") or protection_group.get("launchConfig", {}).get("subnetId")
 
                 if subnet_id:
                     subnet_validation = validate_subnet(subnet_id, region)
@@ -2976,8 +2976,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
                 400,
                 {
                     "error": "VALIDATION_FAILED",
-                    "message": f"{len(validation_errors)} server "
-                    f"configuration(s) failed validation",
+                    "message": f"{len(validation_errors)} server " f"configuration(s) failed validation",
                     "validationErrors": validation_errors,
                 },
             )
@@ -3006,9 +3005,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
                 # Add instance metadata if available
                 try:
                     regional_drs = boto3.client("drs", region_name=region)
-                    drs_response = regional_drs.describe_source_servers(
-                        filters={"sourceServerIDs": [server_id]}
-                    )
+                    drs_response = regional_drs.describe_source_servers(filters={"sourceServerIDs": [server_id]})
                     if drs_response.get("items"):
                         server_info = drs_response["items"][0]
                         source_props = server_info.get("sourceProperties", {})
@@ -3215,9 +3212,7 @@ def create_recovery_plan(body: Dict) -> Dict:
         item = {
             "planId": plan_id,
             "planName": plan_name,  # Use the validated plan_name variable
-            "description": body.get(
-                "description", body.get("description", "")
-            ),  # Accept both formats
+            "description": body.get("description", body.get("description", "")),  # Accept both formats
             "waves": waves,  # Use the validated waves variable
             "createdDate": timestamp,  # FIXED: camelCase
             "lastModifiedDate": timestamp,  # FIXED: camelCase
@@ -3263,19 +3258,14 @@ def create_recovery_plan(body: Dict) -> Dict:
 
             for wave in camelcase_waves:
                 wave_name = wave.get("waveName", f"Wave {wave.get('waveNumber', '?')}")
-                pg_id = (
-                    wave.get("protectionGroupId")
-                    or (wave.get("protectionGroupIds", []) or [None])[0]
-                )
+                pg_id = wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
 
                 if pg_id:
                     try:
                         server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
                         wave_count = len(server_ids)
                         total_servers += wave_count
-                        wave_server_counts.append(
-                            {"waveName": wave_name, "serverCount": wave_count}
-                        )
+                        wave_server_counts.append({"waveName": wave_name, "serverCount": wave_count})
                     except Exception as e:
                         print(f"Warning: Could not count servers for wave '{wave_name}': {e}")
 
@@ -3299,10 +3289,7 @@ def create_recovery_plan(body: Dict) -> Dict:
             # OPTIONAL WARNING: Check concurrent jobs limit and server conflicts
             # Get region from first wave's Protection Group
             first_wave = camelcase_waves[0] if camelcase_waves else {}
-            pg_id = (
-                first_wave.get("protectionGroupId")
-                or (first_wave.get("protectionGroupIds", []) or [None])[0]
-            )
+            pg_id = first_wave.get("protectionGroupId") or (first_wave.get("protectionGroupIds", []) or [None])[0]
 
             warnings = []
 
@@ -3349,15 +3336,9 @@ def create_recovery_plan(body: Dict) -> Dict:
                             "execution_conflicts": len(
                                 [c for c in conflicts if c.get("conflictSource") == "execution"]
                             ),
-                            "drs_job_conflicts": len(
-                                [c for c in conflicts if c.get("conflictSource") == "drs_job"]
-                            ),
+                            "drs_job_conflicts": len([c for c in conflicts if c.get("conflictSource") == "drs_job"]),
                             "quota_violations": len(
-                                [
-                                    c
-                                    for c in conflicts
-                                    if c.get("conflictSource") == "quota_violation"
-                                ]
+                                [c for c in conflicts if c.get("conflictSource") == "quota_violation"]
                             ),
                         }
 
@@ -3597,9 +3578,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
             return response(404, {"error": "Recovery Plan not found"})
 
         existing_plan = result["Item"]
-        current_version = existing_plan.get(
-            "version", 1
-        )  # FIXED: camelCase - Default to 1 for legacy items
+        current_version = existing_plan.get("version", 1)  # FIXED: camelCase - Default to 1 for legacy items
 
         # Optimistic locking: Check if client provided expected version
         client_version = body.get("version") or body.get("Version")
@@ -4213,11 +4192,7 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
 
     for server in source_servers:
         try:
-            instance_id = (
-                server.get("sourceProperties", {})
-                .get("identificationHints", {})
-                .get("awsInstanceID")
-            )
+            instance_id = server.get("sourceProperties", {}).get("identificationHints", {}).get("awsInstanceID")
             source_server_id = server["sourceServerID"]
             server_arn = server["arn"]
             source_region = server.get("sourceCloudProperties", {}).get("originRegion", drs_region)
@@ -4226,9 +4201,7 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                 continue
 
             # Skip disconnected servers
-            replication_state = server.get("dataReplicationInfo", {}).get(
-                "dataReplicationState", ""
-            )
+            replication_state = server.get("dataReplicationInfo", {}).get("dataReplicationState", "")
             if replication_state == "DISCONNECTED":
                 continue
 
@@ -4244,9 +4217,7 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                     continue
                 instance = ec2_response["Reservations"][0]["Instances"][0]
                 ec2_tags = {
-                    tag["Key"]: tag["Value"]
-                    for tag in instance.get("Tags", [])
-                    if not tag["Key"].startswith("aws:")
+                    tag["Key"]: tag["Value"] for tag in instance.get("Tags", []) if not tag["Key"].startswith("aws:")
                 }
             except Exception as e:
                 # Skip instances that cannot be described (permissions,
@@ -4262,18 +4233,14 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
 
             # Enable copyTags in launch configuration
             try:
-                drs_client.update_launch_configuration(
-                    sourceServerID=source_server_id, copyTags=True
-                )
+                drs_client.update_launch_configuration(sourceServerID=source_server_id, copyTags=True)
             except ClientError as e:
                 error_code = e.response.get("error", {}).get("Code", "")
                 if error_code in [
                     "ValidationException",
                     "ResourceNotFoundException",
                 ]:
-                    print(
-                        f"Cannot update launch config for server {source_server_id}: {error_code}"
-                    )
+                    print(f"Cannot update launch config for server {source_server_id}: {error_code}")
                 else:
                     print(f"DRS error updating launch config for {source_server_id}: {e}")
             except Exception as e:
@@ -4442,9 +4409,7 @@ def get_tag_sync_settings() -> Dict:
                 "scheduleExpression": schedule_expression,
                 "ruleName": rule_name,
                 "lastModified": (
-                    rule_response.get("ModifiedDate", "").isoformat()
-                    if rule_response.get("ModifiedDate")
-                    else None
+                    rule_response.get("ModifiedDate", "").isoformat() if rule_response.get("ModifiedDate") else None
                 ),
             }
 
@@ -4665,11 +4630,7 @@ def update_tag_sync_settings(body: Dict) -> Dict:
             return response(400, {"error": "enabled must be a boolean"})
 
         if interval_hours is not None:
-            if (
-                not isinstance(interval_hours, (int, float))
-                or interval_hours < 1
-                or interval_hours > 24
-            ):
+            if not isinstance(interval_hours, (int, float)) or interval_hours < 1 or interval_hours > 24:
                 return response(
                     400,
                     {"error": "intervalHours must be a number between 1 and 24"},
@@ -4735,9 +4696,7 @@ def update_tag_sync_settings(body: Dict) -> Dict:
             else:
                 # Just enable with current schedule
                 events_client.enable_rule(Name=rule_name)
-                interval_hours = parse_schedule_expression(
-                    current_rule.get("ScheduleExpression", "rate(4 hours)")
-                )
+                interval_hours = parse_schedule_expression(current_rule.get("ScheduleExpression", "rate(4 hours)"))
         else:
             # Disable the rule
             events_client.disable_rule(Name=rule_name)
@@ -4786,9 +4745,7 @@ def update_tag_sync_settings(body: Dict) -> Dict:
                     print("Warning: Could not determine Lambda function name for async sync")
 
             except Exception as sync_error:
-                print(
-                    f"Warning: Failed to trigger async manual sync after settings update: {sync_error}"
-                )
+                print(f"Warning: Failed to trigger async manual sync after settings update: {sync_error}")
                 # Don't fail the settings update if sync fails
                 sync_triggered = False
 
@@ -4799,9 +4756,7 @@ def update_tag_sync_settings(body: Dict) -> Dict:
             "scheduleExpression": updated_rule.get("ScheduleExpression"),
             "ruleName": rule_name,
             "lastModified": (
-                updated_rule.get("ModifiedDate", "").isoformat()
-                if updated_rule.get("ModifiedDate")
-                else None
+                updated_rule.get("ModifiedDate", "").isoformat() if updated_rule.get("ModifiedDate") else None
             ),
             "syncTriggered": sync_triggered,
             "syncResult": sync_result if sync_triggered else None,
@@ -4868,6 +4823,9 @@ def apply_launch_config_to_servers(
     When protection_group is provided, merges group defaults with server-specific
     overrides using get_effective_launch_config().
 
+    For extended source servers (servers from staging accounts), launch settings
+    are applied in the target account where recovery happens, not the staging account.
+
     Args:
         server_ids: List of DRS source server IDs
         launch_config: Dict with SubnetId, SecurityGroupIds, InstanceProfileName, etc.
@@ -4884,9 +4842,72 @@ def apply_launch_config_to_servers(
 
     # Import config merge utility for per-server overrides
     from shared.config_merge import get_effective_launch_config
+    from shared.cross_account import create_drs_client
 
-    regional_drs = boto3.client("drs", region_name=region)
-    ec2 = boto3.client("ec2", region_name=region)
+    # Determine target account context from protection group
+    account_context = None
+    if protection_group:
+        account_id = protection_group.get("accountId")
+        assume_role_name = protection_group.get("assumeRoleName")
+
+        # If accountId is provided, use it for cross-account access
+        if account_id and account_id.strip():
+            account_context = {
+                "accountId": account_id,
+                "assumeRoleName": assume_role_name,
+                "isCurrentAccount": False,
+            }
+            print(f"Using target account {account_id} for launch config application")
+        else:
+            # No accountId specified - query first server to detect if extended source servers
+            # For extended source servers, we need to apply settings in the target account
+            print("No accountId specified, checking if servers are extended source servers")
+            try:
+                temp_drs = boto3.client("drs", region_name=region)
+                first_server_response = temp_drs.describe_source_servers(filters={"sourceServerIDs": [server_ids[0]]})
+                if first_server_response.get("items"):
+                    first_server = first_server_response["items"][0]
+                    staging_area = first_server.get("stagingArea", {})
+                    staging_account_id = staging_area.get("stagingAccountID", "")
+
+                    # Get current account ID
+                    from shared.cross_account import get_current_account_id
+
+                    current_account_id = get_current_account_id()
+
+                    # If server is in current account but has different staging account,
+                    # it's an extended source server - we're already in the target account
+                    if staging_account_id and staging_account_id != current_account_id:
+                        print(
+                            f"Detected extended source server from staging account "
+                            f"{staging_account_id}, already in target account {current_account_id}"
+                        )
+                        # No cross-account needed, we're already in the target account
+                    else:
+                        print(f"Server is native to current account {current_account_id}")
+            except Exception as e:
+                print(f"Warning: Could not detect server account context: {e}")
+                # Continue with current account credentials
+
+    # Create DRS client with proper account context
+    regional_drs = create_drs_client(region, account_context)
+
+    # Create EC2 client with same account context
+    if account_context and not account_context.get("isCurrentAccount", True):
+        from shared.cross_account import get_cross_account_session
+
+        account_id = account_context["accountId"]
+        assume_role_name = account_context.get("assumeRoleName")
+        if assume_role_name:
+            role_arn = f"arn:aws:iam::{account_id}:role/{assume_role_name}"
+            external_id = account_context.get("externalId")
+            session = get_cross_account_session(role_arn, external_id)
+            ec2 = session.client("ec2", region_name=region)
+            print(f"Created cross-account EC2 client for account {account_id}")
+        else:
+            ec2 = boto3.client("ec2", region_name=region)
+    else:
+        ec2 = boto3.client("ec2", region_name=region)
 
     results = {"applied": 0, "skipped": 0, "failed": 0, "details": []}
 
@@ -4938,9 +4959,7 @@ def apply_launch_config_to_servers(
                 template_data["NetworkInterfaces"] = [network_interface]
 
             if effective_config.get("instanceProfileName"):
-                template_data["IamInstanceProfile"] = {
-                    "Name": effective_config["instanceProfileName"]
-                }
+                template_data["IamInstanceProfile"] = {"Name": effective_config["instanceProfileName"]}
 
             # IMPORTANT: Update DRS launch configuration FIRST
             # DRS update_launch_configuration creates a new EC2 launch template version,
@@ -5130,9 +5149,7 @@ def create_target_account(body: Dict) -> Dict:
                         "message": "Cross-account role is not needed when adding the same account where this solution is deployed. Please leave the role field empty.",  # noqa: E501
                     },
                 )
-            print(
-                f"Same account deployment detected for {account_id} - no cross-account role required"
-            )
+            print(f"Same account deployment detected for {account_id} - no cross-account role required")
         else:
             # Different account - construct role ARN if not provided
             if not role_arn:
@@ -5210,10 +5227,7 @@ def create_target_account(body: Dict) -> Dict:
                 )
 
                 if discovered_staging:
-                    print(
-                        f"Found {len(discovered_staging)} staging "
-                        f"accounts, adding to target account"
-                    )
+                    print(f"Found {len(discovered_staging)} staging " f"accounts, adding to target account")
 
                     account_item["stagingAccounts"] = [
                         {
@@ -5230,9 +5244,7 @@ def create_target_account(body: Dict) -> Dict:
 
                     target_accounts_table.put_item(Item=account_item)
 
-                    success_message += (
-                        f" with {len(discovered_staging)} " f"staging account(s) auto-discovered"
-                    )
+                    success_message += f" with {len(discovered_staging)} " f"staging account(s) auto-discovered"
                 else:
                     print("No staging accounts discovered")
 
@@ -5245,9 +5257,7 @@ def create_target_account(body: Dict) -> Dict:
         }
 
         if discovered_staging:
-            response_data["discoveredStagingAccounts"] = [
-                sa["accountId"] for sa in discovered_staging
-            ]
+            response_data["discoveredStagingAccounts"] = [sa["accountId"] for sa in discovered_staging]
 
         return response(201, response_data)
 
@@ -5454,10 +5464,7 @@ def handle_add_staging_account(body: Dict) -> Dict:
         # Add staging account using shared module
         result = add_staging_account(target_account_id, staging_account, added_by="user")
 
-        print(
-            f"Added staging account {staging_account.get('accountId')} "
-            f"to target account {target_account_id}"
-        )
+        print(f"Added staging account {staging_account.get('accountId')} " f"to target account {target_account_id}")
 
         return response(200, result)
 
@@ -5573,10 +5580,7 @@ def handle_remove_staging_account(body: Dict) -> Dict:
         # Remove staging account using shared module
         result = remove_staging_account(target_account_id, staging_account_id)
 
-        print(
-            f"Removed staging account {staging_account_id} "
-            f"from target account {target_account_id}"
-        )
+        print(f"Removed staging account {staging_account_id} " f"from target account {target_account_id}")
 
         return response(200, result)
 
@@ -6004,9 +6008,7 @@ def export_configuration(query_params: Dict) -> Dict:
         pg_result = protection_groups_table.scan()
         protection_groups = pg_result.get("Items", [])
         while "LastEvaluatedKey" in pg_result:
-            pg_result = protection_groups_table.scan(
-                ExclusiveStartKey=pg_result["LastEvaluatedKey"]
-            )
+            pg_result = protection_groups_table.scan(ExclusiveStartKey=pg_result["LastEvaluatedKey"])
             protection_groups.extend(pg_result.get("Items", []))
 
         # Scan all Recovery Plans
@@ -6064,8 +6066,7 @@ def export_configuration(query_params: Dict) -> Dict:
 
                     # Count servers with custom configurations
                     if not server.get("useGroupDefaults", True) or (
-                        server.get("launchTemplate")
-                        and any(v is not None for v in server["launchTemplate"].values())
+                        server.get("launchTemplate") and any(v is not None for v in server["launchTemplate"].values())
                     ):
                         servers_with_custom_config += 1
 
@@ -6757,10 +6758,7 @@ def _validate_and_resolve_server_configs(
 
         # Step 1: Resolve EC2 instance ID to DRS source server ID
         if not server_id and instance_id:
-            print(
-                f"[{correlation_id}] Resolving instance ID {instance_id} "
-                f"to DRS source server ID"
-            )
+            print(f"[{correlation_id}] Resolving instance ID {instance_id} " f"to DRS source server ID")
             try:
                 # Query DRS for source servers
                 drs_response = drs_client.describe_source_servers()
@@ -6787,14 +6785,10 @@ def _validate_and_resolve_server_configs(
                             "instanceId": instance_id,
                             "instanceName": instance_name,
                             "reason": "INSTANCE_NOT_IN_DRS",
-                            "message": f"EC2 instance {instance_id} not "
-                            f"found in DRS. Server will be skipped.",
+                            "message": f"EC2 instance {instance_id} not " f"found in DRS. Server will be skipped.",
                         }
                     )
-                    print(
-                        f"[{correlation_id}] Warning: Instance "
-                        f"{instance_id} not found in DRS, skipping"
-                    )
+                    print(f"[{correlation_id}] Warning: Instance " f"{instance_id} not found in DRS, skipping")
                     continue
 
             except Exception as e:
@@ -6817,8 +6811,7 @@ def _validate_and_resolve_server_configs(
                     "serverIndex": idx,
                     "instanceName": instance_name,
                     "reason": "MISSING_SERVER_ID",
-                    "message": "Neither sourceServerId nor instanceId "
-                    "provided. Server will be skipped.",
+                    "message": "Neither sourceServerId nor instanceId " "provided. Server will be skipped.",
                 }
             )
             continue
@@ -6856,10 +6849,7 @@ def _validate_and_resolve_server_configs(
                         "blockedFields": field_validation.get("blockedFields", []),
                     }
                 )
-                print(
-                    f"[{correlation_id}] Warning: Server {server_id} has "
-                    f"invalid fields, skipping"
-                )
+                print(f"[{correlation_id}] Warning: Server {server_id} has " f"invalid fields, skipping")
                 continue
 
             # Step 3: Validate static IP if present
@@ -6898,10 +6888,7 @@ def _validate_and_resolve_server_configs(
                             "message": ip_validation.get("message"),
                         }
                     )
-                    print(
-                        f"[{correlation_id}] Warning: Server {server_id} "
-                        f"has invalid IP {static_ip}, skipping"
-                    )
+                    print(f"[{correlation_id}] Warning: Server {server_id} " f"has invalid IP {static_ip}, skipping")
                     continue
 
                 # Step 4: Check for duplicate IPs in same subnet
@@ -6926,10 +6913,7 @@ def _validate_and_resolve_server_configs(
                             "conflictingServer": conflict_server,
                         }
                     )
-                    print(
-                        f"[{correlation_id}] Warning: Duplicate IP "
-                        f"{static_ip} for server {server_id}, skipping"
-                    )
+                    print(f"[{correlation_id}] Warning: Duplicate IP " f"{static_ip} for server {server_id}, skipping")
                     continue
 
                 # Track this IP
@@ -6962,14 +6946,11 @@ def _validate_and_resolve_server_configs(
         "valid": True,
         "resolvedServers": resolved_servers,
         "warnings": warnings,
-        "message": f"Validated {len(resolved_servers)} server "
-        f"configurations, {len(warnings)} skipped",
+        "message": f"Validated {len(resolved_servers)} server " f"configurations, {len(warnings)} skipped",
     }
 
 
-def generate_manifest_validation_report(
-    manifest: Dict, correlation_id: str = None
-) -> Dict[str, Any]:
+def generate_manifest_validation_report(manifest: Dict, correlation_id: str = None) -> Dict[str, Any]:
     """
     Generate comprehensive validation report for JSON manifest.
 
@@ -7095,9 +7076,7 @@ def generate_manifest_validation_report(
 
         # Update summary counts
         report["summary"]["totalServers"] += pg_validation.get("serverCount", 0)
-        report["summary"]["serversWithCustomConfig"] += pg_validation.get(
-            "serversWithCustomConfig", 0
-        )
+        report["summary"]["serversWithCustomConfig"] += pg_validation.get("serversWithCustomConfig", 0)
 
         # Collect errors and warnings
         if not pg_validation["valid"]:
@@ -7139,9 +7118,7 @@ def generate_manifest_validation_report(
     return report
 
 
-def _validate_protection_group_manifest(
-    pg: Dict, pg_idx: int, correlation_id: str
-) -> Dict[str, Any]:
+def _validate_protection_group_manifest(pg: Dict, pg_idx: int, correlation_id: str) -> Dict[str, Any]:
     """
     Validate a single protection group from manifest.
 
@@ -7313,8 +7290,7 @@ def _validate_server_config_manifest(
                 {
                     "field": f"servers[{server_idx}].launchTemplate." "staticPrivateIp",
                     "warning": "MISSING_SUBNET",
-                    "message": "Static IP configured but no subnet "
-                    "specified. Cannot validate IP without subnet.",
+                    "message": "Static IP configured but no subnet " "specified. Cannot validate IP without subnet.",
                 }
             )
         else:
@@ -7366,9 +7342,7 @@ def _validate_server_config_manifest(
     return validation
 
 
-def _validate_recovery_plan_manifest(
-    rp: Dict, rp_idx: int, pg_names: set, correlation_id: str
-) -> Dict[str, Any]:
+def _validate_recovery_plan_manifest(rp: Dict, rp_idx: int, pg_names: set, correlation_id: str) -> Dict[str, Any]:
     """
     Validate a single recovery plan from manifest.
 
@@ -7436,8 +7410,7 @@ def _validate_recovery_plan_manifest(
                 {
                     "field": f"recoveryPlans[{rp_idx}].waves[{wave_idx}]." "protectionGroupName",
                     "error": "PROTECTION_GROUP_NOT_FOUND",
-                    "message": f"Protection group '{pg_name}' referenced "
-                    "in wave but not found in manifest",
+                    "message": f"Protection group '{pg_name}' referenced " "in wave but not found in manifest",
                     "value": pg_name,
                 }
             )
@@ -7520,9 +7493,7 @@ def _process_protection_group_import(
         # Check servers exist in DRS
         try:
             regional_drs = boto3.client("drs", region_name=region)
-            drs_response = regional_drs.describe_source_servers(
-                filters={"sourceServerIDs": source_server_ids}
-            )
+            drs_response = regional_drs.describe_source_servers(filters={"sourceServerIDs": source_server_ids})
             found_ids = {s["sourceServerID"] for s in drs_response.get("items", [])}
             missing = set(source_server_ids) - found_ids
 
@@ -7652,10 +7623,7 @@ def _process_protection_group_import(
 
             # NEW: Log per-server config count
             if servers_config:
-                print(
-                    f"[{correlation_id}] Imported {len(servers_config)} "
-                    f"per-server configurations"
-                )
+                print(f"[{correlation_id}] Imported {len(servers_config)} " f"per-server configurations")
 
             # Apply launchConfig to DRS servers (same as create/update)
             # NEW: Pass full protection group for per-server config support
@@ -7672,20 +7640,18 @@ def _process_protection_group_import(
                             "accountId": pg.get("accountId"),
                             "assumeRoleName": pg.get("assumeRoleName"),
                         }
-                    resolved = query_drs_servers_by_tags(
-                        region, server_selection_tags, account_context
-                    )
-                    server_ids_to_apply = [
-                        s.get("sourceServerId") for s in resolved if s.get("sourceServerId")
-                    ]
+                    resolved = query_drs_servers_by_tags(region, server_selection_tags, account_context)
+                    server_ids_to_apply = [s.get("sourceServerId") for s in resolved if s.get("sourceServerId")]
 
                 if server_ids_to_apply:
                     try:
-                        # NEW: Build full protection group dict for per-server
-                        # config
+                        # Build full protection group dict for per-server config
                         full_pg = {
                             "groupId": group_id,
                             "groupName": pg_name,
+                            "accountId": pg.get("accountId", ""),
+                            "assumeRoleName": pg.get("assumeRoleName", ""),
+                            "region": region,
                             "launchConfig": launch_config or {},
                             "servers": servers_config,
                         }
@@ -7842,9 +7808,7 @@ def _process_recovery_plan_import(
             "failedProtectionGroups": list(set(cascade_failed_pgs)),
             "message": "Referenced Protection Groups failed to import",
         }
-        print(
-            f"[{correlation_id}] Failed RP '{plan_name}': cascade failure from PGs {cascade_failed_pgs}"
-        )
+        print(f"[{correlation_id}] Failed RP '{plan_name}': cascade failure from PGs {cascade_failed_pgs}")
         return result
 
     if missing_pgs:
