@@ -110,6 +110,7 @@ def discover_staging_accounts_from_drs(
 
                 if staging_accounts:
                     print(f"Found {len(staging_accounts)} staging accounts in region {region}")
+                    print(f"Staging account IDs: {[acc.get('accountID') for acc in staging_accounts]}")
 
                 for staging_account in staging_accounts:
                     staging_account_id = staging_account.get("accountID")
