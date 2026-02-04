@@ -431,6 +431,15 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
             f"Please ensure the target account is registered with a valid cross-account role."
         )
 
+    # Skip role assumption if already using target account credentials
+    current_account_id = get_current_account_id()
+    if current_account_id == account_id:
+        print(
+            f"Already running with credentials for account {account_id}, "
+            f"skipping role assumption"
+        )
+        return boto3.client("drs", region_name=region)
+
     print(
         f"Creating cross-account DRS client for account {account_id} using role {assume_role_name}"
     )
