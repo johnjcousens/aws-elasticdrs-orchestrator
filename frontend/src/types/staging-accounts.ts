@@ -218,6 +218,43 @@ export interface RecoveryCapacity {
 }
 
 /**
+ * Regional capacity breakdown across all accounts.
+ *
+ * Pre-calculated by backend for performance.
+ */
+export interface RegionalCapacityBreakdown {
+  /** AWS region code */
+  region: string;
+
+  /** Total replicating servers in this region */
+  replicatingServers: number;
+
+  /** Maximum replication capacity in this region */
+  maxReplicating: number;
+
+  /** Replication percentage used */
+  replicationPercent: number;
+
+  /** Available replication slots */
+  replicationAvailable: number;
+
+  /** Recovery servers in this region (target accounts only) */
+  recoveryServers: number;
+
+  /** Maximum recovery capacity (4,000 per region) */
+  recoveryMax: number;
+
+  /** Recovery percentage used */
+  recoveryPercent: number;
+
+  /** Available recovery slots */
+  recoveryAvailable: number;
+
+  /** Number of accounts in this region */
+  accountCount: number;
+}
+
+/**
  * Combined capacity data across all accounts.
  *
  * Aggregates capacity metrics from target account and all staging accounts,
@@ -252,6 +289,9 @@ export interface CombinedCapacityData {
 
   /** Recovery capacity metrics (target account only) */
   recoveryCapacity: RecoveryCapacity;
+
+  /** Regional capacity breakdown (pre-calculated by backend) */
+  regionalCapacity: RegionalCapacityBreakdown[];
 
   /** Concurrent jobs metrics */
   concurrentJobs: {
