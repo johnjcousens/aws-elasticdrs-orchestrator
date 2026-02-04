@@ -4734,22 +4734,37 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         # Sum totalServers from all accounts (target + staging)
         all_total_servers = sum(acc.get("totalServers", 0) for acc in account_results)
 
-        # Get regional breakdown from target account for region count
+        # Get target account result for later use (jobs query)
         target_account_result = next(
             (a for a in account_results if a.get("accountType") == "target"),
             None,
         )
 
-        if target_account_result:
-            target_regional_breakdown = target_account_result.get("regionalBreakdown", [])
-        else:
-            target_regional_breakdown = []
+        # Combine regional breakdowns from ALL accounts (target + staging)
+        # to get accurate per-region server counts
+        combined_regional_breakdown = {}
+        for account in account_results:
+            for region_data in account.get("regionalBreakdown", []):
+                region = region_data.get("region")
+                if region:
+                    if region not in combined_regional_breakdown:
+                        combined_regional_breakdown[region] = {
+                            "region": region,
+                            "replicatingServers": 0,
+                            "totalServers": 0,
+                        }
+                    # Sum servers from all accounts in this region
+                    combined_regional_breakdown[region]["replicatingServers"] += region_data.get("replicatingServers", 0)
+                    combined_regional_breakdown[region]["totalServers"] += region_data.get("totalServers", 0)
 
-        recovery_capacity = calculate_recovery_capacity(all_total_servers, target_regional_breakdown)
+        # Convert to list for calculate_recovery_capacity
+        combined_regional_list = list(combined_regional_breakdown.values())
+
+        recovery_capacity = calculate_recovery_capacity(all_total_servers, combined_regional_list)
         print(
             f"Recovery capacity calculated: {recovery_capacity.get('currentServers')}/"
             f"{recovery_capacity.get('maxRecoveryInstances')} "
-            f"({len(target_regional_breakdown)} regions × 4,000 per region, "
+            f"({len(combined_regional_list)} regions × 4,000 per region, "
             f"using totalServers from all accounts={all_total_servers})"
         )
 
