@@ -521,6 +521,23 @@ Resources:
           Value: CamelCaseV2
       TimeoutInMinutes: 15
 
+  # SSM Document for DRS Agent Installation with Cross-Account Support
+  DRSAgentInstallerStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/drs-agent-installer-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
+
   # 6 Lambda functions: API handler, orchestration, polling, notifications, frontend deployer
   # All functions share unified OrchestrationRoleArn
   LambdaStack:
@@ -576,10 +593,8 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        # NEW: Refactored DR orchestration Lambda (no DRS code)
+        # Refactored DR orchestration Lambda (no DRS code)
         OrchestrationLambdaArn: !GetAtt LambdaStack.Outputs.DrOrchestrationStepFunctionArn
-        # OLD (keep for rollback): Original orchestration Lambda
-        # OrchestrationLambdaArn: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
         OrchestrationRoleArn: !If
           - CreateOrchestrationRole
           - !GetAtt UnifiedOrchestrationRole.Arn
@@ -999,8 +1014,8 @@ Outputs:
       Name: !Sub '${AWS::StackName}-QueryHandlerArn'
 
   OrchestrationFunctionArn:
-    Description: 'Orchestration Lambda Function ARN'
-    Value: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
+    Description: 'DR Orchestration Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.DrOrchestrationStepFunctionArn
     Export:
       Name: !Sub '${AWS::StackName}-OrchestrationArn'
 
@@ -1109,3 +1124,10 @@ Outputs:
     Value: !Ref SourceBucket
     Export:
       Name: !Sub '${AWS::StackName}-DeploymentBucket'
+
+  # DRS Agent Installer SSM Document Output
+  DRSAgentInstallerDocumentName:
+    Description: 'SSM Document name for DRS Agent installation with cross-account support'
+    Value: !GetAtt DRSAgentInstallerStack.Outputs.DocumentName
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSAgentInstallerDocument'

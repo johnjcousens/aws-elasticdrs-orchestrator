@@ -146,7 +146,10 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
         regionalCapacity[region.region].replicatingServers += region.replicatingServers;
         regionalCapacity[region.region].maxReplicating += (region.maxReplicating || 300);
         regionalCapacity[region.region].accountCount += 1;
-        // Don't add staging servers to recovery capacity - only target account servers count
+        
+        // Recovery capacity: ADD staging account servers too
+        // All servers (target + staging) count toward recovery capacity
+        regionalCapacity[region.region].recoveryServers += (region.totalServers || region.replicatingServers);
       });
     });
     
@@ -257,7 +260,7 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
                           
                           {/* Replication Capacity */}
                           <div>
-                            <Box variant="small" color="text-body-secondary" padding={{ bottom: 'xxs' }}>
+                            <Box textAlign="center" variant="small" color="text-body-secondary" padding={{ bottom: 'xxs' }}>
                               Replication: {region.replicatingServers} / {region.maxReplicating} servers
                               {region.accountCount > 1 && ` (${region.accountCount} accounts)`}
                             </Box>
@@ -276,7 +279,7 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
                           
                           {/* Recovery Capacity */}
                           <div>
-                            <Box variant="small" color="text-body-secondary" padding={{ bottom: 'xxs' }}>
+                            <Box textAlign="center" variant="small" color="text-body-secondary" padding={{ bottom: 'xxs' }}>
                               Recovery: {region.recoveryServers} / {region.recoveryMax.toLocaleString()} servers
                             </Box>
                             <CapacityGauge

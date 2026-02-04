@@ -336,23 +336,36 @@ from shared.drs_limits import (
 from shared.drs_utils import map_replication_state_to_display
 from shared.response_utils import response
 
-# DRS regions (all regions where DRS is available)
+# DRS regions (all regions where DRS is available as of 2026)
 DRS_REGIONS = [
     "us-east-1",
     "us-east-2",
     "us-west-1",
     "us-west-2",
+    "ap-southeast-1",
+    "ap-southeast-2",
+    "ap-southeast-3",
+    "ap-northeast-1",
+    "ap-northeast-2",
+    "ap-northeast-3",
+    "eu-central-1",
     "eu-west-1",
     "eu-west-2",
     "eu-west-3",
-    "eu-central-1",
-    "ap-southeast-1",
-    "ap-southeast-2",
-    "ap-northeast-1",
-    "ap-northeast-2",
-    "ap-south-1",
     "ca-central-1",
+    "ap-south-1",
     "sa-east-1",
+    "eu-north-1",
+    "me-south-1",
+    "af-south-1",
+    "ap-east-1",
+    "eu-south-1",
+    "eu-central-2",
+    "eu-south-2",
+    "ap-south-2",
+    "ap-southeast-4",
+    "me-central-1",
+    "il-central-1",
 ]
 
 # DRS job status constants - determine when job polling should stop
@@ -3388,7 +3401,8 @@ def query_account_capacity(account_config: Dict) -> Dict:
         replicating_servers = sum(r["replicatingServers"] for r in regional_results)
 
         # Filter out regions with no servers for cleaner output
-        regional_breakdown = [r for r in regional_results if r["totalServers"] > 0 or r["error"]]
+        # Only include regions with servers (ignore opt-in region errors)
+        regional_breakdown = [r for r in regional_results if r["totalServers"] > 0]
 
         print(f"Account {account_id} capacity: {replicating_servers} replicating, {total_servers} total")
 
@@ -3989,13 +4003,13 @@ def generate_warnings(account_results: List[Dict], combined_metrics: Dict) -> Li
     return warnings
 
 
-def calculate_recovery_capacity(target_account_servers: int, regional_breakdown: List[Dict] = None) -> Dict:
+def calculate_recovery_capacity(total_servers: int, regional_breakdown: List[Dict] = None) -> Dict:
     """
-    Calculate recovery capacity metrics for the target account.
+    Calculate recovery capacity metrics for ALL servers (target + staging accounts).
 
-    Recovery capacity is based only on the target account (not staging
-    accounts) and measures against the 4,000 instance recovery limit
-    PER REGION.
+    Recovery capacity measures against the 4,000 instance recovery limit PER REGION.
+    This includes servers from BOTH target and staging accounts since they all count
+    toward the recovery capacity when extended to the target account.
 
     AWS DRS Service Quota (L-E28BE5E0):
     - 4,000 source servers per account PER REGION
@@ -4009,14 +4023,14 @@ def calculate_recovery_capacity(target_account_servers: int, regional_breakdown:
     - CRITICAL: > 90% of total capacity
 
     Args:
-        target_account_servers: Total number of servers in target account
-            (includes both replicating and extended source servers)
+        total_servers: Total number of servers across ALL accounts
+            (target + staging, includes both replicating and extended source servers)
         regional_breakdown: List of regional capacity dicts with 'region' key
             Used to count active regions for capacity calculation
 
     Returns:
         Dictionary containing:
-        - currentServers: Total servers in target account
+        - currentServers: Total servers across all accounts
         - maxRecoveryInstances: Maximum recovery instances (4,000 × regions)
         - percentUsed: Percentage of recovery capacity used
         - availableSlots: Available recovery slots
@@ -4035,8 +4049,8 @@ def calculate_recovery_capacity(target_account_servers: int, regional_breakdown:
     max_per_region = 4000
     max_recovery_instances = max_per_region * active_regions
 
-    percent_used = (target_account_servers / max_recovery_instances) * 100 if max_recovery_instances > 0 else 0
-    available_slots = max_recovery_instances - target_account_servers
+    percent_used = (total_servers / max_recovery_instances) * 100 if max_recovery_instances > 0 else 0
+    available_slots = max_recovery_instances - total_servers
 
     # Determine status based on thresholds
     if percent_used < 80:
@@ -4047,7 +4061,7 @@ def calculate_recovery_capacity(target_account_servers: int, regional_breakdown:
         status = "CRITICAL"
 
     return {
-        "currentServers": target_account_servers,
+        "currentServers": total_servers,
         "maxRecoveryInstances": max_recovery_instances,
         "percentUsed": round(percent_used, 2),
         "availableSlots": available_slots,
@@ -4508,84 +4522,68 @@ def auto_extend_staging_servers(target_accounts: List[Dict]) -> Dict:
 
 
 def get_extended_source_servers(target_account_id: str, role_arn: str, external_id: str) -> set:
-    """Get set of extended source server ARNs in target account."""
+    """Get set of extended source server ARNs in target account across all DRS regions."""
     extended_arns = set()
 
-    try:
-        # Assume role in target account
-        sts_client = boto3.client("sts")
-        assumed_role = sts_client.assume_role(
-            RoleArn=role_arn,
-            RoleSessionName="drs-orchestration-extend-check",
-            ExternalId=external_id,
-            DurationSeconds=900,
-        )
-        credentials = assumed_role["Credentials"]
+    # Query all DRS regions
+    for region in DRS_REGIONS:
+        try:
+            # Create DRS client for this region with cross-account access
+            regional_drs = create_drs_client(region, role_arn, external_id)
 
-        # Query DRS in primary region (us-west-2)
-        drs_client = boto3.client(
-            "drs",
-            region_name="us-west-2",
-            aws_access_key_id=credentials["AccessKeyId"],
-            aws_secret_access_key=credentials["SecretAccessKey"],
-            aws_session_token=credentials["SessionToken"],
-        )
+            # Get all source servers
+            paginator = regional_drs.get_paginator("describe_source_servers")
+            for page in paginator.paginate():
+                for server in page.get("items", []):
+                    staging_area = server.get("stagingArea", {})
+                    staging_account_id = staging_area.get("stagingAccountID", "")
+                    staging_server_arn = staging_area.get("stagingSourceServerArn", "")
 
-        # Get all source servers
-        paginator = drs_client.get_paginator("describe_source_servers")
-        for page in paginator.paginate():
-            for server in page.get("items", []):
-                staging_area = server.get("stagingArea", {})
-                staging_account_id = staging_area.get("stagingAccountID", "")
-                staging_server_arn = staging_area.get("stagingSourceServerArn", "")
+                    # If extended (staging account != target account), add ARN
+                    if staging_account_id and staging_account_id != target_account_id:
+                        if staging_server_arn:
+                            extended_arns.add(staging_server_arn)
 
-                # If extended (staging account != target account), add ARN
-                if staging_account_id and staging_account_id != target_account_id:
-                    if staging_server_arn:
-                        extended_arns.add(staging_server_arn)
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code == "UninitializedAccountException":
+                # DRS not initialized in this region - skip
+                continue
+            else:
+                print(f"Error querying DRS in {region}: {e}")
+        except Exception as e:
+            print(f"Error querying {region}: {e}")
 
-        print(f"Found {len(extended_arns)} extended source servers in {target_account_id}")
-
-    except Exception as e:
-        print(f"Error getting extended source servers: {e}")
-
+    print(f"Found {len(extended_arns)} extended source servers in {target_account_id} across all regions")
     return extended_arns
 
 
 def get_staging_account_servers(staging_account_id: str, role_arn: str, external_id: str) -> List[Dict]:
-    """Get DRS source servers in staging account."""
+    """Get DRS source servers in staging account across all DRS regions."""
     servers = []
 
-    try:
-        # Assume role in staging account
-        sts_client = boto3.client("sts")
-        assumed_role = sts_client.assume_role(
-            RoleArn=role_arn,
-            RoleSessionName="drs-orchestration-staging-query",
-            ExternalId=external_id,
-            DurationSeconds=900,
-        )
-        credentials = assumed_role["Credentials"]
+    # Query all DRS regions
+    for region in DRS_REGIONS:
+        try:
+            # Create DRS client for this region with cross-account access
+            regional_drs = create_drs_client(region, role_arn, external_id)
 
-        # Query DRS in primary region
-        drs_client = boto3.client(
-            "drs",
-            region_name="us-west-2",
-            aws_access_key_id=credentials["AccessKeyId"],
-            aws_secret_access_key=credentials["SecretAccessKey"],
-            aws_session_token=credentials["SessionToken"],
-        )
+            # Get all source servers
+            paginator = regional_drs.get_paginator("describe_source_servers")
+            for page in paginator.paginate():
+                servers.extend(page.get("items", []))
 
-        # Get all source servers
-        paginator = drs_client.get_paginator("describe_source_servers")
-        for page in paginator.paginate():
-            servers.extend(page.get("items", []))
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code == "UninitializedAccountException":
+                # DRS not initialized in this region - skip
+                continue
+            else:
+                print(f"Error querying DRS in {region}: {e}")
+        except Exception as e:
+            print(f"Error querying {region}: {e}")
 
-        print(f"Found {len(servers)} source servers in staging account {staging_account_id}")
-
-    except Exception as e:
-        print(f"Error getting staging account servers: {e}")
-
+    print(f"Found {len(servers)} source servers in staging account {staging_account_id} across all regions")
     return servers
 
 
@@ -4595,32 +4593,28 @@ def extend_source_server(
     target_external_id: str,
     staging_server_arn: str,
 ) -> None:
-    """Extend a source server from staging account to target account."""
-    # Assume role in target account
-    sts_client = boto3.client("sts")
-    assumed_role = sts_client.assume_role(
-        RoleArn=target_role_arn,
-        RoleSessionName="drs-orchestration-extend-server",
-        ExternalId=target_external_id,
-        DurationSeconds=900,
-    )
-    credentials = assumed_role["Credentials"]
+    """
+    Extend a source server from staging account to target account.
 
-    # Create DRS client
-    drs_client = boto3.client(
-        "drs",
-        region_name="us-west-2",
-        aws_access_key_id=credentials["AccessKeyId"],
-        aws_secret_access_key=credentials["SecretAccessKey"],
-        aws_session_token=credentials["SessionToken"],
-    )
+    The region is extracted from the staging_server_arn which has format:
+    arn:aws:drs:region:account:source-server/id
+    """
+    # Extract region from ARN
+    arn_parts = staging_server_arn.split(":")
+    if len(arn_parts) < 4:
+        raise ValueError(f"Invalid server ARN format: {staging_server_arn}")
+
+    region = arn_parts[3]
+
+    # Create DRS client for the server's region with cross-account access
+    regional_drs = create_drs_client(region, target_role_arn, target_external_id)
 
     # Create extended source server
-    drs_client.create_extended_source_server(
+    regional_drs.create_extended_source_server(
         sourceServerArn=staging_server_arn,
     )
 
-    print(f"Successfully extended server {staging_server_arn} to account {target_account_id}")
+    print(f"Successfully extended server {staging_server_arn} to account {target_account_id} in region {region}")
 
 
 def handle_get_combined_capacity(query_params: Dict) -> Dict:
@@ -4833,28 +4827,30 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
             account["warnings"] = account_warnings
 
-        # Step 7: Calculate recovery capacity (target account only)
-        # Find target account in results
+        # Step 7: Calculate recovery capacity (ALL accounts - target + staging)
+        # Recovery capacity counts ALL servers that can be recovered in the target account
+        # This includes both target account servers AND staging account extended servers
+
+        # Sum totalServers from all accounts (target + staging)
+        all_total_servers = sum(acc.get("totalServers", 0) for acc in account_results)
+
+        # Get regional breakdown from target account for region count
         target_account_result = next(
             (a for a in account_results if a.get("accountType") == "target"),
             None,
         )
 
         if target_account_result:
-            # Use totalServers (replicating + extended) for recovery capacity
-            target_total_servers = target_account_result.get("totalServers", 0)
-            # Pass regional breakdown to calculate capacity per region
             target_regional_breakdown = target_account_result.get("regionalBreakdown", [])
         else:
-            target_total_servers = 0
             target_regional_breakdown = []
 
-        recovery_capacity = calculate_recovery_capacity(target_total_servers, target_regional_breakdown)
+        recovery_capacity = calculate_recovery_capacity(all_total_servers, target_regional_breakdown)
         print(
             f"Recovery capacity calculated: {recovery_capacity.get('currentServers')}/"
             f"{recovery_capacity.get('maxRecoveryInstances')} "
             f"({len(target_regional_breakdown)} regions × 4,000 per region, "
-            f"using totalServers={target_total_servers})"
+            f"using totalServers from all accounts={all_total_servers})"
         )
 
         # Step 7.5: Get concurrent jobs and servers in jobs metrics

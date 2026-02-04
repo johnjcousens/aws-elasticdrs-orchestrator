@@ -313,8 +313,10 @@ def test_combined_capacity_multiple_staging_accounts():
         # Verify combined status (300/1200 = 25% = OK)
         assert body["combined"]["status"] == "OK"
 
-        # Verify recovery capacity (target account only)
-        assert body["recoveryCapacity"]["currentServers"] == 150
+        # Verify recovery capacity (ALL accounts: target + staging)
+        # Recovery capacity counts all servers that can be recovered
+        total_servers = 150 + 75 + 50 + 25  # 300
+        assert body["recoveryCapacity"]["currentServers"] == total_servers
 
 
 @mock_aws

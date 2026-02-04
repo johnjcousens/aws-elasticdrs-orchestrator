@@ -624,6 +624,8 @@ elif [ "$FRONTEND_ONLY" = true ]; then
         aws cloudformation deploy \
             --template-file cfn/master-template.yaml \
             --stack-name "$STACK_NAME" \
+            --s3-bucket "$DEPLOYMENT_BUCKET" \
+            --s3-prefix cfn \
             --parameter-overrides \
                 ProjectName="$PROJECT_NAME" \
                 Environment="$ENVIRONMENT" \
@@ -680,6 +682,8 @@ else
     aws cloudformation deploy \
         --template-file cfn/master-template.yaml \
         --stack-name "$STACK_NAME" \
+        --s3-bucket "$DEPLOYMENT_BUCKET" \
+        --s3-prefix cfn \
         --parameter-overrides \
             ProjectName="$PROJECT_NAME" \
             Environment="$ENVIRONMENT" \

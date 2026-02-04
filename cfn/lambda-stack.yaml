@@ -238,34 +238,6 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt ExecutionFinderScheduleRule.Arn
 
-  # Wave-based orchestration logic with tag-based discovery
-  # Implements Archive Pattern: Lambda owns state via OutputPath
-  OrchestrationStepFunctionsFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-orch-sf-${Environment}"
-      Description: "Wave-based orchestration with tag-based discovery"
-      Runtime: python3.12
-      Handler: index.lambda_handler
-      Role: !Ref OrchestrationRoleArn
-      Code:
-        S3Bucket: !Ref SourceBucket
-        S3Key: "lambda/orchestration-stepfunctions.zip"
-      Timeout: 120
-      MemorySize: 512
-      Environment:
-        Variables:
-          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
-          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
-          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
-          DRS_ALERTS_TOPIC_ARN: !Ref DRSAlertsTopicArn
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
   # Formats DRS orchestration events into user-friendly notifications
   # Routes to appropriate SNS topics based on event type
   NotificationFormatterFunction:
@@ -387,18 +359,6 @@ Outputs:
     Value: !Ref DrOrchestrationStepFunctionFunction
     Export:
       Name: !Sub "${AWS::StackName}-DrOrchestrationStepFunctionName"
-
-  OrchestrationStepFunctionsFunctionArn:
-    Description: "Step Functions Orchestration Lambda Function ARN"
-    Value: !GetAtt OrchestrationStepFunctionsFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-OrchestrationStepFunctionsArn"
-
-  OrchestrationStepFunctionsFunctionName:
-    Description: "Step Functions Orchestration Lambda Function Name"
-    Value: !Ref OrchestrationStepFunctionsFunction
-    Export:
-      Name: !Sub "${AWS::StackName}-OrchestrationStepFunctionsName"
 
   ExecutionFinderScheduleRuleArn:
     Description: "EventBridge Schedule Rule ARN for execution polling"
