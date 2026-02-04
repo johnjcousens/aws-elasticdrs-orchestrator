@@ -5226,6 +5226,48 @@ def handle_get_all_accounts_capacity() -> Dict:
             "max": 100,  # Global limit
         }
 
+        # Step 4: Calculate regional capacity breakdown
+        # Group all servers by region across all accounts
+        regional_capacity = {}
+        
+        for account in all_accounts:
+            for region_data in account.get("regionalBreakdown", []):
+                region = region_data.get("region")
+                if not region:
+                    continue
+                    
+                if region not in regional_capacity:
+                    regional_capacity[region] = {
+                        "region": region,
+                        "replicatingServers": 0,
+                        "maxReplicating": 0,
+                        "recoveryServers": 0,
+                        "recoveryMax": 4000,  # Per region limit
+                        "accountCount": 0,
+                    }
+                
+                # Add replication capacity
+                regional_capacity[region]["replicatingServers"] += region_data.get("replicatingServers", 0)
+                regional_capacity[region]["maxReplicating"] += region_data.get("maxReplicating", 300)
+                
+                # Add recovery capacity (only for target accounts)
+                if account.get("accountType") == "target":
+                    regional_capacity[region]["recoveryServers"] += region_data.get("replicatingServers", 0)
+                    regional_capacity[region]["accountCount"] += 1
+        
+        # Calculate percentages
+        for region_data in regional_capacity.values():
+            region_data["replicationPercent"] = (
+                (region_data["replicatingServers"] / region_data["maxReplicating"] * 100)
+                if region_data["maxReplicating"] > 0 else 0.0
+            )
+            region_data["recoveryPercent"] = (
+                (region_data["recoveryServers"] / region_data["recoveryMax"] * 100)
+                if region_data["recoveryMax"] > 0 else 0.0
+            )
+            region_data["replicationAvailable"] = region_data["maxReplicating"] - region_data["replicatingServers"]
+            region_data["recoveryAvailable"] = region_data["recoveryMax"] - region_data["recoveryServers"]
+
         response_data = {
             "combined": {
                 "totalReplicating": total_replicating,
@@ -5237,6 +5279,7 @@ def handle_get_all_accounts_capacity() -> Dict:
             },
             "accounts": all_accounts,
             "recoveryCapacity": recovery_capacity,
+            "regionalCapacity": list(regional_capacity.values()),
             "concurrentJobs": concurrent_jobs_data,
             "serversInJobs": servers_in_jobs_data,
             "maxServersPerJob": max_per_job_data,
