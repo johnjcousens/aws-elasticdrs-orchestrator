@@ -34,6 +34,7 @@ import {
   Alert,
 } from "@cloudscape-design/components";
 import apiClient from "../services/api";
+import { AddStagingAccountModal } from "./AddStagingAccountModal";
 import type {
   TargetAccountSettingsModalProps,
 } from "../types/staging-accounts";
@@ -51,6 +52,7 @@ export const TargetAccountSettingsModal: React.FC<
   const [freshAccountData, setFreshAccountData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAddStagingModal, setShowAddStagingModal] = useState(false);
 
   // Fetch fresh account data when modal opens
   useEffect(() => {
@@ -152,6 +154,14 @@ export const TargetAccountSettingsModal: React.FC<
           headerText={`Connected Staging Accounts (${stagingAccounts.length})`}
           variant="container"
           defaultExpanded={stagingAccounts.length > 0}
+          headerActions={
+            <Button
+              onClick={() => setShowAddStagingModal(true)}
+              iconName="add-plus"
+            >
+              Add Staging Account
+            </Button>
+          }
         >
           {isLoadingData ? (
             <Box textAlign="center" padding="l">
@@ -175,6 +185,28 @@ export const TargetAccountSettingsModal: React.FC<
           )}
         </ExpandableSection>
       </SpaceBetween>
+
+      {/* Add Staging Account Modal */}
+      <AddStagingAccountModal
+        visible={showAddStagingModal}
+        onDismiss={() => setShowAddStagingModal(false)}
+        targetAccountId={displayAccount.accountId}
+        onAdd={(stagingAccount) => {
+          // Refresh account data after adding
+          setShowAddStagingModal(false);
+          setLoading(true);
+          apiClient.getTargetAccount(displayAccount.accountId)
+            .then((data) => {
+              setFreshAccountData(data);
+            })
+            .catch((err) => {
+              console.error('Error refreshing account data:', err);
+            })
+            .finally(() => {
+              setLoading(false);
+            });
+        }}
+      />
     </Modal>
   );
 };
