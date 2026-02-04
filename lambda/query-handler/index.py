@@ -396,6 +396,77 @@ target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS
 # Lazy-loaded table for execution history (used by poll_wave_status)
 _execution_history_table = None
 
+# ============================================================================
+# Response Caching for Performance Optimization
+# ============================================================================
+
+# In-memory cache for expensive API calls (capacity queries)
+# Cache structure: {cache_key: {"data": response_data, "timestamp": unix_time}}
+_response_cache = {}
+
+# Cache TTL in seconds (30 seconds for capacity data)
+CACHE_TTL_CAPACITY = 30
+
+
+def get_cached_response(cache_key: str, ttl: int = CACHE_TTL_CAPACITY) -> Optional[Dict]:
+    """
+    Get cached response if it exists and hasn't expired.
+    
+    Args:
+        cache_key: Unique key for the cached data
+        ttl: Time-to-live in seconds
+        
+    Returns:
+        Cached data if valid, None if expired or not found
+    """
+    if cache_key not in _response_cache:
+        return None
+    
+    cached = _response_cache[cache_key]
+    age = time.time() - cached["timestamp"]
+    
+    if age > ttl:
+        # Cache expired, remove it
+        del _response_cache[cache_key]
+        return None
+    
+    print(f"Cache HIT for {cache_key} (age: {age:.1f}s)")
+    return cached["data"]
+
+
+def set_cached_response(cache_key: str, data: Dict) -> None:
+    """
+    Store response in cache with current timestamp.
+    
+    Args:
+        cache_key: Unique key for the cached data
+        data: Response data to cache
+    """
+    _response_cache[cache_key] = {
+        "data": data,
+        "timestamp": time.time()
+    }
+    print(f"Cache SET for {cache_key}")
+
+
+def clear_cache(pattern: Optional[str] = None) -> None:
+    """
+    Clear cache entries matching pattern, or all if no pattern.
+    
+    Args:
+        pattern: Optional string pattern to match cache keys
+    """
+    global _response_cache
+    if pattern:
+        keys_to_delete = [k for k in _response_cache.keys() if pattern in k]
+        for key in keys_to_delete:
+            del _response_cache[key]
+        print(f"Cleared {len(keys_to_delete)} cache entries matching '{pattern}'")
+    else:
+        count = len(_response_cache)
+        _response_cache = {}
+        print(f"Cleared all {count} cache entries")
+
 
 # ============================================================================
 # Helper Functions
@@ -4603,7 +4674,13 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                 {"error": f"Invalid account ID format: {target_account_id}. Must be 12-digit string."},
             )
 
-        print(f"Querying combined capacity for target account {target_account_id}")
+        # Check cache first (30-second TTL)
+        cache_key = f"combined_capacity_{target_account_id}"
+        cached_response = get_cached_response(cache_key, ttl=CACHE_TTL_CAPACITY)
+        if cached_response is not None:
+            return response(200, cached_response)
+
+        print(f"Querying combined capacity for target account {target_account_id} (cache miss)")
 
         # Step 2: Retrieve target account configuration from DynamoDB
         if not target_accounts_table:
@@ -4953,6 +5030,9 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             f"({response_data['combined']['percentUsed']}%)"
         )
 
+        # Cache the response for 30 seconds to improve performance
+        set_cached_response(cache_key, response_data)
+
         return response(200, response_data)
 
     except Exception as e:
@@ -4976,12 +5056,23 @@ def handle_get_all_accounts_capacity() -> Dict:
 
     This is the universal dashboard endpoint that returns capacity for all
     target accounts in a single API call, making the dashboard load much faster.
-
+    
+    Performance Optimization:
+    - Implements 30-second response caching to avoid repeated expensive API calls
+    - Cache is shared across Lambda invocations (warm starts)
+    - Significantly improves dashboard load time on page refresh/navigation
+    
     Returns:
         Dict with aggregated capacity data for all target accounts
     """
+    # Check cache first (30-second TTL)
+    cache_key = "all_accounts_capacity"
+    cached_response = get_cached_response(cache_key, ttl=CACHE_TTL_CAPACITY)
+    if cached_response is not None:
+        return response(200, cached_response)
+    
     try:
-        print("Querying capacity for ALL target accounts")
+        print("Querying capacity for ALL target accounts (cache miss)")
 
         # Step 1: Get all target accounts from DynamoDB
         if not target_accounts_table:
@@ -5156,6 +5247,9 @@ def handle_get_all_accounts_capacity() -> Dict:
             f"{response_data['combined']['maxReplicating']} "
             f"({response_data['combined']['percentUsed']:.1f}%)"
         )
+
+        # Cache the response for 30 seconds to improve dashboard performance
+        set_cached_response(cache_key, response_data)
 
         return response(200, response_data)
 
