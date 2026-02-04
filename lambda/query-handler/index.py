@@ -4544,14 +4544,33 @@ def get_extended_source_servers(target_account_id: str, role_arn: str, external_
 
 
 def get_staging_account_servers(staging_account_id: str, role_arn: str, external_id: str) -> List[Dict]:
-    """Get DRS source servers in staging account across all DRS regions."""
+    """
+    Get DRS source servers in staging account across all DRS regions.
+    
+    If the staging account is the current account, uses default credentials.
+    Otherwise, assumes the provided role.
+    """
     servers = []
+    
+    # Check if staging account is current account
+    current_account_id = get_current_account_id()
+    use_default_credentials = (staging_account_id == current_account_id)
+    
+    if use_default_credentials:
+        print(f"Staging account {staging_account_id} is current account - using default credentials")
+    else:
+        print(f"Staging account {staging_account_id} is different from current - assuming role {role_arn}")
 
     # Query all DRS regions
     for region in DRS_REGIONS:
         try:
-            # Create DRS client for this region with cross-account access
-            regional_drs = create_drs_client(region, role_arn, external_id)
+            # Create DRS client for this region
+            if use_default_credentials:
+                # Use default credentials for current account
+                regional_drs = boto3.client("drs", region_name=region)
+            else:
+                # Use cross-account access for different account
+                regional_drs = create_drs_client(region, role_arn, external_id)
 
             # Get all source servers
             paginator = regional_drs.get_paginator("describe_source_servers")
