@@ -95,10 +95,11 @@ const constructRoleArn = (accountId: string): string => {
 };
 
 /**
- * Construct standardized external ID from account ID
+ * Construct standardized external ID
+ * Uses fixed external ID for all cross-account access
  */
 const constructExternalId = (accountId: string): string => {
-  return `drs-orchestration-${accountId}`;
+  return 'drs-orchestration-cross-account';
 };
 
 /**
@@ -427,7 +428,7 @@ export const AddStagingAccountModal: React.FC<
               <code>DRSOrchestrationRole</code>
             </li>
             <li>
-              Generate the external ID: <code>drs-orchestration-[ACCOUNT_ID]</code>
+              Use standardized external ID: <code>drs-orchestration-cross-account</code>
             </li>
             <li>Discover which regions have DRS initialized</li>
           </ul>
