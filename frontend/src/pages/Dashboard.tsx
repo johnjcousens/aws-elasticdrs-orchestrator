@@ -408,10 +408,6 @@ export const Dashboard: React.FC = () => {
             {capacityData && capacityData.regionalCapacity && (
               <RegionalCapacitySection 
                 regionalCapacity={capacityData.regionalCapacity}
-                combinedTotal={capacityData.combined.totalReplicating}
-                combinedMax={capacityData.combined.maxReplicating}
-                combinedPercent={capacityData.combined.percentUsed}
-                combinedStatus={capacityData.combined.status}
               />
             )}
 
