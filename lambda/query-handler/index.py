@@ -411,25 +411,25 @@ CACHE_TTL_CAPACITY = 30
 def get_cached_response(cache_key: str, ttl: int = CACHE_TTL_CAPACITY) -> Optional[Dict]:
     """
     Get cached response if it exists and hasn't expired.
-    
+
     Args:
         cache_key: Unique key for the cached data
         ttl: Time-to-live in seconds
-        
+
     Returns:
         Cached data if valid, None if expired or not found
     """
     if cache_key not in _response_cache:
         return None
-    
+
     cached = _response_cache[cache_key]
     age = time.time() - cached["timestamp"]
-    
+
     if age > ttl:
         # Cache expired, remove it
         del _response_cache[cache_key]
         return None
-    
+
     print(f"Cache HIT for {cache_key} (age: {age:.1f}s)")
     return cached["data"]
 
@@ -437,22 +437,19 @@ def get_cached_response(cache_key: str, ttl: int = CACHE_TTL_CAPACITY) -> Option
 def set_cached_response(cache_key: str, data: Dict) -> None:
     """
     Store response in cache with current timestamp.
-    
+
     Args:
         cache_key: Unique key for the cached data
         data: Response data to cache
     """
-    _response_cache[cache_key] = {
-        "data": data,
-        "timestamp": time.time()
-    }
+    _response_cache[cache_key] = {"data": data, "timestamp": time.time()}
     print(f"Cache SET for {cache_key}")
 
 
 def clear_cache(pattern: Optional[str] = None) -> None:
     """
     Clear cache entries matching pattern, or all if no pattern.
-    
+
     Args:
         pattern: Optional string pattern to match cache keys
     """
@@ -5056,12 +5053,12 @@ def handle_get_all_accounts_capacity() -> Dict:
 
     This is the universal dashboard endpoint that returns capacity for all
     target accounts in a single API call, making the dashboard load much faster.
-    
+
     Performance Optimization:
     - Implements 30-second response caching to avoid repeated expensive API calls
     - Cache is shared across Lambda invocations (warm starts)
     - Significantly improves dashboard load time on page refresh/navigation
-    
+
     Returns:
         Dict with aggregated capacity data for all target accounts
     """
@@ -5070,7 +5067,7 @@ def handle_get_all_accounts_capacity() -> Dict:
     cached_response = get_cached_response(cache_key, ttl=CACHE_TTL_CAPACITY)
     if cached_response is not None:
         return response(200, cached_response)
-    
+
     try:
         print("Querying capacity for ALL target accounts (cache miss)")
 
