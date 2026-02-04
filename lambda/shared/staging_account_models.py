@@ -143,8 +143,7 @@ class TargetAccount:
         data = asdict(self)
         # Convert StagingAccount objects to dicts
         data["stagingAccounts"] = [
-            (account.to_dict() if isinstance(account, StagingAccount) else account)
-            for account in self.stagingAccounts
+            (account.to_dict() if isinstance(account, StagingAccount) else account) for account in self.stagingAccounts
         ]
         return data
 
@@ -305,9 +304,7 @@ def get_staging_accounts(target_account_id: str) -> List[StagingAccount]:
         raise
 
 
-def add_staging_account(
-    target_account_id: str, staging_account: Dict, added_by: str = "system"
-) -> Dict:
+def add_staging_account(target_account_id: str, staging_account: Dict, added_by: str = "system") -> Dict:
     """
     Add staging account to target account configuration.
 
@@ -371,8 +368,7 @@ def add_staging_account(
     # Check for duplicate
     if check_duplicate_staging_account(target_account_id, staging_account["accountId"]):
         raise ValueError(
-            f"Staging account {staging_account['accountId']} "
-            f"already exists for target account {target_account_id}"
+            f"Staging account {staging_account['accountId']} " f"already exists for target account {target_account_id}"
         )
 
     # Create StagingAccount object
@@ -472,8 +468,7 @@ def remove_staging_account(target_account_id: str, staging_account_id: str) -> D
 
         if not staging_found:
             raise ValueError(
-                f"Staging account {staging_account_id} not found "
-                f"for target account {target_account_id}"
+                f"Staging account {staging_account_id} not found " f"for target account {target_account_id}"
             )
 
         # Convert to dicts for DynamoDB
@@ -539,8 +534,7 @@ def update_staging_accounts(target_account_id: str, staging_accounts: List[Dict]
         validation = validate_staging_account_structure(account)
         if not validation["valid"]:
             raise ValueError(
-                f"Invalid staging account {account.get('accountId')}: "
-                f"{', '.join(validation['errors'])}"
+                f"Invalid staging account {account.get('accountId')}: " f"{', '.join(validation['errors'])}"
             )
 
     # Convert to StagingAccount objects

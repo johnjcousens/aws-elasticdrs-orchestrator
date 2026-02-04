@@ -1,0 +1,19 @@
+{
+  "protection_group_id": "test-pg-db-001",
+  "name": "Test-DB-Servers",
+  "description": "Test database servers for refactoring validation",
+  "region": "us-west-2",
+  "server_selection_tags": {
+    "dr:wave": "1",
+    "dr:enabled": "true"
+  },
+  "launch_config": {
+    "launch_disposition": "STARTED",
+    "copy_tags": true,
+    "licensing": {
+      "os_byol": false
+    }
+  },
+  "created_at": "2026-02-03T23:30:00Z",
+  "updated_at": "2026-02-03T23:30:00Z"
+}

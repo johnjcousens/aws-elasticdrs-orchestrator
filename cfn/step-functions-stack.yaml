@@ -1,24 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: |
-  Wave-Based DR Orchestration State Machine (AWSM-1103)
+  DR Orchestration State Machine
   
-  Implements sequential wave-based disaster recovery with parallel execution within waves.
-  Supports multi-technology recovery (DRS, Aurora, ECS, Lambda, Route53) through standardized
-  adapter interface with 4-phase lifecycle (INSTANTIATE → ACTIVATE → CLEANUP → REPLICATE).
+  Implements sequential wave-based disaster recovery orchestration.
   
   Architecture Pattern: Archive Pattern
-  - Lambda owns ALL state via OutputPath
+  - Lambda functions own state management via OutputPath
   - State exists at root level ($), not nested
   - All Lambda invocations return complete state object
   - Step Functions persists state between transitions
   
-  Wave Execution Model (AWSM-1103):
+  Wave Execution Model:
   - Sequential waves: Wave N+1 starts only after Wave N completes
   - Parallel within wave: All resources recover simultaneously
   - Failure tolerance: Wave continues even if individual resources fail
-  - Pause/Resume: Manual approval gates between waves (1-year timeout)
-  
-  Reference: docs/user-stories/AWSM-1088/AWSM-1103/IMPLEMTATION.md
+  - Pause/Resume: Manual approval gates between waves
 
 Parameters:
   ProjectName:
@@ -40,7 +36,7 @@ Parameters:
     Description: 'ARN of the unified orchestration role (used by Lambda and Step Functions)'
 
 Resources:
-  # Wave-Based Orchestration State Machine (AWSM-1103)
+  # DR Orchestration State Machine
   # Archive Pattern: Lambda owns ALL state via OutputPath
   # Lambda returns complete state object, Step Functions persists it at root level
   # Uses unified orchestration role (shared with Lambda functions)
@@ -60,7 +56,7 @@ Resources:
           Value: !Ref ProjectName
       Definition:
         Comment: |
-          Wave-Based DR Orchestration (AWSM-1103)
+          Wave-Based DR Orchestration
           Sequential waves with parallel execution within each wave.
           Archive pattern: Lambda owns state via OutputPath.
         StartAt: 'InitiateWavePlan'
@@ -211,7 +207,7 @@ Resources:
             Parameters:
               FunctionName: !Ref OrchestrationLambdaArn
               Payload:
-                action: 'update_wave_status'
+                action: 'poll_wave_status'
                 application.$: '$'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'

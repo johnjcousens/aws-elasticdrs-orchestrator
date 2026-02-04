@@ -259,9 +259,7 @@ def apply_launch_config_before_recovery(
                 # Static private IP takes precedence
                 if effective_config.get("staticPrivateIp"):
                     network_interface["PrivateIpAddress"] = effective_config["staticPrivateIp"]
-                    print(
-                        f"Setting static IP {effective_config['staticPrivateIp']} for {server_id}"
-                    )
+                    print(f"Setting static IP {effective_config['staticPrivateIp']} for {server_id}")
 
                 if effective_config.get("subnetId"):
                     network_interface["SubnetId"] = effective_config["subnetId"]
@@ -270,9 +268,7 @@ def apply_launch_config_before_recovery(
                 template_data["NetworkInterfaces"] = [network_interface]
 
             if effective_config.get("instanceProfileName"):
-                template_data["IamInstanceProfile"] = {
-                    "Name": effective_config["instanceProfileName"]
-                }
+                template_data["IamInstanceProfile"] = {"Name": effective_config["instanceProfileName"]}
 
             if template_data:
                 ec2_client.create_launch_template_version(
@@ -280,9 +276,7 @@ def apply_launch_config_before_recovery(
                     LaunchTemplateData=template_data,
                     VersionDescription="DRS Orchestration pre-recovery update",
                 )
-                ec2_client.modify_launch_template(
-                    LaunchTemplateId=template_id, DefaultVersion="$Latest"
-                )
+                ec2_client.modify_launch_template(LaunchTemplateId=template_id, DefaultVersion="$Latest")
                 print(f"Updated EC2 launch template {template_id} for {server_id}")
 
         except Exception as e:
@@ -494,9 +488,7 @@ def store_task_token(event: Dict) -> Dict:
     plan_id = state.get("plan_id")
     paused_before_wave = state.get("paused_before_wave", state.get("current_wave_number", 0) + 1)
 
-    print(
-        f"⏸️ Storing task token for execution {execution_id}, paused before wave {paused_before_wave}"
-    )
+    print(f"⏸️ Storing task token for execution {execution_id}, paused before wave {paused_before_wave}")
 
     if not task_token:
         print("ERROR: No task token provided")
@@ -900,9 +892,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     # Check for cancellation at start of every poll cycle
     if execution_id and plan_id:
         try:
-            exec_check = get_execution_history_table().get_item(
-                Key={"executionId": execution_id, "planId": plan_id}
-            )
+            exec_check = get_execution_history_table().get_item(Key={"executionId": execution_id, "planId": plan_id})
             exec_status = exec_check.get("Item", {}).get("status", "")
             if exec_status == "CANCELLING":
                 print("⚠️ Execution cancelled (detected at poll start)")
@@ -1007,8 +997,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     "serverName": existing.get("serverName", server_id),
                     "hostname": existing.get("hostname", ""),
                     "launchStatus": launch_status,
-                    "recoveryInstanceId": recovery_instance_id
-                    or existing.get("recoveryInstanceId", ""),
+                    "recoveryInstanceId": recovery_instance_id or existing.get("recoveryInstanceId", ""),
                     "instanceId": existing.get("instanceId", ""),
                     "privateIp": existing.get("privateIp", ""),
                     "instanceType": existing.get("instanceType", ""),
@@ -1043,9 +1032,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
         # Determine current phase from recent job events
         current_phase = "STARTED"
-        recent_events = sorted(job_events, key=lambda x: x.get("eventDateTime", ""), reverse=True)[
-            :10
-        ]
+        recent_events = sorted(job_events, key=lambda x: x.get("eventDateTime", ""), reverse=True)[:10]
 
         for event in recent_events:
             event_type = event.get("event", "").upper()
@@ -1154,9 +1141,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                             },
                             ConditionExpression="attribute_exists(executionId)",
                         )
-                        print(
-                            f"✅ Execution paused before wave {next_wave}, waiting for manual resume"
-                        )
+                        print(f"✅ Execution paused before wave {next_wave}, waiting for manual resume")
                     except Exception as e:
                         print(f"Error pausing execution: {e}")
 
@@ -1191,9 +1176,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             end_time = int(time.time())
             state["wave_completed"] = True
             state["status"] = "failed"
-            state["status_reason"] = (
-                f"Wave {wave_number} failed: {failed_count} servers failed to launch"
-            )
+            state["status_reason"] = f"Wave {wave_number} failed: {failed_count} servers failed to launch"
             state["error"] = f"{failed_count} servers failed to launch"
             state["error_code"] = "WAVE_LAUNCH_FAILED"
             state["failed_waves"] = 1

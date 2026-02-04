@@ -301,7 +301,11 @@ from shared.conflict_detection import (
     query_drs_servers_by_tags,
 )
 from shared.config_merge import get_effective_launch_config
-from shared.cross_account import get_current_account_id, create_drs_client
+from shared.cross_account import (
+    get_current_account_id,
+    create_drs_client,
+    create_ec2_client,
+), create_ec2_client
 from shared.response_utils import response
 
 # DRS regions (all regions where DRS is available)
@@ -4000,25 +4004,33 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
     Supports account-based operations for future multi-account support.
     """
     try:
-        # Get account ID from request body (for future multi-account support)
+        # Get account ID and region from request body
         target_account_id = None
+        region = None
+        assume_role_name = None
         if body and isinstance(body, dict):
             target_account_id = body.get("accountId")
-
-        # For now, validate that we can only sync current account
-        current_account_id = get_current_account_id()
-        if target_account_id and target_account_id != current_account_id:
-            return response(
-                400,
-                {
-                    "error": "INVALID_ACCOUNT",
-                    "message": f"Cannot sync tags for account {target_account_id}. Only current account {current_account_id} is supported.",  # noqa: E501
-                },
-            )
+            region = body.get("region")
+            assume_role_name = body.get("assumeRoleName")
 
         # Use current account if no account specified
+        current_account_id = get_current_account_id()
         account_id = target_account_id or current_account_id
         account_name = get_account_name(account_id)
+        
+        # Determine if cross-account access is needed
+        is_current_account = (account_id == current_account_id)
+        
+        # Build account context for cross-account access
+        account_context = {
+            "accountId": account_id,
+            "accountName": account_name,
+            "isCurrentAccount": is_current_account,
+            "externalId": "drs-orchestration-cross-account"
+        }
+        
+        if not is_current_account and assume_role_name:
+            account_context["assumeRoleName"] = assume_role_name
 
         total_synced = 0
         total_servers = 0
@@ -4026,22 +4038,24 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
         regions_with_servers = []
 
         print(
-            f"Starting tag sync for account {account_id} ({
-                account_name or 'Unknown'})"
+            f"Starting tag sync for account {account_id} ({account_name or 'Unknown'})"
         )
+        
+        # If specific region provided, sync only that region
+        regions_to_sync = [region] if region else DRS_REGIONS
 
-        for region in DRS_REGIONS:
+        for sync_region in regions_to_sync:
             try:
-                result = sync_tags_in_region(region, account_id)
+                result = sync_tags_in_region(sync_region, account_context)
                 if result["total"] > 0:
-                    regions_with_servers.append(region)
+                    regions_with_servers.append(sync_region)
                     total_servers += result["total"]
                     total_synced += result["synced"]
                     total_failed += result["failed"]
-                    print(f"Tag sync {region}: {result['synced']}/{result['total']} synced")
+                    print(f"Tag sync {sync_region}: {result['synced']}/{result['total']} synced")
             except Exception as e:
                 # Log but continue - don't fail entire sync for one region
-                print(f"Tag sync {region}: skipped - {e}")
+                print(f"Tag sync {sync_region}: skipped - {e}")
 
         summary = {
             "message": f"Tag sync complete for account {account_id}",
@@ -4070,7 +4084,7 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
         return response(500, {"error": str(e)})
 
 
-def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
+def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
     """
     Sync EC2 instance tags to DRS source servers in a single region.
 
@@ -4078,6 +4092,8 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
     specified region, retrieves tags from their source EC2 instances, and applies those
     tags to the DRS server ARNs. Automatically enables copyTags in DRS launch configuration
     to preserve tags during recovery operations.
+    
+    Supports cross-account tag syncing for extended source servers.
 
     ## Use Cases
 
@@ -4095,8 +4111,21 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
     result = sync_tags_in_region("us-west-2")
     # Automatically queries EC2 tags from us-east-1
     ```
+    
+    ### 3. Cross-Account Tag Sync
+    Sync tags for extended source servers in target account:
+    ```python
+    account_context = {
+        "accountId": "111122223333",
+        "accountName": "DEMO_TARGET",
+        "isCurrentAccount": False,
+        "assumeRoleName": "DRSOrchestrationRole",
+        "externalId": "drs-orchestration-cross-account"
+    }
+    result = sync_tags_in_region("us-west-2", account_context)
+    ```
 
-    ### 3. Scheduled Regional Sync
+    ### 4. Scheduled Regional Sync
     Can be called from EventBridge for periodic regional sync:
     ```python
     for region in ["us-east-1", "us-west-2", "eu-west-1"]:
@@ -4176,15 +4205,24 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
 
     Args:
         drs_region: AWS region to sync tags in
-        account_id: AWS account ID (for future multi-account support)
+        account_context: Account context dict with accountId, isCurrentAccount, assumeRoleName, externalId
     """
-    drs_client = boto3.client("drs", region_name=drs_region)
+    # Use account context if provided, otherwise default to current account
+    if account_context is None:
+        account_context = {
+            "accountId": get_current_account_id(),
+            "isCurrentAccount": True
+        }
+    
+    # Create DRS client with cross-account support
+    drs_client = create_drs_client(drs_region, account_context)
     ec2_clients = {}
 
     # Get all DRS source servers
     source_servers = []
     paginator = drs_client.get_paginator("describe_source_servers")
     for page in paginator.paginate(filters={}, maxResults=200):
+        source_servers.extend(page.get("items", []))
         source_servers.extend(page.get("items", []))
 
     synced = 0
@@ -4196,6 +4234,11 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
             source_server_id = server["sourceServerID"]
             server_arn = server["arn"]
             source_region = server.get("sourceCloudProperties", {}).get("originRegion", drs_region)
+            
+            # Check if this is an extended source server from a staging account
+            staging_area = server.get("stagingArea", {})
+            staging_account_id = staging_area.get("stagingAccountID", "")
+            is_extended_source = bool(staging_account_id and staging_account_id != account_context.get("accountId"))
 
             if not instance_id:
                 continue
@@ -4206,9 +4249,24 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                 continue
 
             # Get or create EC2 client for source region
-            if source_region not in ec2_clients:
-                ec2_clients[source_region] = boto3.client("ec2", region_name=source_region)
-            ec2_client = ec2_clients[source_region]
+            # For extended source servers, we need to read EC2 tags from the staging account
+            ec2_client_key = f"{source_region}_{staging_account_id if is_extended_source else 'current'}"
+            if ec2_client_key not in ec2_clients:
+                if is_extended_source:
+                    # Create EC2 client for staging account (where the source EC2 instance lives)
+                    # Extended source servers have EC2 instances in staging account
+                    staging_context = {
+                        "accountId": staging_account_id,
+                        "isCurrentAccount": (staging_account_id == get_current_account_id()),
+                        "assumeRoleName": "DRSOrchestrationRole",
+                        "externalId": "drs-orchestration-cross-account"
+                    }
+                    ec2_clients[ec2_client_key] = create_ec2_client(source_region, staging_context)
+                    print(f"Created EC2 client for staging account {staging_account_id} in {source_region}")
+                else:
+                    # Regular source server - EC2 instance is in same account as DRS server
+                    ec2_clients[ec2_client_key] = create_ec2_client(source_region, account_context)
+            ec2_client = ec2_clients[ec2_client_key]
 
             # Get EC2 instance tags
             try:

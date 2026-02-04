@@ -313,9 +313,9 @@ else
 fi
 
 if [ -n "$BLACK_CMD" ]; then
-    if ! $BLACK_CMD --check --quiet --line-length 100 lambda/ 2>/dev/null; then
+    if ! $BLACK_CMD --check --quiet lambda/ 2>/dev/null; then
         echo -e "${RED}  ✗ black: needs formatting${NC}"
-        echo "    Run: black --line-length 100 lambda/"
+        echo "    Run: black lambda/"
         FAILED=true
     else
         echo -e "${GREEN}  ✓ black${NC}"

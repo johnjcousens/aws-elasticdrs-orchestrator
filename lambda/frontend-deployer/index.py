@@ -136,9 +136,7 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
                 "skipping cleanup for safety (stack may have been deleted "
                 "already or wrong stack ID)"
             )
-            logger.warning(
-                "Frontend Deployer DELETE: Stack does not exist - " "skipping cleanup for safety"
-            )
+            logger.warning("Frontend Deployer DELETE: Stack does not exist - " "skipping cleanup for safety")
             log_security_event(
                 "stack_not_found_skip_cleanup",
                 {
@@ -152,10 +150,7 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
 
         # Other errors - skip cleanup to be safe
         stack_trace = traceback.format_exc()
-        print(
-            f"Frontend Deployer DELETE: Could not check stack status: {e} - "
-            f"skipping cleanup to be safe"
-        )
+        print(f"Frontend Deployer DELETE: Could not check stack status: {e} - " f"skipping cleanup to be safe")
         logger.error(f"Frontend Deployer DELETE: Could not check stack status: {e}")
         logger.error(f"Frontend Deployer DELETE Stack trace: {stack_trace}")
         log_security_event(
@@ -173,10 +168,7 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
     except Exception as e:
         # If we can't check status, skip cleanup to be safe
         stack_trace = traceback.format_exc()
-        print(
-            f"Frontend Deployer DELETE: Could not check stack status: {e} - "
-            f"skipping cleanup to be safe"
-        )
+        print(f"Frontend Deployer DELETE: Could not check stack status: {e} - " f"skipping cleanup to be safe")
         logger.error(f"Frontend Deployer DELETE: Could not check stack status: {e}")
         logger.error(f"Frontend Deployer DELETE Stack trace: {stack_trace}")
         log_security_event(
@@ -210,9 +202,7 @@ def empty_bucket(bucket_name: str) -> int:
             s3.head_bucket(Bucket=bucket_name)
         except ClientError as e:
             if e.response["Error"]["Code"] == "404":
-                print(
-                    f"Frontend Deployer: Bucket {bucket_name} does not exist " f"- nothing to clean"
-                )
+                print(f"Frontend Deployer: Bucket {bucket_name} does not exist " f"- nothing to clean")
                 logger.info(f"Bucket {bucket_name} does not exist - nothing to clean")
                 log_security_event(
                     "bucket_not_found",
@@ -263,10 +253,7 @@ def empty_bucket(bucket_name: str) -> int:
                 for i in range(0, len(objects_to_delete), batch_size):
                     batch = objects_to_delete[i : i + batch_size]
 
-                    print(
-                        f"Frontend Deployer: Deleting batch of {len(batch)} "
-                        f"objects from {bucket_name}"
-                    )
+                    print(f"Frontend Deployer: Deleting batch of {len(batch)} " f"objects from {bucket_name}")
                     logger.info(f"Deleting batch of {len(batch)} objects from " f"{bucket_name}")
 
                     response = s3.delete_objects(
@@ -322,8 +309,7 @@ def empty_bucket(bucket_name: str) -> int:
             # Log full stack trace on errors (Requirement 8.5)
             stack_trace = traceback.format_exc()
             logger.error(
-                f"AWS error emptying bucket {bucket_name}: {error_code} - "
-                f"{e.response['Error']['Message']}"
+                f"AWS error emptying bucket {bucket_name}: {error_code} - " f"{e.response['Error']['Message']}"
             )
             logger.error(f"Stack trace: {stack_trace}")
             log_security_event(
@@ -378,9 +364,7 @@ def inject_aws_config_into_dist(dist_dir, properties):
     # Security validation for inputs
     validate_file_path(dist_dir)
     dist_dir = sanitize_string_input(dist_dir)
-    region = sanitize_string_input(
-        properties.get("region", os.environ.get("AWS_REGION", "us-west-2"))
-    )
+    region = sanitize_string_input(properties.get("region", os.environ.get("AWS_REGION", "us-west-2")))
     log_security_event("injecting_aws_config", {"dist_dir": dist_dir, "region": region})
 
     # Create configuration object with sanitized values
@@ -574,10 +558,7 @@ def create_or_update(event, context):
         },
     )
 
-    print(
-        f"Frontend Deployer: Deploying frontend version {frontend_version} "
-        f"to bucket: {bucket_name}"
-    )
+    print(f"Frontend Deployer: Deploying frontend version {frontend_version} " f"to bucket: {bucket_name}")
 
     try:
         # Get frontend source from Lambda package
@@ -641,9 +622,7 @@ def create_or_update(event, context):
         # Log number of files deployed on successful deployment
         # (Requirement 8.3)
         print(f"Frontend Deployer: ✅ Deployed {len(uploaded_files)} files to " f"{bucket_name}")
-        logger.info(
-            f"Frontend Deployer: ✅ Deployed {len(uploaded_files)} " f"files to {bucket_name}"
-        )
+        logger.info(f"Frontend Deployer: ✅ Deployed {len(uploaded_files)} " f"files to {bucket_name}")
 
         print(f"🎉 Frontend deployment complete! (version: {frontend_version})")
 
@@ -731,14 +710,8 @@ def delete(event, context):
 
     if not should_empty:
         cleanup_decision = f"skip_{reason}"
-        print(
-            f"Frontend Deployer DELETE: Skipping bucket cleanup - "
-            f"{reason} (status: {stack_status})"
-        )
-        logger.info(
-            f"Frontend Deployer DELETE: Skipping bucket cleanup - "
-            f"{reason} (status: {stack_status})"
-        )
+        print(f"Frontend Deployer DELETE: Skipping bucket cleanup - " f"{reason} (status: {stack_status})")
+        logger.info(f"Frontend Deployer DELETE: Skipping bucket cleanup - " f"{reason} (status: {stack_status})")
         log_security_event(
             "bucket_cleanup_skipped",
             {
@@ -752,12 +725,10 @@ def delete(event, context):
 
     # Stack is being deleted - proceed with cleanup
     print(
-        f"Frontend Deployer DELETE: Stack is being deleted "
-        f"(status: {stack_status}), proceeding with bucket cleanup"
+        f"Frontend Deployer DELETE: Stack is being deleted " f"(status: {stack_status}), proceeding with bucket cleanup"
     )
     logger.info(
-        f"Frontend Deployer DELETE: Stack is being deleted "
-        f"(status: {stack_status}), proceeding with bucket cleanup"
+        f"Frontend Deployer DELETE: Stack is being deleted " f"(status: {stack_status}), proceeding with bucket cleanup"
     )
     log_security_event(
         "bucket_cleanup_proceeding",
@@ -774,10 +745,7 @@ def delete(event, context):
     try:
         delete_count = empty_bucket(bucket_name)
 
-        print(
-            f"Frontend Deployer DELETE: ✅ Bucket emptied successfully. "
-            f"Total objects deleted: {delete_count}"
-        )
+        print(f"Frontend Deployer DELETE: ✅ Bucket emptied successfully. " f"Total objects deleted: {delete_count}")
         log_security_event(
             "bucket_cleanup_completed",
             {
@@ -809,9 +777,7 @@ def delete(event, context):
 
         # Don't raise - allow stack deletion to continue even if cleanup fails
         print("Frontend Deployer DELETE: ⚠️ Continuing with stack deletion " "despite cleanup error")
-        logger.warning(
-            "Frontend Deployer DELETE: Continuing with stack deletion " "despite cleanup error"
-        )
+        logger.warning("Frontend Deployer DELETE: Continuing with stack deletion " "despite cleanup error")
         return None
 
 

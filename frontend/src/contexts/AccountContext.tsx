@@ -60,8 +60,6 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
 
   // Wrapper to log account changes and persist to localStorage
   const setSelectedAccount = (account: SelectProps.Option | null) => {
-    console.log('[AccountContext] setSelectedAccount called:', account);
-    console.log('[AccountContext] Previous account:', selectedAccount);
     setSelectedAccountState(account);
     
     // Persist selected account to localStorage
@@ -196,7 +194,6 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         if (bustCache && selectedAccount?.value) {
           try {
             const fullAccount = await apiClient.getTargetAccount(selectedAccount.value);
-            console.log('[AccountContext] Refreshed account details after cache bust:', fullAccount);
           } catch (error) {
             console.warn('[AccountContext] Failed to refresh account details:', error);
           }

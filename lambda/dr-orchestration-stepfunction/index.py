@@ -61,12 +61,17 @@ Reference: docs/user-stories/AWSM-1088/AWSM-1103/IMPLEMTATION.md
 """
 
 import json
+import logging
 import os
 import time
 from decimal import Decimal
-from typing import Dict, List
+from typing import Dict
 
 import boto3
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # Import shared utilities
 try:
@@ -192,6 +197,7 @@ def lambda_handler(event, context):
     - begin: Initialize wave plan execution
     - store_task_token: Store callback token for pause/resume
     - resume_wave: Resume execution after manual approval
+    - poll_wave_status: Poll wave status via query-handler
 
     Args:
         event: Step Functions event containing action and state
@@ -219,6 +225,8 @@ def lambda_handler(event, context):
         return store_task_token(event)
     elif action == "resume_wave":
         return resume_wave(event)
+    elif action == "poll_wave_status":
+        return poll_wave_status(event)
     else:
         raise ValueError(f"Unknown action: {action}")
 
@@ -314,12 +322,37 @@ def begin_wave_plan(event: Dict) -> Dict:
     except Exception as e:
         print(f"Error updating execution status: {e}")
 
-    # Start first wave
+    # Start first wave via execution-handler
     if len(waves) > 0:
-        start_wave_recovery(state, 0)
-        print(
-            f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, region={state.get('region')}, server_ids={state.get('server_ids')}"  # noqa: E501
-        )
+        try:
+            lambda_client = boto3.client("lambda")
+            response = lambda_client.invoke(
+                FunctionName=os.environ["EXECUTION_HANDLER_ARN"],
+                InvocationType="RequestResponse",
+                Payload=json.dumps(
+                    {
+                        "action": "start_wave_recovery",
+                        "state": state,
+                        "wave_number": 0,
+                    }
+                ),
+            )
+
+            # Check for function error
+            if response.get("FunctionError"):
+                raise Exception(f"Handler error: {response}")
+
+            result = json.loads(response["Payload"].read())
+            state.update(result)
+            print(
+                f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, region={state.get('region')}, server_ids={state.get('server_ids')}"  # noqa: E501
+            )
+
+        except Exception as e:
+            logger.error(f"Error invoking execution-handler: {e}")
+            state["wave_completed"] = True
+            state["status"] = "failed"
+            state["error"] = str(e)
     else:
         print("No waves to execute")
         state["all_waves_completed"] = True
@@ -358,9 +391,7 @@ def store_task_token(event: Dict) -> Dict:
     plan_id = state.get("plan_id")
     paused_before_wave = state.get("paused_before_wave", state.get("current_wave_number", 0) + 1)
 
-    print(
-        f"⏸️ Storing task token for execution {execution_id}, paused before wave {paused_before_wave}"
-    )
+    print(f"⏸️ Storing task token for execution {execution_id}, paused before wave {paused_before_wave}")
 
     if not task_token:
         print("ERROR: No task token provided")
@@ -431,100 +462,73 @@ def resume_wave(event: Dict) -> Dict:
     except Exception as e:
         print(f"Error updating execution status: {e}")
 
-    # Start the paused wave
-    start_wave_recovery(state, paused_before_wave)
+    # Start the paused wave via execution-handler
+    try:
+        lambda_client = boto3.client("lambda")
+        response = lambda_client.invoke(
+            FunctionName=os.environ["EXECUTION_HANDLER_ARN"],
+            InvocationType="RequestResponse",
+            Payload=json.dumps(
+                {
+                    "action": "start_wave_recovery",
+                    "state": state,
+                    "wave_number": paused_before_wave,
+                }
+            ),
+        )
+
+        # Check for function error
+        if response.get("FunctionError"):
+            raise Exception(f"Handler error: {response}")
+
+        result = json.loads(response["Payload"].read())
+        state.update(result)
+
+    except Exception as e:
+        logger.error(f"Error invoking execution-handler: {e}")
+        state["wave_completed"] = True
+        state["status"] = "failed"
+        state["error"] = str(e)
 
     return state
 
 
-def query_drs_servers_by_tags(  # noqa: C901
-    region: str, tags: Dict[str, str], account_context: Dict = None
-) -> List[str]:
+def poll_wave_status(event: Dict) -> Dict:
     """
-    Query DRS source servers matching ALL specified tags (AND logic).
+    Poll wave status by invoking query-handler.
 
-    Tag-based discovery enables dynamic server resolution at execution time rather
-    than static server lists. This supports auto-scaling and server changes without
-    updating Protection Groups.
-
-    Tag Matching Rules:
-    - Server must have ALL specified tags to be included
-    - Tag keys and values are case-insensitive
-    - Whitespace is stripped from keys and values
-    - Tags are read from DRS source server metadata, not EC2 instance tags
+    This function delegates wave status polling to the query-handler
+    Lambda, which tracks DRS job progress and server launch status.
 
     Args:
-        region: AWS region to query DRS servers
-        tags: Dict of tag key-value pairs that servers must match
-        account_context: Optional cross-account context for IAM role assumption
+        event: Step Functions event with state
 
     Returns:
-        List of DRS source server IDs matching all tags
+        Updated state object from query-handler
 
-    Example:
-        tags = {"Environment": "production", "Customer": "acme"}
-        # Returns only servers with BOTH tags matching
+    Raises:
+        Exception: If query-handler invocation fails
     """
+    state = event.get("application", event)
+
     try:
-        # Create DRS client with cross-account support
-        regional_drs = create_drs_client(region, account_context)
+        lambda_client = boto3.client("lambda")
+        response = lambda_client.invoke(
+            FunctionName=os.environ["QUERY_HANDLER_ARN"],
+            InvocationType="RequestResponse",
+            Payload=json.dumps({"action": "poll_wave_status", "state": state}),
+        )
 
-        # Get all source servers in the region
-        all_servers = []
-        paginator = regional_drs.get_paginator("describe_source_servers")
+        # Check for function error
+        if response.get("FunctionError"):
+            raise Exception(f"Handler error: {response}")
 
-        for page in paginator.paginate():
-            all_servers.extend(page.get("items", []))
-
-        if not all_servers:
-            print("No DRS source servers found in region")
-            return []
-
-        # Filter servers matching ALL specified tags
-        matching_server_ids = []
-
-        for server in all_servers:
-            server_id = server.get("sourceServerID", "")
-            drs_tags = server.get("tags", {})
-
-            # Check if server has ALL required tags with matching values
-            matches_all = True
-            for tag_key, tag_value in tags.items():
-                # Normalize for case-insensitive comparison
-                normalized_required_key = tag_key.strip()
-                normalized_required_value = tag_value.strip().lower()
-
-                # Check if any DRS tag matches
-                found_match = False
-                for drs_key, drs_value in drs_tags.items():
-                    normalized_drs_key = drs_key.strip()
-                    normalized_drs_value = str(drs_value).strip().lower()
-
-                    if (
-                        normalized_drs_key == normalized_required_key
-                        and normalized_drs_value == normalized_required_value
-                    ):
-                        found_match = True
-                        break
-
-                if not found_match:
-                    matches_all = False
-                    print(
-                        f"Server {server_id} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}"  # noqa: E501
-                    )
-                    break
-
-            if matches_all:
-                matching_server_ids.append(server_id)
-
-        print("Tag matching results:")
-        print(f"- Total DRS servers: {len(all_servers)}")
-        print(f"- Servers matching tags {tags}: {len(matching_server_ids)}")
-
-        return matching_server_ids
+        result = json.loads(response["Payload"].read())
+        return result
 
     except Exception as e:
-        print(f"Error querying DRS servers by DRS tags: {str(e)}")
-        raise
-
-
+        logger.error(f"Error invoking query-handler: {e}")
+        state["wave_completed"] = True
+        state["status"] = "failed"
+        state["error"] = str(e)
+        return state

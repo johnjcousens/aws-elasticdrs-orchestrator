@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: |
-  DR Orchestration Lambda Functions (AWSM-1103) - v2026.01.31
+  DR Orchestration Lambda Functions
   
   Deploys Lambda functions for wave-based disaster recovery orchestration:
   - API Handler: REST API endpoints for Protection Groups, Recovery Plans, Executions
@@ -158,6 +158,37 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # DR Orchestration Step Function Handler (Refactored)
+  # Generic wave-based orchestration with no DRS code
+  # Invokes execution-handler and query-handler for DRS operations
+  DrOrchestrationStepFunctionFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-dr-orch-sf-${Environment}"
+      Description: "Generic wave-based orchestration (refactored, no DRS code)"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !Ref OrchestrationRoleArn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: "lambda/dr-orchestration-stepfunction.zip"
+      Timeout: 120
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          DRS_ALERTS_TOPIC_ARN: !Ref DRSAlertsTopicArn
+          EXECUTION_HANDLER_ARN: !GetAtt ExecutionHandlerFunction.Arn
+          QUERY_HANDLER_ARN: !GetAtt QueryHandlerFunction.Arn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
   # Builds and deploys React frontend to S3/CloudFront
   # Consolidates frontend build and bucket cleanup operations
   FrontendDeployerFunction:
@@ -207,13 +238,13 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt ExecutionFinderScheduleRule.Arn
 
-  # Wave-based orchestration logic with tag-based discovery (AWSM-1103)
+  # Wave-based orchestration logic with tag-based discovery
   # Implements Archive Pattern: Lambda owns state via OutputPath
   OrchestrationStepFunctionsFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${ProjectName}-orch-sf-${Environment}"
-      Description: "Wave-based orchestration with tag-based discovery (AWSM-1103)"
+      Description: "Wave-based orchestration with tag-based discovery"
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !Ref OrchestrationRoleArn
@@ -344,6 +375,18 @@ Outputs:
     Value: !Ref QueryHandlerFunction
     Export:
       Name: !Sub "${AWS::StackName}-QueryHandlerName"
+
+  DrOrchestrationStepFunctionArn:
+    Description: "DR Orchestration Step Function Lambda ARN (Refactored)"
+    Value: !GetAtt DrOrchestrationStepFunctionFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DrOrchestrationStepFunctionArn"
+
+  DrOrchestrationStepFunctionName:
+    Description: "DR Orchestration Step Function Lambda Name (Refactored)"
+    Value: !Ref DrOrchestrationStepFunctionFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-DrOrchestrationStepFunctionName"
 
   OrchestrationStepFunctionsFunctionArn:
     Description: "Step Functions Orchestration Lambda Function ARN"

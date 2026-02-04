@@ -58,7 +58,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   onClose,
   onSave,
 }) => {
-  const { getCurrentAccountId } = useAccount();
+  const { getCurrentAccountId, selectedAccount, availableAccounts } = useAccount();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [region, setRegion] = useState('');
@@ -365,10 +365,18 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       let savedGroup: ProtectionGroup;
 
       // Build base group data
+      const currentAccountId = getCurrentAccountId();
+      const currentAccount = availableAccounts.find(acc => acc.accountId === currentAccountId);
+      
+      // Use standard role name for cross-account access
+      const assumeRoleName = currentAccount && !currentAccount.isCurrentAccount ? 'DRSOrchestrationRole' : undefined;
+
       const groupData: {
         groupName: string;
         description: string;
         region: string;
+        accountId?: string;
+        assumeRoleName?: string;
         serverSelectionTags?: Record<string, string>;
         sourceServerIds?: string[];
         launchConfig?: LaunchConfig;
@@ -378,6 +386,8 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         groupName: name.trim(),
         description: description.trim(),  // Always send, even if empty, to allow clearing
         region: region,
+        accountId: currentAccountId || undefined,
+        assumeRoleName: assumeRoleName,
       };
 
       // Add server selection based on mode

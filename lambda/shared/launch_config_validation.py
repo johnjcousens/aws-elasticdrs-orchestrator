@@ -146,8 +146,7 @@ def _validate_ip_format(ip: str) -> Dict[str, Any]:
         return {
             "valid": False,
             "error": "INVALID_IP_FORMAT",
-            "message": f"IP address '{ip}' is not a valid IPv4 address. "
-            "Format must be X.X.X.X where X is 0-255.",
+            "message": f"IP address '{ip}' is not a valid IPv4 address. " "Format must be X.X.X.X where X is 0-255.",
             "field": "staticPrivateIp",
             "value": ip,
         }
@@ -314,8 +313,7 @@ def _check_ip_availability(ec2_client, ip: str, subnet_id: str, vpc_id: str) -> 
             return {
                 "valid": False,
                 "error": "IP_IN_USE",
-                "message": f"IP {ip} is already assigned to "
-                f"{conflict_info['type']} {conflict_info['id']}",
+                "message": f"IP {ip} is already assigned to " f"{conflict_info['type']} {conflict_info['id']}",
                 "field": "staticPrivateIp",
                 "conflictingResource": conflict_info,
             }
@@ -606,8 +604,7 @@ def validate_security_groups(sg_ids: list, vpc_id: str, region: str) -> Dict[str
             return {
                 "valid": False,
                 "error": "SECURITY_GROUPS_WRONG_VPC",
-                "message": f"Security groups do not belong to VPC "
-                f"{vpc_id}: {', '.join(wrong_vpc_ids)}",
+                "message": f"Security groups do not belong to VPC " f"{vpc_id}: {', '.join(wrong_vpc_ids)}",
                 "field": "securityGroupIds",
                 "invalidGroups": wrong_vpc_ids,
                 "details": {"wrongVpcGroups": wrong_vpc},
@@ -616,8 +613,7 @@ def validate_security_groups(sg_ids: list, vpc_id: str, region: str) -> Dict[str
         # All security groups are valid
         return {
             "valid": True,
-            "message": f"All {len(sg_ids)} security groups are valid "
-            f"and belong to VPC {vpc_id}",
+            "message": f"All {len(sg_ids)} security groups are valid " f"and belong to VPC {vpc_id}",
         }
 
     except ClientError as e:
@@ -833,8 +829,7 @@ def validate_subnet(subnet_id: str, region: str) -> Dict[str, Any]:
         return {
             "valid": False,
             "error": "INVALID_SUBNET_FORMAT",
-            "message": f"Subnet ID '{subnet_id}' has invalid format. "
-            "Format must be subnet-[0-9a-f]{{17}}",
+            "message": f"Subnet ID '{subnet_id}' has invalid format. " "Format must be subnet-[0-9a-f]{{17}}",
             "field": "subnetId",
         }
 
@@ -965,8 +960,7 @@ def validate_no_duplicate_ips(
             return {
                 "valid": False,
                 "error": "DUPLICATE_IP",
-                "message": f"IP {new_ip} is already configured for server "
-                f"{server_id} in subnet {new_subnet_id}",
+                "message": f"IP {new_ip} is already configured for server " f"{server_id} in subnet {new_subnet_id}",
                 "field": "staticPrivateIp",
                 "conflictingServer": {
                     "sourceServerId": server_id,
@@ -1046,8 +1040,7 @@ def validate_subnet_change_ip_revalidation(
         return {
             "valid": True,
             "subnetChanged": True,
-            "message": f"Subnet changed from {current_subnet} to "
-            f"{new_subnet}, no static IP to revalidate",
+            "message": f"Subnet changed from {current_subnet} to " f"{new_subnet}, no static IP to revalidate",
         }
 
     # Subnet changed and static IP configured - revalidate IP

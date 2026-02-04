@@ -487,9 +487,7 @@ ENDPOINT_PERMISSIONS = {
     ("GET", "/ec2/security-groups"): [DRSPermission.VIEW_ACCOUNTS],
     ("GET", "/ec2/instance-types"): [DRSPermission.VIEW_ACCOUNTS],
     # User Management - All operations require permissions
-    ("GET", "/user/permissions"): [
-        DRSPermission.VIEW_ACCOUNTS
-    ],  # Users can view their own permissions
+    ("GET", "/user/permissions"): [DRSPermission.VIEW_ACCOUNTS],  # Users can view their own permissions
 }
 
 
@@ -741,19 +739,13 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
         elif path.endswith("/resume"):
             return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}/resume"), [])
         elif path.endswith("/terminate-instances"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/terminate-instances"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}/terminate-instances"), [])
         elif path.endswith("/job-logs"):
             return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}/job-logs"), [])
         elif path.endswith("/termination-status"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/termination-status"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}/termination-status"), [])
         elif path.endswith("/recovery-instances"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/recovery-instances"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}/recovery-instances"), [])
         # Single execution by ID
         elif path.count("/") == 2:
             return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}"), [])
@@ -769,9 +761,7 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
         if path.endswith("/execute"):
             return ENDPOINT_PERMISSIONS.get((method, "/recovery-plans/{id}/execute"), [])
         if path.endswith("/check-existing-instances"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/recovery-plans/{id}/check-existing-instances"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/recovery-plans/{id}/check-existing-instances"), [])
         return ENDPOINT_PERMISSIONS.get((method, "/recovery-plans/{id}"), [])
 
     # Handle accounts/targets with ID

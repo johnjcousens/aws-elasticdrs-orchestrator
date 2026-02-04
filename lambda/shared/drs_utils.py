@@ -29,9 +29,7 @@ INTEGRATION POINTS:
 from typing import Any, Dict, List, Union
 
 
-def normalize_drs_response(
-    drs_data: Union[Dict, List], recursive: bool = True
-) -> Union[Dict, List]:
+def normalize_drs_response(drs_data: Union[Dict, List], recursive: bool = True) -> Union[Dict, List]:
     """
     Convert AWS DRS PascalCase fields to application camelCase.
 
@@ -103,8 +101,7 @@ def normalize_drs_response(
             normalized[new_key] = normalize_drs_response(value, recursive=True)
         elif recursive and isinstance(value, list):
             normalized[new_key] = [
-                (normalize_drs_response(item, recursive=True) if isinstance(item, dict) else item)
-                for item in value
+                (normalize_drs_response(item, recursive=True) if isinstance(item, dict) else item) for item in value
             ]
         else:
             normalized[new_key] = value
@@ -443,17 +440,13 @@ def enrich_server_data(participating_servers: List[Dict], drs_client, ec2_client
     enriched = []
 
     # Extract source server IDs
-    source_server_ids = [
-        s.get("sourceServerID") for s in participating_servers if s.get("sourceServerID")
-    ]
+    source_server_ids = [s.get("sourceServerID") for s in participating_servers if s.get("sourceServerID")]
 
     # Query DRS for source server details
     source_servers_map = {}
     if source_server_ids:
         try:
-            source_response = drs_client.describe_source_servers(
-                filters={"sourceServerIDs": source_server_ids}
-            )
+            source_response = drs_client.describe_source_servers(filters={"sourceServerIDs": source_server_ids})
             for source_server in source_response.get("items", []):
                 source_id = source_server.get("sourceServerID")
                 source_servers_map[source_id] = source_server
@@ -461,9 +454,7 @@ def enrich_server_data(participating_servers: List[Dict], drs_client, ec2_client
             print(f"Error querying source servers: {e}")
 
     # Collect recovery instance IDs for batch query
-    recovery_instance_ids = [
-        s.get("recoveryInstanceID") for s in participating_servers if s.get("recoveryInstanceID")
-    ]
+    recovery_instance_ids = [s.get("recoveryInstanceID") for s in participating_servers if s.get("recoveryInstanceID")]
 
     # Batch query recovery EC2 instances
     recovery_ec2_instances = {}

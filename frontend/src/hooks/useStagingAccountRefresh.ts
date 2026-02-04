@@ -25,7 +25,6 @@ export const useStagingAccountRefresh = (callbacks?: StagingAccountRefreshCallba
    * - Adding/removing extended source servers
    */
   const refreshAfterStagingAccountChange = useCallback(async () => {
-    console.log('[useStagingAccountRefresh] Refreshing all data after staging account change');
     
     try {
       // 1. Refresh account list (with cache bust to get fresh staging accounts)
@@ -41,7 +40,6 @@ export const useStagingAccountRefresh = (callbacks?: StagingAccountRefreshCallba
         callbacks.onRefreshTargetAccount();
       }
       
-      console.log('[useStagingAccountRefresh] All data refreshed successfully');
     } catch (error) {
       console.error('[useStagingAccountRefresh] Error refreshing data:', error);
       throw error;
