@@ -114,11 +114,6 @@ def discover_staging_accounts_from_drs(
                 for staging_account in staging_accounts:
                     staging_account_id = staging_account.get("accountID")
 
-                    # Skip the target account itself (DRS always includes it)
-                    if staging_account_id == target_account_id:
-                        print(f"Skipping target account {staging_account_id} (DRS includes itself in list)")
-                        continue
-
                     if staging_account_id and staging_account_id not in discovered_accounts:
                         from .account_utils import construct_role_arn
 
