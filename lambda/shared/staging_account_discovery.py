@@ -54,7 +54,8 @@ def discover_staging_accounts_from_drs(
     Discovery strategy:
     1. Assume role into target account
     2. Call list-staging-accounts API in each DRS region
-    3. Return unique trusted staging accounts found
+    3. Filter out the target account itself (DRS always includes it)
+    4. Return unique trusted staging accounts found
 
     The list-staging-accounts API returns the trusted staging accounts
     configured for the target account in DRS.
@@ -70,7 +71,7 @@ def discover_staging_accounts_from_drs(
         [
             {
                 "accountId": "777788889999",
-                "accountName": "Staging Account 777788889999",
+                "accountName": "ORCHESTRATION (777788889999)",
                 "roleArn": "arn:aws:iam::777788889999:role/DRSOrchestrationRole",
                 "externalId": "drs-orchestration-cross-account",
                 "discoveredFrom": "us-east-1"
@@ -88,7 +89,7 @@ def discover_staging_accounts_from_drs(
     if role_arn:
         try:
             session = get_cross_account_session(role_arn=role_arn, external_id=external_id)
-            print(f"Assumed role into target account {target_account_id} " f"to discover trusted staging accounts")
+            print(f"Assumed role into target account {target_account_id} to discover trusted staging accounts")
         except Exception as e:
             print(f"Failed to assume role for staging discovery: {e}")
             return []
@@ -108,17 +109,14 @@ def discover_staging_accounts_from_drs(
                 staging_accounts = page.get("accounts", [])
 
                 if staging_accounts:
-                    print(f"Found {len(staging_accounts)} trusted staging accounts " f"in region {region}")
+                    print(f"Found {len(staging_accounts)} staging accounts in region {region}")
 
                 for staging_account in staging_accounts:
                     staging_account_id = staging_account.get("accountID")
 
-                    # Skip the target account itself (DRS always returns itself first)
+                    # Skip the target account itself (DRS always includes it)
                     if staging_account_id == target_account_id:
-                        print(
-                            f"Skipping target account {staging_account_id} "
-                            f"(DRS returns itself in trusted accounts)"
-                        )
+                        print(f"Skipping target account {staging_account_id} (DRS includes itself in list)")
                         continue
 
                     if staging_account_id and staging_account_id not in discovered_accounts:
@@ -139,7 +137,7 @@ def discover_staging_accounts_from_drs(
                                 # Format as "ALIAS (ACCOUNT_ID)"
                                 account_name = f"{aliases[0]} ({staging_account_id})"
                         except Exception as e:
-                            print(f"Could not fetch account alias for " f"{staging_account_id}: {e}")
+                            print(f"Could not fetch account alias for {staging_account_id}: {e}")
 
                         # Fallback to just account ID if we couldn't get the alias
                         if not account_name:
@@ -153,9 +151,7 @@ def discover_staging_accounts_from_drs(
                             "discoveredFrom": region,
                         }
 
-                        print(
-                            f"Discovered staging account {staging_account_id} " f"({account_name}) from region {region}"
-                        )
+                        print(f"Discovered staging account {staging_account_id} ({account_name}) from region {region}")
 
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "")
@@ -171,5 +167,5 @@ def discover_staging_accounts_from_drs(
             print(f"Error querying DRS in {region}: {e}")
 
     result = list(discovered_accounts.values())
-    print(f"Discovered {len(result)} unique staging accounts " f"for target account {target_account_id}")
+    print(f"Discovered {len(result)} unique staging accounts for target account {target_account_id}")
     return result
