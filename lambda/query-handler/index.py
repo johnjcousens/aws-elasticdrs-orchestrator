@@ -4509,7 +4509,7 @@ def extend_source_server(
     # Build account context for create_drs_client
     # Extract role name from role ARN
     role_name = target_role_arn.split("/")[-1] if "/" in target_role_arn else target_role_arn
-    
+
     account_context = {
         "accountId": target_account_id,
         "assumeRoleName": role_name,
