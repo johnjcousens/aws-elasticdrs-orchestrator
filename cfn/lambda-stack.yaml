@@ -151,6 +151,7 @@ Resources:
           TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
+          EXECUTION_HANDLER_ARN: !GetAtt ExecutionHandlerFunction.Arn
       Tags:
         - Key: Project
           Value: !Ref ProjectName

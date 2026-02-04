@@ -319,6 +319,7 @@ from botocore.exceptions import ClientError
 
 # Import shared utilities
 from shared.account_utils import (
+    construct_role_arn,
     get_account_name,
     get_target_accounts,
 )
@@ -355,18 +356,78 @@ DRS_REGIONS = [
     "sa-east-1",
 ]
 
+# DRS job status constants - determine when job polling should stop
+DRS_JOB_STATUS_COMPLETE_STATES = ["COMPLETED"]
+DRS_JOB_STATUS_WAIT_STATES = ["PENDING", "STARTED"]
+
+# DRS server launch status constants - track individual server recovery
+# progress
+DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES = ["LAUNCHED"]
+DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES = ["FAILED", "TERMINATED"]
+DRS_JOB_SERVERS_WAIT_STATES = ["PENDING", "IN_PROGRESS"]
+
 # DynamoDB tables (from environment variables)
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
 RECOVERY_PLANS_TABLE = os.environ.get("RECOVERY_PLANS_TABLE")
 TARGET_ACCOUNTS_TABLE = os.environ.get("TARGET_ACCOUNTS_TABLE")
+EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
+
+# Lambda function ARNs (for cross-handler invocation)
+EXECUTION_HANDLER_ARN = os.environ.get("EXECUTION_HANDLER_ARN")
 
 # Initialize DynamoDB resources
 dynamodb = boto3.resource("dynamodb")
 protection_groups_table = (
     dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
 )
-recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
-target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
+recovery_plans_table = (
+    dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
+)
+target_accounts_table = (
+    dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
+)
+
+# Lazy-loaded table for execution history (used by poll_wave_status)
+_execution_history_table = None
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def get_execution_history_table():
+    """
+    Lazy-load Execution History table to optimize Lambda cold starts.
+
+    Returns:
+        DynamoDB Table resource for execution history
+    """
+    global _execution_history_table
+    if _execution_history_table is None:
+        _execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
+    return _execution_history_table
+
+
+def get_account_context(state: Dict) -> Dict:
+    """
+    Extract account context from state, handling both camelCase and
+    snake_case.
+
+    Supports two input formats:
+    - Initial execution: camelCase (accountContext) from Step Functions
+      input
+    - Resume after pause: snake_case (account_context) from
+      SendTaskSuccess output
+
+    Args:
+        state: State object containing account context
+
+    Returns:
+        Dict containing accountId, assumeRoleName, and isCurrentAccount
+        flags
+    """
+    return state.get("accountContext") or state.get("account_context", {})
 
 
 # ============================================================================
@@ -391,19 +452,34 @@ def lambda_handler(event, context):
         "operation": "get_drs_source_servers",
         "queryParams": {"region": "us-east-1"}
     }
+
+    Orchestration Invocation Event (Action-based):
+    {
+        "action": "poll_wave_status",
+        "state": {...}
+    }
     """
     try:
         # Detect invocation pattern
         if "requestContext" in event:
             # API Gateway invocation (standalone mode)
             return handle_api_gateway_request(event, context)
+        elif "action" in event:
+            # Orchestration invocation (action-based)
+            action = event.get("action")
+            if action == "poll_wave_status":
+                state = event.get("state", {})
+                result = poll_wave_status(state)
+                return result
+            else:
+                return {"error": "Unknown action", "action": action}
         elif "operation" in event:
             # Direct invocation (direct Lambda mode)
             return handle_direct_invocation(event, context)
         else:
             return {
                 "error": "Invalid invocation format",
-                "message": "Event must contain either 'requestContext' (API Gateway) or 'operation' (direct invocation)",  # noqa: E501
+                "message": "Event must contain 'requestContext' (API Gateway), 'action' (orchestration), or 'operation' (direct invocation)",  # noqa: E501
             }
     except Exception as e:
         print(f"Error in lambda_handler: {e}")
@@ -1978,6 +2054,449 @@ def get_ec2_instance_types(query_params: Dict) -> Dict:
 
 
 # ============================================================================
+# Wave Status Polling Functions
+# ============================================================================
+
+
+def poll_wave_status(state: Dict) -> Dict:
+    """
+    Poll DRS job status and track server launch progress.
+
+    Called repeatedly by Step Functions Wait state until wave completes or
+    times out. Checks for cancellation, tracks server launch status, and
+    manages wave transitions.
+
+    Archive Pattern: State passed directly, returns complete state object.
+
+    Args:
+        state: Complete state object with job_id, region, wave tracking
+
+    Returns:
+        Complete state object with updated wave status and completion flags
+
+    State Updates:
+    - current_wave_total_wait_time: Incremented by update_time
+    - wave_completed: Set to True when wave finishes (success/failure/timeout)
+    - all_waves_completed: Set to True when all waves done or execution
+      cancelled
+    - status: Updated to completed/failed/cancelled/paused
+    - wave_results: Updated with server statuses and completion time
+
+    Note:
+        DynamoDB updates for server details (instanceId, privateIp) are
+        handled by execution-poller Lambda to avoid race conditions.
+    """
+    # State passed directly (archive pattern)
+    job_id = state.get("job_id")
+    wave_number = state.get("current_wave_number", 0)
+    region = state.get("region", "us-east-1")
+    execution_id = state.get("execution_id")
+    plan_id = state.get("plan_id")
+
+    # Check for cancellation at start of every poll cycle
+    if execution_id and plan_id:
+        try:
+            exec_check = get_execution_history_table().get_item(
+                Key={"executionId": execution_id, "planId": plan_id}
+            )
+            exec_status = exec_check.get("Item", {}).get("status", "")
+            if exec_status == "CANCELLING":
+                print("⚠️ Execution cancelled (detected at poll start)")
+                state["all_waves_completed"] = True
+                state["wave_completed"] = True
+                state["status"] = "cancelled"
+                get_execution_history_table().update_item(
+                    Key={"executionId": execution_id, "planId": plan_id},
+                    UpdateExpression="SET #status = :status, endTime = :end",
+                    ExpressionAttributeNames={"#status": "status"},
+                    ExpressionAttributeValues={
+                        ":status": "CANCELLED",
+                        ":end": int(time.time()),
+                    },
+                    ConditionExpression="attribute_exists(executionId)",
+                )
+                return state
+        except Exception as e:
+            print(f"Error checking cancellation status: {e}")
+
+    if not job_id:
+        print("No job_id found, marking wave complete")
+        state["wave_completed"] = True
+        return state
+
+    # Update total wait time and check for timeout
+    update_time = state.get("current_wave_update_time", 30)
+    total_wait = state.get("current_wave_total_wait_time", 0) + update_time
+    max_wait = state.get("current_wave_max_wait_time", 31536000)
+    state["current_wave_total_wait_time"] = total_wait
+
+    print(
+        f"Checking status for job {job_id}, wait time: "
+        f"{total_wait}s / {max_wait}s"
+    )
+
+    if total_wait >= max_wait:
+        print(f"❌ Wave {wave_number} TIMEOUT")
+        state["wave_completed"] = True
+        state["status"] = "timeout"
+        state["error"] = f"Wave timed out after {total_wait}s"
+        return state
+
+    try:
+        # Create DRS client with cross-account support
+        account_context = get_account_context(state)
+        drs_client = create_drs_client(region, account_context)
+        job_response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
+
+        if not job_response.get("items"):
+            print(f"Job {job_id} not found")
+            state["wave_completed"] = True
+            state["status"] = "failed"
+            state["error"] = f"Job {job_id} not found"
+            return state
+
+        job = job_response["items"][0]
+        job_status = job.get("status")
+        participating_servers = job.get("participatingServers", [])
+
+        print(
+            f"Job {job_id} status: {job_status}, "
+            f"servers: {len(participating_servers)}"
+        )
+
+        if not participating_servers:
+            if (
+                job_status in DRS_JOB_STATUS_WAIT_STATES
+                or job_status == "STARTED"
+            ):
+                print("Job still initializing")
+                state["wave_completed"] = False
+                return state
+            elif job_status == "COMPLETED":
+                print("❌ Job COMPLETED but no servers")
+                state["wave_completed"] = True
+                state["status"] = "failed"
+                state["error"] = (
+                    "DRS job completed but no participating servers"
+                )
+                return state
+            else:
+                state["wave_completed"] = False
+                return state
+
+        # Preserve existing server data (serverName, hostname) from state
+        existing_statuses = {}
+        for wr in state.get("wave_results", []):
+            if wr.get("waveNumber") == wave_number:
+                for ss in wr.get("serverStatuses", []):
+                    existing_statuses[ss.get("sourceServerId")] = ss
+                break
+
+        # Track server launch progress
+        launched_count = 0
+        failed_count = 0
+        launching_count = 0
+        converting_count = 0
+        server_statuses = []
+
+        for server in participating_servers:
+            server_id = server.get("sourceServerID")
+            launch_status = server.get("launchStatus", "PENDING")
+            recovery_instance_id = server.get("recoveryInstanceID")
+
+            print(f"Server {server_id}: {launch_status}")
+
+            # Preserve existing data and update with new status
+            existing = existing_statuses.get(server_id, {})
+            server_statuses.append(
+                {
+                    "sourceServerId": server_id,
+                    "serverName": existing.get("serverName", server_id),
+                    "hostname": existing.get("hostname", ""),
+                    "launchStatus": launch_status,
+                    "recoveryInstanceId": recovery_instance_id
+                    or existing.get("recoveryInstanceId", ""),
+                    "instanceId": existing.get("instanceId", ""),
+                    "privateIp": existing.get("privateIp", ""),
+                    "instanceType": existing.get("instanceType", ""),
+                    "launchTime": existing.get("launchTime", 0),
+                }
+            )
+
+            if launch_status in DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES:
+                launched_count += 1
+            elif launch_status in DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES:
+                failed_count += 1
+            elif launch_status == "IN_PROGRESS":
+                # Check if it's launching or converting phase
+                # This is determined by looking at the job events or
+                # server state
+                launching_count += 1
+            elif launch_status == "PENDING":
+                # Could be converting or initial phase
+                converting_count += 1
+
+        total_servers = len(participating_servers)
+        print(
+            f"Progress: {launched_count}/{total_servers} launched, "
+            f"{failed_count} failed, {launching_count} launching, "
+            f"{converting_count} converting"
+        )
+
+        # Get job events to determine current phase
+        job_events = []
+        try:
+            events_response = drs_client.describe_job_log_items(
+                jobID=job_id
+            )
+            job_events = events_response.get("items", [])
+        except Exception as e:
+            print(f"Warning: Could not fetch job events: {e}")
+
+        # Determine current phase from recent job events
+        current_phase = "STARTED"
+        recent_events = sorted(
+            job_events,
+            key=lambda x: x.get("eventDateTime", ""),
+            reverse=True
+        )[:10]
+
+        for event in recent_events:
+            event_type = event.get("event", "").upper()
+            if "LAUNCHING" in event_type or "LAUNCH" in event_type:
+                current_phase = "LAUNCHING"
+                break
+            elif "CONVERSION" in event_type and "STARTED" in event_type:
+                current_phase = "CONVERTING"
+                break
+
+        print(f"Current phase determined from events: {current_phase}")
+
+        # Determine current wave status based on phase and server statuses
+        current_wave_status = current_phase
+
+        if launched_count > 0 and launched_count < total_servers:
+            current_wave_status = "IN_PROGRESS"
+
+        # NOTE: DynamoDB updates are handled by execution-poller Lambda
+        # to avoid race conditions and data overwrites
+        if current_wave_status != "STARTED":
+            print(
+                f"Wave {wave_number} status changed to "
+                f"{current_wave_status} (DynamoDB update handled by "
+                f"execution-poller)"
+            )
+
+        # Check if job completed but no instances created
+        if job_status == "COMPLETED" and launched_count == 0:
+            print("❌ Job COMPLETED but no instances launched")
+            state["wave_completed"] = True
+            state["status"] = "failed"
+            state["error"] = (
+                "DRS job completed but no recovery instances created"
+            )
+            return state
+
+        # All servers launched
+        if launched_count == total_servers and failed_count == 0:
+            print(
+                f"✅ Wave {wave_number} COMPLETE - all {launched_count} "
+                f"servers launched"
+            )
+
+            state["wave_completed"] = True
+            state["completed_waves"] = state.get("completed_waves", 0) + 1
+
+            # Update wave result in Step Functions state
+            # EC2 instance details (instanceId, privateIp, instanceType) are
+            # populated by execution-poller which is the single source of
+            # truth
+            for wr in state.get("wave_results", []):
+                if wr.get("waveNumber") == wave_number:
+                    wr["status"] = "COMPLETED"
+                    wr["endTime"] = int(time.time())
+                    break
+
+            # Check if cancelled or paused
+            try:
+                exec_check = get_execution_history_table().get_item(
+                    Key={"executionId": execution_id, "planId": plan_id}
+                )
+                exec_status = exec_check.get("Item", {}).get("status", "")
+
+                if exec_status == "CANCELLING":
+                    print("⚠️ Execution cancelled")
+                    end_time = int(time.time())
+                    state["all_waves_completed"] = True
+                    state["status"] = "cancelled"
+                    state["status_reason"] = "Execution cancelled by user"
+                    state["end_time"] = end_time
+                    if state.get("start_time"):
+                        state["duration_seconds"] = (
+                            end_time - state["start_time"]
+                        )
+                    get_execution_history_table().update_item(
+                        Key={"executionId": execution_id, "planId": plan_id},
+                        UpdateExpression=(
+                            "SET #status = :status, endTime = :end"
+                        ),
+                        ExpressionAttributeNames={"#status": "status"},
+                        ExpressionAttributeValues={
+                            ":status": "CANCELLED",
+                            ":end": int(time.time()),
+                        },
+                        ConditionExpression="attribute_exists(executionId)",
+                    )
+                    return state
+            except Exception as e:
+                print(f"Error checking execution status: {e}")
+
+            # Move to next wave
+            next_wave = wave_number + 1
+            waves_list = state.get("waves", [])
+
+            if next_wave < len(waves_list):
+                next_wave_config = waves_list[next_wave]
+                pause_before = next_wave_config.get("pauseBeforeWave", False)
+
+                if pause_before:
+                    print(f"⏸️ Pausing before wave {next_wave}")
+                    state["status"] = "paused"
+                    state["paused_before_wave"] = next_wave
+
+                    # Mark execution as PAUSED for manual resume
+                    try:
+                        get_execution_history_table().update_item(
+                            Key={
+                                "executionId": execution_id,
+                                "planId": plan_id,
+                            },
+                            UpdateExpression=(
+                                "SET #status = :status, "
+                                "pausedBeforeWave = :wave"
+                            ),
+                            ExpressionAttributeNames={"#status": "status"},
+                            ExpressionAttributeValues={
+                                ":status": "PAUSED",
+                                ":wave": next_wave,
+                            },
+                            ConditionExpression=(
+                                "attribute_exists(executionId)"
+                            ),
+                        )
+                        print(
+                            f"✅ Execution paused before wave {next_wave}, "
+                            f"waiting for manual resume"
+                        )
+                    except Exception as e:
+                        print(f"Error pausing execution: {e}")
+
+                    # Return immediately when paused - don't continue to
+                    # next wave
+                    return state
+
+                print(f"Starting next wave: {next_wave}")
+                # Invoke execution-handler to start next wave
+                try:
+                    lambda_client = boto3.client("lambda")
+                    response = lambda_client.invoke(
+                        FunctionName=os.environ["EXECUTION_HANDLER_ARN"],
+                        InvocationType="RequestResponse",
+                        Payload=json.dumps({
+                            "action": "start_wave_recovery",
+                            "state": state,
+                            "wave_number": next_wave
+                        })
+                    )
+
+                    # Check for function error
+                    if response.get("FunctionError"):
+                        error_payload = json.loads(
+                            response["Payload"].read()
+                        )
+                        raise Exception(
+                            f"Execution handler error: {error_payload}"
+                        )
+
+                    # Update state with response from execution-handler
+                    result = json.loads(response["Payload"].read())
+                    state.update(result)
+                    print(
+                        f"✅ Successfully started wave {next_wave} via "
+                        f"execution-handler"
+                    )
+                except Exception as e:
+                    print(f"❌ Error invoking execution-handler: {e}")
+                    state["wave_completed"] = True
+                    state["status"] = "failed"
+                    state["status_reason"] = (
+                        f"Failed to start wave {next_wave}: {str(e)}"
+                    )
+                    # Don't raise - return failed state to Step Functions
+                    return state
+            else:
+                print("✅ ALL WAVES COMPLETE")
+                end_time = int(time.time())
+                state["all_waves_completed"] = True
+                state["status"] = "completed"
+                state["status_reason"] = "All waves completed successfully"
+                state["end_time"] = end_time
+                state["completed_waves"] = len(waves_list)
+                if state.get("start_time"):
+                    state["duration_seconds"] = (
+                        end_time - state["start_time"]
+                    )
+                get_execution_history_table().update_item(
+                    Key={"executionId": execution_id, "planId": plan_id},
+                    UpdateExpression="SET #status = :status, endTime = :end",
+                    ExpressionAttributeNames={"#status": "status"},
+                    ExpressionAttributeValues={
+                        ":status": "COMPLETED",
+                        ":end": end_time,
+                    },
+                    ConditionExpression="attribute_exists(executionId)",
+                )
+
+        elif failed_count > 0:
+            print(
+                f"❌ Wave {wave_number} FAILED - {failed_count} servers "
+                f"failed"
+            )
+            end_time = int(time.time())
+            state["wave_completed"] = True
+            state["status"] = "failed"
+            state["status_reason"] = (
+                f"Wave {wave_number} failed: {failed_count} servers failed "
+                f"to launch"
+            )
+            state["error"] = f"{failed_count} servers failed to launch"
+            state["error_code"] = "WAVE_LAUNCH_FAILED"
+            state["failed_waves"] = 1
+            state["end_time"] = end_time
+            if state.get("start_time"):
+                state["duration_seconds"] = end_time - state["start_time"]
+            # NOTE: DynamoDB update handled by execution-poller Lambda
+
+        else:
+            print(
+                f"⏳ Wave {wave_number} in progress - "
+                f"{launched_count}/{total_servers}"
+            )
+            state["wave_completed"] = False
+
+    except Exception as e:
+        print(f"Error checking DRS job status: {e}")
+        import traceback
+
+        traceback.print_exc()
+        state["wave_completed"] = True
+        state["status"] = "failed"
+        state["error"] = str(e)
+
+    return state
+
+
+# ============================================================================
 # Account & Configuration Functions
 # ============================================================================
 
@@ -2516,8 +3035,6 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
 
         # Construct roleArn if not provided
         if not role_arn:
-            from shared.account_utils import construct_role_arn
-
             role_arn = construct_role_arn(account_id)
             print(f"Constructed standardized role ARN for validation: {role_arn}")
         else:
@@ -2733,8 +3250,6 @@ def query_account_capacity(account_config: Dict) -> Dict:
 
     # Construct roleArn if not present (for cross-account access)
     if not role_arn and external_id:
-        from shared.account_utils import construct_role_arn
-
         role_arn = construct_role_arn(account_id)
         print(f"Constructed standardized role ARN for account {account_id}: {role_arn}")
     elif role_arn:
