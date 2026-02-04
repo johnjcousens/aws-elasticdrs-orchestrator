@@ -4216,16 +4216,19 @@ def handle_sync_staging_accounts() -> Dict:
     """
     Scheduled sync of staging accounts for all target accounts.
 
-    Called by EventBridge every 15 minutes to automatically discover and update
-    staging accounts from DRS extended source servers.
+    Called by EventBridge every 5 minutes to automatically discover and update
+    staging accounts, then auto-extend servers.
+
+    NEW LOGIC (2026-02-04):
+    Instead of querying target accounts for trusted staging accounts (which doesn't work
+    because list-staging-accounts only returns accounts with existing extended servers),
+    we check if the CURRENT (orchestration) account has DRS servers. If it does, we
+    automatically add it as a staging account to all target accounts.
 
     Workflow:
-    1. Get all target accounts from DynamoDB
-    2. For each target account:
-       - Discover staging accounts from DRS
-       - Compare with current staging accounts
-       - Update if changes detected
-    3. Return sync summary
+    1. Check if current account has DRS servers
+    2. If yes, add current account as staging account to all target accounts
+    3. Auto-extend servers from staging accounts to target accounts
 
     Returns:
         Dict with sync results:
@@ -4280,42 +4283,24 @@ def handle_sync_staging_accounts() -> Dict:
             print(f"\nProcessing account {account_id} ({account_name})...")
 
             try:
-                # Skip current account (no staging accounts)
+                # Skip current account (orchestration account doesn't need staging accounts)
                 if is_current:
-                    print(f"Skipping current account {account_id}")
+                    print(f"Skipping current account {account_id} - orchestration account doesn't need staging")
                     sync_results["accountsSkipped"] += 1
                     sync_results["details"].append(
                         {
                             "accountId": account_id,
                             "accountName": account_name,
                             "status": "skipped",
-                            "reason": "Current account - no staging accounts",
+                            "reason": "Current account - orchestration account",
                         }
                     )
                     continue
 
-                # Get role ARN and external ID
-                role_arn = account.get("roleArn")
-                external_id = account.get("externalId")
-
-                if not role_arn:
-                    print(f"No role ARN for account {account_id}, skipping")
-                    sync_results["accountsSkipped"] += 1
-                    sync_results["details"].append(
-                        {
-                            "accountId": account_id,
-                            "accountName": account_name,
-                            "status": "skipped",
-                            "reason": "No role ARN configured",
-                        }
-                    )
-                    continue
-
-                # Discover staging accounts from DRS
+                # Discover staging accounts (checks if current account has DRS servers)
+                # Note: role_arn and external_id are not used in new logic
                 discovered = discover_staging_accounts_from_drs(
                     target_account_id=account_id,
-                    role_arn=role_arn,
-                    external_id=external_id,
                 )
 
                 # Get current staging accounts from DynamoDB
