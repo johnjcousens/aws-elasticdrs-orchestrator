@@ -34,13 +34,6 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
   combinedPercent,
   combinedStatus,
 }) => {
-  const getProgressStatus = (used: number, max: number): 'success' | 'warning' | 'error' => {
-    const percent = (used / max) * 100;
-    if (percent < 75) return 'success';
-    if (percent < 90) return 'warning';
-    return 'error';
-  };
-
   // Filter out empty regions (no replicating servers)
   const activeRegions = regionalCapacity.filter(region => region.replicatingServers > 0);
 
@@ -76,7 +69,6 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
                 used={combinedTotal}
                 total={combinedMax}
                 size="medium"
-                status={getProgressStatus(combinedTotal, combinedMax)}
               />
             </div>
           </ColumnLayout>
@@ -103,7 +95,6 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
                         used={region.replicatingServers}
                         total={region.maxReplicating}
                         size="small"
-                        status={getProgressStatus(region.replicatingServers, region.maxReplicating)}
                       />
                       <Box variant="small" color="text-body-secondary" padding={{ top: 'xxs' }}>
                         {region.replicationPercent.toFixed(1)}% • {region.replicationAvailable.toLocaleString()} available
@@ -119,7 +110,6 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
                         used={region.recoveryServers}
                         total={region.recoveryMax}
                         size="small"
-                        status={getProgressStatus(region.recoveryServers, region.recoveryMax)}
                       />
                       <Box variant="small" color="text-body-secondary" padding={{ top: 'xxs' }}>
                         {region.recoveryPercent.toFixed(1)}% • {region.recoveryAvailable.toLocaleString()} available
