@@ -4754,7 +4754,9 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                             "totalServers": 0,
                         }
                     # Sum servers from all accounts in this region
-                    combined_regional_breakdown[region]["replicatingServers"] += region_data.get("replicatingServers", 0)
+                    combined_regional_breakdown[region]["replicatingServers"] += region_data.get(
+                        "replicatingServers", 0
+                    )
                     combined_regional_breakdown[region]["totalServers"] += region_data.get("totalServers", 0)
 
         # Convert to list for calculate_recovery_capacity
