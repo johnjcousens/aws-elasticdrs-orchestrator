@@ -32,8 +32,10 @@ import {
   ExpandableSection,
   Spinner,
   Alert,
+  Input,
 } from "@cloudscape-design/components";
 import apiClient from "../services/api";
+import { removeStagingAccount } from "../services/staging-accounts-api";
 import { AddStagingAccountModal } from "./AddStagingAccountModal";
 import type {
   TargetAccountSettingsModalProps,
@@ -53,6 +55,63 @@ export const TargetAccountSettingsModal: React.FC<
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddStagingModal, setShowAddStagingModal] = useState(false);
+  const [removingAccountId, setRemovingAccountId] = useState<string | null>(null);
+  const [editingAccountName, setEditingAccountName] = useState(false);
+  const [editedAccountName, setEditedAccountName] = useState("");
+  const [savingAccountName, setSavingAccountName] = useState(false);
+
+  // Handle edit account name
+  const handleStartEditAccountName = () => {
+    setEditedAccountName(displayAccount.accountName || "");
+    setEditingAccountName(true);
+  };
+
+  const handleCancelEditAccountName = () => {
+    setEditingAccountName(false);
+    setEditedAccountName("");
+  };
+
+  const handleSaveAccountName = async () => {
+    setSavingAccountName(true);
+    
+    try {
+      await apiClient.updateTargetAccount(displayAccount.accountId, {
+        accountName: editedAccountName,
+      });
+      
+      // Refresh account data after updating
+      const data = await apiClient.getTargetAccount(displayAccount.accountId);
+      setFreshAccountData(data);
+      setEditingAccountName(false);
+    } catch (err) {
+      console.error('Error updating account name:', err);
+      setError(`Failed to update account name: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setSavingAccountName(false);
+    }
+  };
+
+  // Handle remove staging account
+  const handleRemoveStagingAccount = async (stagingAccountId: string) => {
+    if (!confirm(`Are you sure you want to remove staging account ${stagingAccountId}?`)) {
+      return;
+    }
+
+    setRemovingAccountId(stagingAccountId);
+    
+    try {
+      await removeStagingAccount(displayAccount.accountId, stagingAccountId);
+      
+      // Refresh account data after removing
+      const data = await apiClient.getTargetAccount(displayAccount.accountId);
+      setFreshAccountData(data);
+    } catch (err) {
+      console.error('Error removing staging account:', err);
+      setError(`Failed to remove staging account: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setRemovingAccountId(null);
+    }
+  };
 
   // Fetch fresh account data when modal opens
   useEffect(() => {
@@ -121,7 +180,40 @@ export const TargetAccountSettingsModal: React.FC<
               </div>
               <div>
                 <Box variant="awsui-key-label">Account Name</Box>
-                <div>{displayAccount.accountName || "—"}</div>
+                {editingAccountName ? (
+                  <SpaceBetween direction="horizontal" size="xs">
+                    <Input
+                      value={editedAccountName}
+                      onChange={({ detail }) => setEditedAccountName(detail.value)}
+                      placeholder="Enter account name"
+                      disabled={savingAccountName}
+                    />
+                    <Button
+                      onClick={handleSaveAccountName}
+                      variant="primary"
+                      loading={savingAccountName}
+                      disabled={savingAccountName}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      onClick={handleCancelEditAccountName}
+                      disabled={savingAccountName}
+                    >
+                      Cancel
+                    </Button>
+                  </SpaceBetween>
+                ) : (
+                  <SpaceBetween direction="horizontal" size="xs">
+                    <div>{displayAccount.accountName || "—"}</div>
+                    <Button
+                      onClick={handleStartEditAccountName}
+                      iconName="edit"
+                      variant="inline-icon"
+                      ariaLabel="Edit account name"
+                    />
+                  </SpaceBetween>
+                )}
               </div>
               {displayAccount.roleArn && (
                 <div>
@@ -177,9 +269,43 @@ export const TargetAccountSettingsModal: React.FC<
           ) : (
             <SpaceBetween size="m">
               {stagingAccounts.map((stagingAccount: any) => (
-                <Box key={stagingAccount.accountId} padding="s">
-                  <strong>{stagingAccount.accountName}</strong> ({stagingAccount.accountId})
-                </Box>
+                <Container key={stagingAccount.accountId}>
+                  <SpaceBetween size="s">
+                    <ColumnLayout columns={2} variant="text-grid">
+                      <div>
+                        <Box variant="awsui-key-label">Account Name</Box>
+                        <div>{stagingAccount.accountName}</div>
+                      </div>
+                      <div>
+                        <Box variant="awsui-key-label">Account ID</Box>
+                        <div>{stagingAccount.accountId}</div>
+                      </div>
+                      <div>
+                        <Box variant="awsui-key-label">Role ARN</Box>
+                        <div style={{ fontSize: '12px', wordBreak: 'break-all' }}>
+                          {stagingAccount.roleArn}
+                        </div>
+                      </div>
+                      <div>
+                        <Box variant="awsui-key-label">Status</Box>
+                        <StatusIndicator type={stagingAccount.status === 'connected' ? 'success' : 'error'}>
+                          {stagingAccount.status || 'connected'}
+                        </StatusIndicator>
+                      </div>
+                    </ColumnLayout>
+                    <Box float="right">
+                      <Button
+                        onClick={() => handleRemoveStagingAccount(stagingAccount.accountId)}
+                        iconName="remove"
+                        variant="normal"
+                        loading={removingAccountId === stagingAccount.accountId}
+                        disabled={removingAccountId !== null}
+                      >
+                        Remove
+                      </Button>
+                    </Box>
+                  </SpaceBetween>
+                </Container>
               ))}
             </SpaceBetween>
           )}
