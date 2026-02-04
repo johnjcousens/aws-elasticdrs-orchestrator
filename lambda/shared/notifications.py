@@ -325,9 +325,7 @@ Please review the execution logs and take appropriate action to resolve the issu
         print(f"Warning: Failed to send execution failed notification: {e}")
 
 
-def send_execution_paused(
-    execution_id: str, plan_name: str, paused_before_wave: int, wave_name: str
-) -> None:
+def send_execution_paused(execution_id: str, plan_name: str, paused_before_wave: int, wave_name: str) -> None:
     """
     Send notification when execution pauses for manual approval.
 

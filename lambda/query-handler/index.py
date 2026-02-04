@@ -323,7 +323,6 @@ from shared.account_utils import (
     get_account_name,
     get_target_accounts,
 )
-from shared.conflict_detection import query_drs_servers_by_tags
 from shared.cross_account import (
     create_drs_client,
     get_current_account_id,
@@ -377,15 +376,9 @@ EXECUTION_HANDLER_ARN = os.environ.get("EXECUTION_HANDLER_ARN")
 
 # Initialize DynamoDB resources
 dynamodb = boto3.resource("dynamodb")
-protection_groups_table = (
-    dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
-)
-recovery_plans_table = (
-    dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
-)
-target_accounts_table = (
-    dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
-)
+protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
+recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
+target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
 
 # Lazy-loaded table for execution history (used by poll_wave_status)
 _execution_history_table = None
@@ -430,6 +423,101 @@ def get_account_context(state: Dict) -> Dict:
     return state.get("accountContext") or state.get("account_context", {})
 
 
+def query_drs_servers_by_tags(  # noqa: C901
+    region: str, tags: Dict[str, str], account_context: Dict = None
+) -> List[str]:
+    """
+    Query DRS source servers matching ALL specified tags (AND logic).
+
+    Tag-based discovery enables dynamic server resolution at execution
+    time rather than static server lists. This supports auto-scaling and
+    server changes without updating Protection Groups.
+
+    Tag Matching Rules:
+    - Server must have ALL specified tags to be included
+    - Tag keys and values are case-insensitive
+    - Whitespace is stripped from keys and values
+    - Tags are read from DRS source server metadata, not EC2 instance
+      tags
+
+    Args:
+        region: AWS region to query DRS servers
+        tags: Dict of tag key-value pairs that servers must match
+        account_context: Optional cross-account context for IAM role
+            assumption
+
+    Returns:
+        List of DRS source server IDs matching all tags
+
+    Example:
+        tags = {"Environment": "production", "Customer": "acme"}
+        # Returns only servers with BOTH tags matching
+    """
+    try:
+        # Create DRS client with cross-account support
+        regional_drs = create_drs_client(region, account_context)
+
+        # Get all source servers in the region
+        all_servers = []
+        paginator = regional_drs.get_paginator("describe_source_servers")
+
+        for page in paginator.paginate():
+            all_servers.extend(page.get("items", []))
+
+        if not all_servers:
+            print("No DRS source servers found in region")
+            return []
+
+        # Filter servers matching ALL specified tags
+        matching_server_ids = []
+
+        for server in all_servers:
+            server_id = server.get("sourceServerID", "")
+            drs_tags = server.get("tags", {})
+
+            # Check if server has ALL required tags with matching values
+            matches_all = True
+            for tag_key, tag_value in tags.items():
+                # Normalize for case-insensitive comparison
+                normalized_required_key = tag_key.strip()
+                normalized_required_value = tag_value.strip().lower()
+
+                # Check if any DRS tag matches
+                found_match = False
+                for drs_key, drs_value in drs_tags.items():
+                    normalized_drs_key = drs_key.strip()
+                    normalized_drs_value = str(drs_value).strip().lower()
+
+                    if (
+                        normalized_drs_key == normalized_required_key
+                        and normalized_drs_value == normalized_required_value
+                    ):
+                        found_match = True
+                        break
+
+                if not found_match:
+                    matches_all = False
+                    print(
+                        f"Server {server_id} missing tag "
+                        f"{tag_key}={tag_value}. Available DRS tags: "
+                        f"{list(drs_tags.keys())}"
+                    )
+                    break
+
+            if matches_all:
+                matching_server_ids.append(server_id)
+
+        print("Tag matching results:")
+        print(f"- Total DRS servers: {len(all_servers)}")
+        print(f"- Servers matching tags {tags}: {len(matching_server_ids)}")
+
+        return matching_server_ids
+
+    except Exception as e:
+        print(f"Error querying DRS servers by DRS tags: {str(e)}")
+        raise
+
+
 # ============================================================================
 # Lambda Handler Entry Point
 # ============================================================================
@@ -471,6 +559,12 @@ def lambda_handler(event, context):
                 state = event.get("state", {})
                 result = poll_wave_status(state)
                 return result
+            elif action == "query_servers_by_tags":
+                region = event.get("region")
+                tags = event.get("tags", {})
+                account_context = event.get("account_context")
+                result = query_drs_servers_by_tags(region, tags, account_context)
+                return {"server_ids": result}
             else:
                 return {"error": "Unknown action", "action": action}
         elif "operation" in event:
@@ -584,11 +678,7 @@ def handle_api_gateway_request(event, context):
     # Supports both:
     # - /accounts/targets/{id}/staging-accounts/discover
     # - /accounts/{targetAccountId}/staging-accounts/discover
-    elif (
-        path.startswith("/accounts/")
-        and path.endswith("/staging-accounts/discover")
-        and method == "GET"
-    ):
+    elif path.startswith("/accounts/") and path.endswith("/staging-accounts/discover") and method == "GET":
         # Extract target account ID from path
         path_parts = path.split("/")
 
@@ -629,9 +719,7 @@ def handle_direct_invocation(event, context):
         "get_ec2_instance_types": lambda: get_ec2_instance_types(query_params),
         "get_current_account_id": lambda: {"accountId": get_current_account_id()},
         "export_configuration": lambda: export_configuration(query_params),
-        "get_user_permissions": lambda: {
-            "error": "User permissions not available in direct invocation mode"
-        },
+        "get_user_permissions": lambda: {"error": "User permissions not available in direct invocation mode"},
         "validate_staging_account": lambda: handle_validate_staging_account(query_params),
         "discover_staging_accounts": lambda: handle_discover_staging_accounts(query_params),
         "get_combined_capacity": lambda: handle_get_combined_capacity(query_params),
@@ -716,9 +804,7 @@ def _count_drs_servers(regional_drs, account_id: str) -> Dict:
             # Only count replicating servers that are NOT extended source
             # servers
             if not is_extended:
-                replication_state = server.get("dataReplicationInfo", {}).get(
-                    "dataReplicationState", ""
-                )
+                replication_state = server.get("dataReplicationInfo", {}).get("dataReplicationState", "")
                 if replication_state in [
                     "CONTINUOUS",
                     "INITIAL_SYNC",
@@ -913,10 +999,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
             print(f"Error querying DRS: {error_str}")
 
             # Check if it's an uninitialized error
-            if (
-                "UninitializedAccountException" in error_str
-                or "not initialized" in error_str.lower()
-            ):
+            if "UninitializedAccountException" in error_str or "not initialized" in error_str.lower():
                 return response(
                     400,
                     {
@@ -946,9 +1029,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
         # Transform servers to frontend format
         servers = [_transform_drs_server(s) for s in raw_servers]
 
-        print(
-            f"DEBUG: About to check PG assignments, protection_groups_table={protection_groups_table}"
-        )
+        print(f"DEBUG: About to check PG assignments, protection_groups_table={protection_groups_table}")
 
         # Check Protection Group assignments for all servers
         if protection_groups_table:
@@ -989,9 +1070,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
 
                     # Check manual server selection (sourceServerIds)
                     server_ids = pg.get("sourceServerIds", [])
-                    print(
-                        f"DEBUG: PG '{pg_name}' has {len(server_ids)} manual serverIds"  # noqa: E501
-                    )
+                    print(f"DEBUG: PG '{pg_name}' has {len(server_ids)} manual serverIds")  # noqa: E501
                     for server_id in server_ids:
                         server_assignments[server_id] = {
                             "protectionGroupId": pg_id,
@@ -1011,8 +1090,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
 
                             # Check if server matches ALL selection tags
                             matches_all_tags = all(
-                                server_tags.get(tag_key) == tag_value
-                                for tag_key, tag_value in selection_tags.items()
+                                server_tags.get(tag_key) == tag_value for tag_key, tag_value in selection_tags.items()
                             )
 
                             if matches_all_tags:
@@ -1335,9 +1413,7 @@ def get_drs_account_capacity_all_regions(
         try:
             regional_drs = create_drs_client(region, account_context)
             # Get account ID from context or current account
-            account_id = (
-                account_context.get("accountId") if account_context else get_current_account_id()
-            )
+            account_id = account_context.get("accountId") if account_context else get_current_account_id()
             counts = _count_drs_servers(regional_drs, account_id)
             return {
                 "success": True,
@@ -1366,9 +1442,7 @@ def get_drs_account_capacity_all_regions(
 
     # Query all regions concurrently (max 10 threads to avoid overwhelming API)
     with ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_region = {
-            executor.submit(query_region, region): region for region in all_regions_ordered
-        }
+        future_to_region = {executor.submit(query_region, region): region for region in all_regions_ordered}
 
         for future in as_completed(future_to_region):
             result = future.result()
@@ -1415,14 +1489,10 @@ def get_drs_account_capacity_all_regions(
         region_status = region_data["status"]
         if region_status == "CRITICAL":
             worst_status = "CRITICAL"
-            critical_regions.append(
-                f"{region_data['region']} ({region_data['replicatingServers']}/300)"
-            )
+            critical_regions.append(f"{region_data['region']} ({region_data['replicatingServers']}/300)")
         elif region_status == "WARNING" and worst_status != "CRITICAL":
             worst_status = "WARNING"
-            warning_regions.append(
-                f"{region_data['region']} ({region_data['replicatingServers']}/300)"
-            )
+            warning_regions.append(f"{region_data['region']} ({region_data['replicatingServers']}/300)")
         elif region_status == "INFO" and worst_status not in [
             "CRITICAL",
             "WARNING",
@@ -1952,11 +2022,7 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
     try:
         ec2 = boto3.client("ec2", region_name=region)
         filters = [{"Name": "vpc-id", "Values": [vpc_id]}] if vpc_id else []
-        result = (
-            ec2.describe_security_groups(Filters=filters)
-            if filters
-            else ec2.describe_security_groups()
-        )
+        result = ec2.describe_security_groups(Filters=filters) if filters else ec2.describe_security_groups()
 
         groups = []
         for sg in result["SecurityGroups"]:
@@ -2096,9 +2162,7 @@ def poll_wave_status(state: Dict) -> Dict:
     # Check for cancellation at start of every poll cycle
     if execution_id and plan_id:
         try:
-            exec_check = get_execution_history_table().get_item(
-                Key={"executionId": execution_id, "planId": plan_id}
-            )
+            exec_check = get_execution_history_table().get_item(Key={"executionId": execution_id, "planId": plan_id})
             exec_status = exec_check.get("Item", {}).get("status", "")
             if exec_status == "CANCELLING":
                 print("⚠️ Execution cancelled (detected at poll start)")
@@ -2130,10 +2194,7 @@ def poll_wave_status(state: Dict) -> Dict:
     max_wait = state.get("current_wave_max_wait_time", 31536000)
     state["current_wave_total_wait_time"] = total_wait
 
-    print(
-        f"Checking status for job {job_id}, wait time: "
-        f"{total_wait}s / {max_wait}s"
-    )
+    print(f"Checking status for job {job_id}, wait time: " f"{total_wait}s / {max_wait}s")
 
     if total_wait >= max_wait:
         print(f"❌ Wave {wave_number} TIMEOUT")
@@ -2159,16 +2220,10 @@ def poll_wave_status(state: Dict) -> Dict:
         job_status = job.get("status")
         participating_servers = job.get("participatingServers", [])
 
-        print(
-            f"Job {job_id} status: {job_status}, "
-            f"servers: {len(participating_servers)}"
-        )
+        print(f"Job {job_id} status: {job_status}, " f"servers: {len(participating_servers)}")
 
         if not participating_servers:
-            if (
-                job_status in DRS_JOB_STATUS_WAIT_STATES
-                or job_status == "STARTED"
-            ):
+            if job_status in DRS_JOB_STATUS_WAIT_STATES or job_status == "STARTED":
                 print("Job still initializing")
                 state["wave_completed"] = False
                 return state
@@ -2176,9 +2231,7 @@ def poll_wave_status(state: Dict) -> Dict:
                 print("❌ Job COMPLETED but no servers")
                 state["wave_completed"] = True
                 state["status"] = "failed"
-                state["error"] = (
-                    "DRS job completed but no participating servers"
-                )
+                state["error"] = "DRS job completed but no participating servers"
                 return state
             else:
                 state["wave_completed"] = False
@@ -2214,8 +2267,7 @@ def poll_wave_status(state: Dict) -> Dict:
                     "serverName": existing.get("serverName", server_id),
                     "hostname": existing.get("hostname", ""),
                     "launchStatus": launch_status,
-                    "recoveryInstanceId": recovery_instance_id
-                    or existing.get("recoveryInstanceId", ""),
+                    "recoveryInstanceId": recovery_instance_id or existing.get("recoveryInstanceId", ""),
                     "instanceId": existing.get("instanceId", ""),
                     "privateIp": existing.get("privateIp", ""),
                     "instanceType": existing.get("instanceType", ""),
@@ -2246,20 +2298,14 @@ def poll_wave_status(state: Dict) -> Dict:
         # Get job events to determine current phase
         job_events = []
         try:
-            events_response = drs_client.describe_job_log_items(
-                jobID=job_id
-            )
+            events_response = drs_client.describe_job_log_items(jobID=job_id)
             job_events = events_response.get("items", [])
         except Exception as e:
             print(f"Warning: Could not fetch job events: {e}")
 
         # Determine current phase from recent job events
         current_phase = "STARTED"
-        recent_events = sorted(
-            job_events,
-            key=lambda x: x.get("eventDateTime", ""),
-            reverse=True
-        )[:10]
+        recent_events = sorted(job_events, key=lambda x: x.get("eventDateTime", ""), reverse=True)[:10]
 
         for event in recent_events:
             event_type = event.get("event", "").upper()
@@ -2292,17 +2338,12 @@ def poll_wave_status(state: Dict) -> Dict:
             print("❌ Job COMPLETED but no instances launched")
             state["wave_completed"] = True
             state["status"] = "failed"
-            state["error"] = (
-                "DRS job completed but no recovery instances created"
-            )
+            state["error"] = "DRS job completed but no recovery instances created"
             return state
 
         # All servers launched
         if launched_count == total_servers and failed_count == 0:
-            print(
-                f"✅ Wave {wave_number} COMPLETE - all {launched_count} "
-                f"servers launched"
-            )
+            print(f"✅ Wave {wave_number} COMPLETE - all {launched_count} " f"servers launched")
 
             state["wave_completed"] = True
             state["completed_waves"] = state.get("completed_waves", 0) + 1
@@ -2332,14 +2373,10 @@ def poll_wave_status(state: Dict) -> Dict:
                     state["status_reason"] = "Execution cancelled by user"
                     state["end_time"] = end_time
                     if state.get("start_time"):
-                        state["duration_seconds"] = (
-                            end_time - state["start_time"]
-                        )
+                        state["duration_seconds"] = end_time - state["start_time"]
                     get_execution_history_table().update_item(
                         Key={"executionId": execution_id, "planId": plan_id},
-                        UpdateExpression=(
-                            "SET #status = :status, endTime = :end"
-                        ),
+                        UpdateExpression=("SET #status = :status, endTime = :end"),
                         ExpressionAttributeNames={"#status": "status"},
                         ExpressionAttributeValues={
                             ":status": "CANCELLED",
@@ -2371,23 +2408,15 @@ def poll_wave_status(state: Dict) -> Dict:
                                 "executionId": execution_id,
                                 "planId": plan_id,
                             },
-                            UpdateExpression=(
-                                "SET #status = :status, "
-                                "pausedBeforeWave = :wave"
-                            ),
+                            UpdateExpression=("SET #status = :status, " "pausedBeforeWave = :wave"),
                             ExpressionAttributeNames={"#status": "status"},
                             ExpressionAttributeValues={
                                 ":status": "PAUSED",
                                 ":wave": next_wave,
                             },
-                            ConditionExpression=(
-                                "attribute_exists(executionId)"
-                            ),
+                            ConditionExpression=("attribute_exists(executionId)"),
                         )
-                        print(
-                            f"✅ Execution paused before wave {next_wave}, "
-                            f"waiting for manual resume"
-                        )
+                        print(f"✅ Execution paused before wave {next_wave}, " f"waiting for manual resume")
                     except Exception as e:
                         print(f"Error pausing execution: {e}")
 
@@ -2402,36 +2431,29 @@ def poll_wave_status(state: Dict) -> Dict:
                     response = lambda_client.invoke(
                         FunctionName=os.environ["EXECUTION_HANDLER_ARN"],
                         InvocationType="RequestResponse",
-                        Payload=json.dumps({
-                            "action": "start_wave_recovery",
-                            "state": state,
-                            "wave_number": next_wave
-                        })
+                        Payload=json.dumps(
+                            {
+                                "action": "start_wave_recovery",
+                                "state": state,
+                                "wave_number": next_wave,
+                            }
+                        ),
                     )
 
                     # Check for function error
                     if response.get("FunctionError"):
-                        error_payload = json.loads(
-                            response["Payload"].read()
-                        )
-                        raise Exception(
-                            f"Execution handler error: {error_payload}"
-                        )
+                        error_payload = json.loads(response["Payload"].read())
+                        raise Exception(f"Execution handler error: {error_payload}")
 
                     # Update state with response from execution-handler
                     result = json.loads(response["Payload"].read())
                     state.update(result)
-                    print(
-                        f"✅ Successfully started wave {next_wave} via "
-                        f"execution-handler"
-                    )
+                    print(f"✅ Successfully started wave {next_wave} via " f"execution-handler")
                 except Exception as e:
                     print(f"❌ Error invoking execution-handler: {e}")
                     state["wave_completed"] = True
                     state["status"] = "failed"
-                    state["status_reason"] = (
-                        f"Failed to start wave {next_wave}: {str(e)}"
-                    )
+                    state["status_reason"] = f"Failed to start wave {next_wave}: {str(e)}"
                     # Don't raise - return failed state to Step Functions
                     return state
             else:
@@ -2443,9 +2465,7 @@ def poll_wave_status(state: Dict) -> Dict:
                 state["end_time"] = end_time
                 state["completed_waves"] = len(waves_list)
                 if state.get("start_time"):
-                    state["duration_seconds"] = (
-                        end_time - state["start_time"]
-                    )
+                    state["duration_seconds"] = end_time - state["start_time"]
                 get_execution_history_table().update_item(
                     Key={"executionId": execution_id, "planId": plan_id},
                     UpdateExpression="SET #status = :status, endTime = :end",
@@ -2458,17 +2478,11 @@ def poll_wave_status(state: Dict) -> Dict:
                 )
 
         elif failed_count > 0:
-            print(
-                f"❌ Wave {wave_number} FAILED - {failed_count} servers "
-                f"failed"
-            )
+            print(f"❌ Wave {wave_number} FAILED - {failed_count} servers " f"failed")
             end_time = int(time.time())
             state["wave_completed"] = True
             state["status"] = "failed"
-            state["status_reason"] = (
-                f"Wave {wave_number} failed: {failed_count} servers failed "
-                f"to launch"
-            )
+            state["status_reason"] = f"Wave {wave_number} failed: {failed_count} servers failed " f"to launch"
             state["error"] = f"{failed_count} servers failed to launch"
             state["error_code"] = "WAVE_LAUNCH_FAILED"
             state["failed_waves"] = 1
@@ -2478,10 +2492,7 @@ def poll_wave_status(state: Dict) -> Dict:
             # NOTE: DynamoDB update handled by execution-poller Lambda
 
         else:
-            print(
-                f"⏳ Wave {wave_number} in progress - "
-                f"{launched_count}/{total_servers}"
-            )
+            print(f"⏳ Wave {wave_number} in progress - " f"{launched_count}/{total_servers}")
             state["wave_completed"] = False
 
     except Exception as e:
@@ -2539,9 +2550,7 @@ def export_configuration(query_params: Dict) -> Dict:
         pg_result = protection_groups_table.scan()
         protection_groups = pg_result.get("Items", [])
         while "LastEvaluatedKey" in pg_result:
-            pg_result = protection_groups_table.scan(
-                ExclusiveStartKey=pg_result["LastEvaluatedKey"]
-            )
+            pg_result = protection_groups_table.scan(ExclusiveStartKey=pg_result["LastEvaluatedKey"])
             protection_groups.extend(pg_result.get("Items", []))
 
         # Scan all Recovery Plans
@@ -2599,8 +2608,7 @@ def export_configuration(query_params: Dict) -> Dict:
 
                     # Count servers with custom configurations
                     if not server.get("useGroupDefaults", True) or (
-                        server.get("launchTemplate")
-                        and any(v is not None for v in server["launchTemplate"].values())
+                        server.get("launchTemplate") and any(v is not None for v in server["launchTemplate"].values())
                     ):
                         servers_with_custom_config += 1
 
@@ -2947,9 +2955,7 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
         )
 
 
-def get_drs_source_server_details(
-    account_id: str, region: str, server_ids: List[str]
-) -> List[Dict]:
+def get_drs_source_server_details(account_id: str, region: str, server_ids: List[str]) -> List[Dict]:
     """Get detailed information about DRS source servers"""
     try:
         drs_client = boto3.client("drs", region_name=region)
@@ -2970,9 +2976,7 @@ def get_drs_source_server_details(
                         "ReplicationStatus": server.get("dataReplicationInfo", {}).get(
                             "dataReplicationState", "Unknown"
                         ),
-                        "LastSeenTime": server.get("sourceProperties", {}).get(
-                            "lastUpdatedDateTime", ""
-                        ),
+                        "LastSeenTime": server.get("sourceProperties", {}).get("lastUpdatedDateTime", ""),
                         "LifeCycleState": server.get("lifeCycle", {}).get("state", "Unknown"),
                     }
                 )
@@ -3134,9 +3138,7 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
             total_servers = server_counts["totalServers"]
             replicating_servers = server_counts["replicatingServers"]
 
-            print(
-                f"DRS initialized. Total servers: {total_servers}, Replicating: {replicating_servers}"
-            )
+            print(f"DRS initialized. Total servers: {total_servers}, Replicating: {replicating_servers}")
 
             # Calculate projected combined capacity
             # Note: This is a simplified calculation. In production, you'd query
@@ -3163,10 +3165,7 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
 
             print(f"DRS error: {error_code} - {error_message}")
 
-            if (
-                error_code == "UninitializedAccountException"
-                or "not initialized" in error_message.lower()
-            ):
+            if error_code == "UninitializedAccountException" or "not initialized" in error_message.lower():
                 return response(
                     200,
                     {
@@ -3289,9 +3288,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
                 error_code = e.response["Error"]["Code"]
                 error_message = e.response["Error"]["Message"]
 
-                print(
-                    f"Failed to assume role in account {account_id}: {error_code} - {error_message}"
-                )
+                print(f"Failed to assume role in account {account_id}: {error_code} - {error_message}")
 
                 return {
                     "accountId": account_id,
@@ -3339,13 +3336,8 @@ def query_account_capacity(account_config: Dict) -> Dict:
                 error_message = e.response["Error"]["Message"]
 
                 # Handle uninitialized regions gracefully
-                if (
-                    error_code == "UninitializedAccountException"
-                    or "not initialized" in error_message.lower()
-                ):
-                    print(
-                        f"DRS not initialized in {region} for account {account_id} - treating as zero servers"
-                    )
+                if error_code == "UninitializedAccountException" or "not initialized" in error_message.lower():
+                    print(f"DRS not initialized in {region} for account {account_id} - treating as zero servers")
                     return {
                         "region": region,
                         "totalServers": 0,
@@ -3353,9 +3345,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
                         "error": None,
                     }
                 else:
-                    print(
-                        f"Error querying {region} for account {account_id}: {error_code} - {error_message}"
-                    )
+                    print(f"Error querying {region} for account {account_id}: {error_code} - {error_message}")
                     return {
                         "region": region,
                         "totalServers": 0,
@@ -3400,9 +3390,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
         # Filter out regions with no servers for cleaner output
         regional_breakdown = [r for r in regional_results if r["totalServers"] > 0 or r["error"]]
 
-        print(
-            f"Account {account_id} capacity: {replicating_servers} replicating, {total_servers} total"
-        )
+        print(f"Account {account_id} capacity: {replicating_servers} replicating, {total_servers} total")
 
         return {
             "accountId": account_id,
@@ -3432,9 +3420,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
         }
 
 
-def query_staging_accounts_from_target(
-    target_account: Dict, staging_accounts: List[Dict]
-) -> List[Dict]:
+def query_staging_accounts_from_target(target_account: Dict, staging_accounts: List[Dict]) -> List[Dict]:
     """
     Query staging account capacity by counting extended source servers in target account.
 
@@ -3498,14 +3484,15 @@ def query_staging_accounts_from_target(
                         # Only count extended source servers (staging account != target account)
                         if staging_account_id and staging_account_id != target_id:
                             if staging_account_id not in staging_counts:
-                                staging_counts[staging_account_id] = {"total": 0, "replicating": 0}
+                                staging_counts[staging_account_id] = {
+                                    "total": 0,
+                                    "replicating": 0,
+                                }
 
                             staging_counts[staging_account_id]["total"] += 1
 
                             # Check if replicating
-                            replication_state = server.get("dataReplicationInfo", {}).get(
-                                "dataReplicationState", ""
-                            )
+                            replication_state = server.get("dataReplicationInfo", {}).get("dataReplicationState", "")
                             if replication_state in [
                                 "CONTINUOUS",
                                 "INITIAL_SYNC",
@@ -3531,9 +3518,7 @@ def query_staging_accounts_from_target(
         # Query all regions in parallel
         regional_results = []
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {
-                executor.submit(query_region_for_staging, region): region for region in DRS_REGIONS
-            }
+            futures = {executor.submit(query_region_for_staging, region): region for region in DRS_REGIONS}
 
             for future in as_completed(futures):
                 try:
@@ -3548,7 +3533,11 @@ def query_staging_accounts_from_target(
             region = regional_result["region"]
             for staging_id, counts in regional_result["staging_counts"].items():
                 if staging_id not in staging_totals:
-                    staging_totals[staging_id] = {"total": 0, "replicating": 0, "regions": []}
+                    staging_totals[staging_id] = {
+                        "total": 0,
+                        "replicating": 0,
+                        "regions": [],
+                    }
                 staging_totals[staging_id]["total"] += counts["total"]
                 staging_totals[staging_id]["replicating"] += counts["replicating"]
                 if counts["total"] > 0:
@@ -3682,10 +3671,7 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
                 }
                 staging_configs.append(staging_config)
 
-            futures = {
-                executor.submit(query_account_capacity, config): config
-                for config in staging_configs
-            }
+            futures = {executor.submit(query_account_capacity, config): config for config in staging_configs}
 
             for future in as_completed(futures):
                 config = futures[future]
@@ -3716,7 +3702,8 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
 
             # Find matching extended result
             extended_result = next(
-                (r for r in extended_results if r["accountId"] == staging_id), None
+                (r for r in extended_results if r["accountId"] == staging_id),
+                None,
             )
 
             if extended_result and extended_result.get("accessible", False):
@@ -4002,9 +3989,7 @@ def generate_warnings(account_results: List[Dict], combined_metrics: Dict) -> Li
     return warnings
 
 
-def calculate_recovery_capacity(
-    target_account_servers: int, regional_breakdown: List[Dict] = None
-) -> Dict:
+def calculate_recovery_capacity(target_account_servers: int, regional_breakdown: List[Dict] = None) -> Dict:
     """
     Calculate recovery capacity metrics for the target account.
 
@@ -4050,9 +4035,7 @@ def calculate_recovery_capacity(
     max_per_region = 4000
     max_recovery_instances = max_per_region * active_regions
 
-    percent_used = (
-        (target_account_servers / max_recovery_instances) * 100 if max_recovery_instances > 0 else 0
-    )
+    percent_used = (target_account_servers / max_recovery_instances) * 100 if max_recovery_instances > 0 else 0
     available_slots = max_recovery_instances - target_account_servers
 
     # Determine status based on thresholds
@@ -4463,9 +4446,7 @@ def auto_extend_staging_servers(target_accounts: List[Dict]) -> Dict:
                     continue
 
                 # Get source servers in staging account
-                staging_servers = get_staging_account_servers(
-                    staging_id, staging_role_arn, staging_external_id
-                )
+                staging_servers = get_staging_account_servers(staging_id, staging_role_arn, staging_external_id)
 
                 # Find servers not yet extended
                 for server in staging_servers:
@@ -4571,9 +4552,7 @@ def get_extended_source_servers(target_account_id: str, role_arn: str, external_
     return extended_arns
 
 
-def get_staging_account_servers(
-    staging_account_id: str, role_arn: str, external_id: str
-) -> List[Dict]:
+def get_staging_account_servers(staging_account_id: str, role_arn: str, external_id: str) -> List[Dict]:
     """Get DRS source servers in staging account."""
     servers = []
 
@@ -4712,9 +4691,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         if not target_account_id.isdigit() or len(target_account_id) != 12:
             return response(
                 400,
-                {
-                    "error": f"Invalid account ID format: {target_account_id}. Must be 12-digit string."
-                },
+                {"error": f"Invalid account ID format: {target_account_id}. Must be 12-digit string."},
             )
 
         print(f"Querying combined capacity for target account {target_account_id}")
@@ -4844,9 +4821,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                     f"Monitor capacity in {worst_region} - at {worst_region_count} servers (67-75%)"
                 )
             elif worst_status == "WARNING":
-                account_warnings.append(
-                    f"Plan capacity in {worst_region} - at {worst_region_count} servers (75-83%)"
-                )
+                account_warnings.append(f"Plan capacity in {worst_region} - at {worst_region_count} servers (75-83%)")
             elif worst_status == "CRITICAL":
                 account_warnings.append(
                     f"Add capacity immediately in {worst_region} - at {worst_region_count} servers (83-93%)"
@@ -4874,9 +4849,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             target_total_servers = 0
             target_regional_breakdown = []
 
-        recovery_capacity = calculate_recovery_capacity(
-            target_total_servers, target_regional_breakdown
-        )
+        recovery_capacity = calculate_recovery_capacity(target_total_servers, target_regional_breakdown)
         print(
             f"Recovery capacity calculated: {recovery_capacity.get('currentServers')}/"
             f"{recovery_capacity.get('maxRecoveryInstances')} "
@@ -5161,7 +5134,8 @@ def handle_get_all_accounts_capacity() -> Dict:
 
             # Calculate recovery capacity for this target
             target_account_data = next(
-                (acc for acc in account_results if acc.get("accountType") == "target"), None
+                (acc for acc in account_results if acc.get("accountType") == "target"),
+                None,
             )
             if target_account_data:
                 total_recovery_servers += target_account_data.get("totalServers", 0)
@@ -5169,9 +5143,7 @@ def handle_get_all_accounts_capacity() -> Dict:
                 total_recovery_max += 4000
 
         # Step 3: Calculate overall metrics
-        combined_percent_used = (
-            (total_replicating / total_max_replicating * 100) if total_max_replicating > 0 else 0.0
-        )
+        combined_percent_used = (total_replicating / total_max_replicating * 100) if total_max_replicating > 0 else 0.0
 
         available_slots = total_max_replicating - total_replicating
 
@@ -5193,9 +5165,7 @@ def handle_get_all_accounts_capacity() -> Dict:
             status_message = f"Replication capacity healthy: {combined_percent_used:.1f}%"
 
         # Recovery capacity
-        recovery_percent_used = (
-            (total_recovery_servers / total_recovery_max * 100) if total_recovery_max > 0 else 0.0
-        )
+        recovery_percent_used = (total_recovery_servers / total_recovery_max * 100) if total_recovery_max > 0 else 0.0
 
         if recovery_percent_used >= 90:
             recovery_status = "CRITICAL"

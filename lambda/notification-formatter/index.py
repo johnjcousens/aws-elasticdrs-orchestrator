@@ -87,9 +87,7 @@ def handle_execution_notification(event: Dict[str, Any]) -> Dict[str, Any]:
         recovery_plan_name = execution_data.get("recoveryPlanName", "Unknown")
 
         # Format message based on status
-        subject, message = format_execution_message(
-            execution_id, status, recovery_plan_name, execution_data
-        )
+        subject, message = format_execution_message(execution_id, status, recovery_plan_name, execution_data)
 
         # Send notification
         response = sns.publish(TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message)
@@ -128,9 +126,7 @@ def handle_drs_alert_notification(event: Dict[str, Any]) -> Dict[str, Any]:
         region = alert_data.get("region", "Unknown")
 
         # Format DRS alert message
-        subject, message = format_drs_alert_message(
-            alert_type, source_server_id, region, alert_data
-        )
+        subject, message = format_drs_alert_message(alert_type, source_server_id, region, alert_data)
 
         # Send notification
         response = sns.publish(TopicArn=DRS_ALERTS_TOPIC_ARN, Subject=subject, Message=message)
@@ -172,9 +168,7 @@ def handle_pause_notification(event: Dict[str, Any]) -> Dict[str, Any]:
         pause_reason = pause_data.get("pauseReason", "Manual pause")
 
         # Format pause message
-        subject, message = format_pause_message(
-            execution_id, protection_group_name, pause_reason, pause_data
-        )
+        subject, message = format_pause_message(execution_id, protection_group_name, pause_reason, pause_data)
 
         # Send notification
         response = sns.publish(
@@ -440,10 +434,7 @@ def format_pause_message(
     subject = f"⏸️ Execution Paused: {protection_group_name}"
 
     # Build console URL
-    console_url = (
-        f"https://{AWS_REGION}.console.aws.amazon.com/cloudformation/home"
-        f"?region={AWS_REGION}#/stacks"
-    )
+    console_url = f"https://{AWS_REGION}.console.aws.amazon.com/cloudformation/home" f"?region={AWS_REGION}#/stacks"
 
     message = f"""
 ⏸️ AWS DRS Orchestration - Execution Paused

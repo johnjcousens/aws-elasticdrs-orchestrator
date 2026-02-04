@@ -132,9 +132,7 @@ export const ProtectionGroupsPage: React.FC = () => {
   // Fetch data when account changes or on mount
   useEffect(() => {
     const accountId = getCurrentAccountId();
-    console.log('[ProtectionGroupsPage] Account changed to:', accountId);
     if (accountId) {
-      console.log('[ProtectionGroupsPage] Fetching groups for account:', accountId);
       fetchGroups();
       fetchRecoveryPlansForGroupCheck();
     }

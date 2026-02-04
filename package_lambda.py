@@ -201,7 +201,8 @@ def main():
         ("execution-handler", False),  # DR execution lifecycle operations
         ("frontend-deployer", True),  # Frontend deployment automation (includes frontend dist)
         ("notification-formatter", False),  # SNS notification formatting
-        ("orchestration-stepfunctions", False),  # Step Functions orchestration
+        ("orchestration-stepfunctions", False),  # KEEP: Original orchestration (reference)
+        ("dr-orchestration-stepfunction", False),  # NEW: Refactored orchestration (no DRS code)
         # ("drs-agent-deployer", False),  # DRS agent deployment automation - NOT YET DEVELOPED
     ]
 

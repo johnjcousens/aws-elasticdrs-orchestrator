@@ -264,9 +264,7 @@ def validate_concurrent_jobs(region: str, drs_client: Optional[Any] = None) -> D
         }
 
 
-def validate_servers_in_all_jobs(
-    region: str, new_server_count: int, drs_client: Optional[Any] = None
-) -> Dict:
+def validate_servers_in_all_jobs(region: str, new_server_count: int, drs_client: Optional[Any] = None) -> Dict:
     """
     Validate total servers across all jobs against 500 server limit.
 
@@ -443,11 +441,7 @@ def validate_max_servers_per_job(region: str, drs_client: Optional[Any] = None) 
             "availableSlots": available_slots,
             "jobId": max_job_id,
             "status": status,
-            "message": (
-                f"Largest active job has {max_servers} servers"
-                if max_servers > 0
-                else "No active jobs"
-            ),
+            "message": (f"Largest active job has {max_servers} servers" if max_servers > 0 else "No active jobs"),
         }
 
     except Exception as e:
@@ -563,9 +557,7 @@ def validate_server_replication_states(region: str, server_ids: List[str]) -> Di
 
             for server in response.get("items", []):
                 server_id = server.get("sourceServerID")
-                replication_state = server.get("dataReplicationInfo", {}).get(
-                    "dataReplicationState", "UNKNOWN"
-                )
+                replication_state = server.get("dataReplicationInfo", {}).get("dataReplicationState", "UNKNOWN")
                 lifecycle_state = server.get("lifeCycle", {}).get("state", "UNKNOWN")
 
                 if replication_state in INVALID_REPLICATION_STATES or lifecycle_state == "STOPPED":

@@ -170,17 +170,13 @@ class DRSAgentDeployer:
 
         # Get credentials for source account
         if source_role_arn:
-            self.source_credentials = self._assume_role(
-                source_role_arn, "DRSAgentDeployment-Source"
-            )
+            self.source_credentials = self._assume_role(source_role_arn, "DRSAgentDeployment-Source")
         else:
             self.source_credentials = None
 
         # Get credentials for staging account (if different)
         if deployment_pattern == "cross-account" and staging_role_arn:
-            self.staging_credentials = self._assume_role(
-                staging_role_arn, "DRSAgentDeployment-Staging"
-            )
+            self.staging_credentials = self._assume_role(staging_role_arn, "DRSAgentDeployment-Staging")
         else:
             self.staging_credentials = self.source_credentials
 
@@ -330,10 +326,7 @@ class DRSAgentDeployer:
                     Filters=[{"Key": "InstanceIds", "Values": instance_ids}]
                 )
 
-                status_map = {
-                    info["InstanceId"]: info["PingStatus"]
-                    for info in response["InstanceInformationList"]
-                }
+                status_map = {info["InstanceId"]: info["PingStatus"] for info in response["InstanceInformationList"]}
 
                 online_count = sum(1 for status in status_map.values() if status == "Online")
 
@@ -353,9 +346,7 @@ class DRSAgentDeployer:
         print(f"⚠️  Only {online_count}/{len(instance_ids)} " f"SSM agents online after {max_wait}s")
         return status_map
 
-    def deploy_agents(
-        self, wait_for_completion: bool = True, timeout_seconds: int = 600
-    ) -> Dict[str, Any]:
+    def deploy_agents(self, wait_for_completion: bool = True, timeout_seconds: int = 600) -> Dict[str, Any]:
         """
         Deploy DRS agents to discovered instances.
 
@@ -421,10 +412,7 @@ class DRSAgentDeployer:
                     "Region": [self.target_region],
                     "StagingAccountID": [self.staging_account_id],
                 },
-                Comment=(
-                    f"DRS agent deployment: "
-                    f"{self.source_account_id} → {self.staging_account_id}"
-                ),
+                Comment=(f"DRS agent deployment: " f"{self.source_account_id} → {self.staging_account_id}"),
             )
 
             command_id = response["Command"]["CommandId"]
@@ -432,9 +420,7 @@ class DRSAgentDeployer:
 
             # Wait for completion if requested
             if wait_for_completion:
-                command_results = self._wait_for_command(
-                    command_id, online_instances, timeout_seconds
-                )
+                command_results = self._wait_for_command(command_id, online_instances, timeout_seconds)
             else:
                 command_results = {
                     "status": "in_progress",
@@ -476,9 +462,7 @@ class DRSAgentDeployer:
                 "deployment_pattern": self.deployment_pattern,
             }
 
-    def _wait_for_command(
-        self, command_id: str, instance_ids: List[str], timeout_seconds: int
-    ) -> Dict[str, Any]:
+    def _wait_for_command(self, command_id: str, instance_ids: List[str], timeout_seconds: int) -> Dict[str, Any]:
         """Wait for SSM command completion."""
         print(f"\nWaiting for command completion (timeout: {timeout_seconds}s)...")
 
@@ -487,9 +471,7 @@ class DRSAgentDeployer:
 
         while elapsed < timeout_seconds:
             try:
-                response = self.ssm_client.list_command_invocations(
-                    CommandId=command_id, Details=True
-                )
+                response = self.ssm_client.list_command_invocations(CommandId=command_id, Details=True)
 
                 invocations = response["CommandInvocations"]
 
@@ -577,9 +559,7 @@ class DRSAgentDeployer:
                         "hostname": item.get("sourceProperties", {})
                         .get("identificationHints", {})
                         .get("hostname", "Unknown"),
-                        "replication_state": item.get("dataReplicationInfo", {}).get(
-                            "dataReplicationState", "Unknown"
-                        ),
+                        "replication_state": item.get("dataReplicationInfo", {}).get("dataReplicationState", "Unknown"),
                         "last_launch_result": item.get("lastLaunchResult", "NOT_STARTED"),
                     }
                 )

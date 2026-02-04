@@ -295,17 +295,13 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
                     raise ValueError(
                         "Unable to determine current account ID and no AWS_ACCOUNT_ID environment variable set"
                     )
-                print(
-                    f"Using AWS_ACCOUNT_ID environment variable for current account: {current_account_id}"
-                )
+                print(f"Using AWS_ACCOUNT_ID environment variable for current account: {current_account_id}")
         except Exception as e:
             # In test environment, use environment variable fallback
             current_account_id = os.environ.get("AWS_ACCOUNT_ID")
             if not current_account_id:
                 raise ValueError(f"Unable to determine current account ID: {e}")
-            print(
-                f"Using AWS_ACCOUNT_ID environment variable for current account: {current_account_id}"
-            )
+            print(f"Using AWS_ACCOUNT_ID environment variable for current account: {current_account_id}")
 
         waves = plan.get("waves", [])
 
@@ -358,9 +354,7 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
         target_accounts_table = _get_target_accounts_table()
         if target_accounts_table:
             try:
-                account_result = target_accounts_table.get_item(
-                    Key={"accountId": target_account_id}
-                )
+                account_result = target_accounts_table.get_item(Key={"accountId": target_account_id})
                 if "Item" in account_result:
                     account_config = account_result["Item"]
                     assume_role_name = (
@@ -375,9 +369,7 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
                         "isCurrentAccount": False,
                     }
                 else:
-                    print(
-                        f"WARNING: Target account {target_account_id} not found in target accounts table"
-                    )
+                    print(f"WARNING: Target account {target_account_id} not found in target accounts table")
             except Exception as e:
                 print(f"Error getting target account configuration for {target_account_id}: {e}")
 
@@ -434,15 +426,10 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
     # Skip role assumption if already using target account credentials
     current_account_id = get_current_account_id()
     if current_account_id == account_id:
-        print(
-            f"Already running with credentials for account {account_id}, "
-            f"skipping role assumption"
-        )
+        print(f"Already running with credentials for account {account_id}, " f"skipping role assumption")
         return boto3.client("drs", region_name=region)
 
-    print(
-        f"Creating cross-account DRS client for account {account_id} using role {assume_role_name}"
-    )
+    print(f"Creating cross-account DRS client for account {account_id} using role {assume_role_name}")
 
     try:
         # Build role ARN
@@ -472,9 +459,63 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
                 f"Please verify the cross-account role is deployed and configured correctly."
             )
         elif "InvalidUserID.NotFound" in str(e):
-            error_msg += (
-                f"\n\nThe role '{assume_role_name}' does not exist in account {account_id}."
-            )
+            error_msg += f"\n\nThe role '{assume_role_name}' does not exist in account {account_id}."
 
         print(f"Cross-account role assumption failed: {error_msg}")
+        raise RuntimeError(error_msg)
+
+
+def create_ec2_client(region: str, account_context: Optional[Dict] = None):
+    """
+    Create EC2 client with optional cross-account IAM role assumption.
+
+    For current account operations, returns standard boto3 EC2 client.
+    For cross-account operations, assumes IAM role in target account using STS.
+
+    Args:
+        region: AWS region for EC2 operations
+        account_context: Optional dict with accountId and assumeRoleName for cross-account access
+
+    Returns:
+        boto3 EC2 client configured for target account and region
+
+    Raises:
+        ValueError: If cross-account context is missing required fields
+        RuntimeError: If IAM role assumption fails
+    """
+    # If no account context provided or it's current account, use current account
+    if not account_context or account_context.get("isCurrentAccount", True):
+        return boto3.client("ec2", region_name=region)
+
+    # Cross-account role validation
+    account_id = account_context.get("accountId")
+    assume_role_name = account_context.get("assumeRoleName")
+
+    if not account_id:
+        raise ValueError("Cross-account operation requires AccountId in account_context")
+
+    if not assume_role_name:
+        raise ValueError(
+            f"Cross-account operation requires AssumeRoleName for account {account_id}"
+        )
+
+    # Skip role assumption if already using target account credentials
+    current_account_id = get_current_account_id()
+    if current_account_id == account_id:
+        return boto3.client("ec2", region_name=region)
+
+    try:
+        # Build role ARN
+        role_arn = f"arn:aws:iam::{account_id}:role/{assume_role_name}"
+        external_id = account_context.get("externalId")
+
+        # Use get_cross_account_session to assume role
+        session = get_cross_account_session(role_arn=role_arn, external_id=external_id)
+
+        # Create EC2 client with assumed role session
+        return session.client("ec2", region_name=region)
+
+    except Exception as e:
+        error_msg = f"Failed to assume cross-account role for EC2 in account {account_id}: {e}"
+        print(error_msg)
         raise RuntimeError(error_msg)

@@ -36,8 +36,6 @@ export const AccountSelector: React.FC = () => {
     : [];
 
   const handleSelectionChange = ({ detail }: { detail: { selectedOption: SelectProps.Option } }) => {
-    console.log('[AccountSelector] Account selection changed:', detail.selectedOption);
-    console.log('[AccountSelector] Previous account:', selectedAccount);
     setSelectedAccount(detail.selectedOption);
   };
 

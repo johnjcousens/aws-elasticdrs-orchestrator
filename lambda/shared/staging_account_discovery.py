@@ -69,10 +69,7 @@ def discover_staging_accounts_from_drs(
             response = drs_client.list_staging_accounts()
             accounts = response.get("accounts", [])
 
-            print(
-                f"Found {len(accounts)} DRS accounts in {region}: "
-                f"{[acc.get('accountID') for acc in accounts]}"
-            )
+            print(f"Found {len(accounts)} DRS accounts in {region}: " f"{[acc.get('accountID') for acc in accounts]}")
 
             for account in accounts:
                 staging_account_id = account.get("accountID")
@@ -115,10 +112,7 @@ def discover_staging_accounts_from_drs(
                         "discoveredFrom": region,
                     }
 
-                    print(
-                        f"Discovered staging account {staging_account_id} ({account_name}) "
-                        f"in region {region}"
-                    )
+                    print(f"Discovered staging account {staging_account_id} ({account_name}) " f"in region {region}")
 
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "")
@@ -134,8 +128,5 @@ def discover_staging_accounts_from_drs(
             print(f"Error querying DRS in {region}: {e}")
 
     result = list(discovered_accounts.values())
-    print(
-        f"Discovered {len(result)} unique staging accounts "
-        f"for target account {target_account_id}"
-    )
+    print(f"Discovered {len(result)} unique staging accounts " f"for target account {target_account_id}")
     return result

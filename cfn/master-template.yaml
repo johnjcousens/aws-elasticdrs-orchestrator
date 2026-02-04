@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: |
-  DR Orchestration Master Stack (AWSM-1103)
+  DR Orchestration Master Stack
   
   Deploys complete wave-based disaster recovery orchestration solution via nested stacks:
   - Database: DynamoDB tables for Protection Groups, Recovery Plans, Execution History
@@ -13,8 +13,6 @@ Description: |
   
   Unified IAM Role: All Lambda functions share single orchestration role for DRS, DynamoDB,
   Step Functions, SNS, EC2, S3, CloudFront access. Supports cross-account DRS operations.
-  
-  Reference: docs/user-stories/AWSM-1088/AWSM-1103/IMPLEMTATION.md
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -564,7 +562,7 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 30
 
-  # Wave-based orchestration state machine (AWSM-1103)
+  # Wave-based orchestration state machine
   # Implements Archive Pattern with pause/resume capability
   StepFunctionsStack:
     Type: AWS::CloudFormation::Stack
@@ -578,7 +576,10 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        OrchestrationLambdaArn: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
+        # NEW: Refactored DR orchestration Lambda (no DRS code)
+        OrchestrationLambdaArn: !GetAtt LambdaStack.Outputs.DrOrchestrationStepFunctionArn
+        # OLD (keep for rollback): Original orchestration Lambda
+        # OrchestrationLambdaArn: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
         OrchestrationRoleArn: !If
           - CreateOrchestrationRole
           - !GetAtt UnifiedOrchestrationRole.Arn

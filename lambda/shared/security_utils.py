@@ -307,9 +307,7 @@ def sanitize_string(input_str: str, max_length: int = 255) -> str:
 
     # PERFORMANCE: Quick check for dangerous characters before regex
     dangerous_chars = (
-        "<>\"';\\"
-        + "".join(chr(i) for i in range(0x00, 0x20))
-        + "".join(chr(i) for i in range(0x7F, 0xA0))
+        "<>\"';\\" + "".join(chr(i) for i in range(0x00, 0x20)) + "".join(chr(i) for i in range(0x7F, 0xA0))
     )
     if not any(char in input_str for char in dangerous_chars):
         return input_str.strip()
