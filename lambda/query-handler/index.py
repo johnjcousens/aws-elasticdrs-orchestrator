@@ -4506,8 +4506,19 @@ def extend_source_server(
 
     region = arn_parts[3]
 
+    # Build account context for create_drs_client
+    # Extract role name from role ARN
+    role_name = target_role_arn.split("/")[-1] if "/" in target_role_arn else target_role_arn
+    
+    account_context = {
+        "accountId": target_account_id,
+        "assumeRoleName": role_name,
+        "externalId": target_external_id,
+        "isCurrentAccount": False,
+    }
+
     # Create DRS client for the server's region with cross-account access
-    regional_drs = create_drs_client(region, target_role_arn, target_external_id)
+    regional_drs = create_drs_client(region, account_context)
 
     # Create extended source server
     regional_drs.create_extended_source_server(
