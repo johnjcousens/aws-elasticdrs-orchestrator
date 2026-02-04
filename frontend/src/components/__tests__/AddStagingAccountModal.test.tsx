@@ -142,7 +142,7 @@ describe("AddStagingAccountModal", () => {
       });
 
       expect(screen.getByText("arn:aws:iam::444455556666:role/DRSOrchestrationRole")).toBeInTheDocument();
-      expect(screen.getByText("drs-orchestration-444455556666")).toBeInTheDocument();
+      expect(screen.getByText("drs-orchestration-cross-account")).toBeInTheDocument();
     });
   });
 
@@ -233,7 +233,7 @@ describe("AddStagingAccountModal", () => {
       const stagingAccount: StagingAccount = mockOnAdd.mock.calls[0][0];
       expect(stagingAccount.accountId).toBe("444455556666");
       expect(stagingAccount.roleArn).toBe("arn:aws:iam::444455556666:role/DRSOrchestrationRole");
-      expect(stagingAccount.externalId).toBe("drs-orchestration-444455556666");
+      expect(stagingAccount.externalId).toBe("drs-orchestration-cross-account");
     });
 
     it("calls onDismiss after successful add", async () => {
