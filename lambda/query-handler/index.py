@@ -5250,10 +5250,12 @@ def handle_get_all_accounts_capacity() -> Dict:
                 regional_capacity[region]["replicatingServers"] += region_data.get("replicatingServers", 0)
                 regional_capacity[region]["maxReplicating"] += region_data.get("maxReplicating", 300)
 
+                # Count all accounts (target + staging) with servers in this region
+                regional_capacity[region]["accountCount"] += 1
+
                 # Add recovery capacity (only for target accounts)
                 if account.get("accountType") == "target":
                     regional_capacity[region]["recoveryServers"] += region_data.get("replicatingServers", 0)
-                    regional_capacity[region]["accountCount"] += 1
 
         # Calculate percentages
         for region_data in regional_capacity.values():
