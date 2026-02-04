@@ -141,7 +141,7 @@ describe("Staging Accounts API Client", () => {
       );
 
       expect(apiClient.post).toHaveBeenCalledWith(
-        `/api/accounts/${targetAccountId}/staging-accounts`,
+        `/accounts/targets/${targetAccountId}/staging-accounts`,
         {
           targetAccountId,
           stagingAccount,
@@ -192,7 +192,7 @@ describe("Staging Accounts API Client", () => {
       );
 
       expect(apiClient.delete).toHaveBeenCalledWith(
-        `/api/accounts/${targetAccountId}/staging-accounts/${stagingAccountId}`
+        `/accounts/targets/${targetAccountId}/staging-accounts/${stagingAccountId}`
       );
       expect(result).toEqual(mockResponse);
       expect(result.success).toBe(true);
