@@ -145,20 +145,30 @@ export const AddStagingAccountModal: React.FC<
     field: keyof AddStagingAccountFormData,
     value: string
   ) => {
-    setState((prev) => ({
-      ...prev,
-      formData: {
+    setState((prev) => {
+      const newFormData = {
         ...prev.formData,
         [field]: value,
-      },
-      // Clear validation result when form changes
-      validationResult: null,
-      // Clear field-specific error
-      errors: {
-        ...prev.errors,
-        [field]: undefined,
-      },
-    }));
+      };
+
+      // Auto-fill role ARN and external ID when account ID changes
+      if (field === "accountId" && value.length === 12) {
+        newFormData.roleArn = constructRoleArn(value);
+        newFormData.externalId = constructExternalId(value);
+      }
+
+      return {
+        ...prev,
+        formData: newFormData,
+        // Clear validation result when form changes
+        validationResult: null,
+        // Clear field-specific error
+        errors: {
+          ...prev.errors,
+          [field]: undefined,
+        },
+      };
+    });
   };
 
   /**
@@ -170,10 +180,9 @@ export const AddStagingAccountModal: React.FC<
       return;
     }
 
-    // Auto-construct role ARN and external ID
     const accountId = state.formData.accountId;
-    const roleArn = constructRoleArn(accountId);
-    const externalId = constructExternalId(accountId);
+    const roleArn = state.formData.roleArn;
+    const externalId = state.formData.externalId;
     const accountName = state.formData.accountName || accountId; // Default to account ID if not provided
 
     setState((prev) => ({
@@ -181,8 +190,6 @@ export const AddStagingAccountModal: React.FC<
       formData: {
         ...prev.formData,
         accountName,
-        roleArn,
-        externalId,
       },
       validating: true,
     }));
@@ -420,18 +427,20 @@ export const AddStagingAccountModal: React.FC<
         <Alert type="info">
           <strong>Simplified Setup</strong>
           <p>
-            Just provide the AWS account ID. The system will automatically:
+            Enter the AWS account ID and the system will automatically fill in:
           </p>
           <ul>
             <li>
-              Construct the role ARN using standardized naming:{" "}
+              Role ARN using standardized naming:{" "}
               <code>DRSOrchestrationRole</code>
             </li>
             <li>
-              Use standardized external ID: <code>drs-orchestration-cross-account</code>
+              External ID: <code>drs-orchestration-cross-account</code>
             </li>
-            <li>Discover which regions have DRS initialized</li>
           </ul>
+          <p>
+            You can customize the role ARN and external ID if your setup uses different values.
+          </p>
           <p>
             <strong>Prerequisites:</strong> Ensure the IAM role exists in the
             staging account with the correct trust policy.
@@ -469,21 +478,33 @@ export const AddStagingAccountModal: React.FC<
             />
           </FormField>
 
-          {/* Show auto-generated values after validation starts */}
-          {(state.validating || state.validationResult) && (
-            <Container header={<Header variant="h3">Auto-Generated Configuration</Header>}>
-              <ColumnLayout columns={1} variant="text-grid">
-                <div>
-                  <Box variant="awsui-key-label">Role ARN</Box>
-                  <Box variant="code">{state.formData.roleArn}</Box>
-                </div>
-                <div>
-                  <Box variant="awsui-key-label">External ID</Box>
-                  <Box variant="code">{state.formData.externalId}</Box>
-                </div>
-              </ColumnLayout>
-            </Container>
-          )}
+          <FormField
+            label="Role ARN"
+            description="IAM role ARN for cross-account access. Auto-filled with standardized role name, but can be customized if needed."
+          >
+            <Input
+              value={state.formData.roleArn}
+              onChange={({ detail }) =>
+                handleFieldChange("roleArn", detail.value)
+              }
+              placeholder="arn:aws:iam::123456789012:role/DRSOrchestrationRole"
+              disabled={state.validating || state.adding}
+            />
+          </FormField>
+
+          <FormField
+            label="External ID"
+            description="External ID for secure cross-account access. Auto-filled with standardized value, but can be customized if needed."
+          >
+            <Input
+              value={state.formData.externalId}
+              onChange={({ detail }) =>
+                handleFieldChange("externalId", detail.value)
+              }
+              placeholder="drs-orchestration-cross-account"
+              disabled={state.validating || state.adding}
+            />
+          </FormField>
         </SpaceBetween>
 
         {renderValidationResults()}
