@@ -81,7 +81,7 @@ describe("AddStagingAccountModal", () => {
       render(<AddStagingAccountModal {...defaultProps} />);
 
       expect(screen.getByText(/Simplified Setup/i)).toBeInTheDocument();
-      expect(screen.getByText(/Just provide the AWS account ID/i)).toBeInTheDocument();
+      expect(screen.getByText(/Enter the AWS account ID/i)).toBeInTheDocument();
     });
   });
 
@@ -134,17 +134,11 @@ describe("AddStagingAccountModal", () => {
         target: { value: "444455556666" },
       });
 
-      const validateButton = screen.getByText("Validate Access");
-      fireEvent.click(validateButton);
-
+      // Role ARN and External ID should be auto-filled
       await waitFor(() => {
-        expect(screen.getByText("Auto-Generated Configuration")).toBeInTheDocument();
+        expect(screen.getByLabelText("Role ARN")).toHaveValue("arn:aws:iam::444455556666:role/DRSOrchestrationRole");
+        expect(screen.getByLabelText("External ID")).toHaveValue("drs-orchestration-cross-account");
       });
-
-      expect(screen.getByText("arn:aws:iam::444455556666:role/DRSOrchestrationRole")).toBeInTheDocument();
-      // External ID appears twice: once in help text, once in auto-generated config
-      const externalIdElements = screen.getAllByText("drs-orchestration-cross-account");
-      expect(externalIdElements.length).toBe(2);
     });
   });
 
