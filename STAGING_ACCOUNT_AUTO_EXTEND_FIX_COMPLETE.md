@@ -81,6 +81,7 @@ Since automatic discovery is impossible via the DRS API, we implemented a manual
 - All security scans passed
 - All tests passed (167 tests)
 - CloudFront URL: https://d319nadlgk4oj.cloudfront.net
+- **API endpoint path fixed**: Changed from `/api/accounts/{id}/staging-accounts` to `/accounts/targets/{id}/staging-accounts`
 
 ## Testing Workflow
 
@@ -134,7 +135,7 @@ Since automatic discovery is impossible via the DRS API, we implemented a manual
 
 ### Add Staging Account
 ```
-POST /api/target-accounts/{targetAccountId}/staging-accounts
+POST /accounts/targets/{targetAccountId}/staging-accounts
 Body: {
   "accountId": "777788889999",
   "accountName": "DEMO_ONPREM",
