@@ -405,9 +405,9 @@ export const Dashboard: React.FC = () => {
             </ColumnLayout>
 
             {/* Regional Replication Capacity Section */}
-            {capacityData && (
+            {capacityData && capacityData.regionalCapacity && (
               <RegionalCapacitySection 
-                accounts={capacityData.accounts}
+                regionalCapacity={capacityData.regionalCapacity}
                 combinedTotal={capacityData.combined.totalReplicating}
                 combinedMax={capacityData.combined.maxReplicating}
                 combinedPercent={capacityData.combined.percentUsed}
