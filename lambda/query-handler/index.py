@@ -4214,51 +4214,35 @@ def handle_discover_staging_accounts(query_params: Dict) -> Dict:
 
 def handle_sync_staging_accounts() -> Dict:
     """
-    Scheduled sync of staging accounts for all target accounts.
+    Auto-extend DRS servers from manually configured staging accounts.
 
-    Called by EventBridge every 5 minutes to automatically discover and update
-    staging accounts, then auto-extend servers.
+    Called by EventBridge every 5 minutes to automatically extend new DRS source
+    servers from staging accounts to target accounts.
 
-    NEW LOGIC (2026-02-04):
-    Instead of querying target accounts for trusted staging accounts (which doesn't work
-    because list-staging-accounts only returns accounts with existing extended servers),
-    we check if the CURRENT (orchestration) account has DRS servers. If it does, we
-    automatically add it as a staging account to all target accounts.
+    IMPORTANT: Staging accounts must be manually added via the UI first.
+    This function only auto-extends servers from those pre-configured staging accounts.
 
     Workflow:
-    1. Check if current account has DRS servers
-    2. If yes, add current account as staging account to all target accounts
-    3. Auto-extend servers from staging accounts to target accounts
+    1. Get all target accounts from DynamoDB
+    2. For each target account with staging accounts configured:
+       - Query staging accounts for DRS source servers
+       - Check which servers are not yet extended to target
+       - Extend missing servers automatically
 
     Returns:
-        Dict with sync results:
+        Dict with extend results:
         {
             "timestamp": str,
             "totalAccounts": int,
             "accountsProcessed": int,
-            "accountsUpdated": int,
-            "accountsSkipped": int,
-            "accountsFailed": int,
+            "serversExtended": int,
+            "serversFailed": int,
             "details": [...]
         }
     """
     from datetime import datetime, timezone
-    from shared.staging_account_discovery import (
-        discover_staging_accounts_from_drs,
-    )
-    from shared.staging_account_models import update_staging_accounts
 
-    print("Starting staging account sync...")
-
-    sync_results = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "totalAccounts": 0,
-        "accountsProcessed": 0,
-        "accountsUpdated": 0,
-        "accountsSkipped": 0,
-        "accountsFailed": 0,
-        "details": [],
-    }
+    print("Starting auto-extend of staging account servers...")
 
     try:
         # Get all target accounts
@@ -4272,127 +4256,21 @@ def handle_sync_staging_accounts() -> Dict:
             )
             target_accounts.extend(target_accounts_response.get("Items", []))
 
-        sync_results["totalAccounts"] = len(target_accounts)
-        print(f"Found {len(target_accounts)} target accounts to sync")
+        print(f"Found {len(target_accounts)} target accounts")
 
-        for account in target_accounts:
-            account_id = account.get("accountId")
-            account_name = account.get("accountName", "Unknown")
-            is_current = account.get("isCurrentAccount", False)
-
-            print(f"\nProcessing account {account_id} ({account_name})...")
-
-            try:
-                # Skip current account (orchestration account doesn't need staging accounts)
-                if is_current:
-                    print(f"Skipping current account {account_id} - orchestration account doesn't need staging")
-                    sync_results["accountsSkipped"] += 1
-                    sync_results["details"].append(
-                        {
-                            "accountId": account_id,
-                            "accountName": account_name,
-                            "status": "skipped",
-                            "reason": "Current account - orchestration account",
-                        }
-                    )
-                    continue
-
-                # Get role ARN and external ID
-                role_arn = account.get("roleArn")
-                external_id = account.get("externalId")
-
-                if not role_arn:
-                    print(f"No role ARN for account {account_id}, skipping")
-                    sync_results["accountsSkipped"] += 1
-                    sync_results["details"].append(
-                        {
-                            "accountId": account_id,
-                            "accountName": account_name,
-                            "status": "skipped",
-                            "reason": "No role ARN configured",
-                        }
-                    )
-                    continue
-
-                # Discover staging accounts from target account's DRS trusted accounts
-                discovered = discover_staging_accounts_from_drs(
-                    target_account_id=account_id,
-                    role_arn=role_arn,
-                    external_id=external_id,
-                )
-
-                # Get current staging accounts from DynamoDB
-                current_staging = account.get("stagingAccounts", [])
-                current_ids = {sa.get("accountId") for sa in current_staging}
-                discovered_ids = {sa.get("accountId") for sa in discovered}
-
-                # Check if update needed
-                if current_ids == discovered_ids:
-                    print(f"No changes for account {account_id}")
-                    sync_results["accountsSkipped"] += 1
-                    sync_results["details"].append(
-                        {
-                            "accountId": account_id,
-                            "accountName": account_name,
-                            "status": "unchanged",
-                            "stagingAccountCount": len(current_ids),
-                        }
-                    )
-                else:
-                    # Update staging accounts
-                    added = discovered_ids - current_ids
-                    removed = current_ids - discovered_ids
-
-                    print(f"Updating account {account_id}: +{len(added)} -{len(removed)}")
-
-                    update_staging_accounts(account_id, discovered)
-
-                    sync_results["accountsUpdated"] += 1
-                    sync_results["details"].append(
-                        {
-                            "accountId": account_id,
-                            "accountName": account_name,
-                            "status": "updated",
-                            "added": list(added),
-                            "removed": list(removed),
-                            "totalStaging": len(discovered_ids),
-                        }
-                    )
-
-                sync_results["accountsProcessed"] += 1
-
-            except Exception as e:
-                print(f"Error processing account {account_id}: {e}")
-                sync_results["accountsFailed"] += 1
-                sync_results["details"].append(
-                    {
-                        "accountId": account_id,
-                        "accountName": account_name,
-                        "status": "failed",
-                        "error": str(e),
-                    }
-                )
-
-        print(
-            f"\nSync complete: {sync_results['accountsUpdated']} updated, "
-            f"{sync_results['accountsSkipped']} skipped, "
-            f"{sync_results['accountsFailed']} failed"
-        )
-
-        # Step 2: Auto-extend new servers from staging accounts
-        print("\n=== Starting auto-extend of staging account servers ===")
+        # Auto-extend servers from staging accounts
         extend_results = auto_extend_staging_servers(target_accounts)
-        sync_results["autoExtend"] = extend_results
+        extend_results["timestamp"] = datetime.now(timezone.utc).isoformat()
 
-        return response(200, sync_results)
+        return response(200, extend_results)
 
     except Exception as e:
-        print(f"Fatal error in staging account sync: {e}")
+        print(f"Fatal error in auto-extend: {e}")
         import traceback
 
         traceback.print_exc()
 
-        return response(500, {"error": str(e), "syncResults": sync_results})
+        return response(500, {"error": str(e)})
 
 
 def auto_extend_staging_servers(target_accounts: List[Dict]) -> Dict:
