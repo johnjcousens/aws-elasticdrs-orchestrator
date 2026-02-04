@@ -41,6 +41,9 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
     return 'error';
   };
 
+  // Filter out empty regions (no replicating servers)
+  const activeRegions = regionalCapacity.filter(region => region.replicatingServers > 0);
+
   return (
     <Container
       header={
@@ -80,13 +83,13 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
         </div>
 
         {/* Regional Breakdown */}
-        {regionalCapacity.length > 0 && (
+        {activeRegions.length > 0 && (
           <div>
             <Box variant="h3" padding={{ bottom: 'xs' }}>
               By Region
             </Box>
             <SpaceBetween size="m">
-              {regionalCapacity.map((region) => (
+              {activeRegions.map((region) => (
                 <Container key={region.region}>
                   <SpaceBetween size="s">
                     <Box variant="h4">{region.region}</Box>
