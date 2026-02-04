@@ -4564,16 +4564,16 @@ def get_extended_source_servers(target_account_id: str, role_arn: str, external_
 def get_staging_account_servers(staging_account_id: str, role_arn: str, external_id: str) -> List[Dict]:
     """
     Get DRS source servers in staging account across all DRS regions.
-    
+
     If the staging account is the current account, uses default credentials.
     Otherwise, assumes the provided role.
     """
     servers = []
-    
+
     # Check if staging account is current account
     current_account_id = get_current_account_id()
-    use_default_credentials = (staging_account_id == current_account_id)
-    
+    use_default_credentials = staging_account_id == current_account_id
+
     if use_default_credentials:
         print(f"Staging account {staging_account_id} is current account - using default credentials")
     else:
