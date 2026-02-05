@@ -2850,7 +2850,23 @@ def lambda_handler(event, context):
             if action == "start_wave_recovery":
                 state = event.get("state", {})
                 wave_number = event.get("wave_number", 0)
-                start_wave_recovery(state, wave_number)
+                print(f"DEBUG: start_wave_recovery called with wave_number={wave_number}")
+                print(f"DEBUG: state keys before: {list(state.keys())}")
+                print(f"DEBUG: state job_id before: {state.get('job_id')}")
+                try:
+                    start_wave_recovery(state, wave_number)
+                    print(f"DEBUG: state job_id after: {state.get('job_id')}")
+                    print(f"DEBUG: state region after: {state.get('region')}")
+                    print(f"DEBUG: state server_ids after: {state.get('server_ids')}")
+                    print(f"DEBUG: state status after: {state.get('status')}")
+                except Exception as e:
+                    print(f"ERROR in start_wave_recovery: {e}")
+                    import traceback
+
+                    traceback.print_exc()
+                    state["wave_completed"] = True
+                    state["status"] = "failed"
+                    state["error"] = str(e)
                 return state
             else:
                 return response(
