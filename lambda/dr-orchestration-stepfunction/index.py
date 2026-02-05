@@ -325,31 +325,55 @@ def begin_wave_plan(event: Dict) -> Dict:
     # Start first wave via execution-handler
     if len(waves) > 0:
         try:
+            execution_handler_arn = os.environ.get("EXECUTION_HANDLER_ARN")
+            if not execution_handler_arn:
+                raise ValueError("EXECUTION_HANDLER_ARN environment variable not set")
+
+            print(f"Invoking execution-handler: {execution_handler_arn}")
             lambda_client = boto3.client("lambda")
             response = lambda_client.invoke(
-                FunctionName=os.environ["EXECUTION_HANDLER_ARN"],
+                FunctionName=execution_handler_arn,
                 InvocationType="RequestResponse",
                 Payload=json.dumps(
                     {
                         "action": "start_wave_recovery",
                         "state": state,
                         "wave_number": 0,
-                    }
+                    },
+                    cls=DecimalEncoder,
                 ),
             )
 
+            # Read payload once and store
+            payload_bytes = response["Payload"].read()
+            print(f"DEBUG: Lambda response StatusCode={response.get('StatusCode')}")
+            print(f"DEBUG: Lambda response FunctionError={response.get('FunctionError')}")
+            print(f"DEBUG: Lambda response payload length={len(payload_bytes)}")
+
             # Check for function error
             if response.get("FunctionError"):
-                raise Exception(f"Handler error: {response}")
+                error_detail = payload_bytes.decode("utf-8") if payload_bytes else "No payload"
+                raise Exception(f"Handler error: {response.get('FunctionError')} - {error_detail}")
 
-            result = json.loads(response["Payload"].read())
+            # Parse response
+            result = json.loads(payload_bytes)
+            print(f"DEBUG: Parsed result keys={list(result.keys()) if isinstance(result, dict) else type(result)}")
+
+            # Check if result contains error
+            if isinstance(result, dict) and result.get("error"):
+                print(f"DEBUG: Handler returned error: {result.get('error')}")
+
             state.update(result)
             print(
-                f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, region={state.get('region')}, server_ids={state.get('server_ids')}"  # noqa: E501
+                f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, "
+                f"region={state.get('region')}, server_ids={state.get('server_ids')}"
             )
 
         except Exception as e:
             logger.error(f"Error invoking execution-handler: {e}")
+            import traceback
+
+            traceback.print_exc()
             state["wave_completed"] = True
             state["status"] = "failed"
             state["error"] = str(e)
