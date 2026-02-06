@@ -1,5 +1,26 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - Frontend Stack (S3, CloudFront, Custom Resources)'
+Description: |
+  AWS DRS Orchestration - Frontend Stack
+  
+  Deploys React web console with S3 hosting and CloudFront CDN.
+  
+  Architecture:
+  - S3 bucket (private, CloudFront-only access via OAC)
+  - CloudFront CDN with HTTPS enforcement
+  - Custom Resource Lambda for automated deployment
+  
+  Deployment Flow:
+  1. CloudFormation creates S3 bucket and CloudFront distribution
+  2. Custom Resource triggers Frontend Deployer Lambda
+  3. Lambda builds React app with Cognito/API config
+  4. Lambda uploads to S3 and invalidates CloudFront cache
+  
+  Security: Public access blocked, AES256 encryption, OAC for S3 access
+  SPA Routing: 403/404 errors return index.html for React Router
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
 
 Parameters:
   ProjectName:
@@ -10,49 +31,65 @@ Parameters:
     Type: String
     Description: 'Environment name (dev, test, prod)'
 
-  BucketSuffix:
-    Type: String
-    Description: 'Unique suffix for bucket name (timestamp or random string)'
-    Default: 'v1'
-
-  # Cognito IDs from API Stack
+  # ---------------------------------------------------------------------------
+  # Cognito Configuration (from API Stack)
+  # ---------------------------------------------------------------------------
   UserPoolId:
     Type: String
-    Description: 'Cognito User Pool ID'
+    Description: 'Cognito User Pool ID for authentication'
 
   UserPoolClientId:
     Type: String
-    Description: 'Cognito User Pool Client ID'
+    Description: 'Cognito User Pool Client ID for frontend app'
 
   IdentityPoolId:
     Type: String
-    Description: 'Cognito Identity Pool ID'
+    Description: 'Cognito Identity Pool ID for AWS credentials'
 
-  # API endpoint from API Stack
+  # ---------------------------------------------------------------------------
+  # API Configuration (from API Stack)
+  # ---------------------------------------------------------------------------
   ApiEndpoint:
     Type: String
-    Description: 'API Gateway endpoint URL'
+    Description: 'API Gateway endpoint URL for backend calls'
 
-  # Lambda ARNs from Lambda Stack
+  # ---------------------------------------------------------------------------
+  # Lambda Configuration (from Lambda Stack)
+  # ---------------------------------------------------------------------------
   FrontendDeployerFunctionArn:
     Type: String
-    Description: 'Frontend Deployer Lambda Function ARN (Consolidated)'
+    Description: 'Frontend Deployer Lambda ARN for Custom Resource'
 
-  # Source bucket for frontend source code
+  # ---------------------------------------------------------------------------
+  # Source Configuration
+  # ---------------------------------------------------------------------------
   SourceBucket:
     Type: String
-    Description: 'S3 bucket containing frontend source code'
+    Description: 'S3 bucket containing frontend source code (deployment bucket)'
 
-  # Frontend build version for triggering rebuilds
   FrontendBuildVersion:
     Type: String
     Description: 'Frontend build version - auto-generated timestamp to trigger rebuilds'
     Default: 'v1'
 
-
+# =============================================================================
+# RESOURCES
+# =============================================================================
 
 Resources:
-  # S3 Bucket for Frontend Hosting
+  # ===========================================================================
+  # S3 BUCKET FOR FRONTEND HOSTING
+  # ===========================================================================
+  # Private bucket for React build artifacts. CloudFront serves content via OAC.
+  # 
+  # Security Configuration:
+  # - All public access blocked (PublicAccessBlockConfiguration)
+  # - Server-side encryption enabled (AES256)
+  # - Versioning enabled for rollback capability
+  # 
+  # Lifecycle Rules:
+  # - Old versions expire after 30 days (cleanup)
+  # - Current versions expire after 90 days (forces refresh)
   FrontendBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
@@ -83,7 +120,12 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # CloudFront Origin Access Control
+  # ===========================================================================
+  # CLOUDFRONT ORIGIN ACCESS CONTROL (OAC)
+  # ===========================================================================
+  # Modern replacement for Origin Access Identity (OAI).
+  # Allows CloudFront to access private S3 bucket using SigV4 signing.
+  # More secure than OAI: supports SSE-KMS and provides better audit trail.
   CloudFrontOAC:
     Type: AWS::CloudFront::OriginAccessControl
     DeletionPolicy: Delete
@@ -94,7 +136,23 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
-  # CloudFront Distribution
+  # ===========================================================================
+  # CLOUDFRONT DISTRIBUTION
+  # ===========================================================================
+  # Global CDN for frontend delivery with edge caching.
+  # 
+  # Configuration:
+  # - HTTPS enforced (redirect HTTP to HTTPS)
+  # - Compression enabled for faster delivery
+  # - PriceClass_100: North America and Europe edges (cost optimization)
+  # 
+  # Cache Behavior:
+  # - DefaultTTL: 24 hours for static assets
+  # - MaxTTL: 1 year for immutable assets (hashed filenames)
+  # 
+  # SPA Support:
+  # - 403/404 errors return index.html with 200 status
+  # - Enables client-side routing (React Router)
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
     DeletionPolicy: Delete
@@ -146,8 +204,12 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # S3 Bucket Policy for CloudFront
-  # DependsOn FrontendDeploymentResource ensures proper resource ordering
+  # ===========================================================================
+  # S3 BUCKET POLICY
+  # ===========================================================================
+  # Grants CloudFront distribution read access to bucket objects.
+  # Uses AWS:SourceArn condition to restrict access to this specific distribution.
+  # DependsOn FrontendDeploymentResource ensures content exists before policy.
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
     DependsOn: FrontendDeploymentResource
@@ -164,7 +226,21 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
-  # Custom Resource for Frontend Deployment (Consolidated)
+  # ===========================================================================
+  # CUSTOM RESOURCE: FRONTEND DEPLOYMENT
+  # ===========================================================================
+  # Triggers Frontend Deployer Lambda during CloudFormation create/update.
+  # 
+  # Lambda Actions:
+  # 1. Downloads frontend source from SourceBucket
+  # 2. Generates aws-config.json with Cognito/API settings
+  # 3. Builds React application (npm install && npm run build)
+  # 4. Uploads dist/ to FrontendBucket
+  # 5. Creates CloudFront invalidation for immediate updates
+  # 
+  # Rebuild Triggers:
+  # - FrontendBuildVersion parameter change forces rebuild
+  # - Any parameter change (ApiEndpoint, UserPoolId, etc.) triggers update
   FrontendDeploymentResource:
     Type: Custom::FrontendDeployer
     DependsOn:
@@ -182,25 +258,34 @@ Resources:
       Region: !Ref AWS::Region
       FrontendBuildVersion: !Ref FrontendBuildVersion
 
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# Exported values for cross-stack references and deployment verification.
+
 Outputs:
+  # S3 bucket name for manual deployments or debugging
   FrontendBucketName:
     Description: 'S3 bucket for frontend hosting'
     Value: !Ref FrontendBucket
     Export:
       Name: !Sub '${AWS::StackName}-FrontendBucketName'
 
+  # Primary access URL for the web console
   CloudFrontUrl:
     Description: 'CloudFront Distribution URL'
     Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontUrl'
 
+  # Distribution ID for cache invalidation operations
   CloudFrontDistributionId:
     Description: 'CloudFront Distribution ID'
     Value: !Ref CloudFrontDistribution
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
 
+  # Build version for tracking deployments
   FrontendBuildVersion:
     Description: 'Current frontend build version'
     Value: !Ref FrontendBuildVersion
