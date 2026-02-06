@@ -4,7 +4,7 @@ Description: |
   
   Implements sequential wave-based disaster recovery orchestration.
   
-  Architecture Pattern: Archive Pattern
+  Architecture Pattern: State Ownership
   - Lambda functions own state management via OutputPath
   - State exists at root level ($), not nested
   - All Lambda invocations return complete state object
@@ -37,7 +37,7 @@ Parameters:
 
 Resources:
   # DR Orchestration State Machine
-  # Archive Pattern: Lambda owns ALL state via OutputPath
+  # State Ownership Pattern: Lambda owns ALL state via OutputPath
   # Lambda returns complete state object, Step Functions persists it at root level
   # Uses unified orchestration role (shared with Lambda functions)
   DRSOrchestrationStateMachine:
@@ -58,7 +58,7 @@ Resources:
         Comment: |
           Wave-Based DR Orchestration
           Sequential waves with parallel execution within each wave.
-          Archive pattern: Lambda owns state via OutputPath.
+          State Ownership pattern: Lambda owns state via OutputPath.
         StartAt: 'InitiateWavePlan'
         States:
           # Initialize wave plan and start first wave

@@ -527,7 +527,7 @@ def store_task_token(event: Dict) -> Dict:
         print(f"ERROR storing task token: {e}")
         raise
 
-    # Archive pattern: Return complete state for SendTaskSuccess
+    # State Ownership pattern: Return complete state for SendTaskSuccess
     state["paused_before_wave"] = paused_before_wave
     return state
 

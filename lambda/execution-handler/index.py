@@ -1633,7 +1633,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
     """
     Start DRS recovery for a wave with tag-based server resolution.
 
-    Modifies state in-place (archive pattern) to update current wave
+    Modifies state in-place (state ownership pattern) to update current wave
     tracking, job details, and wave results.
 
     Workflow:
