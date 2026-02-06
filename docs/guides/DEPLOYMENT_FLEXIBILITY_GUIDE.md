@@ -36,7 +36,7 @@ This guide covers:
 - `DeployFrontend`: true (default)
 
 **What Gets Deployed:**
-- ✅ Unified orchestration IAM role (consolidates 7 individual roles)
+- ✅ Unified orchestration IAM role (consolidates individual roles)
 - ✅ All 6 Lambda functions
 - ✅ API Gateway (REST API)
 - ✅ Frontend (S3 + CloudFront)
@@ -245,8 +245,8 @@ print(result)
 │   - data-management-handler                 │
 │   - execution-handler                       │
 │   - query-handler                           │
-│   - orchestration-stepfunctions             │
-│   - frontend-deployer (not used)            │
+│   - dr-orchestration-stepfunction           │
+│   - frontend-deployer                       │
 │   - notification-formatter                  │
 └─────────────────────────────────────────────┘
 ```
@@ -314,7 +314,7 @@ When using Lambda-Only Integration (Mode 3), the external IAM role must include 
 
 ### Complete External Platform Role Example
 
-See the complete policy definitions in the [design document](.kiro/specs/deployment-flexibility/design.md) or [master-template.yaml](../../cfn/master-template.yaml) (UnifiedOrchestrationRole resource).
+See the complete policy definitions in [master-template.yaml](../../cfn/master-template.yaml) (UnifiedOrchestrationRole resource).
 
 **External Platform Role Creation (CloudFormation):**
 ```yaml
@@ -340,9 +340,9 @@ ExternalOrchestrationRole:
 
 ## Migration from Existing Deployments
 
-### Migrating from 7 Individual Roles to Unified Role
+### Migrating from Individual Roles to Unified Role
 
-If you have an existing deployment with 7 individual IAM roles, you can seamlessly migrate to the unified role architecture.
+If you have an existing deployment with individual IAM roles per Lambda, you can seamlessly migrate to the unified role architecture.
 
 **Migration Process:**
 1. Update stack with default parameters (no overrides needed)
@@ -376,9 +376,7 @@ aws cloudformation deploy \
 **What Happens:**
 ```
 Time T0: Old State
-  - ApiHandlerFunction uses ApiHandlerRole
-  - OrchestrationFunction uses OrchestrationRole
-  - ... (7 individual roles)
+  - Each Lambda had its own IAM role
 
 Time T1: Create UnifiedOrchestrationRole
   - New role created with all permissions
@@ -396,7 +394,7 @@ Time T3: Delete Old Roles
 ```
 
 **Rollback:**
-If migration fails, CloudFormation automatically rolls back to previous state (7 individual roles).
+If migration fails, CloudFormation automatically rolls back to previous state (individual roles).
 
 ---
 
@@ -451,10 +449,11 @@ These outputs are always present regardless of deployment mode:
 8. **RecoveryPlansTableArn** - DynamoDB table ARN
 9. **ExecutionHistoryTableArn** - DynamoDB table ARN
 10. **TargetAccountsTableArn** - DynamoDB table ARN
-11. **ApiHandlerFunctionArn** - Lambda function ARN
-12. **OrchestrationFunctionArn** - Lambda function ARN
-13. **UserPoolId** - Cognito User Pool ID
-14. **UserPoolClientId** - Cognito User Pool Client ID
+11. **DataManagementHandlerArn** - Lambda function ARN
+12. **ExecutionHandlerArn** - Lambda function ARN
+13. **QueryHandlerArn** - Lambda function ARN
+14. **UserPoolId** - Cognito User Pool ID
+15. **UserPoolClientId** - Cognito User Pool Client ID
 15. **IdentityPoolId** - Cognito Identity Pool ID
 16. **ApiId** - API Gateway ID
 17. **StateMachineArn** - Step Functions state machine ARN
@@ -574,7 +573,7 @@ aws cloudformation deploy \
     DeploymentBucket=aws-drs-orchestration-dev
 ```
 
-**Note:** Stack automatically returns to previous state (7 individual roles) on rollback.
+**Note:** Stack automatically returns to previous state (individual roles) on rollback.
 
 ---
 
@@ -676,8 +675,6 @@ aws cloudformation describe-stacks \
 - [API and Integration Guide](API_AND_INTEGRATION_GUIDE.md) - Complete REST API documentation
 - [Deployment Guide](DEPLOYMENT_GUIDE.md) - Deployment procedures
 - [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md) - Common issues and solutions
-- [Design Document](.kiro/specs/deployment-flexibility/design.md) - Technical design details
-- [Requirements Document](.kiro/specs/deployment-flexibility/requirements.md) - Feature requirements
 
 ---
 
@@ -687,7 +684,6 @@ For issues or questions:
 1. Check [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md)
 2. Review CloudFormation events
 3. Check CloudWatch Logs
-4. Consult validation documents in `.kiro/specs/deployment-flexibility/`
 
 ---
 
