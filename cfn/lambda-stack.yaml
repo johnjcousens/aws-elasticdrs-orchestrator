@@ -3,17 +3,17 @@ Description: |
   DR Orchestration Lambda Functions
   
   Deploys Lambda functions for wave-based disaster recovery orchestration:
-  - API Handler: REST API endpoints for Protection Groups, Recovery Plans, Executions
-  - Orchestration Step Functions: Wave execution logic with tag-based discovery
-  - Execution Finder: Queries for active executions (EventBridge scheduled)
-  - Execution Poller: Polls DRS job status and updates wave states
-  - Notification Formatter: Formats events into user-friendly notifications
+  - Data Management Handler: CRUD for Protection Groups, Recovery Plans, Target Accounts, Tag Sync
+  - Execution Handler: Recovery execution, pause/resume, termination, DRS operations
+  - Query Handler: Source servers, quotas, capacity, EC2 resources, configuration export
+  - DR Orchestration Step Function: Wave execution logic invoked by Step Functions
   - Frontend Deployer: Builds and deploys React frontend to S3/CloudFront
+  - Notification Formatter: Formats events into user-friendly SNS notifications
   
   All functions share unified OrchestrationRoleArn for DRS, DynamoDB, SNS, Step Functions access.
   Supports cross-account DRS operations via IAM role assumption.
   
-  Note: DRS Agent Deployer is commented out (under development).
+  Note: DRS Agent Deployer is commented out (not yet implemented).
 
 Parameters:
   ProjectName:
