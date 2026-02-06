@@ -33,7 +33,8 @@ from hypothesis import given, strategies as st, settings  # noqa: E402
 import pytest  # noqa: F401
 
 # Import the function under test
-from index import query_all_accounts_parallel, DRS_REGIONS  # noqa: E402
+from index import query_all_accounts_parallel  # noqa: E402
+from shared.drs_regions import DRS_REGIONS  # noqa: E402
 
 
 # ============================================================================
