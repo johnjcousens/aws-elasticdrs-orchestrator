@@ -1024,3 +1024,113 @@ def has_circular_dependencies(graph: Dict[str, List[str]]) -> bool:
                 return True
 
     return False
+
+
+def get_shared_protection_groups() -> Dict[str, Dict]:
+    """
+    Detect Protection Groups that are used by multiple Recovery Plans.
+
+    This is a WARNING indicator, not a blocking condition. Shared PGs are allowed
+    but users should be aware that:
+    - Only ONE plan using the shared PG can execute at a time
+    - Starting execution on one plan blocks all other plans sharing the PG
+
+    Returns:
+        Dict mapping pg_id -> {
+            "protectionGroupId": str,
+            "protectionGroupName": str,
+            "usedByPlans": [{"planId": str, "planName": str}, ...],
+            "serverCount": int,
+            "warning": str
+        }
+    """
+    # Get all recovery plans
+    try:
+        result = recovery_plans_table.scan()
+        all_plans = result.get("Items", [])
+
+        while "LastEvaluatedKey" in result:
+            result = recovery_plans_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
+            all_plans.extend(result.get("Items", []))
+    except Exception as e:
+        print(f"Error fetching plans for shared PG check: {e}")
+        return {}
+
+    # Build map of PG -> plans that use it
+    pg_to_plans: Dict[str, List[Dict]] = {}
+
+    for plan in all_plans:
+        plan_id = plan.get("planId")
+        plan_name = plan.get("planName", "Unnamed Plan")
+
+        for wave in plan.get("waves", []):
+            pg_id = wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
+
+            if pg_id:
+                if pg_id not in pg_to_plans:
+                    pg_to_plans[pg_id] = []
+
+                # Avoid duplicates (same plan might use same PG in multiple waves)
+                if not any(p["planId"] == plan_id for p in pg_to_plans[pg_id]):
+                    pg_to_plans[pg_id].append({"planId": plan_id, "planName": plan_name})
+
+    # Filter to only PGs used by multiple plans
+    shared_pgs = {}
+
+    for pg_id, plans in pg_to_plans.items():
+        if len(plans) > 1:
+            # Get PG details
+            try:
+                pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
+                pg = pg_result.get("Item", {})
+                pg_name = pg.get("groupName", "Unknown")
+                server_count = len(pg.get("sourceServerIds", []))
+
+                # For tag-based PGs, we'd need to resolve - use cached count if available
+                if pg.get("selectionType") == "tags":
+                    # Approximate - actual count resolved at execution time
+                    server_count = pg.get("cachedServerCount", 0)
+
+            except Exception:
+                pg_name = "Unknown"
+                server_count = 0
+
+            plan_names = [p["planName"] for p in plans]
+            shared_pgs[pg_id] = {
+                "protectionGroupId": pg_id,
+                "protectionGroupName": pg_name,
+                "usedByPlans": plans,
+                "planCount": len(plans),
+                "serverCount": server_count,
+                "warning": f"Protection Group '{pg_name}' is used by {len(plans)} plans: {', '.join(plan_names)}. Only one can execute at a time.",  # noqa: E501
+            }
+
+    return shared_pgs
+
+
+def get_plan_shared_pg_warnings(plan_id: str) -> List[Dict]:
+    """
+    Get warnings for a specific plan about shared Protection Groups.
+
+    Returns list of warnings if any PGs in this plan are shared with other plans.
+    """
+    shared_pgs = get_shared_protection_groups()
+
+    warnings = []
+    for pg_id, pg_info in shared_pgs.items():
+        # Check if this plan uses this shared PG
+        if any(p["planId"] == plan_id for p in pg_info["usedByPlans"]):
+            other_plans = [p for p in pg_info["usedByPlans"] if p["planId"] != plan_id]
+            if other_plans:
+                other_plan_names = [p["planName"] for p in other_plans]
+                warnings.append(
+                    {
+                        "type": "SHARED_PROTECTION_GROUP",
+                        "protectionGroupId": pg_id,
+                        "protectionGroupName": pg_info["protectionGroupName"],
+                        "sharedWithPlans": other_plans,
+                        "message": f"Protection Group '{pg_info['protectionGroupName']}' is also used by: {', '.join(other_plan_names)}",  # noqa: E501
+                    }
+                )
+
+    return warnings

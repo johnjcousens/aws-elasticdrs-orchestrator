@@ -16,6 +16,7 @@ import {
   Alert,
   ProgressBar,
   ColumnLayout,
+  Box,
 } from '@cloudscape-design/components';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
@@ -889,6 +890,38 @@ export const ExecutionDetailsPage: React.FC = () => {
                 }}>
                   {JSON.stringify(execution.error.details, null, 2)}
                 </pre>
+              )}
+            </Alert>
+          )}
+
+          {/* Outcome Summary for PARTIAL/FAILED/CANCELLED executions */}
+          {execution.outcomeSummary && ['PARTIAL', 'FAILED', 'CANCELLED'].includes(execution.status?.toUpperCase() || '') && (
+            <Alert 
+              type={execution.status?.toUpperCase() === 'PARTIAL' ? 'warning' : execution.status?.toUpperCase() === 'CANCELLED' ? 'info' : 'error'} 
+              header="Execution Outcome"
+            >
+              <div>{execution.outcomeSummary}</div>
+              {execution.outcomeDetails && (
+                <div style={{ marginTop: '12px' }}>
+                  <ColumnLayout columns={4} variant="text-grid">
+                    <div>
+                      <Box variant="awsui-key-label">Servers Launched</Box>
+                      <Box color="text-status-success">{execution.outcomeDetails.serversLaunched || 0}</Box>
+                    </div>
+                    <div>
+                      <Box variant="awsui-key-label">Servers Failed</Box>
+                      <Box color="text-status-error">{execution.outcomeDetails.serversFailed || 0}</Box>
+                    </div>
+                    <div>
+                      <Box variant="awsui-key-label">Servers Cancelled</Box>
+                      <Box color="text-body-secondary">{execution.outcomeDetails.serversCancelled || 0}</Box>
+                    </div>
+                    <div>
+                      <Box variant="awsui-key-label">Total Servers</Box>
+                      <Box>{execution.outcomeDetails.totalServers || 0}</Box>
+                    </div>
+                  </ColumnLayout>
+                </div>
               )}
             </Alert>
           )}

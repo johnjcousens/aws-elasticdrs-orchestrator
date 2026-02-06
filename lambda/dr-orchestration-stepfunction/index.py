@@ -4,60 +4,85 @@ DR Orchestration Step Functions Lambda
 Orchestrates multi-wave disaster recovery operations using AWS DRS (Elastic Disaster Recovery).
 Manages wave-based execution, cross-account operations, and pause/resume workflows.
 
-ENTERPRISE INTEGRATION CONTEXT:
-This Lambda implements the DRS adapter for enterprise DR orchestration platforms.
-The wave-based orchestration pattern demonstrated here serves as the reference implementation
-for other technology adapters (Aurora, ECS, Lambda, Route53) that will follow the same
-4-phase lifecycle: INSTANTIATE → ACTIVATE → CLEANUP → REPLICATE.
+HANDLER ARCHITECTURE:
+The platform uses three specialized handlers with distinct responsibilities:
 
-The DRS adapter focuses on EC2 instance recovery using AWS Elastic Disaster Recovery Service,
-while future adapters will handle database failover, container orchestration, serverless
-functions, and DNS management using the same wave execution model.
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │                        API Gateway + Cognito                        │
+    │                         (User Authentication)                       │
+    └─────────────────────────────────────────────────────────────────────┘
+                │                    │                    │
+                ▼                    ▼                    ▼
+    ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐
+    │ data-management   │ │ execution-handler │ │  query-handler    │
+    │     handler       │ │                   │ │                   │
+    ├───────────────────┤ ├───────────────────┤ ├───────────────────┤
+    │ CRUD Operations:  │ │ Recovery Actions: │ │ Read Operations:  │
+    │ - Protection Grps │ │ - Start recovery  │ │ - List executions │
+    │ - Recovery Plans  │ │ - Cancel exec     │ │ - Poll DRS jobs   │
+    │ - Tag sync        │ │ - Terminate inst  │ │ - Server status   │
+    │ - Launch configs  │ │ - Apply configs   │ │ - Dashboard data  │
+    └───────────────────┘ └───────────────────┘ └───────────────────┘
+                                  │                    │
+                                  │   Direct Invoke    │
+                                  │   (No API Gateway) │
+                                  ▼                    ▼
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │              dr-orchestration-stepfunction (this Lambda)            │
+    │                                                                     │
+    │  Step Functions invokes this Lambda, which orchestrates waves by   │
+    │  directly invoking execution-handler and query-handler via IAM     │
+    └─────────────────────────────────────────────────────────────────────┘
+                                       │
+                                       ▼
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │                    AWS DRS (Target Account)                         │
+    │              Cross-account via DRSOrchestrationRole                 │
+    └─────────────────────────────────────────────────────────────────────┘
 
-DIRECT INVOCATION SUPPORT:
-This Lambda supports both API Gateway invocation (current standalone mode) and direct
-Lambda invocation (future enterprise integration mode). In enterprise mode, this function is called
-directly by the orchestration Step Functions without API Gateway or Cognito,
-enabling unified multi-technology DR orchestration across the enterprise platform.
+HANDLER RESPONSIBILITIES:
+- data-management-handler: CRUD for Protection Groups, Recovery Plans, configs (API only)
+- execution-handler: Start/cancel recovery, terminate instances, apply launch configs
+- query-handler: Poll DRS jobs, list executions, dashboard metrics, server status
+- dr-orchestration-stepfunction: Wave orchestration, state management, handler coordination
 
-Architecture Pattern: Archive Pattern
+DIRECT INVOCATION (Step Functions → Handlers):
+This Lambda invokes execution-handler and query-handler directly via Lambda invoke,
+bypassing API Gateway and Cognito for internal operations:
+- execution-handler: action=start_wave_recovery → Invokes DRS StartRecovery API
+- query-handler: action=poll_wave_status → Monitors DRS job and server launch status
+
+ARCHITECTURE PATTERN (State Ownership):
 - Lambda owns ALL state via Step Functions OutputPath
 - State exists at root level ($), not nested under $.application
 - All functions return the COMPLETE state object for Step Functions to persist
 - State modifications happen in-place to maintain consistency
 
-Security Model:
-- Authentication/authorization handled at API Gateway layer (Cognito) in standalone mode
-- In enterprise mode, authentication handled by enterprise platform (no Cognito)
-- This Lambda receives pre-validated data from Step Functions
-- Input sanitization intentionally omitted to preserve archive pattern integrity
+SECURITY MODEL:
+- API Gateway mode: Authentication via Cognito (user-facing)
+- Direct invocation mode: IAM role assumption via DRSOrchestrationRole (internal)
+- Cross-account DRS operations: IAM role assumption to target accounts
 
-Key Capabilities:
-- Multi-wave recovery execution with dependency management (AWSM-1103)
+KEY CAPABILITIES:
+- Multi-wave recovery execution with dependency management
 - Cross-account DRS operations via IAM role assumption
 - Tag-based server discovery and resolution at execution time
 - Pause/resume support with callback tokens for manual approval gates
 - Real-time DRS job polling and server launch status tracking
 - Protection Group launch configuration application before recovery
 
-Wave Execution Model (AWSM-1103):
+WAVE EXECUTION MODEL:
 - Sequential waves: Wave N+1 starts only after Wave N completes
 - Parallel within wave: All resources in a wave recover simultaneously
 - Failure tolerance: Wave continues even if individual resources fail
-- Timeout support: Configurable max wait time (default 1 year for long-term pauses)
+- Timeout support: Configurable max wait time for long-term pauses
 - Cancellation: User-initiated cancellation checked at each poll cycle
 
-Technology Adapter Pattern:
-Each technology adapter (DRS, Aurora, ECS, Lambda, Route53) implements:
-1. INSTANTIATE phase: Launch recovery resources (EC2, RDS, ECS tasks, Lambda functions)
-2. ACTIVATE phase: Configure and validate services (DNS, health checks, connections)
-3. CLEANUP phase: Remove temporary resources and configurations
-4. REPLICATE phase: Re-establish replication to primary region (for failback)
-
-The DRS adapter demonstrates this pattern for EC2 instance recovery, providing the
-blueprint for other adapters to follow in broader enterprise platforms.
-
-Reference: docs/user-stories/AWSM-1088/AWSM-1103/IMPLEMTATION.md
+DRS ADAPTER LIFECYCLE PHASES:
+1. INSTANTIATE: Launch recovery EC2 instances via DRS StartRecovery API
+2. ACTIVATE: Validate instance launch status and apply configurations
+3. CLEANUP: Remove temporary resources after successful recovery
+4. REPLICATE: Re-establish replication to primary region for failback
 """
 
 import json
@@ -100,25 +125,6 @@ EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 dynamodb = boto3.resource("dynamodb")
 
 # DynamoDB tables - lazy initialization for Lambda cold start optimization
-#
-# ADAPTER PATTERN NOTE:
-# This Step Functions Lambda currently reads Protection Groups and Recovery Plans
-# directly from DynamoDB. In broader enterprise platforms, this pattern will be replicated
-# across all technology adapters (Aurora, ECS, Lambda, Route53).
-#
-# API Handler Decomposition Impact:
-# The API handler is being decomposed into 3 focused handlers (Query, Execution, Data Management).
-# This decomposition does NOT affect Step Functions operation because:
-# - Step Functions reads from DynamoDB (not via API handler)
-# - API handlers and Step Functions are parallel consumers of the same DynamoDB tables
-# - Communication happens via DynamoDB state, not direct Lambda invocation
-#
-# Future Enterprise Integration:
-# When integrated into enterprise platforms, this DRS adapter will be invoked by the
-# orchestration Step Functions, which will pass Protection Group and Recovery Plan
-# data as input parameters rather than requiring DynamoDB reads. Other technology
-# adapters (Aurora, ECS, Lambda, Route53) will follow this same pattern.
-#
 _protection_groups_table = None
 _recovery_plans_table = None
 _execution_history_table = None
@@ -191,7 +197,7 @@ def lambda_handler(event, context):
     Main entry point for Step Functions orchestration.
 
     Routes requests to appropriate handlers based on action parameter.
-    All handlers follow archive pattern - they return complete state objects.
+    All handlers follow state ownership pattern - they return complete state objects.
 
     Supported Actions:
     - begin: Initialize wave plan execution
@@ -254,7 +260,7 @@ def begin_wave_plan(event: Dict) -> Dict:
         event: Step Functions event with plan, execution, isDrill, accountContext
 
     Returns:
-        Complete state object with first wave started (archive pattern)
+        Complete state object with first wave started (state ownership pattern)
     """
     plan = event.get("plan", {})
     execution_id = event.get("execution", "")
@@ -267,7 +273,7 @@ def begin_wave_plan(event: Dict) -> Dict:
     print(f"Beginning wave plan for execution {execution_id}, plan {plan_id}")
     print(f"Total waves: {len(waves)}, isDrill: {is_drill}")
 
-    # Initialize state object at root level (archive pattern)
+    # Initialize state object at root level (state ownership pattern)
     start_time = int(time.time())
     state = {
         # Core identifiers
@@ -396,7 +402,7 @@ def store_task_token(event: Dict) -> Dict:
     approval before continuing. The token is stored in DynamoDB and used later
     with SendTaskSuccess to resume execution.
 
-    Archive Pattern: Returns complete state object with paused_before_wave set
+    State Ownership Pattern: Returns complete state object with paused_before_wave set
     so resume knows which wave to start.
 
     Args:
@@ -408,7 +414,7 @@ def store_task_token(event: Dict) -> Dict:
     Raises:
         ValueError: If task token is missing
     """
-    # State passed directly (archive pattern)
+    # State passed directly (state ownership pattern)
     state = event.get("application", event)
     task_token = event.get("taskToken")
     execution_id = state.get("execution_id")
@@ -450,7 +456,7 @@ def resume_wave(event: Dict) -> Dict:
     Called after SendTaskSuccess provides the callback token. Resets execution
     status to running and starts the wave that was paused.
 
-    Archive Pattern: State passed directly, returns complete state object.
+    State Ownership Pattern: State passed directly, returns complete state object.
 
     Args:
         event: Contains state (application) with paused_before_wave
@@ -458,7 +464,7 @@ def resume_wave(event: Dict) -> Dict:
     Returns:
         Complete state object with wave started
     """
-    # State passed directly (archive pattern)
+    # State passed directly (state ownership pattern)
     state = event.get("application", event)
     execution_id = state.get("execution_id")
     plan_id = state.get("plan_id")

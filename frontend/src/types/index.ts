@@ -310,6 +310,7 @@ export type ExecutionStatus =
   | 'launching'
   | 'initiated'
   | 'completed'
+  | 'partial'
   | 'failed'
   | 'rolled_back'
   | 'cancelled'
@@ -333,6 +334,23 @@ export interface Execution {
   waveExecutions: WaveExecution[];
   executedBy?: string;
   error?: ExecutionError;
+  errorMessage?: string;  // Simple error message string
+  outcomeSummary?: string;  // Human-readable summary of execution outcome
+  outcomeDetails?: {  // Detailed breakdown of execution outcome
+    totalWaves: number;
+    wavesCompleted: number;
+    wavesFailed: number;
+    wavesCancelled: number;
+    wavesPending: number;
+    totalServers: number;
+    serversLaunched: number;
+    serversFailed: number;
+    serversCancelled: number;
+    serversPending: number;
+    completedWaves?: Array<{ name: string; serversLaunched: number; serversFailed: number }>;
+    failedWaves?: Array<{ name: string; serversLaunched: number; serversFailed: number }>;
+    cancelledWaves?: Array<{ name: string; serversLaunched: number; serversFailed: number }>;
+  };
   metadata?: Record<string, unknown>;
   pausedBeforeWave?: number;  // Wave number that execution is paused before (0-indexed)
   terminationMetadata?: {

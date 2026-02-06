@@ -298,6 +298,7 @@ from shared.conflict_detection import (
     check_server_conflicts_for_update,
     get_active_executions_for_plan,
     get_plans_with_conflicts,
+    get_shared_protection_groups,
     query_drs_servers_by_tags,
 )
 from shared.config_merge import get_effective_launch_config
@@ -483,13 +484,12 @@ def handle_api_gateway_request(event, context):
             elif http_method == "POST":
                 return create_recovery_plan(body)
 
-        elif "/recovery-plans/" in path and "/check-instances" in path:
+        elif "/recovery-plans/" in path and "/check-existing-instances" in path:
             plan_id = path_parameters.get("id")
-            if http_method == "POST":
-                return response(
-                    501,
-                    {"message": "Not yet implemented - check_existing_instances"},
-                )
+            if not plan_id:
+                return response(400, {"error": "Missing recovery plan ID"})
+            if http_method == "GET":
+                return check_existing_recovery_instances(plan_id)
 
         elif "/recovery-plans/" in path:
             plan_id = path_parameters.get("id")
@@ -3431,6 +3431,9 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
         # buttons)
         plans_with_conflicts = get_plans_with_conflicts()
 
+        # Get shared Protection Group warnings (informational, not blocking)
+        shared_pgs = get_shared_protection_groups()
+
         # Enrich each plan with latest execution data and conflict info
         for plan in plans:
             plan_id = plan.get("planId")
@@ -3445,17 +3448,37 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
                 plan["hasServerConflict"] = False
                 plan["conflictInfo"] = None
 
+            # Add shared PG warnings (informational)
+            plan_shared_warnings = []
+            for pg_id, pg_info in shared_pgs.items():
+                if any(p["planId"] == plan_id for p in pg_info["usedByPlans"]):
+                    other_plans = [p for p in pg_info["usedByPlans"] if p["planId"] != plan_id]
+                    if other_plans:
+                        plan_shared_warnings.append(
+                            {
+                                "protectionGroupId": pg_id,
+                                "protectionGroupName": pg_info["protectionGroupName"],
+                                "sharedWithPlans": other_plans,
+                            }
+                        )
+            plan["sharedProtectionGroups"] = plan_shared_warnings if plan_shared_warnings else None
+
             # Query ExecutionHistoryTable for latest execution
+            # Note: planIdIndex has no sort key, so we query all and sort by startTime
             try:
                 execution_result = executions_table.query(
                     IndexName="planIdIndex",
                     KeyConditionExpression=Key("planId").eq(plan_id),
-                    ScanIndexForward=False,  # Sort by StartTime DESC
-                    Limit=1,  # Get only the latest execution
                 )
 
                 if execution_result.get("Items"):
-                    latest_execution = execution_result["Items"][0]
+                    # Sort by startTime descending to get the latest execution
+                    executions = sorted(
+                        execution_result["Items"],
+                        key=lambda x: int(x.get("startTime", 0)),
+                        reverse=True,
+                    )
+                    latest_execution = executions[0]
                     plan["lastExecutionStatus"] = latest_execution.get("status")
                     plan["lastStartTime"] = latest_execution.get("startTime")
                     plan["lastEndTime"] = latest_execution.get("endTime")
@@ -3579,6 +3602,243 @@ def get_recovery_plan(plan_id: str) -> Dict:
     except Exception as e:
         print(f"Error getting Recovery Plan: {str(e)}")
         return response(500, {"error": str(e)})
+
+
+def check_existing_recovery_instances(plan_id: str) -> Dict:
+    """Check if servers in this plan have existing recovery instances.
+
+    Returns info about any recovery instances that haven't been terminated yet.
+    Used by frontend to prompt user before starting a new drill.
+    """
+    try:
+        # Get the recovery plan
+        plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
+        if "Item" not in plan_result:
+            return response(
+                404,
+                {
+                    "error": "RECOVERY_PLAN_NOT_FOUND",
+                    "message": f"Recovery Plan with ID {plan_id} not found",
+                    "planId": plan_id,
+                },
+            )
+
+        plan = plan_result["Item"]
+
+        # Collect all server IDs from all waves by resolving protection groups
+        all_server_ids = set()
+        region = "us-east-1"
+
+        for wave in plan.get("waves", []):
+            pg_id = wave.get("protectionGroupId")
+            if not pg_id:
+                continue
+
+            pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
+            pg = pg_result.get("Item", {})
+            if not pg:
+                continue
+
+            # Get region from protection group
+            pg_region = pg.get("region", "us-east-1")
+            if pg_region:
+                region = pg_region
+
+            # Check for explicit server IDs first
+            explicit_servers = pg.get("sourceServerIds", [])
+            if explicit_servers:
+                print(f"PG {pg_id} has explicit servers: {explicit_servers}")
+                for server_id in explicit_servers:
+                    all_server_ids.add(server_id)
+            else:
+                # Resolve servers from tags
+                selection_tags = pg.get("serverSelectionTags", {})
+                print(f"PG {pg_id} has selection tags: {selection_tags}")
+                if selection_tags:
+                    try:
+                        # Extract account context from Protection Group
+                        account_context = None
+                        if pg.get("accountId"):
+                            account_context = {
+                                "accountId": pg.get("accountId"),
+                                "assumeRoleName": pg.get("assumeRoleName"),
+                                "externalId": pg.get("externalId"),
+                            }
+                        resolved = query_drs_servers_by_tags(pg_region, selection_tags, account_context)
+                        print(f"Resolved {len(resolved)} servers from tags")
+                        for server in resolved:
+                            server_id = server.get("sourceServerID")
+                            if server_id:
+                                all_server_ids.add(server_id)
+                    except Exception as e:
+                        print(f"Error resolving tags for PG {pg_id}: {e}")
+
+        print(f"Total servers to check for recovery instances: " f"{len(all_server_ids)}: {all_server_ids}")
+
+        if not all_server_ids:
+            return response(
+                200,
+                {
+                    "hasExistingInstances": False,
+                    "existingInstances": [],
+                    "instanceCount": 0,
+                    "planId": plan_id,
+                },
+            )
+
+        # Query DRS for recovery instances
+        drs_client = create_drs_client(region)
+
+        existing_instances = []
+        try:
+            # Get all recovery instances in the region
+            paginator = drs_client.get_paginator("describe_recovery_instances")
+            for page in paginator.paginate():
+                for ri in page.get("items", []):
+                    source_server_id = ri.get("sourceServerID")
+                    ec2_state = ri.get("ec2InstanceState")
+                    print(
+                        f"Recovery instance: source={source_server_id}, "
+                        f"state={ec2_state}, in_list={source_server_id in all_server_ids}"
+                    )
+                    if source_server_id in all_server_ids:
+                        ec2_instance_id = ri.get("ec2InstanceID")
+                        recovery_instance_id = ri.get("recoveryInstanceID")
+
+                        # Find which execution created this instance
+                        source_execution = None
+                        source_plan_name = None
+
+                        # Search execution history for this recovery instance
+                        try:
+                            exec_scan = executions_table.scan(
+                                FilterExpression="attribute_exists(waves)",
+                                Limit=100,
+                            )
+
+                            exec_items = sorted(
+                                exec_scan.get("Items", []),
+                                key=lambda x: x.get("startTime", 0),
+                                reverse=True,
+                            )
+
+                            for exec_item in exec_items:
+                                exec_waves = exec_item.get("waves", [])
+                                found = False
+                                for wave_data in exec_waves:
+                                    for server in wave_data.get("serverStatuses", []):
+                                        if server.get("sourceServerId") == source_server_id:
+                                            source_execution = exec_item.get("executionId")
+                                            exec_plan_id = exec_item.get("planId")
+                                            if exec_plan_id:
+                                                plan_lookup = recovery_plans_table.get_item(
+                                                    Key={"planId": exec_plan_id}
+                                                )
+                                                source_plan_name = plan_lookup.get("Item", {}).get(
+                                                    "planName", exec_plan_id
+                                                )
+                                            found = True
+                                            break
+                                    if found:
+                                        break
+                                if found:
+                                    break
+                        except Exception as e:
+                            print(f"Error looking up execution for recovery instance: {e}")
+
+                        existing_instances.append(
+                            {
+                                "sourceServerId": source_server_id,
+                                "recoveryInstanceId": recovery_instance_id,
+                                "ec2InstanceId": ec2_instance_id,
+                                "ec2InstanceState": ri.get("ec2InstanceState"),
+                                "sourceExecutionId": source_execution,
+                                "sourcePlanName": source_plan_name,
+                                "region": region,
+                            }
+                        )
+        except Exception as e:
+            print(f"Error querying DRS recovery instances: {e}")
+
+        # Enrich with source server names from DRS
+        if existing_instances:
+            try:
+                source_ids = [inst["sourceServerId"] for inst in existing_instances]
+                # Query DRS for source server details
+                servers_response = drs_client.describe_source_servers(filters={"sourceServerIDs": source_ids})
+                server_names = {}
+                for server in servers_response.get("items", []):
+                    server_id = server.get("sourceServerID")
+                    # Get Name tag from DRS tags
+                    tags = server.get("tags", {})
+                    name_tag = tags.get("Name") or tags.get("name")
+                    # Fallback to hostname if no Name tag
+                    if not name_tag:
+                        source_props = server.get("sourceProperties", {})
+                        name_tag = source_props.get("identificationHints", {}).get("hostname")
+                    server_names[server_id] = name_tag
+                # Add source server name to each instance
+                for inst in existing_instances:
+                    source_id = inst.get("sourceServerId")
+                    if source_id in server_names:
+                        inst["sourceServerName"] = server_names[source_id]
+            except Exception as e:
+                print(f"Error fetching source server names: {e}")
+
+        # Enrich with EC2 instance details (Name tag, IP, launch time)
+        if existing_instances:
+            try:
+                ec2_client = create_ec2_client(region)
+                ec2_ids = [inst["ec2InstanceId"] for inst in existing_instances if inst.get("ec2InstanceId")]
+                if ec2_ids:
+                    ec2_response = ec2_client.describe_instances(InstanceIds=ec2_ids)
+                    ec2_details = {}
+                    for reservation in ec2_response.get("Reservations", []):
+                        for instance in reservation.get("Instances", []):
+                            inst_id = instance.get("InstanceId")
+                            name_tag = next(
+                                (t["Value"] for t in instance.get("Tags", []) if t["Key"] == "Name"),
+                                None,
+                            )
+                            ec2_details[inst_id] = {
+                                "name": name_tag,
+                                "privateIp": instance.get("PrivateIpAddress"),
+                                "publicIp": instance.get("PublicIpAddress"),
+                                "instanceType": instance.get("InstanceType"),
+                                "launchTime": (
+                                    instance.get("LaunchTime").isoformat() if instance.get("LaunchTime") else None
+                                ),
+                            }
+                    for inst in existing_instances:
+                        ec2_id = inst.get("ec2InstanceId")
+                        if ec2_id and ec2_id in ec2_details:
+                            inst.update(ec2_details[ec2_id])
+            except Exception as e:
+                print(f"Error fetching EC2 details: {e}")
+
+        return response(
+            200,
+            {
+                "hasExistingInstances": len(existing_instances) > 0,
+                "existingInstances": existing_instances,
+                "instanceCount": len(existing_instances),
+                "planId": plan_id,
+            },
+        )
+
+    except Exception as e:
+        print(f"Error checking existing recovery instances for plan {plan_id}: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(
+            500,
+            {
+                "error": "CHECK_FAILED",
+                "message": f"Failed to check existing recovery instances: {str(e)}",
+                "planId": plan_id,
+            },
+        )
 
 
 def update_recovery_plan(plan_id: str, body: Dict) -> Dict:

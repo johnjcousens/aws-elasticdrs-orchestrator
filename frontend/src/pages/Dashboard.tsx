@@ -333,6 +333,7 @@ export const Dashboard: React.FC = () => {
         return 'success';
       case 'FAILED':
         return 'error';
+      case 'PARTIAL':
       case 'ROLLED_BACK':
       case 'CANCELLING':
         return 'warning';
