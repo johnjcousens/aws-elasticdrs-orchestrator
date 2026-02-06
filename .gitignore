@@ -195,9 +195,8 @@ tmp/
 aws_logo.png
 
 
-# Kiro IDE settings and steering
+# Kiro IDE settings (steering is tracked)
 .kiro/settings/
-.kiro/steering/
 
 # -------------------------
 # INTERNAL SCRIPTS (contain hardcoded account IDs)
