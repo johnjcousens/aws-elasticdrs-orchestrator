@@ -2,9 +2,36 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: |
   DRS Agent Installer SSM Document Stack
   
-  Creates an SSM document for installing AWS Elastic Disaster Recovery (DRS) Replication Agent
-  with cross-account support. Based on AWS-provided AWSDisasterRecovery-InstallDRAgentOnInstance
-  with added AccountId parameter for cross-account replication scenarios.
+  Creates an SSM document for installing AWS Elastic Disaster Recovery (DRS)
+  Replication Agent with cross-account support.
+  
+  Based on AWS-provided AWSDisasterRecovery-InstallDRAgentOnInstance with
+  added AccountId parameter for cross-account replication scenarios.
+  
+  Supported Platforms:
+  - Windows: PowerShell-based installation
+  - Linux: Shell script with Python helper
+  
+  Cross-Account Replication:
+  - AccountId parameter specifies target AWS account for replication
+  - Leave empty for same-account replication
+  - Enables hub-and-spoke DR architecture
+  
+  Security Features:
+  - SHA512 checksum validation of downloaded installer
+  - Dual-stack (IPv4/IPv6) download URLs with fallback
+  - Temporary directory cleanup after installation
+  
+  Usage:
+  Run via AWS Systems Manager Run Command:
+    aws ssm send-command \
+      --document-name DRS-InstallAgentCrossAccount-{environment} \
+      --targets Key=instanceids,Values=i-1234567890abcdef0 \
+      --parameters Region=us-east-1,AccountId=111122223333
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
 
 Parameters:
   ProjectName:
@@ -15,7 +42,25 @@ Parameters:
     Type: String
     Description: 'Environment name (dev, test, prod)'
 
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
 Resources:
+  # ===========================================================================
+  # SSM DOCUMENT: DRS AGENT INSTALLER
+  # ===========================================================================
+  # Custom SSM document extending AWS-provided DRS agent installer.
+  # 
+  # Key Enhancements over AWS default:
+  # - AccountId parameter for cross-account replication
+  # - Fallback download URLs for reliability
+  # - Comprehensive error handling
+  # 
+  # Document Parameters:
+  # - Region: Target AWS region for DRS replication (required)
+  # - AccountId: Target account for cross-account setup (optional)
+  # - Tags: Resource tags for the source server (optional)
   DRSAgentInstallerDocument:
     Type: AWS::SSM::Document
     Properties:
@@ -229,13 +274,20 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# Exported values for use in automation and cross-stack references.
+
 Outputs:
+  # Document name for use in SSM Run Command
   DocumentName:
     Description: 'SSM Document name for DRS Agent installation'
     Value: !Ref DRSAgentInstallerDocument
     Export:
       Name: !Sub '${AWS::StackName}-DocumentName'
   
+  # Document ARN for IAM policies and automation
   DocumentArn:
     Description: 'SSM Document ARN for DRS Agent installation'
     Value: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${DRSAgentInstallerDocument}'
