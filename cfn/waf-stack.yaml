@@ -1,39 +1,103 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: |
-  WAF Web ACL for CloudFront protection using AWS Managed Rules.
-  Provides baseline security without IP restrictions.
+  WAF Stack - AWS Web Application Firewall for CloudFront protection with
+  rate limiting and AWS Managed Rule Sets for defense-in-depth security.
 
 # =============================================================================
-# MINIMAL WAF CONFIGURATION
+# STACK OVERVIEW
 # =============================================================================
-# Uses AWS Managed Rule Groups for common threat protection:
-# - AWSManagedRulesCommonRuleSet: OWASP Top 10, common exploits
-# - AWSManagedRulesKnownBadInputsRuleSet: Known malicious patterns
+# This stack creates an AWS WAF WebACL to protect the CloudFront distribution
+# from common web attacks, DDoS attempts, and malicious traffic patterns.
 #
-# No IP restrictions - allows all traffic while blocking known attacks.
-# All rules in COUNT mode initially for safe rollout (change to BLOCK for enforcement).
+# Why Use WAF?
+# ------------
+# CloudFront alone provides DDoS protection at the network layer (L3/L4), but
+# application layer (L7) attacks require WAF:
+# 1. SQL injection and XSS attacks bypass CloudFront
+# 2. Credential stuffing and brute-force attempts need rate limiting
+# 3. Known bad actors (IP reputation) should be blocked at the edge
+# 4. OWASP Top 10 vulnerabilities require application-layer inspection
+#
+# WAF Architecture:
+# -----------------
+# WAF WebACL is created in us-east-1 (required for CloudFront global scope).
+# The WebACL is associated with CloudFront in frontend-stack.yaml via the
+# WebACLArn output. All requests pass through WAF before reaching CloudFront.
+#
+# Request Flow:
+# -------------
+# User Request → WAF WebACL → CloudFront → S3 (frontend) or API Gateway
+#                    ↓
+#              Rate Limit Check
+#                    ↓
+#              AWS Managed Rules (Common, Bad Inputs, IP Reputation)
+#                    ↓
+#              Allow or Block
+#
+# Rule Evaluation Order:
+# ----------------------
+# Rules are evaluated by Priority (lowest first):
+# 1. Rate Limiting (Priority 0) - Block excessive requests per IP
+# 2. IP Reputation (Priority 1) - Block known malicious IPs
+# 3. Common Rules (Priority 2) - OWASP Top 10 protection
+# 4. Bad Inputs (Priority 3) - Log4j, known exploit patterns
+#
+# If no rule blocks the request, DefaultAction: Allow passes it through.
+#
+# Cost Considerations:
+# --------------------
+# WAF pricing (as of 2026):
+# - WebACL: $5/month
+# - Rules: $1/rule/month (4 rules = $4/month)
+# - Requests: $0.60 per million requests
+# - Estimated total: $5-10/month for typical usage
+#
+# Monitoring:
+# -----------
+# CloudWatch metrics are enabled for all rules under AWS/WAFV2 namespace.
+# Key metrics: AllowedRequests, BlockedRequests, CountedRequests
+# Sampled requests available in WAF console for debugging blocked traffic.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+# All parameters are passed from the master template for consistency.
 
 Parameters:
   ProjectName:
     Type: String
-    Description: Project name for resource naming
+    Description: Project name for resource naming (used in WebACL name and metrics)
+    Default: aws-drs-orchestration
 
   Environment:
     Type: String
-    Description: Environment name
+    Description: Environment name (dev, test, prod) for resource tagging
     AllowedValues: [dev, test, prod]
+    Default: dev
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
 
 Resources:
   # ===========================================================================
   # WAF WEB ACL
   # ===========================================================================
-  # CloudFront-scoped WAF with AWS Managed Rules.
-  # Default action ALLOW - only blocks known malicious requests.
+  # The WebACL is the main WAF resource that contains all rules.
+  # Scope: CLOUDFRONT means this WebACL can only be associated with CloudFront
+  # distributions (not ALBs or API Gateways directly).
+  #
+  # IMPORTANT: CloudFront WebACLs must be created in us-east-1 region.
+  # The master template handles this by deploying the WAF stack to us-east-1.
+  #
+  # DefaultAction: Allow means requests not matching any rule are allowed.
+  # This is the recommended approach - block known bad, allow everything else.
+  
   WebACL:
     Type: AWS::WAFv2::WebACL
     Properties:
       Name: !Sub '${ProjectName}-waf-${Environment}'
-      Description: !Sub 'WAF for ${ProjectName} CloudFront distribution'
+      Description: !Sub 'WAF WebACL for ${ProjectName} CloudFront distribution - Rate limiting and AWS managed rules'
       Scope: CLOUDFRONT
       DefaultAction:
         Allow: {}
@@ -43,10 +107,75 @@ Resources:
         MetricName: !Sub '${ProjectName}-waf-${Environment}'
       Rules:
         # -----------------------------------------------------------------
-        # AWS Common Rule Set - OWASP Top 10 protection
+        # RATE LIMITING RULE (Priority 0 - Evaluated First)
         # -----------------------------------------------------------------
-        - Name: AWSManagedRulesCommonRuleSet
+        # Prevents DDoS and brute-force attacks by limiting requests per IP.
+        # Limit: 2000 requests per 5 minutes (evaluation window) per IP.
+        # Action: Block - returns 403 Forbidden when limit exceeded.
+        #
+        # Why 2000/5min?
+        # - Normal user: ~10-50 requests per page load
+        # - Power user: ~100-200 requests per minute
+        # - 2000/5min = ~6.7 requests/second sustained - generous for legitimate use
+        # - Attackers typically send 100+ requests/second
+        #
+        # Adjust based on your traffic patterns. Monitor BlockedRequests metric.
+        - Name: RateLimitRule
+          Priority: 0
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 2000
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub '${ProjectName}-rate-limit'
+
+        # -----------------------------------------------------------------
+        # AWS IP REPUTATION LIST (Priority 1)
+        # -----------------------------------------------------------------
+        # Blocks requests from IPs known to be malicious:
+        # - Bots and scrapers
+        # - Known attack sources
+        # - Compromised hosts
+        # - Tor exit nodes (optional, included in list)
+        #
+        # This list is maintained by AWS Threat Intelligence and updated
+        # automatically. No maintenance required.
+        #
+        # OverrideAction: None means use the rule group's default actions.
+        - Name: AWSManagedRulesAmazonIpReputationList
           Priority: 1
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub '${ProjectName}-ip-reputation'
+
+        # -----------------------------------------------------------------
+        # AWS COMMON RULE SET (Priority 2)
+        # -----------------------------------------------------------------
+        # Provides protection against OWASP Top 10 vulnerabilities:
+        # - SQL Injection (SQLi)
+        # - Cross-Site Scripting (XSS)
+        # - Local File Inclusion (LFI)
+        # - Remote File Inclusion (RFI)
+        # - PHP injection
+        # - Java deserialization
+        # - Host header attacks
+        # - UNIX/Windows command injection
+        #
+        # This is the most comprehensive AWS managed rule set and should
+        # be included in most WAF configurations.
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 2
           OverrideAction:
             None: {}
           Statement:
@@ -57,11 +186,20 @@ Resources:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: !Sub '${ProjectName}-common-rules'
+
         # -----------------------------------------------------------------
-        # AWS Known Bad Inputs - Log4j, known exploits
+        # AWS KNOWN BAD INPUTS (Priority 3)
         # -----------------------------------------------------------------
+        # Blocks requests with known malicious patterns:
+        # - Log4j/Log4Shell exploit attempts (CVE-2021-44228)
+        # - Java deserialization exploits
+        # - Host header injection
+        # - Known vulnerability exploit patterns
+        #
+        # This rule set is updated by AWS when new vulnerabilities are
+        # discovered, providing zero-day protection for known exploits.
         - Name: AWSManagedRulesKnownBadInputsRuleSet
-          Priority: 2
+          Priority: 3
           OverrideAction:
             None: {}
           Statement:
@@ -72,21 +210,34 @@ Resources:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: !Sub '${ProjectName}-bad-inputs'
+
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
 
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# Export WebACL ARN for association with CloudFront in frontend-stack.yaml.
+# The WebACLId is useful for AWS CLI commands and console navigation.
+
 Outputs:
   WebACLArn:
-    Description: WAF Web ACL ARN for CloudFront association
+    Description: 'WAF Web ACL ARN for CloudFront association (used in frontend-stack.yaml)'
     Value: !GetAtt WebACL.Arn
     Export:
       Name: !Sub '${AWS::StackName}-WebACLArn'
 
   WebACLId:
-    Description: WAF Web ACL ID
+    Description: 'WAF Web ACL ID for console navigation and CLI commands'
     Value: !Ref WebACL
     Export:
       Name: !Sub '${AWS::StackName}-WebACLId'
+
+  WebACLName:
+    Description: 'WAF Web ACL Name for CloudWatch metrics filtering'
+    Value: !Sub '${ProjectName}-waf-${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-WebACLName'

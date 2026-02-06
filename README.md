@@ -450,17 +450,18 @@ The solution uses a modular nested stack architecture. The API Gateway is split 
 | ----- | ------- | ------------- |
 | `master-template.yaml` | Root orchestrator | Parameter propagation, nested stack coordination, **UnifiedOrchestrationRole** |
 | `database-stack.yaml` | Data persistence | 4 DynamoDB tables with encryption (camelCase schema) |
-| `lambda-stack.yaml` | Compute layer | 6 Lambda functions (all use unified role) |
+| `lambda-stack.yaml` | Compute layer | 6 Lambda functions with reserved concurrency (100) |
 | `api-auth-stack.yaml` | Authentication | Cognito User Pool, Identity Pool, RBAC groups |
 | `api-gateway-core-stack.yaml` | API Gateway base | REST API, Cognito authorizer |
 | `api-gateway-resources-stack.yaml` | API paths | URL path resources for all endpoints |
 | `api-gateway-core-methods-stack.yaml` | CRUD methods | Protection Groups, Recovery Plans, Config endpoints |
 | `api-gateway-operations-methods-stack.yaml` | Execution methods | Execution, workflow, DRS operation endpoints |
 | `api-gateway-infrastructure-methods-stack.yaml` | Infrastructure methods | Discovery, cross-account, health endpoints |
-| `api-gateway-deployment-stack.yaml` | API deployment | Stage deployment, throttling settings |
+| `api-gateway-deployment-stack.yaml` | API deployment | Stage deployment, access logging, throttling |
 | `step-functions-stack.yaml` | Orchestration | State machine with waitForTaskToken |
 | `eventbridge-stack.yaml` | Event scheduling | Execution polling rules |
 | `frontend-stack.yaml` | Frontend hosting | S3 bucket, CloudFront distribution (conditional) |
+| `waf-stack.yaml` | Web Application Firewall | WAF WebACL for CloudFront with rate limiting |
 | `notification-stack.yaml` | Notifications | SNS topics, email subscriptions |
 | `cross-account-role-stack.yaml` | Multi-account | Cross-account IAM roles |
 | `github-oidc-stack.yaml` | CI/CD | OIDC authentication (optional) |
@@ -515,8 +516,9 @@ Common utilities used across all Lambda functions to eliminate code duplication 
 | CloudFront      | $1-5                   |
 | S3              | <$1                    |
 | Step Functions  | $1-5                   |
+| WAF             | $5-10                  |
 | Cognito         | Free tier              |
-| **Total** | **$12-40/month** |
+| **Total** | **$17-50/month** |
 
 ## Security & RBAC
 
@@ -539,6 +541,42 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 - **Authentication**: Cognito JWT token-based authentication (45-minute session timeout)
 - **Authorization**: API-level RBAC enforcement
 - **Audit Trails**: Complete user action logging
+
+### WAF Protection (waf-stack.yaml)
+
+The solution includes AWS WAF protection for the CloudFront distribution with defense-in-depth security:
+
+**Rate Limiting:**
+- 2000 requests per 5 minutes per IP address
+- Prevents DDoS and brute-force attacks
+- Automatic blocking with CloudWatch metrics
+
+**AWS Managed Rule Sets:**
+| Rule Set | Purpose |
+|----------|---------|
+| AWSManagedRulesCommonRuleSet | OWASP Top 10 protection (SQL injection, XSS, etc.) |
+| AWSManagedRulesKnownBadInputsRule | Blocks known malicious request patterns |
+| AWSManagedRulesAmazonIpReputationList | Blocks requests from known bad IP addresses |
+
+**WAF Deployment:**
+- WAF is automatically deployed with the frontend stack when `DeployFrontend=true`
+- WAF WebACL is created in `us-east-1` (required for CloudFront)
+- CloudWatch metrics available under `AWS/WAFV2` namespace
+
+**Monitoring WAF:**
+```bash
+# View blocked requests
+AWS_PAGER="" aws cloudwatch get-metric-statistics \
+  --namespace AWS/WAFV2 \
+  --metric-name BlockedRequests \
+  --dimensions Name=WebACL,Value=aws-drs-orchestration-waf-test \
+  --start-time $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  --period 300 \
+  --statistics Sum
+```
+
+**Cost:** WAF adds approximately $5-10/month depending on request volume.
 
 ## Documentation
 
