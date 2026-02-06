@@ -86,7 +86,7 @@ Resources:
       Code:
         S3Bucket: !Ref SourceBucket
         S3Key: "lambda/data-management-handler.zip"
-      Timeout: 120
+      Timeout: 900  # 15 minutes - needed for tag sync across many accounts/regions
       MemorySize: 512
       ReservedConcurrentExecutions: 50
       Environment:
