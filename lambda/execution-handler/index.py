@@ -90,6 +90,154 @@ recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TA
 execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE) if EXECUTION_HISTORY_TABLE else None
 
 
+def analyze_execution_outcome(waves: List[Dict]) -> Dict:
+    """
+    Analyze wave and server outcomes to determine execution status.
+
+    Returns a dict with:
+    - status: COMPLETED, FAILED, PARTIAL, or CANCELLED
+    - summary: Human-readable summary of outcomes
+    - details: Structured breakdown of successes/failures
+
+    PARTIAL status is used when:
+    - Some waves completed successfully but others failed
+    - Some servers launched but others failed within a wave
+    - Execution was cancelled but some waves/servers had already completed
+    """
+    if not waves:
+        return {
+            "status": "FAILED",
+            "summary": "No waves executed",
+            "details": {"wavesCompleted": 0, "wavesFailed": 0, "wavesCancelled": 0},
+        }
+
+    # Analyze wave outcomes
+    waves_completed = []
+    waves_failed = []
+    waves_cancelled = []
+    waves_pending = []
+
+    # Analyze server outcomes across all waves
+    total_servers = 0
+    servers_launched = 0
+    servers_failed = 0
+    servers_cancelled = 0
+    servers_pending = 0
+
+    for i, wave in enumerate(waves):
+        wave_name = wave.get("waveName", f"Wave {i + 1}")
+        wave_status = wave.get("status", "").upper()
+        server_statuses = wave.get("serverStatuses", [])
+
+        # Count servers in this wave
+        wave_launched = 0
+        wave_failed = 0
+        wave_cancelled = 0
+        wave_pending = 0
+
+        for server in server_statuses:
+            total_servers += 1
+            launch_status = server.get("launchStatus", "").upper()
+
+            if launch_status == "LAUNCHED":
+                servers_launched += 1
+                wave_launched += 1
+            elif launch_status == "FAILED":
+                servers_failed += 1
+                wave_failed += 1
+            elif launch_status in ["CANCELLED", "TERMINATED"]:
+                servers_cancelled += 1
+                wave_cancelled += 1
+            else:
+                servers_pending += 1
+                wave_pending += 1
+
+        # Categorize wave
+        wave_info = {
+            "name": wave_name,
+            "serversLaunched": wave_launched,
+            "serversFailed": wave_failed,
+            "serversCancelled": wave_cancelled,
+        }
+
+        if wave_status == "COMPLETED":
+            waves_completed.append(wave_info)
+        elif wave_status == "FAILED":
+            waves_failed.append(wave_info)
+        elif wave_status in ["CANCELLED", "TERMINATED"]:
+            waves_cancelled.append(wave_info)
+        else:
+            waves_pending.append(wave_info)
+
+    # Determine overall status
+    total_waves = len(waves)
+    completed_count = len(waves_completed)
+    failed_count = len(waves_failed)
+    cancelled_count = len(waves_cancelled)
+
+    # Build summary message
+    summary_parts = []
+
+    if servers_launched > 0:
+        summary_parts.append(f"{servers_launched} server(s) launched successfully")
+    if servers_failed > 0:
+        summary_parts.append(f"{servers_failed} server(s) failed")
+    if servers_cancelled > 0:
+        summary_parts.append(f"{servers_cancelled} server(s) cancelled")
+
+    # Determine status
+    if completed_count == total_waves and failed_count == 0 and cancelled_count == 0:
+        # All waves completed successfully
+        status = "COMPLETED"
+        summary = f"All {total_waves} wave(s) completed successfully. {servers_launched} server(s) launched."
+    elif failed_count == total_waves or (failed_count > 0 and completed_count == 0 and servers_launched == 0):
+        # All waves failed or no successes at all
+        status = "FAILED"
+        summary = f"Execution failed. {failed_count} wave(s) failed. {servers_failed} server(s) failed to launch."
+    elif cancelled_count == total_waves or (
+        cancelled_count > 0 and completed_count == 0 and failed_count == 0 and servers_launched == 0
+    ):
+        # All waves cancelled with no successes
+        status = "CANCELLED"
+        summary = f"Execution cancelled. {cancelled_count} wave(s) cancelled."
+    else:
+        # Mixed results - PARTIAL status
+        status = "PARTIAL"
+        summary = "; ".join(summary_parts) if summary_parts else "Partial execution"
+
+        # Add wave breakdown to summary
+        wave_summary_parts = []
+        if completed_count > 0:
+            wave_summary_parts.append(f"{completed_count} wave(s) completed")
+        if failed_count > 0:
+            wave_summary_parts.append(f"{failed_count} wave(s) failed")
+        if cancelled_count > 0:
+            wave_summary_parts.append(f"{cancelled_count} wave(s) cancelled")
+
+        if wave_summary_parts:
+            summary = f"{summary}. Waves: {', '.join(wave_summary_parts)}."
+
+    return {
+        "status": status,
+        "summary": summary,
+        "details": {
+            "totalWaves": total_waves,
+            "wavesCompleted": completed_count,
+            "wavesFailed": failed_count,
+            "wavesCancelled": cancelled_count,
+            "wavesPending": len(waves_pending),
+            "totalServers": total_servers,
+            "serversLaunched": servers_launched,
+            "serversFailed": servers_failed,
+            "serversCancelled": servers_cancelled,
+            "serversPending": servers_pending,
+            "completedWaves": waves_completed,
+            "failedWaves": waves_failed,
+            "cancelledWaves": waves_cancelled,
+        },
+    }
+
+
 # Helper functions for table access (for compatibility with moved code)
 def get_protection_groups_table():
     """Get Protection Groups table reference"""
@@ -2423,6 +2571,7 @@ def handle_poll_operation(event: Dict, context) -> Dict:
             "FAILED",
             "TERMINATED",
             "TIMEOUT",
+            "PARTIAL",
         ]:
             print(f"Execution {execution_id} already {execution_status} - skipping poll")
             return {
@@ -2431,6 +2580,126 @@ def handle_poll_operation(event: Dict, context) -> Dict:
                 "status": execution_status,
                 "allWavesComplete": True,
             }
+
+        # CRITICAL: Check Step Functions status to detect failures
+        # Step Functions is the source of truth for execution lifecycle
+        state_machine_arn = execution.get("stateMachineArn")
+        if state_machine_arn and execution_status in ["POLLING", "RUNNING"]:
+            try:
+                sf_response = stepfunctions.describe_execution(executionArn=state_machine_arn)
+                sf_status = sf_response.get("status")
+                print(f"Step Functions status for {execution_id}: {sf_status}")
+
+                # If Step Functions shows terminal state, analyze outcome and update DynamoDB
+                if sf_status in ["FAILED", "TIMED_OUT", "ABORTED", "SUCCEEDED"]:
+                    # Get waves for outcome analysis
+                    waves = execution.get("waves", [])
+
+                    # Analyze actual wave/server outcomes
+                    outcome = analyze_execution_outcome(waves)
+                    analyzed_status = outcome["status"]
+                    summary = outcome["summary"]
+                    details = outcome["details"]
+
+                    # For SF FAILED/TIMED_OUT/ABORTED, use analyzed status (could be PARTIAL)
+                    # For SF SUCCEEDED, use analyzed status (should be COMPLETED but could be PARTIAL)
+                    if sf_status in ["FAILED", "TIMED_OUT", "ABORTED"]:
+                        # If some servers launched, use PARTIAL; otherwise use SF-derived status
+                        if analyzed_status == "PARTIAL":
+                            new_status = "PARTIAL"
+                        elif analyzed_status == "COMPLETED":
+                            # Rare: SF failed but all servers launched (maybe post-launch failure)
+                            new_status = "PARTIAL"
+                            summary = f"{summary} (Step Functions reported {sf_status})"
+                        else:
+                            # Map Step Functions status to our status
+                            new_status = (
+                                "FAILED"
+                                if sf_status == "FAILED"
+                                else "TIMEOUT" if sf_status == "TIMED_OUT" else "TERMINATED"
+                            )
+                    else:
+                        # SF SUCCEEDED - use analyzed status
+                        new_status = analyzed_status
+
+                    # Build error message from SF and outcome analysis
+                    error_message = None
+                    if sf_status == "FAILED":
+                        sf_error = sf_response.get("error", "")
+                        sf_cause = sf_response.get("cause", "")
+                        if sf_error or sf_cause:
+                            error_message = f"{sf_error}: {sf_cause}" if sf_error and sf_cause else sf_error or sf_cause
+
+                    # Use summary as message for PARTIAL status
+                    if new_status == "PARTIAL":
+                        error_message = summary
+
+                    print(f"⚠️ Step Functions {sf_status} - analyzed outcome: {new_status}")
+                    print(f"   Summary: {summary}")
+                    print(f"   Details: {details}")
+
+                    # Update DynamoDB with analyzed status
+                    update_expr = "SET #status = :status, endTime = :endtime, lastPolledTime = :time"
+                    expr_values = {
+                        ":status": new_status,
+                        ":endtime": int(time.time()),
+                        ":time": int(time.time()),
+                    }
+
+                    if error_message:
+                        update_expr += ", errorMessage = :error"
+                        expr_values[":error"] = error_message
+
+                    # Store outcome details for UI display
+                    update_expr += ", outcomeDetails = :details, outcomeSummary = :summary"
+                    expr_values[":details"] = details
+                    expr_values[":summary"] = summary
+
+                    execution_history_table.update_item(
+                        Key={"executionId": execution_id, "planId": plan_id},
+                        UpdateExpression=update_expr,
+                        ExpressionAttributeNames={"#status": "status"},
+                        ExpressionAttributeValues=expr_values,
+                    )
+
+                    print(f"✅ Execution {execution_id} marked as {new_status}")
+                    return {
+                        "statusCode": 200,
+                        "executionId": execution_id,
+                        "status": new_status,
+                        "stepFunctionsStatus": sf_status,
+                        "errorMessage": error_message,
+                        "outcomeSummary": summary,
+                        "outcomeDetails": details,
+                        "allWavesComplete": True,
+                    }
+
+            except ClientError as sf_error:
+                # Step Functions execution might not exist or be accessible
+                error_code = sf_error.response.get("Error", {}).get("Code", "")
+                if error_code == "ExecutionDoesNotExist":
+                    print("⚠️ Step Functions execution not found - marking as FAILED")
+                    execution_history_table.update_item(
+                        Key={"executionId": execution_id, "planId": plan_id},
+                        UpdateExpression="SET #status = :status, endTime = :endtime, errorMessage = :error",
+                        ExpressionAttributeNames={"#status": "status"},
+                        ExpressionAttributeValues={
+                            ":status": "FAILED",
+                            ":endtime": int(time.time()),
+                            ":error": "Step Functions execution not found",
+                        },
+                    )
+                    return {
+                        "statusCode": 200,
+                        "executionId": execution_id,
+                        "status": "FAILED",
+                        "errorMessage": "Step Functions execution not found",
+                        "allWavesComplete": True,
+                    }
+                else:
+                    print(f"Error checking Step Functions status: {sf_error}")
+            except Exception as sf_error:
+                print(f"Error checking Step Functions status: {sf_error}")
 
         # Poll each wave
         waves = execution.get("waves", [])
@@ -2466,24 +2735,38 @@ def handle_poll_operation(event: Dict, context) -> Dict:
 
         # Handle CANCELLING execution finalization
         if execution_status == "CANCELLING" and all_waves_complete:
-            print(f"All waves complete for CANCELLING execution {execution_id} - finalizing to CANCELLED")
+            # Analyze outcome - may be PARTIAL if some servers launched before cancellation
+            outcome = analyze_execution_outcome(updated_waves)
+            # For cancelled executions, use CANCELLED unless some servers succeeded (PARTIAL)
+            final_status = "PARTIAL" if outcome["status"] == "PARTIAL" else "CANCELLED"
+            summary = outcome["summary"]
+            details = outcome["details"]
+
+            print(f"CANCELLING execution {execution_id} - analyzed outcome: {final_status}")
+            print(f"   Summary: {summary}")
+
             execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET waves = :waves, lastPolledTime = :time, #status = :status, endTime = :endtime",
+                UpdateExpression="SET waves = :waves, lastPolledTime = :time, #status = :status, endTime = :endtime, outcomeSummary = :summary, outcomeDetails = :details, errorMessage = :error",
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":waves": updated_waves,
                     ":time": int(time.time()),
-                    ":status": "CANCELLED",
+                    ":status": final_status,
                     ":endtime": int(time.time()),
+                    ":summary": summary,
+                    ":details": details,
+                    ":error": summary,
                 },
             )
-            print(f"✅ CANCELLING execution {execution_id} finalized to CANCELLED")
+            print(f"✅ CANCELLING execution {execution_id} finalized to {final_status}")
             return {
                 "statusCode": 200,
                 "executionId": execution_id,
-                "status": "CANCELLED",
+                "status": final_status,
                 "waves": updated_waves,
+                "outcomeSummary": summary,
+                "outcomeDetails": details,
                 "allWavesComplete": True,
             }
 
@@ -2628,7 +2911,7 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
         waves = execution.get("waves", [])
 
         # Idempotent: if already finalized, return success
-        if current_status in ["COMPLETED", "FAILED", "TERMINATED"]:
+        if current_status in ["COMPLETED", "FAILED", "TERMINATED", "PARTIAL"]:
             print(f"Execution {execution_id} already finalized with status {current_status}")
             return {
                 "statusCode": 200,
@@ -2639,7 +2922,9 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
             }
 
         # Verify all waves complete (safety check)
-        all_complete = all(w.get("status", "").upper() in ["COMPLETED", "FAILED", "TERMINATED"] for w in waves)
+        all_complete = all(
+            w.get("status", "").upper() in ["COMPLETED", "FAILED", "TERMINATED", "CANCELLED"] for w in waves
+        )
 
         if not all_complete:
             return response(
@@ -2651,20 +2936,39 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
                 },
             )
 
+        # Analyze actual wave/server outcomes to determine final status
+        outcome = analyze_execution_outcome(waves)
+        final_status = outcome["status"]
+        summary = outcome["summary"]
+        details = outcome["details"]
+
+        print(f"Analyzed outcome for {execution_id}: {final_status}")
+        print(f"   Summary: {summary}")
+
         # Idempotent update with conditional write
         # Only update if status is still POLLING/PAUSED (not already finalized)
         try:
+            update_expr = "SET #status = :status, endTime = :time, outcomeSummary = :summary, outcomeDetails = :details"
+            expr_values = {
+                ":status": final_status,
+                ":time": int(time.time()),
+                ":polling": "POLLING",
+                ":paused": "PAUSED",
+                ":summary": summary,
+                ":details": details,
+            }
+
+            # Add error message for non-COMPLETED statuses
+            if final_status != "COMPLETED":
+                update_expr += ", errorMessage = :error"
+                expr_values[":error"] = summary
+
             execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET #status = :status, endTime = :time",
+                UpdateExpression=update_expr,
                 ConditionExpression="#status IN (:polling, :paused)",
                 ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues={
-                    ":status": "COMPLETED",
-                    ":time": int(time.time()),
-                    ":polling": "POLLING",
-                    ":paused": "PAUSED",
-                },
+                ExpressionAttributeValues=expr_values,
             )
         except ClientError as e:
             if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
@@ -2673,19 +2977,21 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
                 return {
                     "statusCode": 200,
                     "executionId": execution_id,
-                    "status": "COMPLETED",
+                    "status": final_status,
                     "totalWaves": len(waves),
                     "alreadyFinalized": True,
                 }
             raise
 
-        print(f"✅ Execution {execution_id} finalized as COMPLETED")
+        print(f"✅ Execution {execution_id} finalized as {final_status}")
 
         return {
             "statusCode": 200,
             "executionId": execution_id,
-            "status": "COMPLETED",
+            "status": final_status,
             "totalWaves": len(waves),
+            "outcomeSummary": summary,
+            "outcomeDetails": details,
         }
 
     except Exception as e:
@@ -5730,23 +6036,50 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         for server in participating_servers:
                             source_server_id = server.get("sourceServerID", "")
                             source_server_ids.append(source_server_id)
+
+                        # CRITICAL: Look up source server details to get Name tags
+                        # DRS participatingServers only has sourceServerID and launchStatus
+                        source_server_details = {}
+                        if source_server_ids:
+                            try:
+                                source_server_details = get_server_details_map(source_server_ids, region)
+                                print(f"DEBUG: Got details for {len(source_server_details)} source servers")
+                            except Exception as ss_error:
+                                print(f"WARNING: Could not get source server details: {ss_error}")
+
+                        # Build server data with Name tags from source server lookup
+                        for server in participating_servers:
+                            source_server_id = server.get("sourceServerID", "")
+                            ss_details = source_server_details.get(source_server_id, {})
+
+                            # Use Name tag from source server, fallback to hostname
+                            server_name = (
+                                ss_details.get("nameTag")
+                                or ss_details.get("hostname")
+                                or server.get("hostname", "")
+                                or f"Server {source_server_id[-8:]}"
+                            )
+
                             server_data = {
                                 "sourceServerId": source_server_id,
                                 "serverId": source_server_id,
-                                "hostname": server.get("hostname", ""),
-                                "serverName": server.get("hostname", ""),
+                                "hostname": ss_details.get("hostname", ""),
+                                "serverName": server_name,
+                                "nameTag": ss_details.get("nameTag", ""),
                                 "status": server.get("launchStatus", "pending"),
                                 "launchStatus": server.get("launchStatus", "pending"),
                                 "recoveredInstanceId": server.get("recoveryInstanceID", ""),
                                 "instanceId": server.get("recoveryInstanceID", ""),
                                 "ec2InstanceId": server.get("recoveryInstanceID", ""),
                                 "region": region,
-                                "sourceInstanceId": server.get("sourceInstanceID", ""),
-                                "replicationState": server.get("replicationState", ""),
+                                "sourceInstanceId": ss_details.get("sourceInstanceId", ""),
+                                "sourceAccountId": ss_details.get("sourceAccountId", ""),
+                                "sourceIp": ss_details.get("sourceIp", ""),
+                                "replicationState": ss_details.get("replicationState", ""),
                                 "launchTime": server.get("launchTime", ""),
                             }
                             print(
-                                f"DEBUG: Server {server_data['sourceServerId']}: recoveryInstanceID={server_data['recoveredInstanceId']}, launchStatus={server_data['launchStatus']}"  # noqa: E501
+                                f"DEBUG: Server {source_server_id}: name={server_name}, recoveryInstanceID={server_data['recoveredInstanceId']}, launchStatus={server_data['launchStatus']}"  # noqa: E501
                             )
                             wave["servers"].append(server_data)
 

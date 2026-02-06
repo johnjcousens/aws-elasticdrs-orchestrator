@@ -114,7 +114,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       case 'partial failure':
         return {
           label: 'Partial',
-          color: 'red' as const,
+          color: 'blue' as const,  // Blue to indicate mixed results (not pure failure)
         };
       
       default:

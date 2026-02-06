@@ -224,8 +224,8 @@ Resources:
               - 'iam:GetRole'
             Resource: '*'
           
-          # IAM PassRole (for DRS service roles)
-          - Sid: IAMPassRole
+          # IAM PassRole (for DRS service roles and EC2 instance profiles)
+          - Sid: IAMPassRoleDRS
             Effect: Allow
             Action:
               - 'iam:PassRole'
@@ -238,6 +238,18 @@ Resources:
                 'iam:PassedToService':
                   - 'drs.amazonaws.com'
                   - 'ec2.amazonaws.com'
+          
+          # IAM PassRole for EC2 instance profiles (required for recovery instances)
+          # DRS needs to pass custom EC2 roles configured in launch settings
+          - Sid: IAMPassRoleEC2
+            Effect: Allow
+            Action:
+              - 'iam:PassRole'
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*'
+            Condition:
+              StringEquals:
+                'iam:PassedToService': 'ec2.amazonaws.com'
           
           # S3 Operations (for DRS logs and artifacts)
           - Sid: S3Operations
@@ -260,16 +272,22 @@ Resources:
             Effect: Allow
             Action:
               - 'kms:Decrypt'
+              - 'kms:Encrypt'
               - 'kms:DescribeKey'
               - 'kms:CreateGrant'
               - 'kms:ListGrants'
               - 'kms:RevokeGrant'
+              - 'kms:ReEncrypt*'
+              - 'kms:GenerateDataKey*'
             Resource: '*'
-            Condition:
-              StringEquals:
-                'kms:ViaService':
-                  - !Sub 'drs.${AWS::Region}.amazonaws.com'
-                  - !Sub 'ec2.${AWS::Region}.amazonaws.com'
+          
+          # EC2 Snapshot cross-account operations (required for DRS cross-account recovery)
+          - Sid: EC2SnapshotCrossAccount
+            Effect: Allow
+            Action:
+              - 'ec2:ModifySnapshotAttribute'
+              - 'ec2:CopySnapshot'
+            Resource: '*'
 
 Outputs:
   RoleArn:

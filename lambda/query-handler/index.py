@@ -330,7 +330,6 @@ from shared.cross_account import (
 from shared.drs_limits import (
     DRS_LIMITS,
     validate_concurrent_jobs,
-    validate_max_servers_per_job,
     validate_servers_in_all_jobs,
 )
 from shared.drs_utils import map_replication_state_to_display
@@ -4868,26 +4867,33 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         )
 
         # Step 7.5: Get concurrent jobs and servers in jobs metrics
-        # Query DRS jobs in target account's primary region (us-west-2)
+        # Query DRS jobs across ALL regions in target account (jobs can run in any region)
         print("Starting jobs metrics query (Step 7.5)")
         try:
-            # Get target account's primary region from regional breakdown
-            primary_region = "us-west-2"  # Default
+            # Get all regions with servers from regional breakdown
+            regions_with_servers = set()
             if target_account_result and target_account_result.get("regionalBreakdown"):
-                # Use region with most servers
                 regional_breakdown = target_account_result.get("regionalBreakdown", [])
-                if regional_breakdown:
-                    primary_region = max(
-                        regional_breakdown,
-                        key=lambda r: r.get("replicatingServers", 0),
-                    ).get("region", "us-west-2")
+                regions_with_servers = set(
+                    r.get("region") for r in regional_breakdown if r.get("region") and r.get("totalServers", 0) > 0
+                )
 
-            print(f"Using primary region: {primary_region}")
+            # Also check combined regional breakdown (includes staging accounts)
+            for region_data in combined_regional_list:
+                if region_data.get("region") and region_data.get("totalServers", 0) > 0:
+                    regions_with_servers.add(region_data.get("region"))
 
-            # Create DRS client with assumed role credentials
-            drs_client = None
+            # CRITICAL: Always check common DRS regions where jobs might be running
+            # Jobs can exist even in regions with 0 current servers (e.g., after recovery)
+            common_drs_regions = {"us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"}
+            regions_to_check = list(regions_with_servers.union(common_drs_regions))
+
+            print(f"Checking jobs in regions: {regions_to_check} (servers in: {regions_with_servers})")
+
+            # Get credentials for cross-account access
             role_arn = target_account.get("roleArn")
             external_id = target_account.get("externalId")
+            credentials = None
 
             print(f"Target account roleArn: {role_arn}")
             print(f"Target account externalId: {external_id}")
@@ -4903,33 +4909,90 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                         DurationSeconds=900,
                     )
                     credentials = assumed_role["Credentials"]
-
-                    # Create DRS client with assumed role credentials
-                    drs_client = boto3.client(
-                        "drs",
-                        region_name=primary_region,
-                        aws_access_key_id=credentials["AccessKeyId"],
-                        aws_secret_access_key=credentials["SecretAccessKey"],
-                        aws_session_token=credentials["SessionToken"],
-                    )
-                    print("Successfully created DRS client with assumed role")
+                    print("Successfully assumed role for jobs query")
                 except Exception as e:
                     print(f"Warning: Could not assume role for jobs query: {e}")
-                    drs_client = None
 
-            # Get concurrent jobs info (pass DRS client)
-            print("Calling validate_concurrent_jobs...")
-            jobs_info = validate_concurrent_jobs(primary_region, drs_client)
+            # Aggregate jobs across all regions
+            total_active_jobs = 0
+            total_servers_in_jobs = 0
+            max_servers_in_single_job = 0
+            max_job_id = None
+            all_active_jobs = []
+
+            for region in regions_to_check:
+                try:
+                    # Create DRS client for this region
+                    if credentials:
+                        drs_client = boto3.client(
+                            "drs",
+                            region_name=region,
+                            aws_access_key_id=credentials["AccessKeyId"],
+                            aws_secret_access_key=credentials["SecretAccessKey"],
+                            aws_session_token=credentials["SessionToken"],
+                        )
+                    else:
+                        drs_client = boto3.client("drs", region_name=region)
+
+                    # Query jobs in this region
+                    print(f"Querying jobs in {region}...")
+                    jobs_info = validate_concurrent_jobs(region, drs_client)
+                    print(f"Jobs in {region}: {jobs_info.get('currentJobs', 0)} active")
+
+                    # Aggregate results
+                    region_jobs = jobs_info.get("currentJobs", 0)
+                    total_active_jobs += region_jobs
+
+                    # Get active jobs details
+                    for job in jobs_info.get("activeJobs", []):
+                        job["region"] = region
+                        all_active_jobs.append(job)
+                        server_count = job.get("serverCount", 0)
+                        total_servers_in_jobs += server_count
+                        if server_count > max_servers_in_single_job:
+                            max_servers_in_single_job = server_count
+                            max_job_id = job.get("jobId")
+
+                except Exception as e:
+                    error_str = str(e)
+                    # Skip uninitialized regions
+                    if "UninitializedAccountException" in error_str:
+                        print(f"Region {region} not initialized for DRS, skipping")
+                    else:
+                        print(f"Error querying jobs in {region}: {e}")
+
+            print(f"Total active jobs across all regions: {total_active_jobs}")
+            print(f"Total servers in active jobs: {total_servers_in_jobs}")
+
+            # Build aggregated jobs info
+            jobs_info = {
+                "currentJobs": total_active_jobs,
+                "maxJobs": 20,
+                "availableSlots": 20 - total_active_jobs,
+                "activeJobs": all_active_jobs,
+            }
+
+            servers_in_jobs = {
+                "currentServersInJobs": total_servers_in_jobs,
+                "maxServersInJobs": 500,
+                "availableSlots": 500 - total_servers_in_jobs,
+            }
+
+            max_per_job = {
+                "maxServersInSingleJob": max_servers_in_single_job,
+                "maxAllowed": 100,
+                "availableSlots": 100 - max_servers_in_single_job,
+                "jobId": max_job_id,
+                "status": "OK" if max_servers_in_single_job < 90 else "WARNING",
+                "message": (
+                    f"Largest active job has {max_servers_in_single_job} servers"
+                    if max_servers_in_single_job > 0
+                    else "No active jobs"
+                ),
+            }
+
             print(f"Jobs info: {jobs_info}")
-
-            # Get servers in active jobs (pass DRS client)
-            print("Calling validate_servers_in_all_jobs...")
-            servers_in_jobs = validate_servers_in_all_jobs(primary_region, 0, drs_client)
             print(f"Servers in jobs: {servers_in_jobs}")
-
-            # Get max servers per job (pass DRS client)
-            print("Calling validate_max_servers_per_job...")
-            max_per_job = validate_max_servers_per_job(primary_region, drs_client)
             print(f"Max per job: {max_per_job}")
 
             print("Building jobs metrics response data...")

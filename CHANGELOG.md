@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] - 2026-02-06 - Step Functions Documentation & Bug Fixes
+
+### Added
+- **Step Functions Lambda Documentation**: Comprehensive docstring for `dr-orchestration-stepfunction/index.py`
+  - Handler architecture diagram showing all 4 Lambda handlers and their responsibilities
+  - CLI workflow documentation with complete 3-tier manifest example
+  - Account model explanation (Orchestration Account vs Target Account)
+  - Multi-AZ deployment patterns with /22 subnet CIDR ranges
+  - Per-server static IP configuration examples for Database, Application, and Web tiers
+  - Pause gates and wave dependencies documentation
+  - `notificationEmail` field for SNS pause/resume notifications
+  - State ownership pattern explanation (replaces "Archive pattern" terminology)
+  - Direct invocation support via OrchestrationRole
+
+### Fixed
+- **Server Name Display**: Fixed execution details to show server names from DRS source server tags
+  - Changed `get_server_details_for_execution` to `get_server_details_map` (correct function name)
+  - Server Name tags now pulled from DRS source servers in target account via tag sync
+- **Recovery Instance Data**: Fixed recovery instance enrichment after wave completion
+  - Instance ID, Type, Private IP, and Launch Time now display correctly
+  - EC2 API integration fetches instance details after DRS job completion
+- **DRS Service Capacity**: Fixed capacity calculation for shared protection groups
+  - Detects when multiple protection groups share the same DRS source servers
+  - Prevents double-counting servers in capacity calculations
+  - Added `sharedServerIds` tracking in capacity response
+
+### Changed
+- **Documentation Standards**: Removed temporal references and internal documentation paths
+  - Eliminated "future", "currently", "will be" language from code comments
+  - Removed AWSM-* ticket references and internal docs/ paths
+  - Renamed "Archive pattern" to "State ownership pattern" throughout codebase
+
+---
+
 ## [Unreleased] - 2026-02-03 - DRS AllowLaunchingIntoThisInstance Spec & Staging Accounts Management
 
 ### Added

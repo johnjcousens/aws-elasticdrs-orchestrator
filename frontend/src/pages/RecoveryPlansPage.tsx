@@ -75,6 +75,7 @@ export const RecoveryPlansPage: React.FC = () => {
     executionType: 'DRILL' | 'RECOVERY';
     instances: Array<{
       sourceServerId: string;
+      sourceServerName?: string;
       recoveryInstanceId: string;
       ec2InstanceId: string;
       ec2InstanceState: string;
@@ -490,25 +491,32 @@ export const RecoveryPlansPage: React.FC = () => {
           return <StatusBadge status="in_progress" />;
         }
         
-        // Show last execution status (not "Blocked")
-        // Conflict detection only affects ability to start new executions, not status display
-        const lastStatus = item.lastExecutionStatus;
-        if (!lastStatus) {
-          return <Badge>Not Run</Badge>;
-        }
-        
-        // Show status with conflict indicator if servers are blocked
+        // Show readiness status (not last execution status)
+        // Check if servers are blocked by another plan
         if (hasServerConflict) {
           return (
             <SpaceBetween direction="vertical" size="xxxs">
-              <StatusBadge status={lastStatus} />
+              <Badge color="grey">Blocked</Badge>
               <Box variant="small" color="text-status-warning" fontSize="body-s">
-                ⚠️ Cannot start: servers in use by another plan
+                ⚠️ Servers in use by another plan
               </Box>
             </SpaceBetween>
           );
         }
         
+        // Plan is ready to run
+        return <Badge color="green">Ready</Badge>;
+      },
+    },
+    {
+      id: 'lastExecution',
+      header: 'Last Execution',
+      minWidth: 120,
+      cell: (item: RecoveryPlan) => {
+        const lastStatus = item.lastExecutionStatus;
+        if (!lastStatus) {
+          return <span style={{ color: '#5f6b7a' }}>Never run</span>;
+        }
         return <StatusBadge status={lastStatus} />;
       },
     },
@@ -665,7 +673,7 @@ export const RecoveryPlansPage: React.FC = () => {
                         {
                           id: 'serverId',
                           header: 'Source Server',
-                          cell: (item) => item.sourceServerId,
+                          cell: (item) => item.sourceServerName || item.sourceServerId,
                           width: 200,
                         },
                         {
@@ -686,7 +694,7 @@ export const RecoveryPlansPage: React.FC = () => {
                         },
                         {
                           id: 'name',
-                          header: 'Name',
+                          header: 'Recovery Instance',
                           cell: (item) => item.name || 'N/A',
                         },
                         {
@@ -726,7 +734,7 @@ export const RecoveryPlansPage: React.FC = () => {
                               {
                                 id: 'serverId',
                                 header: 'Source Server',
-                                cell: (item) => item.sourceServerId,
+                                cell: (item) => item.sourceServerName || item.sourceServerId,
                                 width: 200,
                               },
                               {
@@ -747,7 +755,7 @@ export const RecoveryPlansPage: React.FC = () => {
                               },
                               {
                                 id: 'name',
-                                header: 'Name',
+                                header: 'Recovery Instance',
                                 cell: (item) => item.name || 'N/A',
                               },
                               {
