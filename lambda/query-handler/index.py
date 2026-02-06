@@ -332,40 +332,9 @@ from shared.drs_limits import (
     validate_concurrent_jobs,
     validate_servers_in_all_jobs,
 )
+from shared.drs_regions import DRS_REGIONS
 from shared.drs_utils import map_replication_state_to_display
 from shared.response_utils import response
-
-# DRS regions (all regions where DRS is available as of 2026)
-DRS_REGIONS = [
-    "us-east-1",
-    "us-east-2",
-    "us-west-1",
-    "us-west-2",
-    "ap-southeast-1",
-    "ap-southeast-2",
-    "ap-southeast-3",
-    "ap-northeast-1",
-    "ap-northeast-2",
-    "ap-northeast-3",
-    "eu-central-1",
-    "eu-west-1",
-    "eu-west-2",
-    "eu-west-3",
-    "ca-central-1",
-    "ap-south-1",
-    "sa-east-1",
-    "eu-north-1",
-    "me-south-1",
-    "af-south-1",
-    "ap-east-1",
-    "eu-south-1",
-    "eu-central-2",
-    "eu-south-2",
-    "ap-south-2",
-    "ap-southeast-4",
-    "me-central-1",
-    "il-central-1",
-]
 
 # DRS job status constants - determine when job polling should stop
 DRS_JOB_STATUS_COMPLETE_STATES = ["COMPLETED"]
