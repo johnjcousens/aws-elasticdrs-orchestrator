@@ -211,22 +211,43 @@ from shared.cross_account import (
 from shared.response_utils import response
 
 # DRS regions (all regions where DRS is available)
+# Source: https://docs.aws.amazon.com/drs/latest/userguide/supported-regions.html
 DRS_REGIONS = [
-    "us-east-1",
-    "us-east-2",
-    "us-west-1",
-    "us-west-2",
-    "eu-west-1",
-    "eu-west-2",
-    "eu-west-3",
-    "eu-central-1",
-    "ap-southeast-1",
-    "ap-southeast-2",
-    "ap-northeast-1",
-    "ap-northeast-2",
-    "ap-south-1",
-    "ca-central-1",
-    "sa-east-1",
+    # US
+    "us-east-1",       # N. Virginia
+    "us-east-2",       # Ohio
+    "us-west-1",       # N. California
+    "us-west-2",       # Oregon
+    # Europe
+    "eu-west-1",       # Ireland
+    "eu-west-2",       # London
+    "eu-west-3",       # Paris
+    "eu-central-1",    # Frankfurt
+    "eu-central-2",    # Zurich
+    "eu-north-1",      # Stockholm
+    "eu-south-1",      # Milan
+    "eu-south-2",      # Spain
+    # Asia Pacific
+    "ap-east-1",       # Hong Kong
+    "ap-south-1",      # Mumbai
+    "ap-south-2",      # Hyderabad
+    "ap-southeast-1",  # Singapore
+    "ap-southeast-2",  # Sydney
+    "ap-southeast-3",  # Jakarta
+    "ap-southeast-4",  # Melbourne
+    "ap-northeast-1",  # Tokyo
+    "ap-northeast-2",  # Seoul
+    "ap-northeast-3",  # Osaka
+    # Middle East
+    "me-south-1",      # Bahrain
+    "me-central-1",    # UAE
+    # Africa
+    "af-south-1",      # Cape Town
+    # Israel
+    "il-central-1",    # Tel Aviv
+    # Americas
+    "ca-central-1",    # Canada
+    "sa-east-1",       # São Paulo
 ]
 
 # DynamoDB tables (from environment variables)
