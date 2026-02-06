@@ -1,87 +1,138 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - API Gateway Core Methods (Health, User, Protection Groups, Recovery Plans)'
+Description: |
+  API Gateway Core Methods Stack - HTTP methods for health checks, user
+  management, protection groups, and recovery plans.
+
+# =============================================================================
+# STACK OVERVIEW
+# =============================================================================
+# This stack defines HTTP methods for core platform functionality.
+# These are the primary endpoints users interact with for DR management.
+#
+# Endpoints Covered:
+# ------------------
+# /health                              - GET health check (no auth, MOCK)
+# /user/profile                        - GET current user profile
+# /user/roles                          - GET user's assigned roles
+# /user/permissions                    - GET user's permissions
+# /protection-groups                   - GET/POST protection groups
+# /protection-groups/{id}              - GET/PUT/DELETE specific group
+# /protection-groups/resolve           - POST resolve group to source servers
+# /recovery-plans                      - GET/POST recovery plans
+# /recovery-plans/{id}                 - GET/PUT/DELETE specific plan
+# /recovery-plans/{id}/execute         - POST execute recovery plan
+# /recovery-plans/{id}/check-instances - GET/POST check recovery instances
+#
+# Lambda Handlers:
+# ----------------
+# - QueryHandler: Read-only queries (user profile, roles, permissions)
+# - DataManagementHandler: CRUD operations (protection groups, recovery plans)
+#
+# Method Pattern:
+# ---------------
+# Each endpoint has:
+# 1. Business method (GET/POST/PUT/DELETE) - Cognito authenticated
+# 2. OPTIONS method - CORS preflight (no auth, MOCK integration)
+#
+# Health Check:
+# -------------
+# The /health endpoint uses MOCK integration (no Lambda) for fast response.
+# Returns static JSON with service status and timestamp.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+# All parameters are passed from the master template.
 
 Parameters:
   ProjectName:
     Type: String
-    Description: Name of the project for resource naming
-    Default: aws-elasticdrs-orchestrator
+    Description: Project name passed from master template
+    Default: aws-drs-orchestration
 
   Environment:
     Type: String
-    Description: Environment name (dev, test, prod)
+    Description: Environment name passed from master template
     AllowedValues: [dev, test, prod]
     Default: dev
 
   RestApiId:
     Type: String
-    Description: REST API ID from Core Stack
+    Description: REST API ID from API Gateway Core Stack
 
   ApiAuthorizerId:
     Type: String
-    Description: API Authorizer ID from Core Stack
+    Description: Cognito Authorizer ID from API Gateway Core Stack
 
   ApiRequestValidatorId:
     Type: String
-    Description: API Request Validator ID from Core Stack
+    Description: Request Validator ID from API Gateway Core Stack
 
   QueryHandlerArn:
     Type: String
-    Description: Query Handler Function ARN from Lambda Stack
+    Description: Query Handler Lambda ARN from Lambda Stack
 
   DataManagementHandlerArn:
     Type: String
-    Description: Data Management Handler Function ARN from Lambda Stack
+    Description: Data Management Handler Lambda ARN from Lambda Stack
 
-  # Core Resource IDs from Resources Stack
+  # ---------------------------------------------------------------------------
+  # Resource IDs from API Gateway Resources Stack
+  # ---------------------------------------------------------------------------
   HealthResourceId:
     Type: String
-    Description: Health Resource ID from Resources Stack
+    Description: /health resource ID
 
   UserProfileResourceId:
     Type: String
-    Description: User Profile Resource ID from Resources Stack
+    Description: /user/profile resource ID
 
   UserRolesResourceId:
     Type: String
-    Description: User Roles Resource ID from Resources Stack
+    Description: /user/roles resource ID
 
   UserPermissionsResourceId:
     Type: String
-    Description: User Permissions Resource ID from Resources Stack
+    Description: /user/permissions resource ID
 
   ProtectionGroupsResourceId:
     Type: String
-    Description: Protection Groups Resource ID from Resources Stack
+    Description: /protection-groups resource ID
 
   ProtectionGroupByIdResourceId:
     Type: String
-    Description: Protection Group By ID Resource ID from Resources Stack
+    Description: /protection-groups/{id} resource ID
 
   ProtectionGroupResolveResourceId:
     Type: String
-    Description: Protection Group Resolve Resource ID from Resources Stack
+    Description: /protection-groups/resolve resource ID
 
   RecoveryPlansResourceId:
     Type: String
-    Description: Recovery Plans Resource ID from Resources Stack
+    Description: /recovery-plans resource ID
 
   RecoveryPlanByIdResourceId:
     Type: String
-    Description: Recovery Plan By ID Resource ID from Resources Stack
+    Description: /recovery-plans/{id} resource ID
 
   RecoveryPlanExecuteResourceId:
     Type: String
-    Description: Recovery Plan Execute Resource ID from Resources Stack
+    Description: /recovery-plans/{id}/execute resource ID
 
   RecoveryPlanCheckInstancesResourceId:
     Type: String
-    Description: Recovery Plan Check Instances Resource ID from Resources Stack
+    Description: /recovery-plans/{id}/check-instances resource ID
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
 
 Resources:
-  # ============================================================================
-  # Methods - Health Check (No Authentication Required - Mock Integration)
-  # ============================================================================
+  # ===========================================================================
+  # HEALTH CHECK METHODS
+  # ===========================================================================
+  # /health - No authentication required, uses MOCK integration
+  # Returns static JSON response without invoking Lambda
 
   HealthGetMethod:
     Type: AWS::ApiGateway::Method
@@ -136,9 +187,12 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - User Management
-  # ============================================================================
+  # ===========================================================================
+  # USER MANAGEMENT METHODS
+  # ===========================================================================
+  # /user/profile     - GET current user's profile from Cognito claims
+  # /user/roles       - GET user's assigned roles
+  # /user/permissions - GET user's permissions based on roles
 
   UserProfileGetMethod:
     Type: AWS::ApiGateway::Method
@@ -269,9 +323,12 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - Protection Groups
-  # ============================================================================
+  # ===========================================================================
+  # PROTECTION GROUPS METHODS
+  # ===========================================================================
+  # /protection-groups          - GET list, POST create
+  # /protection-groups/{id}     - GET/PUT/DELETE specific group
+  # /protection-groups/resolve  - POST resolve group to DRS source servers
 
   ProtectionGroupsGetMethod:
     Type: AWS::ApiGateway::Method
@@ -457,9 +514,13 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - Recovery Plans
-  # ============================================================================
+  # ===========================================================================
+  # RECOVERY PLANS METHODS
+  # ===========================================================================
+  # /recovery-plans                      - GET list, POST create
+  # /recovery-plans/{id}                 - GET/PUT/DELETE specific plan
+  # /recovery-plans/{id}/execute         - POST start recovery execution
+  # /recovery-plans/{id}/check-instances - GET/POST check recovery instances
 
   RecoveryPlansGetMethod:
     Type: AWS::ApiGateway::Method
@@ -705,9 +766,10 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Lambda Permissions
-  # ============================================================================
+  # ===========================================================================
+  # LAMBDA PERMISSIONS
+  # ===========================================================================
+  # Grant API Gateway permission to invoke Lambda functions
 
   QueryHandlerApiPermission:
     Type: AWS::Lambda::Permission
@@ -725,9 +787,9 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*'
 
-# ============================================================================
+# =============================================================================
 # OUTPUTS
-# ============================================================================
+# =============================================================================
 
 Outputs:
   CoreMethodsStackStatus:

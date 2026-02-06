@@ -1,5 +1,49 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - API Gateway Resources (All API Path Definitions)'
+Description: |
+  API Gateway Resources Stack - Defines all REST API path resources for the
+  DRS Orchestration platform. Resources are organized by functional domain
+  and exported for use by the API Gateway Methods stack.
+
+# =============================================================================
+# API ARCHITECTURE
+# =============================================================================
+# This stack defines the URL path structure for the REST API. Each resource
+# represents a path segment that can have HTTP methods attached.
+#
+# API Domains:
+# - /health              - Health check endpoint (no auth required)
+# - /user/*              - User profile and permissions
+# - /protection-groups/* - Protection group management
+# - /recovery-plans/*    - Recovery plan management and execution
+# - /executions/*        - Execution tracking and control
+# - /drs/*               - DRS operations (47 API operations)
+# - /ec2/*               - EC2 resource queries (subnets, security groups)
+# - /config/*            - Configuration export/import
+# - /accounts/*          - Target account management
+# - /staging-accounts/*  - Staging account management
+#
+# Resource Hierarchy Example:
+#   /recovery-plans                    (collection)
+#   /recovery-plans/{id}               (single item)
+#   /recovery-plans/{id}/execute       (action)
+#
+# Stack Dependencies:
+# - Requires RestApiId and RestApiRootResourceId from API Gateway Core Stack
+# - Exports all resource IDs for use by API Gateway Methods Stack
+#
+# DRS Operations Coverage:
+# - Failover: start-recovery, terminate-instances, disconnect-instance
+# - Failback: reverse-replication, start-failback, stop-failback
+# - Replication: start, stop, pause, resume, retry, configuration
+# - Source Servers: disconnect, archive, extended, extensible
+# - Source Networks: recovery, replication, stack, template
+# - Launch Configuration: templates, actions
+# - Jobs: list, details, logs
+# - Recovery Instances: list, details, snapshots
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
 
 Parameters:
   ProjectName:
@@ -15,17 +59,22 @@ Parameters:
 
   RestApiId:
     Type: String
-    Description: REST API ID from Core Stack
+    Description: REST API ID from API Gateway Core Stack
 
   RestApiRootResourceId:
     Type: String
-    Description: REST API Root Resource ID from Core Stack
+    Description: REST API Root Resource ID from API Gateway Core Stack
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
 
 Resources:
-  # ============================================================================
-  # API Resources - Health Check (No Authentication Required)
-  # ============================================================================
-
+  # ===========================================================================
+  # HEALTH CHECK ENDPOINT
+  # ===========================================================================
+  # GET /health - No authentication required
+  # Used by load balancers and monitoring systems
   HealthResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -33,10 +82,12 @@ Resources:
       ParentId: !Ref RestApiRootResourceId
       PathPart: health
 
-  # ============================================================================
-  # API Resources - User Management
-  # ============================================================================
-
+  # ===========================================================================
+  # USER MANAGEMENT
+  # ===========================================================================
+  # /user/profile     - GET user profile from Cognito token
+  # /user/roles       - GET user roles
+  # /user/permissions - GET user permissions
   UserResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -65,10 +116,12 @@ Resources:
       ParentId: !Ref UserResource
       PathPart: permissions
 
-  # ============================================================================
-  # API Resources - Protection Groups
-  # ============================================================================
-
+  # ===========================================================================
+  # PROTECTION GROUPS
+  # ===========================================================================
+  # /protection-groups         - GET list, POST create
+  # /protection-groups/{id}    - GET, PUT, DELETE single group
+  # /protection-groups/resolve - POST resolve server references
   ProtectionGroupsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -90,10 +143,13 @@ Resources:
       ParentId: !Ref ProtectionGroupsResource
       PathPart: 'resolve'
 
-  # ============================================================================
-  # API Resources - Recovery Plans
-  # ============================================================================
-
+  # ===========================================================================
+  # RECOVERY PLANS
+  # ===========================================================================
+  # /recovery-plans                          - GET list, POST create
+  # /recovery-plans/{id}                     - GET, PUT, DELETE single plan
+  # /recovery-plans/{id}/execute             - POST start execution
+  # /recovery-plans/{id}/check-existing-instances - GET check for conflicts
   RecoveryPlansResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -122,10 +178,19 @@ Resources:
       ParentId: !Ref RecoveryPlanResource
       PathPart: check-existing-instances
 
-  # ============================================================================
-  # API Resources - Executions
-  # ============================================================================
-
+  # ===========================================================================
+  # EXECUTIONS
+  # ===========================================================================
+  # /executions                         - GET list executions
+  # /executions/{id}                    - GET execution details
+  # /executions/{id}/cancel             - POST cancel execution
+  # /executions/{id}/pause              - POST pause execution
+  # /executions/{id}/resume             - POST resume execution
+  # /executions/{id}/terminate-instances - POST terminate recovery instances
+  # /executions/{id}/recovery-instances - GET recovery instance status
+  # /executions/{id}/job-logs           - GET DRS job logs
+  # /executions/{id}/termination-status - GET termination progress
+  # /executions/delete                  - POST bulk delete executions
   ExecutionsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -196,10 +261,13 @@ Resources:
       ParentId: !Ref ExecutionsResource
       PathPart: delete
 
-  # ============================================================================
-  # API Resources - DRS
-  # ============================================================================
-
+  # ===========================================================================
+  # DRS CORE OPERATIONS
+  # ===========================================================================
+  # /drs/source-servers - GET list source servers across accounts
+  # /drs/quotas         - GET DRS service quotas
+  # /drs/accounts       - GET accounts with DRS enabled
+  # /drs/tag-sync       - POST sync tags from source to DRS
   DRSResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -235,11 +303,23 @@ Resources:
       ParentId: !Ref DRSResource
       PathPart: tag-sync
 
-  # ============================================================================
-  # API Resources - DRS Comprehensive Operations (47 DRS API Operations)
-  # ============================================================================
+  # ===========================================================================
+  # DRS COMPREHENSIVE OPERATIONS
+  # ===========================================================================
+  # Exposes 47 DRS API operations organized by category:
+  # - Failover: start-recovery, terminate-instances, disconnect-instance
+  # - Failback: reverse-replication, start-failback, stop-failback, configuration
+  # - Replication: start, stop, pause, resume, retry, configuration, template
+  # - Source Server: {id}, disconnect, archive, extended, extensible
+  # - Source Networks: {id}, recovery, replication, stack, template
+  # - Launch Configuration: template, actions
+  # - Jobs: {id}, logs
+  # - Service: initialize
+  # - Recovery Instances: {id}, snapshots
 
+  # ---------------------------------------------------------------------------
   # Failover Operations
+  # ---------------------------------------------------------------------------
   DRSFailoverResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -268,7 +348,9 @@ Resources:
       ParentId: !Ref DRSFailoverResource
       PathPart: disconnect-instance
 
+  # ---------------------------------------------------------------------------
   # Failback Operations
+  # ---------------------------------------------------------------------------
   DRSFailbackResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -304,7 +386,9 @@ Resources:
       ParentId: !Ref DRSFailbackResource
       PathPart: configuration
 
+  # ---------------------------------------------------------------------------
   # Replication Management
+  # ---------------------------------------------------------------------------
   DRSReplicationResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -361,7 +445,9 @@ Resources:
       ParentId: !Ref DRSReplicationResource
       PathPart: template
 
+  # ---------------------------------------------------------------------------
   # Source Server Management
+  # ---------------------------------------------------------------------------
   DRSSourceServerResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -404,7 +490,9 @@ Resources:
       ParentId: !Ref DRSResource
       PathPart: extensible-source-servers
 
+  # ---------------------------------------------------------------------------
   # Source Network Management
+  # ---------------------------------------------------------------------------
   DRSSourceNetworksResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -447,7 +535,9 @@ Resources:
       ParentId: !Ref DRSSourceNetworksResource
       PathPart: template
 
+  # ---------------------------------------------------------------------------
   # Launch Configuration Management
+  # ---------------------------------------------------------------------------
   DRSLaunchConfigurationResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -476,7 +566,9 @@ Resources:
       ParentId: !Ref DRSLaunchActionsResource
       PathPart: '{id}'
 
+  # ---------------------------------------------------------------------------
   # Job Management
+  # ---------------------------------------------------------------------------
   DRSJobsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -498,7 +590,9 @@ Resources:
       ParentId: !Ref DRSJobByIdResource
       PathPart: logs
 
+  # ---------------------------------------------------------------------------
   # Service Management
+  # ---------------------------------------------------------------------------
   DRSServiceResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -513,7 +607,9 @@ Resources:
       ParentId: !Ref DRSServiceResource
       PathPart: initialize
 
+  # ---------------------------------------------------------------------------
   # Recovery Instance Management
+  # ---------------------------------------------------------------------------
   DRSRecoveryInstancesResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -535,10 +631,13 @@ Resources:
       ParentId: !Ref DRSResource
       PathPart: recovery-snapshots
 
-  # ============================================================================
-  # API Resources - EC2
-  # ============================================================================
-
+  # ===========================================================================
+  # EC2 RESOURCE QUERIES
+  # ===========================================================================
+  # /ec2/subnets           - GET subnets for target account/region
+  # /ec2/security-groups   - GET security groups for target account/region
+  # /ec2/instance-profiles - GET IAM instance profiles
+  # /ec2/instance-types    - GET available EC2 instance types
   EC2Resource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -574,10 +673,12 @@ Resources:
       ParentId: !Ref EC2Resource
       PathPart: instance-types
 
-  # ============================================================================
-  # API Resources - Config
-  # ============================================================================
-
+  # ===========================================================================
+  # CONFIGURATION MANAGEMENT
+  # ===========================================================================
+  # /config/export   - GET export configuration as JSON
+  # /config/import   - POST import configuration from JSON
+  # /config/tag-sync - POST sync EC2 tags to DRS source servers
   ConfigResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -606,10 +707,15 @@ Resources:
       ParentId: !Ref ConfigResource
       PathPart: tag-sync
 
-  # ============================================================================
-  # API Resources - Target Accounts
-  # ============================================================================
-
+  # ===========================================================================
+  # TARGET ACCOUNTS
+  # ===========================================================================
+  # /accounts/current              - GET current orchestration account info
+  # /accounts/targets              - GET list, POST add target account
+  # /accounts/targets/{id}         - GET, PUT, DELETE target account
+  # /accounts/targets/{id}/validate - POST validate cross-account access
+  # /accounts/capacity             - Capacity queries
+  # /accounts/capacity/all         - GET all accounts capacity summary
   AccountsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -645,10 +751,16 @@ Resources:
       ParentId: !Ref AccountsTargetResource
       PathPart: validate
 
-  # ============================================================================
-  # API Resources - Staging Accounts Management
-  # ============================================================================
-
+  # ===========================================================================
+  # STAGING ACCOUNTS
+  # ===========================================================================
+  # /staging-accounts                              - GET list staging accounts
+  # /staging-accounts/validate                     - POST validate staging account
+  # /accounts/targets/{id}/staging-accounts        - GET staging accounts for target
+  # /accounts/targets/{id}/staging-accounts/discover - POST discover staging accounts
+  # /accounts/targets/{id}/staging-accounts/sync   - POST sync staging accounts
+  # /accounts/targets/{id}/staging-accounts/{stagingAccountId} - GET specific
+  # /accounts/targets/{id}/capacity                - GET target account capacity
   StagingAccountsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -698,6 +810,9 @@ Resources:
       ParentId: !Ref AccountsTargetResource
       PathPart: capacity
 
+  # ---------------------------------------------------------------------------
+  # Capacity Resources
+  # ---------------------------------------------------------------------------
   # /accounts/capacity resource (for universal capacity queries)
   AccountsCapacityResource:
     Type: AWS::ApiGateway::Resource
@@ -714,9 +829,11 @@ Resources:
       ParentId: !Ref AccountsCapacityResource
       PathPart: all
 
-# ============================================================================
-# OUTPUTS - All Resource IDs for Methods Stack
-# ============================================================================
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# All resource IDs are exported for use by the API Gateway Methods stack.
+# Each output follows the naming pattern: {ResourceName}ResourceId
 
 Outputs:
   # Health Resources

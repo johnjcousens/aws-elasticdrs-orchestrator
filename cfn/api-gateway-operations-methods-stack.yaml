@@ -1,5 +1,43 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - API Gateway Operations Methods (All Execution Endpoints)'
+Description: |
+  API Gateway Operations Methods Stack - HTTP methods for execution management
+  and DRS operations. Handles execution lifecycle (cancel, pause, resume),
+  recovery instance monitoring, and DRS failover/failback operations.
+
+# =============================================================================
+# STACK OVERVIEW
+# =============================================================================
+# This stack defines HTTP methods for operational endpoints that manage
+# DR execution lifecycle and DRS-specific operations.
+#
+# Endpoints Covered:
+# - /executions/*           - Execution CRUD and lifecycle management
+# - /drs/failover/*         - DRS failover operations
+# - /drs/failback/*         - DRS failback operations
+# - /drs/jobs/*             - DRS job monitoring
+#
+# Method Pattern:
+# Each endpoint has two methods:
+# 1. Business method (GET/POST/PUT/DELETE) - Cognito authenticated
+# 2. OPTIONS method - CORS preflight (no auth)
+#
+# Integration:
+# - All methods use AWS_PROXY integration with Lambda
+# - Single Lambda handler (ExecutionHandler) routes by path/method
+# - Request validation enabled for POST/PUT methods
+#
+# Authentication:
+# - COGNITO_USER_POOLS authorizer for all business methods
+# - OPTIONS methods have no auth (required for CORS preflight)
+#
+# CORS Configuration:
+# - Access-Control-Allow-Origin: '*'
+# - Access-Control-Allow-Headers: 'Content-Type,Authorization'
+# - Access-Control-Allow-Methods: varies by endpoint
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
 
 Parameters:
   ProjectName:
@@ -120,10 +158,24 @@ Parameters:
     Type: String
     Description: DRS Job Logs Resource ID from Resources Stack
 
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
 Resources:
-  # ============================================================================
-  # Methods - Executions
-  # ============================================================================
+  # ===========================================================================
+  # EXECUTION METHODS
+  # ===========================================================================
+  # /executions                - GET list, POST create, DELETE bulk
+  # /executions/delete         - POST bulk delete (alternative to DELETE)
+  # /executions/{id}           - GET single execution
+  # /executions/{id}/cancel    - POST cancel execution
+  # /executions/{id}/pause     - POST pause execution
+  # /executions/{id}/resume    - POST resume execution
+  # /executions/{id}/terminate-instances - POST terminate recovery instances
+  # /executions/{id}/recovery-instances  - GET recovery instance status
+  # /executions/{id}/job-logs            - GET DRS job logs
+  # /executions/{id}/termination-status  - GET termination progress
 
   ExecutionsGetMethod:
     Type: AWS::ApiGateway::Method
@@ -593,9 +645,13 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - DRS Failover Operations
-  # ============================================================================
+  # ===========================================================================
+  # DRS FAILOVER OPERATIONS
+  # ===========================================================================
+  # /drs/failover              - GET failover status
+  # /drs/failover/start-recovery - POST initiate recovery
+  # /drs/failover/terminate-instances - POST terminate recovery instances
+  # /drs/failover/disconnect-instance - POST disconnect recovery instance
 
   DrsFailoverGetMethod:
     Type: AWS::ApiGateway::Method
@@ -684,9 +740,12 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - DRS Job Management
-  # ============================================================================
+  # ===========================================================================
+  # DRS JOB MANAGEMENT
+  # ===========================================================================
+  # /drs/jobs        - GET list DRS jobs with optional filters
+  # /drs/jobs/{id}   - GET job details
+  # /drs/jobs/{id}/logs - GET job log items
 
   DrsJobsGetMethod:
     Type: AWS::ApiGateway::Method
@@ -735,9 +794,11 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Lambda Permissions
-  # ============================================================================
+  # ===========================================================================
+  # LAMBDA PERMISSIONS
+  # ===========================================================================
+  # Grants API Gateway permission to invoke the Execution Handler Lambda.
+  # Uses wildcard source ARN to allow all methods/stages.
 
   ExecutionHandlerApiPermission:
     Type: AWS::Lambda::Permission
@@ -747,9 +808,9 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*'
 
-# ============================================================================
+# =============================================================================
 # OUTPUTS
-# ============================================================================
+# =============================================================================
 
 Outputs:
   OperationsMethodsStackStatus:

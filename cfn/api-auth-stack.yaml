@@ -1,27 +1,91 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - API Authentication Stack (Cognito, IAM, SNS)'
+Description: |
+  API Authentication Stack - Cognito User Pool, Identity Pool, and RBAC groups
+  for user authentication and authorization.
+
+# =============================================================================
+# STACK OVERVIEW
+# =============================================================================
+# This stack creates the authentication infrastructure for the platform.
+# Users authenticate via Cognito and receive JWT tokens for API access.
+#
+# Components:
+# -----------
+# 1. User Pool - Stores user accounts with email/password authentication
+# 2. User Pool Client - OAuth2 client for frontend authentication
+# 3. Identity Pool - Provides temporary AWS credentials for authenticated users
+# 4. RBAC Groups - Role-based access control groups
+#
+# Authentication Flow:
+# --------------------
+# 1. User signs in with email/password via Cognito hosted UI or API
+# 2. Cognito validates credentials and returns JWT tokens:
+#    - ID Token: Contains user identity and group memberships
+#    - Access Token: Used for API authorization
+#    - Refresh Token: Used to obtain new tokens without re-authentication
+# 3. Frontend includes Access Token in API requests
+# 4. API Gateway validates token using Cognito authorizer
+# 5. Lambda receives user claims (sub, email, groups) in requestContext
+#
+# RBAC Groups (Precedence Order):
+# -------------------------------
+# 1. DRSOrchestrationAdmin - Full platform access
+# 2. DRSRecoveryManager    - Manage and execute recovery plans
+# 3. DRSPlanManager        - Create/modify plans (no execution)
+# 4. DRSOperator           - Execute existing plans only
+# 5. DRSReadOnly           - View-only access
+#
+# Token Validity:
+# ---------------
+# - Access Token: 45 minutes
+# - ID Token: 45 minutes
+# - Refresh Token: 30 days
+#
+# Adding Users:
+# -------------
+# Users can be added via:
+# - AWS Console: Cognito > User Pools > Users > Create user
+# - AWS CLI: aws cognito-idp admin-create-user
+# - Self-registration (if enabled)
+#
+# Assigning Roles:
+# ----------------
+# Add users to groups via:
+# - AWS Console: Cognito > User Pools > Groups > Add user
+# - AWS CLI: aws cognito-idp admin-add-user-to-group
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+# Parameters passed from master template.
 
 Parameters:
   ProjectName:
     Type: String
-    Description: 'Project name used for resource naming'
+    Description: Project name passed from master template
 
   Environment:
     Type: String
-    Description: 'Environment name (dev, test, prod)'
+    Description: Environment name passed from master template
 
   AdminEmail:
     Type: String
-    Description: 'Email address for initial Cognito admin user'
+    Description: Admin email (passed from master template)
 
   ExecutionHistoryTableArn:
     Type: String
-    Description: 'DynamoDB table ARN for Execution History'
+    Description: Execution history table ARN (passed from master template)
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
 
 Resources:
-  # ============================================================================
-  # Cognito User Pool with RBAC Support
-  # ============================================================================
+  # ===========================================================================
+  # COGNITO USER POOL
+  # ===========================================================================
+  # Stores user accounts with email-based authentication.
+  # Password policy enforces strong passwords (8+ chars, mixed case, numbers, symbols).
   
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -58,11 +122,16 @@ Resources:
         Project: !Ref ProjectName
         Environment: !Ref Environment
 
-  # ============================================================================
-  # RBAC Groups - DRS Orchestration Roles (Aligned with RBAC Middleware)
-  # ============================================================================
+  # ===========================================================================
+  # RBAC GROUPS
+  # ===========================================================================
+  # Role-based access control groups. Users are assigned to groups to grant
+  # permissions. Group membership is included in JWT tokens as cognito:groups.
+  # Precedence determines which role takes priority when user has multiple.
 
-  # DRS Orchestration Administrator - Full access to all DRS orchestration features
+  # ---------------------------------------------------------------------------
+  # DRSOrchestrationAdmin (Precedence: 1) - Full platform access
+  # ---------------------------------------------------------------------------
   DRSOrchestrationAdminGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
@@ -71,7 +140,9 @@ Resources:
       Description: 'Full administrative access to DRS Orchestration platform'
       Precedence: 1
 
-  # DRS Recovery Manager - Can manage recovery plans and execute recoveries
+  # ---------------------------------------------------------------------------
+  # DRSRecoveryManager (Precedence: 2) - Manage and execute recovery plans
+  # ---------------------------------------------------------------------------
   DRSRecoveryManagerGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
@@ -80,7 +151,9 @@ Resources:
       Description: 'Can manage recovery plans and execute disaster recovery operations'
       Precedence: 2
 
-  # DRS Plan Manager - Can create and modify recovery plans but not execute
+  # ---------------------------------------------------------------------------
+  # DRSPlanManager (Precedence: 3) - Create/modify plans, no execution
+  # ---------------------------------------------------------------------------
   DRSPlanManagerGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
@@ -89,7 +162,9 @@ Resources:
       Description: 'Can create and modify recovery plans and protection groups'
       Precedence: 3
 
-  # DRS Operator - Can execute pre-defined recovery plans
+  # ---------------------------------------------------------------------------
+  # DRSOperator (Precedence: 4) - Execute existing plans only
+  # ---------------------------------------------------------------------------
   DRSOperatorGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
@@ -98,7 +173,9 @@ Resources:
       Description: 'Can execute existing recovery plans and monitor executions'
       Precedence: 4
 
-  # DRS Read-Only - View-only access to all DRS orchestration data
+  # ---------------------------------------------------------------------------
+  # DRSReadOnly (Precedence: 5) - View-only access
+  # ---------------------------------------------------------------------------
   DRSReadOnlyGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
@@ -107,10 +184,12 @@ Resources:
       Description: 'Read-only access to DRS orchestration data and execution history'
       Precedence: 5
 
-  # ============================================================================
-  # Cognito User Pool Client
-  # ============================================================================
-
+  # ===========================================================================
+  # USER POOL CLIENT
+  # ===========================================================================
+  # OAuth2 client for frontend authentication. Supports SRP auth flow for
+  # secure password-based authentication without sending password to server.
+  
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
@@ -144,10 +223,12 @@ Resources:
         IdToken: minutes
         RefreshToken: days
 
-  # ============================================================================
-  # Cognito Identity Pool
-  # ============================================================================
-
+  # ===========================================================================
+  # IDENTITY POOL
+  # ===========================================================================
+  # Provides temporary AWS credentials for authenticated users.
+  # Used when frontend needs direct AWS access (e.g., S3 uploads).
+  
   IdentityPool:
     Type: AWS::Cognito::IdentityPool
     DeletionPolicy: Delete
@@ -158,11 +239,12 @@ Resources:
         - ClientId: !Ref UserPoolClient
           ProviderName: !GetAtt UserPool.ProviderName
 
-  # ============================================================================
-  # IAM Roles for Different User Groups
-  # ============================================================================
-
-  # Authenticated Role for Cognito Identity Pool
+  # ===========================================================================
+  # IAM ROLE FOR AUTHENTICATED USERS
+  # ===========================================================================
+  # Role assumed by authenticated users via Identity Pool.
+  # Grants permission to invoke API Gateway endpoints.
+  
   CognitoAuthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
@@ -194,10 +276,11 @@ Resources:
                   - execute-api:Invoke
                 Resource: '*'
 
-  # ============================================================================
-  # Role Mapping for Identity Pool
-  # ============================================================================
-
+  # ===========================================================================
+  # IDENTITY POOL ROLE ATTACHMENT
+  # ===========================================================================
+  # Maps the authenticated IAM role to the Identity Pool.
+  
   IdentityPoolRoleMapping:
     Type: AWS::Cognito::IdentityPoolRoleAttachment
     Properties:
@@ -205,56 +288,59 @@ Resources:
       Roles:
         authenticated: !GetAtt CognitoAuthenticatedRole.Arn
 
-  # ============================================================================
-  # SNS Topic for Notifications (Removed - use notification-stack.yaml instead)
-  # ============================================================================
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# Export Cognito resources for use by other stacks.
 
 Outputs:
   UserPoolId:
-    Description: 'Cognito User Pool ID'
+    Description: Cognito User Pool ID
     Value: !Ref UserPool
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolId'
 
   UserPoolClientId:
-    Description: 'Cognito User Pool Client ID'
+    Description: Cognito User Pool Client ID
     Value: !Ref UserPoolClient
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolClientId'
 
   IdentityPoolId:
-    Description: 'Cognito Identity Pool ID'
+    Description: Cognito Identity Pool ID
     Value: !Ref IdentityPool
     Export:
       Name: !Sub '${AWS::StackName}-IdentityPoolId'
 
-  # RBAC Group Information - DRS Orchestration Roles
+  # ---------------------------------------------------------------------------
+  # RBAC Group Names
+  # ---------------------------------------------------------------------------
   DRSOrchestrationAdminGroupName:
-    Description: 'DRS Orchestration Administrator Group Name'
+    Description: DRS Orchestration Administrator Group
     Value: !Ref DRSOrchestrationAdminGroup
     Export:
       Name: !Sub '${AWS::StackName}-DRSOrchestrationAdminGroup'
 
   DRSRecoveryManagerGroupName:
-    Description: 'DRS Recovery Manager Group Name'
+    Description: DRS Recovery Manager Group
     Value: !Ref DRSRecoveryManagerGroup
     Export:
       Name: !Sub '${AWS::StackName}-DRSRecoveryManagerGroup'
 
   DRSPlanManagerGroupName:
-    Description: 'DRS Plan Manager Group Name'
+    Description: DRS Plan Manager Group
     Value: !Ref DRSPlanManagerGroup
     Export:
       Name: !Sub '${AWS::StackName}-DRSPlanManagerGroup'
 
   DRSOperatorGroupName:
-    Description: 'DRS Operator Group Name'
+    Description: DRS Operator Group
     Value: !Ref DRSOperatorGroup
     Export:
       Name: !Sub '${AWS::StackName}-DRSOperatorGroup'
 
   DRSReadOnlyGroupName:
-    Description: 'DRS Read-Only Group Name'
+    Description: DRS Read-Only Group
     Value: !Ref DRSReadOnlyGroup
     Export:
       Name: !Sub '${AWS::StackName}-DRSReadOnlyGroup'
