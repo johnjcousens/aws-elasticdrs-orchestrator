@@ -1021,8 +1021,28 @@ class ApiClient {
    * @param accountId - AWS account ID to sync tags for
    */
   public async triggerTagSync(accountId?: string): Promise<{ message: string; functionName: string; statusCode: number }> {
-    const body = accountId ? { accountId } : {};
+    const body = accountId ? { accountId, async: true } : { async: true };
     return this.post<{ message: string; functionName: string; statusCode: number }>('/drs/tag-sync', body);
+  }
+
+  /**
+   * Get last tag sync status for dashboard display
+   * Returns the timestamp and result of the most recent tag sync operation
+   */
+  public async getLastTagSyncStatus(): Promise<{
+    lastSync: string | null;
+    source: string;
+    totalSynced: number;
+    totalFailed: number;
+    status: string;
+  }> {
+    return this.get<{
+      lastSync: string | null;
+      source: string;
+      totalSynced: number;
+      totalFailed: number;
+      status: string;
+    }>('/drs/tag-sync');
   }
 
   /**
@@ -1424,5 +1444,6 @@ export const {
   getTagSyncSettings,
   updateTagSyncSettings,
   triggerTagSync,
+  getLastTagSyncStatus,
   healthCheck,
 } = apiClient;

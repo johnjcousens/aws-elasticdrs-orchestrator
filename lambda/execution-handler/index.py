@@ -461,6 +461,8 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             "waves": [],
             "totalWaves": len(plan.get("waves", [])),
             "accountContext": account_context,
+            # Store accountId at top level for efficient filtering
+            "accountId": account_context.get("accountId") if account_context else None,
         }
 
         # Store execution history immediately
@@ -688,6 +690,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                             account_context = {
                                 "accountId": pg.get("accountId"),
                                 "assumeRoleName": pg.get("assumeRoleName"),
+                                "externalId": pg.get("externalId"),
                             }
                         resolved = query_drs_servers_by_tags(pg_region, selection_tags, account_context)
                         print(f"Resolved {len(resolved)} servers from tags")
@@ -1690,7 +1693,12 @@ def list_executions(query_params: Dict) -> Dict:
         if account_id:
             filtered_executions = []
             for execution in executions:
+                # Check both top-level accountId and accountContext.accountId
                 exec_account = execution.get("accountId")
+                if not exec_account:
+                    # Fall back to accountContext.accountId
+                    account_context = execution.get("accountContext", {})
+                    exec_account = account_context.get("accountId")
                 if exec_account == account_id:
                     filtered_executions.append(execution)
             executions = filtered_executions

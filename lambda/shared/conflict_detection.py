@@ -285,6 +285,7 @@ def resolve_pg_servers_for_conflict_check(
             account_context = {
                 "accountId": pg.get("accountId"),
                 "assumeRoleName": pg.get("assumeRoleName"),
+                "externalId": pg.get("externalId"),
             }
 
         if selection_tags:

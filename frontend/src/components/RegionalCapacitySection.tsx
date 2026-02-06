@@ -14,114 +14,63 @@ import {
   SpaceBetween,
   Box,
   ColumnLayout,
-  StatusIndicator,
+  Grid,
 } from '@cloudscape-design/components';
 import { CapacityGauge } from './CapacityGauge';
 import type { RegionalCapacityBreakdown } from '../types/staging-accounts';
 
 interface RegionalCapacitySectionProps {
   regionalCapacity: RegionalCapacityBreakdown[];
-  combinedTotal: number;
-  combinedMax: number;
-  combinedPercent: number;
-  combinedStatus: string;
 }
 
 export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = ({
   regionalCapacity,
-  combinedTotal,
-  combinedMax,
-  combinedPercent,
-  combinedStatus,
 }) => {
-  // Filter out empty regions (no replicating servers)
-  const activeRegions = regionalCapacity.filter(region => region.replicatingServers > 0);
+  // Filter to only show regions with active replicating servers
+  const activeRegions = regionalCapacity.filter(r => r.replicatingServers > 0);
+
+  if (activeRegions.length === 0) {
+    return null;
+  }
 
   return (
     <Container
       header={
         <Header
           variant="h2"
-          description="Replication capacity (300 max per account per region) and recovery capacity (4,000 max per account per region)"
+          description="Per-region capacity across all accounts (300 replication / 4,000 recovery per account per region)"
         >
-          Regional Replication Capacity
+          Regional Capacity
         </Header>
       }
     >
-      <SpaceBetween size="l">
-        {/* Combined Total */}
-        <div>
-          <Box variant="h3" padding={{ bottom: 'xs' }}>
-            Combined Total
-          </Box>
-          <ColumnLayout columns={2} variant="text-grid">
-            <div>
-              <Box variant="awsui-key-label">Replicating Servers</Box>
-              <Box variant="awsui-value-large">
-                {combinedTotal} / {combinedMax.toLocaleString()}
-              </Box>
-              <Box variant="small" color="text-body-secondary">
-                {combinedPercent.toFixed(1)}% used
-              </Box>
-            </div>
-            <div>
-              <CapacityGauge
-                used={combinedTotal}
-                total={combinedMax}
-                size="medium"
-              />
-            </div>
-          </ColumnLayout>
-        </div>
-
-        {/* Regional Breakdown */}
-        {activeRegions.length > 0 && (
-          <div>
-            <Box variant="h3" padding={{ bottom: 'xs' }}>
-              By Region
+      <ColumnLayout columns={activeRegions.length === 1 ? 1 : 2} variant="text-grid">
+        {activeRegions.map((region) => (
+          <SpaceBetween key={region.region} size="xs">
+            <Box variant="h4">{region.region}</Box>
+            
+            {/* Replication */}
+            <Box variant="small" color="text-body-secondary">
+              Replication: {region.replicatingServers} / {region.maxReplicating.toLocaleString()} ({region.accountCount} acct{region.accountCount !== 1 ? 's' : ''})
             </Box>
-            <SpaceBetween size="m">
-              {activeRegions.map((region) => (
-                <Container key={region.region}>
-                  <SpaceBetween size="s">
-                    <Box variant="h4">{region.region}</Box>
-                    
-                    {/* Replication Capacity */}
-                    <div>
-                      <Box variant="small" color="text-body-secondary" padding={{ bottom: 'xxs' }}>
-                        Replication: {region.replicatingServers} / {region.maxReplicating.toLocaleString()} servers ({region.accountCount} {region.accountCount === 1 ? 'account' : 'accounts'})
-                      </Box>
-                      <CapacityGauge
-                        used={region.replicatingServers}
-                        total={region.maxReplicating}
-                        size="small"
-                      />
-                      <Box variant="small" color="text-body-secondary" padding={{ top: 'xxs' }}>
-                        {region.replicationPercent.toFixed(1)}% • {region.replicationAvailable.toLocaleString()} available
-                      </Box>
-                    </div>
+            <CapacityGauge
+              used={region.replicatingServers}
+              total={region.maxReplicating}
+              size="small"
+            />
 
-                    {/* Recovery Capacity */}
-                    <div>
-                      <Box variant="small" color="text-body-secondary" padding={{ bottom: 'xxs' }}>
-                        Recovery: {region.recoveryServers} / {region.recoveryMax.toLocaleString()} servers
-                      </Box>
-                      <CapacityGauge
-                        used={region.recoveryServers}
-                        total={region.recoveryMax}
-                        size="small"
-                      />
-                      <Box variant="small" color="text-body-secondary" padding={{ top: 'xxs' }}>
-                        {region.recoveryPercent.toFixed(1)}% • {region.recoveryAvailable.toLocaleString()} available
-                      </Box>
-                    </div>
-                  </SpaceBetween>
-                </Container>
-              ))}
-            </SpaceBetween>
-          </div>
-        )}
-      </SpaceBetween>
+            {/* Recovery */}
+            <Box variant="small" color="text-body-secondary" padding={{ top: 'xs' }}>
+              Recovery: {region.recoveryServers} / {region.recoveryMax.toLocaleString()}
+            </Box>
+            <CapacityGauge
+              used={region.recoveryServers}
+              total={region.recoveryMax}
+              size="small"
+            />
+          </SpaceBetween>
+        ))}
+      </ColumnLayout>
     </Container>
   );
 };

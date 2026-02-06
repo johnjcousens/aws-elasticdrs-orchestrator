@@ -383,6 +383,11 @@ def lambda_handler(event, context):
         elif "operation" in event:
             # Direct invocation (HRP mode)
             return handle_direct_invocation(event, context)
+        elif "synch_tags" in event or "synch_instance_type" in event:
+            # EventBridge scheduled tag sync trigger
+            # Payload: {"synch_tags": true, "synch_instance_type": true}
+            print(f"EventBridge tag sync trigger received: {event}")
+            return handle_drs_tag_sync(event)
         else:
             return response(
                 400,
@@ -502,6 +507,8 @@ def handle_api_gateway_request(event, context):
         elif path == "/drs/tag-sync":
             if http_method == "POST":
                 return handle_drs_tag_sync(body)
+            elif http_method == "GET":
+                return get_last_tag_sync_status()
 
         elif path == "/config/tag-sync":
             if http_method == "GET":
@@ -4001,79 +4008,99 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
     - `get_tag_sync_settings()`: Get tag sync configuration
     - `update_tag_sync_settings()`: Update tag sync configuration
 
-    Runs synchronously - syncs tags from EC2 instances to their DRS source servers.
-    Supports account-based operations for future multi-account support.
+    Runs asynchronously when called via API Gateway to avoid timeout.
+    Supports cross-account operations for target accounts.
     """
     try:
-        # Get account ID and region from request body
+        # Get parameters from request body
         target_account_id = None
         region = None
         assume_role_name = None
+        is_async_execution = False
+        use_async = False  # Only use async for API Gateway calls
+        sync_source = "manual"
+
+        # Detect EventBridge trigger
         if body and isinstance(body, dict):
+            if body.get("synch_tags") or body.get("synch_instance_type"):
+                sync_source = "eventbridge"
             target_account_id = body.get("accountId")
             region = body.get("region")
             assume_role_name = body.get("assumeRoleName")
+            is_async_execution = body.get("_async_execution", False)
+            use_async = body.get("async", False)  # API Gateway passes this
+            if body.get("_sync_source"):
+                sync_source = body.get("_sync_source")
 
-        # Use current account if no account specified
-        current_account_id = get_current_account_id()
-        account_id = target_account_id or current_account_id
-        account_name = get_account_name(account_id)
-
-        # Determine if cross-account access is needed
-        is_current_account = account_id == current_account_id
-
-        # Build account context for cross-account access
-        account_context = {
-            "accountId": account_id,
-            "accountName": account_name,
-            "isCurrentAccount": is_current_account,
-            "externalId": "drs-orchestration-cross-account",
-        }
-
-        if not is_current_account and assume_role_name:
-            account_context["assumeRoleName"] = assume_role_name
-
-        total_synced = 0
-        total_servers = 0
-        total_failed = 0
-        regions_with_servers = []
-
-        print(f"Starting tag sync for account {account_id} ({account_name or 'Unknown'})")
-
-        # If specific region provided, sync only that region
-        regions_to_sync = [region] if region else DRS_REGIONS
-
-        for sync_region in regions_to_sync:
+        # If this is an async execution (self-invoked), run the actual sync
+        if is_async_execution:
+            print("Running async tag sync execution")
             try:
-                result = sync_tags_in_region(sync_region, account_context)
-                if result["total"] > 0:
-                    regions_with_servers.append(sync_region)
-                    total_servers += result["total"]
-                    total_synced += result["synced"]
-                    total_failed += result["failed"]
-                    print(f"Tag sync {sync_region}: {result['synced']}/{result['total']} synced")
-            except Exception as e:
-                # Log but continue - don't fail entire sync for one region
-                print(f"Tag sync {sync_region}: skipped - {e}")
+                if not target_account_id:
+                    result = _sync_tags_all_target_accounts(region, sync_source)
+                else:
+                    result = _sync_tags_for_account(target_account_id, region, assume_role_name)
+                # Clear lock on completion
+                _clear_tag_sync_lock()
+                return result
+            except Exception:
+                _clear_tag_sync_lock()
+                raise
 
-        summary = {
-            "message": f"Tag sync complete for account {account_id}",
-            "accountId": account_id,
-            "accountName": account_name,
-            "total_regions": len(DRS_REGIONS),
-            "regions_with_servers": len(regions_with_servers),
-            "total_servers": total_servers,
-            "total_synced": total_synced,
-            "total_failed": total_failed,
-            "regions": regions_with_servers,
-        }
+        # For API Gateway calls with async=true, invoke self asynchronously
+        # This avoids the 29-second API Gateway timeout
+        if use_async:
+            # Check if sync is already running
+            if _is_tag_sync_running():
+                return response(
+                    409,
+                    {
+                        "message": "Tag sync already in progress",
+                        "status": "ALREADY_RUNNING",
+                        "details": "Please wait for the current sync to complete.",
+                    },
+                )
 
-        print(
-            f"Tag sync complete: {total_synced}/{total_servers} servers synced across {
-                len(regions_with_servers)} regions"
-        )
+            function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+            if function_name:
+                # Set lock before starting
+                _set_tag_sync_lock()
 
-        return response(200, summary)
+                print("Triggering async tag sync via self-invocation")
+                lambda_client = boto3.client("lambda")
+
+                async_payload = {
+                    "operation": "handle_drs_tag_sync",
+                    "body": {
+                        "accountId": target_account_id,
+                        "region": region,
+                        "assumeRoleName": assume_role_name,
+                        "_async_execution": True,
+                        "_sync_source": sync_source,
+                    },
+                }
+
+                lambda_client.invoke(
+                    FunctionName=function_name,
+                    InvocationType="Event",  # Async invocation
+                    Payload=json.dumps(async_payload),
+                )
+
+                return response(
+                    202,
+                    {
+                        "message": "Tag sync started",
+                        "status": "STARTED",
+                        "details": "Tag synchronization is running in the background. "
+                        "Check CloudWatch logs for progress.",
+                    },
+                )
+
+        # Synchronous execution (direct invocation, EventBridge, or async not requested)
+        if not target_account_id:
+            return _sync_tags_all_target_accounts(region, sync_source)
+        else:
+            return _sync_tags_for_account(target_account_id, region, assume_role_name)
 
     except Exception as e:
         print(f"Error in tag sync: {e}")
@@ -4081,6 +4108,290 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
 
         traceback.print_exc()
         return response(500, {"error": str(e)})
+
+
+# Lock timeout in seconds (5 minutes max for tag sync)
+TAG_SYNC_LOCK_TTL = 300
+
+
+def _is_tag_sync_running() -> bool:
+    """Check if a tag sync is currently running."""
+    try:
+        if not tag_sync_config_table:
+            return False
+        result = tag_sync_config_table.get_item(Key={"configKey": "tag_sync_lock"})
+        if "Item" not in result:
+            return False
+        lock = result["Item"]
+        # Check if lock is expired
+        started_at = lock.get("startedAt", 0)
+        if time.time() - started_at > TAG_SYNC_LOCK_TTL:
+            return False
+        return lock.get("status") == "IN_PROGRESS"
+    except Exception as e:
+        print(f"Error checking tag sync lock: {e}")
+        return False
+
+
+def _set_tag_sync_lock() -> None:
+    """Set the tag sync lock."""
+    try:
+        if not tag_sync_config_table:
+            return
+        tag_sync_config_table.put_item(
+            Item={
+                "configKey": "tag_sync_lock",
+                "status": "IN_PROGRESS",
+                "startedAt": int(time.time()),
+            }
+        )
+    except Exception as e:
+        print(f"Error setting tag sync lock: {e}")
+
+
+def _clear_tag_sync_lock() -> None:
+    """Clear the tag sync lock."""
+    try:
+        if not tag_sync_config_table:
+            return
+        tag_sync_config_table.put_item(
+            Item={
+                "configKey": "tag_sync_lock",
+                "status": "COMPLETED",
+                "completedAt": int(time.time()),
+            }
+        )
+    except Exception as e:
+        print(f"Error clearing tag sync lock: {e}")
+
+
+def _save_tag_sync_result(result: Dict, source: str = "manual") -> None:
+    """Save tag sync result for dashboard display."""
+    try:
+        if not tag_sync_config_table:
+            return
+        tag_sync_config_table.put_item(
+            Item={
+                "configKey": "last_tag_sync",
+                "timestamp": int(time.time()),
+                "source": source,  # "manual", "eventbridge", "settings_update"
+                "totalAccounts": result.get("total_accounts", 1),
+                "totalSynced": result.get("total_synced", 0),
+                "totalFailed": result.get("total_failed", 0),
+                "totalServers": result.get("total_servers", 0),
+                "status": ("SUCCESS" if result.get("total_failed", 0) == 0 else "PARTIAL"),
+            }
+        )
+    except Exception as e:
+        print(f"Error saving tag sync result: {e}")
+
+
+def get_last_tag_sync_status() -> Dict:
+    """Get the last tag sync status for dashboard display."""
+    try:
+        if not tag_sync_config_table:
+            return response(200, {"message": "No sync history available"})
+
+        result = tag_sync_config_table.get_item(Key={"configKey": "last_tag_sync"})
+        if "Item" not in result:
+            return response(200, {"message": "No sync history available"})
+
+        item = result["Item"]
+        # Convert timestamp to ISO format
+        timestamp = item.get("timestamp", 0)
+        from datetime import datetime
+
+        iso_time = datetime.utcfromtimestamp(timestamp).isoformat() + "Z" if timestamp else None
+
+        return response(
+            200,
+            {
+                "lastSync": iso_time,
+                "source": item.get("source", "unknown"),
+                "totalAccounts": item.get("totalAccounts", 0),
+                "totalSynced": item.get("totalSynced", 0),
+                "totalFailed": item.get("totalFailed", 0),
+                "totalServers": item.get("totalServers", 0),
+                "status": item.get("status", "UNKNOWN"),
+            },
+        )
+    except Exception as e:
+        print(f"Error getting last tag sync status: {e}")
+        return response(500, {"error": str(e)})
+
+
+def _sync_tags_for_account(target_account_id: str, region: str = None, assume_role_name: str = None) -> Dict:
+    """Sync tags for a specific account."""
+    try:
+        account_name = get_account_name(target_account_id)
+        current_account_id = get_current_account_id()
+        is_current_account = target_account_id == current_account_id
+
+        # Build account context
+        account_context = {
+            "accountId": target_account_id,
+            "accountName": account_name,
+            "isCurrentAccount": is_current_account,
+            "externalId": "drs-orchestration-cross-account",
+        }
+
+        if not is_current_account:
+            # Get role from target accounts table or use provided/default
+            if assume_role_name:
+                account_context["assumeRoleName"] = assume_role_name
+            else:
+                role = _get_target_account_role(target_account_id)
+                account_context["assumeRoleName"] = role or "DRSOrchestrationRole"
+
+        return _sync_tags_single_account(account_context, region)
+
+    except Exception as e:
+        print(f"Error syncing tags for account {target_account_id}: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": str(e)})
+
+
+def _get_target_account_role(account_id: str) -> str:
+    """Get the cross-account role name for a target account."""
+    try:
+        if not target_accounts_table:
+            return None
+        result = target_accounts_table.get_item(Key={"accountId": account_id})
+        if "Item" in result:
+            return result["Item"].get("assumeRoleName", "DRSOrchestrationRole")
+        return None
+    except Exception as e:
+        print(f"Error getting role for account {account_id}: {e}")
+        return None
+
+
+def _sync_tags_all_target_accounts(region: str = None, source: str = "manual") -> Dict:
+    """
+    Sync tags for ALL registered target accounts.
+
+    Called by EventBridge scheduled trigger. Iterates over all target accounts
+    in DynamoDB and syncs EC2 tags to DRS source servers in each.
+    """
+    print(f"Starting tag sync for all target accounts (source: {source})")
+
+    all_results = []
+    total_accounts = 0
+    total_synced = 0
+    total_failed = 0
+
+    try:
+        if not target_accounts_table:
+            return response(500, {"error": "Target accounts table not configured"})
+
+        # Get all target accounts
+        scan_result = target_accounts_table.scan()
+        target_accounts = scan_result.get("Items", [])
+
+        while "LastEvaluatedKey" in scan_result:
+            scan_result = target_accounts_table.scan(ExclusiveStartKey=scan_result["LastEvaluatedKey"])
+            target_accounts.extend(scan_result.get("Items", []))
+
+        if not target_accounts:
+            print("No target accounts configured")
+            return response(200, {"message": "No target accounts configured"})
+
+        current_account_id = get_current_account_id()
+
+        for account in target_accounts:
+            account_id = account.get("accountId")
+            account_name = account.get("accountName", account_id)
+            assume_role = account.get("assumeRoleName", "DRSOrchestrationRole")
+            is_current = account_id == current_account_id
+
+            print(f"Syncing tags for target account: {account_id} ({account_name})")
+
+            account_context = {
+                "accountId": account_id,
+                "accountName": account_name,
+                "isCurrentAccount": is_current,
+                "externalId": "drs-orchestration-cross-account",
+            }
+
+            if not is_current:
+                account_context["assumeRoleName"] = assume_role
+
+            try:
+                result = _sync_tags_single_account(account_context, region)
+                result_body = json.loads(result.get("body", "{}"))
+                all_results.append({"accountId": account_id, "result": result_body})
+                total_accounts += 1
+                total_synced += result_body.get("total_synced", 0)
+                total_failed += result_body.get("total_failed", 0)
+            except Exception as e:
+                print(f"Error syncing account {account_id}: {e}")
+                all_results.append({"accountId": account_id, "error": str(e)})
+
+    except Exception as e:
+        print(f"Error scanning target accounts: {e}")
+        return response(500, {"error": str(e)})
+
+    summary = {
+        "message": "Tag sync complete for all target accounts",
+        "total_accounts": total_accounts,
+        "total_synced": total_synced,
+        "total_failed": total_failed,
+        "accounts": all_results,
+    }
+
+    # Save result for dashboard
+    _save_tag_sync_result(summary, source=source)
+
+    print(f"Tag sync complete: {total_synced} synced, {total_failed} failed " f"across {total_accounts} accounts")
+
+    return response(200, summary)
+
+
+def _sync_tags_single_account(account_context: Dict, region: str = None) -> Dict:
+    """Sync tags for a single account across DRS regions."""
+    account_id = account_context.get("accountId")
+    account_name = account_context.get("accountName", account_id)
+
+    total_synced = 0
+    total_servers = 0
+    total_failed = 0
+    regions_with_servers = []
+
+    print(f"Starting tag sync for account {account_id} ({account_name or 'Unknown'})")
+
+    regions_to_sync = [region] if region else DRS_REGIONS
+
+    for sync_region in regions_to_sync:
+        try:
+            result = sync_tags_in_region(sync_region, account_context)
+            if result["total"] > 0:
+                regions_with_servers.append(sync_region)
+                total_servers += result["total"]
+                total_synced += result["synced"]
+                total_failed += result["failed"]
+                print(f"Tag sync {sync_region}: {result['synced']}/{result['total']} synced")
+        except Exception as e:
+            print(f"Tag sync {sync_region}: skipped - {e}")
+
+    summary = {
+        "message": f"Tag sync complete for account {account_id}",
+        "accountId": account_id,
+        "accountName": account_name,
+        "total_regions": len(DRS_REGIONS),
+        "regions_with_servers": len(regions_with_servers),
+        "total_servers": total_servers,
+        "total_synced": total_synced,
+        "total_failed": total_failed,
+        "regions": regions_with_servers,
+    }
+
+    print(
+        f"Tag sync complete: {total_synced}/{total_servers} servers synced "
+        f"across {len(regions_with_servers)} regions"
+    )
+
+    return response(200, summary)
 
 
 def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
@@ -4208,7 +4519,10 @@ def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
     """
     # Use account context if provided, otherwise default to current account
     if account_context is None:
-        account_context = {"accountId": get_current_account_id(), "isCurrentAccount": True}
+        account_context = {
+            "accountId": get_current_account_id(),
+            "isCurrentAccount": True,
+        }
 
     # Create DRS client with cross-account support
     drs_client = create_drs_client(drs_region, account_context)
@@ -4218,7 +4532,6 @@ def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
     source_servers = []
     paginator = drs_client.get_paginator("describe_source_servers")
     for page in paginator.paginate(filters={}, maxResults=200):
-        source_servers.extend(page.get("items", []))
         source_servers.extend(page.get("items", []))
 
     synced = 0
@@ -4231,11 +4544,6 @@ def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
             server_arn = server["arn"]
             source_region = server.get("sourceCloudProperties", {}).get("originRegion", drs_region)
 
-            # Check if this is an extended source server from a staging account
-            staging_area = server.get("stagingArea", {})
-            staging_account_id = staging_area.get("stagingAccountID", "")
-            is_extended_source = bool(staging_account_id and staging_account_id != account_context.get("accountId"))
-
             if not instance_id:
                 continue
 
@@ -4245,23 +4553,11 @@ def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
                 continue
 
             # Get or create EC2 client for source region
-            # For extended source servers, we need to read EC2 tags from the staging account
-            ec2_client_key = f"{source_region}_{staging_account_id if is_extended_source else 'current'}"
+            # EC2 instances are always in the same account as DRS servers (target account)
+            # Staging account is only used for replication infrastructure
+            ec2_client_key = f"{source_region}"
             if ec2_client_key not in ec2_clients:
-                if is_extended_source:
-                    # Create EC2 client for staging account (where the source EC2 instance lives)
-                    # Extended source servers have EC2 instances in staging account
-                    staging_context = {
-                        "accountId": staging_account_id,
-                        "isCurrentAccount": (staging_account_id == get_current_account_id()),
-                        "assumeRoleName": "DRSOrchestrationRole",
-                        "externalId": "drs-orchestration-cross-account",
-                    }
-                    ec2_clients[ec2_client_key] = create_ec2_client(source_region, staging_context)
-                    print(f"Created EC2 client for staging account {staging_account_id} in {source_region}")
-                else:
-                    # Regular source server - EC2 instance is in same account as DRS server
-                    ec2_clients[ec2_client_key] = create_ec2_client(source_region, account_context)
+                ec2_clients[ec2_client_key] = create_ec2_client(source_region, account_context)
             ec2_client = ec2_clients[ec2_client_key]
 
             # Get EC2 instance tags
@@ -4775,14 +5071,13 @@ def update_tag_sync_settings(body: Dict) -> Dict:
                 function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "")
 
                 if function_name:
-                    # Create async payload for manual sync
+                    # Create async payload for manual sync using direct invocation
                     async_payload = {
-                        "httpMethod": "POST",
-                        "path": "/drs/tag-sync",
-                        "headers": {"Content-Type": "application/json"},
-                        "body": "{}",
-                        "requestContext": {"identity": {"sourceIp": "settings-update"}},
-                        "asyncTrigger": True,
+                        "operation": "handle_drs_tag_sync",
+                        "body": {
+                            "async": False,  # Run synchronously in background
+                            "_sync_source": "settings_update",
+                        },
                     }
 
                     # Invoke async (don't wait for response)
@@ -5267,52 +5562,14 @@ def create_target_account(body: Dict) -> Dict:
 
         print(f"Created target account: {account_id} " f"(isCurrentAccount: {is_current_account})")
 
-        discovered_staging = []
-        if not is_current_account and role_arn:
-            try:
-                from shared.staging_account_discovery import (
-                    discover_staging_accounts_from_drs,
-                )
-
-                print(f"Discovering staging accounts for {account_id}...")
-                discovered_staging = discover_staging_accounts_from_drs(
-                    target_account_id=account_id,
-                    role_arn=role_arn,
-                    external_id=body.get("externalId"),
-                )
-
-                if discovered_staging:
-                    print(f"Found {len(discovered_staging)} staging " f"accounts, adding to target account")
-
-                    account_item["stagingAccounts"] = [
-                        {
-                            "accountId": sa["accountId"],
-                            "accountName": sa["accountName"],
-                            "roleArn": sa["roleArn"],
-                            "externalId": sa["externalId"],
-                            "addedAt": now,
-                            "addedBy": "auto-discovery",
-                            "discoveredFrom": sa["discoveredFrom"],
-                        }
-                        for sa in discovered_staging
-                    ]
-
-                    target_accounts_table.put_item(Item=account_item)
-
-                    success_message += f" with {len(discovered_staging)} " f"staging account(s) auto-discovered"
-                else:
-                    print("No staging accounts discovered")
-
-            except Exception as e:
-                print(f"Error during staging account discovery: {e}")
+        # Note: Automatic staging account discovery was removed in refactor.
+        # Staging accounts are now discovered via the query-handler's
+        # handle_discover_staging_accounts function which uses extended source servers.
 
         response_data = {
             **account_item,
             "message": success_message,
         }
-
-        if discovered_staging:
-            response_data["discoveredStagingAccounts"] = [sa["accountId"] for sa in discovered_staging]
 
         return response(201, response_data)
 
@@ -5697,13 +5954,11 @@ def handle_sync_single_account(target_account_id: str) -> Dict:
     }
 
     Requirements: 7.3
+
+    NOTE: Automatic staging account discovery was removed in refactoring.
+    Staging accounts must now be added manually via the API.
     """
     try:
-        from shared.staging_account_discovery import (
-            discover_staging_accounts_from_drs,
-        )
-        from shared.staging_account_models import update_staging_accounts
-
         # Validate account ID format
         if not re.match(r"^\d{12}$", target_account_id):
             return response(
@@ -5727,83 +5982,22 @@ def handle_sync_single_account(target_account_id: str) -> Dict:
             )
 
         account = account_response["Item"]
-        is_current = account.get("isCurrentAccount", False)
 
-        # Skip current account (no staging accounts)
-        if is_current:
-            return response(
-                200,
-                {
-                    "success": True,
-                    "message": "Current account has no staging accounts",
-                    "targetAccountId": target_account_id,
-                    "stagingAccounts": [],
-                },
-            )
-
-        # Get role ARN and external ID
-        role_arn = account.get("roleArn")
-        external_id = account.get("externalId")
-
-        if not role_arn:
-            return response(
-                400,
-                {
-                    "error": "NO_ROLE_ARN",
-                    "message": f"No role ARN configured for account {target_account_id}",
-                },
-            )
-
-        # Discover staging accounts from DRS
-        print(f"Discovering staging accounts for {target_account_id}...")
-        discovered = discover_staging_accounts_from_drs(
-            target_account_id=target_account_id,
-            role_arn=role_arn,
-            external_id=external_id,
-        )
-
-        # Get current staging accounts from DynamoDB
+        # Return current staging accounts (no auto-discovery)
         current_staging = account.get("stagingAccounts", [])
-        current_ids = {sa.get("accountId") for sa in current_staging}
-        discovered_ids = {sa.get("accountId") for sa in discovered}
-
-        # Check if update needed
-        if current_ids == discovered_ids:
-            print(f"No changes for account {target_account_id}")
-            return response(
-                200,
-                {
-                    "success": True,
-                    "message": "Staging accounts already up-to-date",
-                    "targetAccountId": target_account_id,
-                    "stagingAccounts": current_staging,
-                },
-            )
-
-        # Update staging accounts
-        added = discovered_ids - current_ids
-        removed = current_ids - discovered_ids
-
-        print(f"Updating account {target_account_id}: +{len(added)} -{len(removed)}")
-
-        result = update_staging_accounts(target_account_id, discovered)
 
         return response(
             200,
             {
                 "success": True,
-                "message": f"Staging accounts synced: +{len(added)} added, -{len(removed)} removed",
+                "message": "Staging accounts retrieved (auto-discovery disabled)",
                 "targetAccountId": target_account_id,
-                "stagingAccounts": result.get("stagingAccounts", []),
-                "changes": {
-                    "added": list(added),
-                    "removed": list(removed),
-                },
+                "stagingAccounts": current_staging,
             },
         )
 
     except Exception as e:
-        print(f"Error syncing staging accounts for {target_account_id}: {e}")
+        print(f"Error getting staging accounts for {target_account_id}: {e}")
         import traceback
 
         traceback.print_exc()

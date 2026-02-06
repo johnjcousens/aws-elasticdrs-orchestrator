@@ -341,14 +341,12 @@ export const CapacityDashboard: React.FC<CapacityDashboardProps> = ({
               id: "accountName",
               header: "Account",
               cell: (item: AccountCapacity) => (
-                <div>
-                  <div>
-                    <strong>{item.accountName}</strong>
-                  </div>
-                  <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>
+                <SpaceBetween size="xxxs">
+                  <Box fontWeight="bold">{item.accountName}</Box>
+                  <Box variant="small" color="text-body-secondary">
                     {item.accountId}
-                  </div>
-                </div>
+                  </Box>
+                </SpaceBetween>
               ),
               sortingField: "accountName",
             },
@@ -357,14 +355,11 @@ export const CapacityDashboard: React.FC<CapacityDashboardProps> = ({
               header: "Type",
               cell: (item: AccountCapacity) => (
                 <Box
-                  variant="span"
                   color={
                     item.accountType === "target" ? "text-status-info" : undefined
                   }
                 >
-                  <span style={{ textTransform: "capitalize" }}>
-                    {item.accountType}
-                  </span>
+                  {item.accountType.charAt(0).toUpperCase() + item.accountType.slice(1)}
                 </Box>
               ),
               sortingField: "accountType",
@@ -414,23 +409,14 @@ export const CapacityDashboard: React.FC<CapacityDashboardProps> = ({
               id: "regions",
               header: "Regions",
               cell: (item: AccountCapacity) => (
-                <div>
-                  {item.regionalBreakdown.map((region, idx) => (
-                    <div
-                      key={region.region}
-                      style={{
-                        fontSize: "0.875rem",
-                        marginBottom:
-                          idx < item.regionalBreakdown.length - 1
-                            ? "4px"
-                            : "0",
-                      }}
-                    >
-                      <strong>{region.region}:</strong>{" "}
+                <SpaceBetween size="xxxs">
+                  {item.regionalBreakdown.map((region) => (
+                    <Box key={region.region} variant="small">
+                      <Box fontWeight="bold" display="inline">{region.region}:</Box>{" "}
                       {formatNumber(region.replicatingServers)} servers
-                    </div>
+                    </Box>
                   ))}
-                </div>
+                </SpaceBetween>
               ),
             },
           ]}
