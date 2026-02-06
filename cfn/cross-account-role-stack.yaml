@@ -1,5 +1,46 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Cross-account role for DRS Orchestration operations - Deploy in target and staging accounts (Standardized Role Name)'
+Description: |
+  Cross-Account Role Stack - IAM role for DRS Orchestration to perform DR
+  operations in target and staging accounts. Deploy this template in each
+  account that the orchestration platform needs to manage.
+
+# =============================================================================
+# CROSS-ACCOUNT ARCHITECTURE
+# =============================================================================
+# This template creates an IAM role that allows the central DRS Orchestration
+# account to perform DR operations in this account.
+#
+# Hub-and-Spoke Model:
+#   Orchestration Account (Hub)
+#          |
+#          | sts:AssumeRole with ExternalId
+#          v
+#   +------+------+------+
+#   |      |      |      |
+#   v      v      v      v
+#  Acct1  Acct2  Acct3  Acct4  (Spokes - Target/Staging Accounts)
+#
+# Deployment:
+# 1. Deploy this template in each target/staging account
+# 2. Provide the Orchestration Account ID as a parameter
+# 3. Register the account in the orchestration platform
+#
+# Security:
+# - ExternalId prevents confused deputy attacks
+# - Role can only be assumed from the specified orchestration account
+# - Least-privilege permissions for DRS operations
+#
+# Role Name: DRSOrchestrationRole (standardized across all accounts)
+# - Consistent naming simplifies automation and troubleshooting
+# - Orchestration platform expects this exact role name
+#
+# Permissions Granted:
+# - DRS: Full disaster recovery operations (recovery, failback, replication)
+# - EC2: Instance and volume management for recovery operations
+# - SSM: Agent deployment and command execution
+# - IAM: PassRole for DRS service roles and EC2 instance profiles
+# - S3: Access to DRS-related buckets for logs and artifacts
+# - KMS: Encryption operations for cross-account data transfer
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -14,15 +55,19 @@ Metadata:
         Parameters:
           - ProjectName
 
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
 Parameters:
   OrchestrationAccountId:
-    Description: 'AWS Account ID where DRS Orchestration is deployed'
+    Description: 'AWS Account ID where DRS Orchestration platform is deployed'
     Type: String
     AllowedPattern: '[0-9]{12}'
     ConstraintDescription: 'Must be a valid 12-digit AWS account ID'
   
   ExternalId:
-    Description: 'External ID for secure cross-account access (standardized across all accounts)'
+    Description: 'External ID for secure cross-account access'
     Type: String
     Default: 'drs-orchestration-cross-account'
     MinLength: 8
@@ -34,10 +79,25 @@ Parameters:
     Description: 'Project name for resource naming'
     Default: 'drs-orchestration'
 
-Conditions:
-  UseCustomExternalId: !Not [!Equals [!Ref ExternalId, 'drs-orchestration-cross-account']]
+# =============================================================================
+# RESOURCES
+# =============================================================================
 
 Resources:
+  # ===========================================================================
+  # CROSS-ACCOUNT IAM ROLE
+  # ===========================================================================
+  # IAM role that the orchestration account assumes to perform DRS operations.
+  #
+  # Trust Policy:
+  # - Only the specified OrchestrationAccountId can assume this role
+  # - ExternalId condition prevents confused deputy attacks
+  #
+  # Managed Policy:
+  # - AWSElasticDisasterRecoveryConsoleFullAccess (AWS managed)
+  #
+  # Inline Policy:
+  # - Additional permissions for EC2, SSM, IAM, S3, KMS operations
   DRSOrchestrationRole:
     Type: AWS::IAM::Role
     Properties:
@@ -63,7 +123,11 @@ Resources:
         - Key: OrchestrationAccount
           Value: !Ref OrchestrationAccountId
 
-  # Inline policy for DRS operations
+  # ===========================================================================
+  # INLINE POLICY: DRS ORCHESTRATION PERMISSIONS
+  # ===========================================================================
+  # Comprehensive permissions for DRS operations beyond the managed policy.
+  # Organized by service and operation type for clarity.
   DRSOrchestrationPolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -288,31 +352,41 @@ Resources:
               - 'ec2:CopySnapshot'
             Resource: '*'
 
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# Values needed to configure the orchestration platform.
+
 Outputs:
+  # Role ARN - Used by orchestration platform to assume this role
   RoleArn:
-    Description: 'ARN of the DRS Orchestration cross-account role (standardized name: DRSOrchestrationRole)'
+    Description: 'ARN of the cross-account role'
     Value: !GetAtt DRSOrchestrationRole.Arn
     Export:
       Name: !Sub '${ProjectName}-role-arn'
   
+  # Role Name - Standardized name for automation
   RoleName:
-    Description: 'Name of the DRS Orchestration role (standardized: DRSOrchestrationRole)'
+    Description: 'Name of the cross-account role'
     Value: !Ref DRSOrchestrationRole
     Export:
       Name: !Sub '${ProjectName}-role-name'
   
+  # External ID - Required when assuming the role
   ExternalId:
-    Description: 'External ID for secure cross-account access (standardized: drs-orchestration-cross-account)'
+    Description: 'External ID for secure cross-account access'
     Value: !Ref ExternalId
     Export:
       Name: !Sub '${ProjectName}-external-id'
   
+  # Account ID - This account's ID for reference
   AccountId:
     Description: 'Account ID where this role is deployed'
     Value: !Ref AWS::AccountId
     Export:
       Name: !Sub '${ProjectName}-account-id'
   
+  # Orchestration Account - The hub account that can assume this role
   OrchestrationAccountId:
     Description: 'Orchestration account ID that can assume this role'
     Value: !Ref OrchestrationAccountId

@@ -1,39 +1,92 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - API Gateway Core Infrastructure (REST API, Authorizer, Validator)'
+Description: |
+  API Gateway Core Stack - Creates the REST API, Cognito authorizer, and
+  request validator. Other stacks add resources and methods to this API.
+
+# =============================================================================
+# STACK OVERVIEW
+# =============================================================================
+# This stack creates the foundational API Gateway components that all other
+# API stacks depend on. It must be created before resource and method stacks.
+#
+# Components Created:
+# -------------------
+# 1. REST API - The API Gateway REST API with regional endpoint
+# 2. Cognito Authorizer - Validates JWT tokens from Cognito User Pool
+# 3. Request Validator - Validates request body and parameters
+# 4. Lambda Permission - Allows API Gateway to invoke the API handler
+#
+# Stack Dependencies:
+# -------------------
+# This stack requires:
+# - Cognito User Pool (from auth-stack.yaml)
+# - API Handler Lambda (from lambda-stack.yaml)
+#
+# Stacks that depend on this:
+# - api-gateway-resources-stack.yaml (creates /path resources)
+# - api-gateway-*-methods-stack.yaml (creates HTTP methods)
+# - api-gateway-deployment-stack.yaml (deploys the API)
+#
+# Authentication Flow:
+# --------------------
+# 1. User authenticates with Cognito and receives JWT token
+# 2. Frontend includes token in Authorization header
+# 3. API Gateway validates token using Cognito authorizer
+# 4. If valid, request proceeds to Lambda handler
+# 5. If invalid, API Gateway returns 401 Unauthorized
+#
+# Request Validation:
+# -------------------
+# The request validator checks:
+# - Required path parameters are present
+# - Required query parameters are present
+# - Request body matches the model schema (if defined)
+#
+# Endpoint Type:
+# --------------
+# Uses REGIONAL endpoint (not EDGE) for lower latency within the same region.
+# CloudFront distribution (frontend-stack) provides edge caching if needed.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+# All parameters are passed from the master template.
 
 Parameters:
   ProjectName:
     Type: String
-    Description: Name of the project for resource naming
-    Default: aws-elasticdrs-orchestrator
+    Description: Project name passed from master template
+    Default: aws-drs-orchestration
 
   Environment:
     Type: String
-    Description: Environment name (dev, test, prod)
+    Description: Environment name passed from master template
     AllowedValues: [dev, test, prod]
     Default: dev
 
   UserPoolId:
     Type: String
-    Description: Cognito User Pool ID for API authorization
+    Description: Cognito User Pool ID from auth stack
 
   UserPoolClientId:
     Type: String
-    Description: Cognito User Pool Client ID
+    Description: Cognito User Pool Client ID (passed from master template)
 
   ApiHandlerFunctionArn:
     Type: String
-    Description: ARN of the API Handler Lambda function
+    Description: ARN of the API Handler Lambda function from lambda stack
 
-  DeploymentTimestamp:
-    Type: String
-    Description: Timestamp for forcing API Gateway deployments
-    Default: '2025-01-06T00:00:00Z'
+# =============================================================================
+# RESOURCES
+# =============================================================================
 
 Resources:
-  # ============================================================================
-  # REST API DEFINITION
-  # ============================================================================
+  # ===========================================================================
+  # REST API
+  # ===========================================================================
+  # The main API Gateway REST API. Uses regional endpoint type for lower
+  # latency. Resource policy allows all IPs (CloudFront handles edge security).
+  # Binary media types enable file uploads via the API.
   
   RestApi:
     Type: AWS::ApiGateway::RestApi
@@ -57,9 +110,12 @@ Resources:
         - 'application/octet-stream'
         - 'multipart/form-data'
 
-  # ============================================================================
-  # API GATEWAY AUTHORIZER
-  # ============================================================================
+  # ===========================================================================
+  # COGNITO AUTHORIZER
+  # ===========================================================================
+  # Validates JWT tokens from the Cognito User Pool. Extracts the token from
+  # the Authorization header and verifies signature, expiration, and issuer.
+  # Returns user claims (sub, email, groups) to Lambda via requestContext.
   
   ApiAuthorizer:
     Type: AWS::ApiGateway::Authorizer
@@ -71,9 +127,12 @@ Resources:
       ProviderARNs:
         - !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}'
 
-  # ============================================================================
+  # ===========================================================================
   # REQUEST VALIDATOR
-  # ============================================================================
+  # ===========================================================================
+  # Validates incoming requests before invoking Lambda. Checks that required
+  # path/query parameters are present and request body matches schema.
+  # Returns 400 Bad Request if validation fails (before Lambda is invoked).
   
   ApiRequestValidator:
     Type: AWS::ApiGateway::RequestValidator
@@ -83,10 +142,12 @@ Resources:
       ValidateRequestBody: true
       ValidateRequestParameters: true
 
-  # ============================================================================
-  # LAMBDA PERMISSION FOR API GATEWAY
-  # ============================================================================
-
+  # ===========================================================================
+  # LAMBDA PERMISSION
+  # ===========================================================================
+  # Grants API Gateway permission to invoke the API handler Lambda.
+  # Uses wildcard for stage/method so all endpoints can invoke the function.
+  
   ApiGatewayInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -95,9 +156,10 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*'
 
-# ============================================================================
+# =============================================================================
 # OUTPUTS
-# ============================================================================
+# =============================================================================
+# Export core API components for use by resource and method stacks.
 
 Outputs:
   RestApiId:

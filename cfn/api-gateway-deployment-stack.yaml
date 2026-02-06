@@ -1,26 +1,82 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - API Gateway Deployment (Deployment Orchestrator and Stage)'
+Description: |
+  API Gateway Deployment Stack - Creates API deployments and stages using a
+  Lambda-based orchestrator for reliable deployment management.
+
+# =============================================================================
+# STACK OVERVIEW
+# =============================================================================
+# This stack handles API Gateway deployment lifecycle using a custom Lambda
+# orchestrator instead of direct AWS::ApiGateway::Deployment resources.
+#
+# Why Use a Deployment Orchestrator?
+# ----------------------------------
+# CloudFormation's native API Gateway deployment has limitations:
+# 1. Deployments are immutable - can't update, only replace
+# 2. Timing issues when methods are created in parallel stacks
+# 3. No built-in retry logic for transient failures
+# 4. Difficult to coordinate with dependent resources
+#
+# The orchestrator Lambda solves these by:
+# - Adding a delay to ensure all methods are created
+# - Using unique deployment IDs per stack update
+# - Providing detailed logging for troubleshooting
+# - Returning deployment metadata to CloudFormation
+#
+# Deployment Flow:
+# ----------------
+# 1. Method stacks create all API methods (parallel)
+# 2. This stack waits for method stacks (DependsOn in master)
+# 3. Gateway responses are created (CORS headers for errors)
+# 4. Orchestrator Lambda creates deployment via API call
+# 5. Stage resource references the new deployment ID
+#
+# Gateway Responses:
+# ------------------
+# CORS headers must be returned even on errors (4XX, 5XX, auth failures).
+# Without gateway responses, browsers block error responses due to missing
+# Access-Control-Allow-Origin headers.
+#
+# Forcing New Deployments:
+# ------------------------
+# To trigger a new API deployment, update the Version property in
+# ApiDeploymentOrchestrator. This forces CloudFormation to invoke the
+# Lambda and create a fresh deployment.
+#
+# Example: Version: "2026-02-06-new-feature"
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+# All parameters are passed from the master template for consistency.
 
 Parameters:
   ProjectName:
     Type: String
-    Description: Name of the project for resource naming
-    Default: aws-elasticdrs-orchestrator
+    Description: Project name passed from master template
+    Default: aws-drs-orchestration
 
   Environment:
     Type: String
-    Description: Environment name (dev, test, prod)
+    Description: Environment name passed from master template
     AllowedValues: [dev, test, prod]
     Default: dev
 
   RestApiId:
     Type: String
-    Description: REST API ID from Core Stack
+    Description: REST API ID from API Gateway Core Stack
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
 
 Resources:
-  # ============================================================================
-  # DEPLOYMENT ORCHESTRATOR FUNCTION - Enterprise-grade deployment logic
-  # ============================================================================
+  # ===========================================================================
+  # DEPLOYMENT ORCHESTRATOR LAMBDA
+  # ===========================================================================
+  # Custom Lambda function that creates API Gateway deployments.
+  # Uses boto3 to call create_deployment API with proper error handling.
+  # Returns DeploymentId and ApiEndpoint to CloudFormation for use by Stage.
   
   DeploymentOrchestratorFunction:
     Type: AWS::Lambda::Function
@@ -63,7 +119,7 @@ Resources:
                       # Create deployment with timestamp (no stageName in create_deployment)
                       deployment = api_client.create_deployment(
                           restApiId=rest_api_id,
-                          description=f"Enterprise deployment {timestamp}"
+                          description=f"Deployment {timestamp}"
                       )
                       
                       deployment_id = deployment['id']
@@ -90,9 +146,11 @@ Resources:
                       'Error': str(e)
                   })
 
-  # ============================================================================
-  # IAM ROLE FOR DEPLOYMENT ORCHESTRATOR
-  # ============================================================================
+  # ===========================================================================
+  # DEPLOYMENT ORCHESTRATOR IAM ROLE
+  # ===========================================================================
+  # Minimal permissions for the orchestrator to create deployments.
+  # Only allows apigateway:GET and apigateway:POST on the specific REST API.
   
   DeploymentOrchestratorRole:
     Type: AWS::IAM::Role
@@ -124,11 +182,22 @@ Resources:
                   - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/gatewayresponses'
                   - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/gatewayresponses/*'
 
-  # ============================================================================
-  # ENHANCED GATEWAY RESPONSES FOR ENTERPRISE CORS
-  # ============================================================================
+  # ===========================================================================
+  # GATEWAY RESPONSES (CORS FOR ERROR RESPONSES)
+  # ===========================================================================
+  # API Gateway returns errors (401, 403, 500) before reaching Lambda.
+  # Without gateway responses, these errors lack CORS headers and browsers
+  # block them. Each response type needs explicit CORS configuration.
+  #
+  # Response Types:
+  # - DEFAULT_4XX: All 4XX errors not explicitly configured
+  # - DEFAULT_5XX: All 5XX errors not explicitly configured
+  # - UNAUTHORIZED: 401 from Cognito authorizer (invalid/expired token)
+  # - ACCESS_DENIED: 403 from IAM or resource policy
   
-  # Gateway Response for 4XX errors (includes CORS headers)
+  # ---------------------------------------------------------------------------
+  # 4XX Client Errors (bad request, not found, validation errors)
+  # ---------------------------------------------------------------------------
   GatewayResponse4XX:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
@@ -141,7 +210,9 @@ Resources:
       ResponseTemplates:
         application/json: '{"message":"Client Error"}'
 
-  # Gateway Response for 5XX errors (includes CORS headers)
+  # ---------------------------------------------------------------------------
+  # 5XX Server Errors (Lambda errors, timeouts, integration failures)
+  # ---------------------------------------------------------------------------
   GatewayResponse5XX:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
@@ -154,7 +225,9 @@ Resources:
       ResponseTemplates:
         application/json: '{"message":"Server Error"}'
 
-  # Additional Gateway Responses for comprehensive CORS coverage
+  # ---------------------------------------------------------------------------
+  # 401 Unauthorized (invalid or expired Cognito token)
+  # ---------------------------------------------------------------------------
   GatewayResponseUnauthorized:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
@@ -167,6 +240,9 @@ Resources:
       ResponseTemplates:
         application/json: '{"message":"Unauthorized"}'
 
+  # ---------------------------------------------------------------------------
+  # 403 Access Denied (valid token but insufficient permissions)
+  # ---------------------------------------------------------------------------
   GatewayResponseAccessDenied:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
@@ -179,9 +255,12 @@ Resources:
       ResponseTemplates:
         application/json: '{"message":"Access Denied"}'
 
-  # ============================================================================
-  # DEPLOYMENT ORCHESTRATOR - Custom Resource for Enterprise Deployment
-  # ============================================================================
+  # ===========================================================================
+  # DEPLOYMENT CUSTOM RESOURCE
+  # ===========================================================================
+  # Invokes the orchestrator Lambda to create a new API deployment.
+  # DependsOn ensures gateway responses exist before deployment.
+  # Version property forces new deployment on each update.
   
   ApiDeploymentOrchestrator:
     Type: AWS::CloudFormation::CustomResource
@@ -201,9 +280,14 @@ Resources:
       # Force replacement - increment version to trigger new deployment
       Version: "2026-02-05-tag-sync-get-method"
 
-  # ============================================================================
-  # API STAGE WITH ENTERPRISE CONFIGURATION
-  # ============================================================================
+  # ===========================================================================
+  # API STAGE
+  # ===========================================================================
+  # The stage is the deployed API accessible via URL.
+  # References the deployment created by the orchestrator.
+  # Includes throttling, logging, and X-Ray tracing configuration.
+  #
+  # Stage URL: https://{rest-api-id}.execute-api.{region}.amazonaws.com/{stage}
   
   ApiStage:
     Type: AWS::ApiGateway::Stage
@@ -228,28 +312,26 @@ Resources:
           ThrottlingRateLimit: 2000
       Variables:
         stackName: !Ref AWS::StackName
-        enterpriseDeployment: 'true'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
-        - Key: DeploymentMethod
-          Value: EnterpriseOrchestrated
 
-# ============================================================================
-# OUTPUTS WITH ENTERPRISE METADATA
-# ============================================================================
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# Export deployment metadata for use by other stacks and monitoring.
 
 Outputs:
   ApiEndpoint:
-    Description: 'Enterprise API Gateway endpoint URL'
+    Description: 'API Gateway endpoint URL'
     Value: !GetAtt ApiDeploymentOrchestrator.ApiEndpoint
     Export:
       Name: !Sub '${AWS::StackName}-ApiEndpoint'
 
   DeploymentId:
-    Description: 'Enterprise API Gateway Deployment ID'
+    Description: 'API Gateway Deployment ID'
     Value: !GetAtt ApiDeploymentOrchestrator.DeploymentId
     Export:
       Name: !Sub '${AWS::StackName}-DeploymentId'

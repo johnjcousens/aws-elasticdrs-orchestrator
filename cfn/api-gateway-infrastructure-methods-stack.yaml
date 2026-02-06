@@ -1,5 +1,37 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - API Gateway Infrastructure Methods (DRS, EC2, Config, Target Accounts)'
+Description: |
+  API Gateway Infrastructure Methods Stack - HTTP methods for infrastructure
+  queries and configuration. Handles DRS source servers, EC2 resources,
+  configuration export/import, and target account management.
+
+# =============================================================================
+# STACK OVERVIEW
+# =============================================================================
+# This stack defines HTTP methods for infrastructure-related endpoints that
+# query AWS resources and manage platform configuration.
+#
+# Endpoints Covered:
+# - /drs/*        - DRS source servers, quotas, accounts, tag sync
+# - /ec2/*        - Subnets, security groups, instance profiles, types
+# - /config/*     - Configuration export/import, tag sync settings
+# - /accounts/*   - Target account and staging account management
+#
+# Lambda Handlers:
+# - QueryHandler: Read-only queries (GET methods for DRS, EC2, accounts)
+# - ApiHandler: Write operations (POST/PUT/DELETE for config, accounts)
+#
+# Method Pattern:
+# Each endpoint has two methods:
+# 1. Business method (GET/POST/PUT/DELETE) - Cognito authenticated
+# 2. OPTIONS method - CORS preflight (no auth)
+#
+# Authentication:
+# - COGNITO_USER_POOLS authorizer for all business methods
+# - OPTIONS methods have no auth (required for CORS preflight)
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
 
 Parameters:
   ProjectName:
@@ -239,10 +271,18 @@ Parameters:
     Type: String
     Description: Accounts Capacity All Resource ID from Resources Stack
 
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
 Resources:
-  # ============================================================================
-  # Methods - DRS
-  # ============================================================================
+  # ===========================================================================
+  # DRS QUERY METHODS
+  # ===========================================================================
+  # /drs/source-servers - GET list source servers across accounts
+  # /drs/quotas         - GET DRS service quotas
+  # /drs/accounts       - GET accounts with DRS enabled
+  # /drs/tag-sync       - GET/POST tag synchronization
 
   DrsSourceServersGetMethod:
     Type: AWS::ApiGateway::Method
@@ -439,9 +479,13 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - EC2
-  # ============================================================================
+  # ===========================================================================
+  # EC2 RESOURCE METHODS
+  # ===========================================================================
+  # /ec2/subnets          - GET available subnets by region
+  # /ec2/security-groups  - GET security groups by region
+  # /ec2/instance-profiles - GET IAM instance profiles
+  # /ec2/instance-types   - GET available EC2 instance types
 
   Ec2SubnetsGetMethod:
     Type: AWS::ApiGateway::Method
@@ -623,9 +667,12 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - Config
-  # ============================================================================
+  # ===========================================================================
+  # CONFIG METHODS
+  # ===========================================================================
+  # /config/export   - GET export platform configuration
+  # /config/import   - POST import platform configuration
+  # /config/tag-sync - GET/PUT tag synchronization settings
 
   ConfigExportGetMethod:
     Type: AWS::ApiGateway::Method
@@ -774,9 +821,13 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - Target Accounts
-  # ============================================================================
+  # ===========================================================================
+  # TARGET ACCOUNTS METHODS
+  # ===========================================================================
+  # /accounts/current      - GET current AWS account info
+  # /accounts/targets      - GET/POST target accounts list
+  # /accounts/targets/{id} - GET/PUT/DELETE specific target account
+  # /accounts/targets/{id}/validate - POST validate account access
 
   AccountsCurrentGetMethod:
     Type: AWS::ApiGateway::Method
@@ -1009,9 +1060,10 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - DRS Replication Management
-  # ============================================================================
+  # ===========================================================================
+  # DRS REPLICATION MANAGEMENT METHODS
+  # ===========================================================================
+  # /drs/replication - GET replication status and configuration
 
   DrsReplicationGetMethod:
     Type: AWS::ApiGateway::Method
@@ -1056,9 +1108,10 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - DRS Service Management
-  # ============================================================================
+  # ===========================================================================
+  # DRS SERVICE MANAGEMENT METHODS
+  # ===========================================================================
+  # /drs/service - GET DRS service status and initialization state
 
   DrsServiceGetMethod:
     Type: AWS::ApiGateway::Method
@@ -1103,9 +1156,16 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Methods - Staging Accounts Management
-  # ============================================================================
+  # ===========================================================================
+  # STAGING ACCOUNTS MANAGEMENT METHODS
+  # ===========================================================================
+  # /staging-accounts/validate                          - POST validate staging account
+  # /accounts/{id}/staging-accounts                     - POST add staging account
+  # /accounts/{id}/staging-accounts/{stagingAccountId} - DELETE remove staging account
+  # /accounts/{id}/staging-accounts/discover           - GET discover staging accounts
+  # /accounts/{id}/staging-accounts/sync               - POST sync staging accounts
+  # /accounts/{id}/capacity                            - GET combined capacity
+  # /accounts/capacity/all                             - GET all accounts capacity
 
   # POST /staging-accounts/validate - Validate staging account access
   StagingAccountsValidatePostMethod:
@@ -1428,9 +1488,10 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # ============================================================================
-  # Lambda Permissions
-  # ============================================================================
+  # ===========================================================================
+  # LAMBDA PERMISSIONS
+  # ===========================================================================
+  # Grant API Gateway permission to invoke Lambda functions
 
   QueryHandlerApiPermission:
     Type: AWS::Lambda::Permission
@@ -1440,9 +1501,10 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*'
 
-# ============================================================================
+# =============================================================================
 # OUTPUTS
-# ============================================================================
+# =============================================================================
+# Export stack status for monitoring and debugging
 
 Outputs:
   InfrastructureMethodsStackStatus:

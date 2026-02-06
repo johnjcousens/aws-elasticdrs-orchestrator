@@ -1,5 +1,53 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - Database Stack (DynamoDB Tables) - CamelCase Schema Migration'
+Description: |
+  DRS Orchestration Database Stack - DynamoDB tables for protection groups,
+  recovery plans, execution history, and target accounts. Uses camelCase schema,
+  PAY_PER_REQUEST billing, encryption at rest, and point-in-time recovery.
+
+# =============================================================================
+# DATABASE ARCHITECTURE
+# =============================================================================
+# Four DynamoDB tables store all application state:
+#
+# 1. Protection Groups Table (groupId)
+#    - Stores protection group definitions
+#    - Groups organize source servers for coordinated DR operations
+#    - Contains server lists, configurations, and metadata
+#
+# 2. Recovery Plans Table (planId)
+#    - Stores recovery plan definitions
+#    - Plans define DR workflows: drill, failover, failback
+#    - References protection groups and target configurations
+#
+# 3. Execution History Table (executionId + planId)
+#    - Tracks all DR operation executions
+#    - Composite key: executionId (HASH) + planId (RANGE)
+#    - GSIs: StatusIndex (query by status), planIdIndex (query by plan)
+#    - Records start time, end time, status, results, errors
+#
+# 4. Target Accounts Table (accountId)
+#    - Stores cross-account configuration
+#    - Contains IAM role ARNs, region mappings, credentials
+#    - Enables hub-and-spoke DR architecture
+#
+# Schema Convention:
+# - All attribute names use camelCase (groupId, planId, executionId, accountId)
+# - Consistent with JavaScript/TypeScript frontend conventions
+# - Simplifies API response handling without case transformation
+#
+# Security Features:
+# - SSE (Server-Side Encryption) enabled on all tables
+# - Point-in-time recovery enabled for data protection
+# - TTL attribute available for automatic record expiration
+#
+# Billing:
+# - PAY_PER_REQUEST (on-demand) mode for all tables
+# - No capacity planning required
+# - Scales automatically with workload
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
 
 Parameters:
   ProjectName:
@@ -15,30 +63,60 @@ Parameters:
   ForceRecreation:
     Type: String
     Default: 'false'
-    Description: 'Force table recreation for schema migration (true/false)'
+    Description: 'Force table recreation (true/false) - WARNING: deletes all data'
     AllowedValues:
       - 'true'
       - 'false'
 
+# =============================================================================
+# CONDITIONS
+# =============================================================================
+
 Conditions:
+  # Triggers table recreation when set to true
   ForceRecreationCondition: !Equals [!Ref ForceRecreation, 'true']
 
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
 Resources:
-  # Recreation Trigger - Only created when ForceRecreation is true
+  # ===========================================================================
+  # RECREATION TRIGGER
+  # ===========================================================================
+  # Only created when ForceRecreation=true to trigger table recreation.
+  # Used when tables need to be dropped and recreated (e.g., changing
+  # partition key names which cannot be modified in place).
+  #
+  # WARNING: Setting ForceRecreation=true will DELETE all existing data!
+  # Always backup data before using this option.
   RecreationTrigger:
     Type: AWS::CloudFormation::WaitConditionHandle
     Condition: ForceRecreationCondition
-    Properties: {}
     Metadata:
       RecreationTimestamp: !Ref 'AWS::StackId'
-      MigrationReason: "Force recreation for camelCase schema migration"
-      PreviousSchema: "PascalCase (GroupId, PlanId, ExecutionId, AccountId)"
-      NewSchema: "camelCase (groupId, planId, executionId, accountId)"
 
-  # Protection Groups Table - CamelCase Schema Migration
+  # ===========================================================================
+  # PROTECTION GROUPS TABLE
+  # ===========================================================================
+  # Stores protection group definitions that organize source servers.
+  #
+  # Primary Key: groupId (String)
+  #
+  # Example Item:
+  # {
+  #   "groupId": "pg-web-servers",
+  #   "name": "Web Server Group",
+  #   "description": "Production web servers",
+  #   "sourceServers": ["s-abc123", "s-def456"],
+  #   "targetAccountId": "111122223333",
+  #   "createdAt": "2025-01-15T10:30:00Z",
+  #   "updatedAt": "2025-01-20T14:45:00Z"
+  # }
   ProtectionGroupsTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       TableName: !Sub '${ProjectName}-protection-groups-${Environment}'
       BillingMode: PAY_PER_REQUEST
@@ -62,13 +140,28 @@ Resources:
           Value: !Ref Environment
         - Key: Schema
           Value: camelCase
-        - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
-          Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
 
-  # Recovery Plans Table - CamelCase Schema
+  # ===========================================================================
+  # RECOVERY PLANS TABLE
+  # ===========================================================================
+  # Stores recovery plan definitions for DR operations.
+  #
+  # Primary Key: planId (String)
+  #
+  # Example Item:
+  # {
+  #   "planId": "rp-prod-failover",
+  #   "name": "Production Failover Plan",
+  #   "type": "failover",
+  #   "protectionGroupIds": ["pg-web-servers", "pg-app-servers"],
+  #   "targetRegion": "us-west-2",
+  #   "launchConfiguration": {...},
+  #   "createdAt": "2025-01-15T10:30:00Z"
+  # }
   RecoveryPlansTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       TableName: !Sub '${ProjectName}-recovery-plans-${Environment}'
       BillingMode: PAY_PER_REQUEST
@@ -92,13 +185,35 @@ Resources:
           Value: !Ref Environment
         - Key: Schema
           Value: camelCase
-        - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
-          Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
 
-  # Execution History Table - CamelCase Schema with StatusIndex GSI
+  # ===========================================================================
+  # EXECUTION HISTORY TABLE
+  # ===========================================================================
+  # Tracks all DR operation executions with full audit trail.
+  #
+  # Primary Key: executionId (HASH) + planId (RANGE)
+  # - Composite key allows multiple executions per plan
+  # - Efficient queries for specific execution or all executions of a plan
+  #
+  # Global Secondary Indexes:
+  # - StatusIndex: Query executions by status (PENDING, RUNNING, COMPLETED, FAILED)
+  # - planIdIndex: Query all executions for a specific plan
+  #
+  # Example Item:
+  # {
+  #   "executionId": "exec-20250115-abc123",
+  #   "planId": "rp-prod-failover",
+  #   "status": "COMPLETED",
+  #   "type": "drill",
+  #   "startTime": "2025-01-15T10:30:00Z",
+  #   "endTime": "2025-01-15T11:45:00Z",
+  #   "initiatedBy": "user@example.com",
+  #   "results": {...}
+  # }
   ExecutionHistoryTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       TableName: !Sub '${ProjectName}-execution-history-${Environment}'
       BillingMode: PAY_PER_REQUEST
@@ -115,12 +230,16 @@ Resources:
         - AttributeName: planId
           KeyType: RANGE
       GlobalSecondaryIndexes:
+        # StatusIndex: Query executions by status
+        # Example: Get all RUNNING executions
         - IndexName: StatusIndex
           KeySchema:
             - AttributeName: status
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+        # planIdIndex: Query all executions for a plan
+        # Example: Get execution history for a specific recovery plan
         - IndexName: planIdIndex
           KeySchema:
             - AttributeName: planId
@@ -128,7 +247,7 @@ Resources:
           Projection:
             ProjectionType: ALL
       TimeToLiveSpecification:
-        AttributeName: TTL  # TTL attribute for automatic record expiration
+        AttributeName: TTL
         Enabled: true
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
@@ -141,15 +260,27 @@ Resources:
           Value: !Ref Environment
         - Key: Schema
           Value: camelCase
-        - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
-          Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
-        - Key: GSIStatus
-          Value: 'StatusIndex-Added'
 
-  # Target Accounts Table - CamelCase Schema (Initial creation without GSIs)
+  # ===========================================================================
+  # TARGET ACCOUNTS TABLE
+  # ===========================================================================
+  # Stores cross-account configuration for hub-and-spoke DR architecture.
+  #
+  # Primary Key: accountId (String - 12-digit AWS account ID)
+  #
+  # Example Item:
+  # {
+  #   "accountId": "111122223333",
+  #   "accountName": "Production Account",
+  #   "crossAccountRoleArn": "arn:aws:iam::111122223333:role/DRSCrossAccountRole",
+  #   "regions": ["us-east-1", "us-west-2"],
+  #   "status": "ACTIVE",
+  #   "lastSyncTime": "2025-01-20T14:45:00Z"
+  # }
   TargetAccountsTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       TableName: !Sub '${ProjectName}-target-accounts-${Environment}'
       BillingMode: PAY_PER_REQUEST
@@ -173,68 +304,78 @@ Resources:
           Value: !Ref Environment
         - Key: Schema
           Value: camelCase
-        - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
-          Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
-        - Key: GSIStatus
-          Value: 'InitialCreation-NoGSIs'
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# Exported values for cross-stack references and Lambda environment variables.
 
 Outputs:
-  ForceRecreationParameter:
-    Description: 'Force recreation parameter value'
-    Value: !Ref ForceRecreation
-    Export:
-      Name: !Sub '${AWS::StackName}-ForceRecreation'
-
+  # ---------------------------------------------------------------------------
+  # Schema Information
+  # ---------------------------------------------------------------------------
   SchemaVersion:
-    Description: 'Database schema version (camelCase migration)'
-    Value: 'camelCase-v1.0'
+    Description: 'Database schema version'
+    Value: 'v1.0'
     Export:
       Name: !Sub '${AWS::StackName}-SchemaVersion'
 
+  # ---------------------------------------------------------------------------
+  # Protection Groups Table
+  # ---------------------------------------------------------------------------
   ProtectionGroupsTableName:
-    Description: 'DynamoDB table name for Protection Groups'
+    Description: 'Protection Groups table name'
     Value: !Ref ProtectionGroupsTable
     Export:
       Name: !Sub '${AWS::StackName}-ProtectionGroupsTableName'
 
   ProtectionGroupsTableArn:
-    Description: 'DynamoDB table ARN for Protection Groups'
+    Description: 'Protection Groups table ARN'
     Value: !GetAtt ProtectionGroupsTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-ProtectionGroupsTableArn'
 
+  # ---------------------------------------------------------------------------
+  # Recovery Plans Table
+  # ---------------------------------------------------------------------------
   RecoveryPlansTableName:
-    Description: 'DynamoDB table name for Recovery Plans'
+    Description: 'Recovery Plans table name'
     Value: !Ref RecoveryPlansTable
     Export:
       Name: !Sub '${AWS::StackName}-RecoveryPlansTableName'
 
   RecoveryPlansTableArn:
-    Description: 'DynamoDB table ARN for Recovery Plans'
+    Description: 'Recovery Plans table ARN'
     Value: !GetAtt RecoveryPlansTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-RecoveryPlansTableArn'
 
+  # ---------------------------------------------------------------------------
+  # Execution History Table
+  # ---------------------------------------------------------------------------
   ExecutionHistoryTableName:
-    Description: 'DynamoDB table name for Execution History'
+    Description: 'Execution History table name'
     Value: !Ref ExecutionHistoryTable
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionHistoryTableName'
 
   ExecutionHistoryTableArn:
-    Description: 'DynamoDB table ARN for Execution History'
+    Description: 'Execution History table ARN'
     Value: !GetAtt ExecutionHistoryTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionHistoryTableArn'
 
+  # ---------------------------------------------------------------------------
+  # Target Accounts Table
+  # ---------------------------------------------------------------------------
   TargetAccountsTableName:
-    Description: 'DynamoDB table name for Target Accounts'
+    Description: 'Target Accounts table name'
     Value: !Ref TargetAccountsTable
     Export:
       Name: !Sub '${AWS::StackName}-TargetAccountsTableName'
 
   TargetAccountsTableArn:
-    Description: 'DynamoDB table ARN for Target Accounts'
+    Description: 'Target Accounts table ARN'
     Value: !GetAtt TargetAccountsTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-TargetAccountsTableArn'
