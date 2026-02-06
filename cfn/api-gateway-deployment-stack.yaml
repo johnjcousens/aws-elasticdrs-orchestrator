@@ -86,6 +86,7 @@ Resources:
       Handler: index.lambda_handler
       Role: !GetAtt DeploymentOrchestratorRole.Arn
       Timeout: 300
+      ReservedConcurrentExecutions: 5
       Environment:
         Variables:
           LOG_LEVEL: INFO
@@ -281,6 +282,25 @@ Resources:
       Version: "2026-02-05-tag-sync-get-method"
 
   # ===========================================================================
+  # API GATEWAY ACCESS LOG GROUP
+  # ===========================================================================
+  # CloudWatch Log Group for API Gateway access logs.
+  # Stores request/response metadata for debugging and compliance.
+  ApiGatewayAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${ProjectName}-${Environment}-access-logs'
+      RetentionInDays: 30
+      # Note: CloudWatch Logs are encrypted at rest by default with AWS-managed keys.
+      # CMK encryption (KmsKeyId) requires creating a dedicated KMS key with proper
+      # resource policy allowing logs.{region}.amazonaws.com service principal.
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ===========================================================================
   # API STAGE
   # ===========================================================================
   # The stage is the deployed API accessible via URL.
@@ -297,6 +317,10 @@ Resources:
       RestApiId: !Ref RestApiId
       DeploymentId: !GetAtt ApiDeploymentOrchestrator.DeploymentId
       TracingEnabled: true
+      # Access logging for compliance and debugging
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
       # Enterprise monitoring and throttling
       MethodSettings:
         - ResourcePath: '/*'

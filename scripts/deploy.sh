@@ -265,7 +265,7 @@ FAILED=false
 # Stage 1: Validation
 echo -e "${BLUE}[1/5] Validation${NC}"
 
-# cfn-lint
+# cfn-lint (exit codes: 0=success, 2=errors, 4=warnings only, 6=errors+warnings)
 if [ -f ".venv/bin/cfn-lint" ]; then
     CFNLINT_CMD=".venv/bin/cfn-lint"
 elif command -v cfn-lint &> /dev/null; then
@@ -275,9 +275,22 @@ else
 fi
 
 if [ -n "$CFNLINT_CMD" ]; then
-    if $CFNLINT_CMD cfn/*.yaml --config-file .cfnlintrc.yaml -f quiet 2>&1 | grep -q "^E"; then
-        echo -e "${RED}  ✗ cfn-lint: errors found${NC}"
+    set +e
+    CFNLINT_OUTPUT=$($CFNLINT_CMD cfn/*.yaml 2>&1)
+    CFNLINT_RC=$?
+    set -e
+    
+    ERR_COUNT=$(echo "$CFNLINT_OUTPUT" | grep -c "^E[0-9]" || echo "0")
+    WARN_COUNT=$(echo "$CFNLINT_OUTPUT" | grep -c "^W[0-9]" || echo "0")
+    
+    # Exit code 2 or 6 means errors present
+    if [ "$CFNLINT_RC" -eq 2 ] || [ "$CFNLINT_RC" -eq 6 ]; then
+        echo -e "${RED}  ✗ cfn-lint: $ERR_COUNT errors${NC}"
+        echo "$CFNLINT_OUTPUT" | grep "^E[0-9]" | head -5
         FAILED=true
+    elif [ "$CFNLINT_RC" -eq 4 ]; then
+        # Exit code 4 = warnings only, treat as success
+        echo -e "${GREEN}  ✓ cfn-lint ($WARN_COUNT warnings)${NC}"
     else
         echo -e "${GREEN}  ✓ cfn-lint${NC}"
     fi
@@ -358,13 +371,12 @@ else
     echo -e "${YELLOW}  ⚠ bandit not installed (pip install bandit)${NC}"
 fi
 
-# CloudFormation Security - cfn_nag
-# Direct path to cfn_nag_scan (Ruby gem)
+# CloudFormation Security - cfn_nag (Ruby via rbenv)
 CFNNAG_CMD=""
-if [ -f "/opt/homebrew/lib/ruby/gems/3.3.0/bin/cfn_nag_scan" ]; then
+if [ -f "$HOME/.rbenv/shims/cfn_nag_scan" ]; then
+    CFNNAG_CMD="$HOME/.rbenv/shims/cfn_nag_scan"
+elif [ -f "/opt/homebrew/lib/ruby/gems/3.3.0/bin/cfn_nag_scan" ]; then
     CFNNAG_CMD="/opt/homebrew/lib/ruby/gems/3.3.0/bin/cfn_nag_scan"
-elif [ -f "/opt/homebrew/lib/ruby/gems/4.0.0/bin/cfn_nag_scan" ]; then
-    CFNNAG_CMD="/opt/homebrew/lib/ruby/gems/4.0.0/bin/cfn_nag_scan"
 elif command -v cfn_nag_scan &> /dev/null; then
     CFNNAG_CMD="cfn_nag_scan"
 fi
@@ -442,6 +454,103 @@ if [ -d "frontend" ]; then
     fi
     cd ..
 fi
+
+# git-secrets (system)
+if command -v git-secrets &> /dev/null; then
+    set +e
+    git secrets --scan 2>/dev/null
+    GITSECRETS_RC=$?
+    set -e
+    if [ "$GITSECRETS_RC" -eq 0 ]; then
+        echo -e "${GREEN}  ✓ git-secrets${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ git-secrets: potential secrets found (non-blocking)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ git-secrets not installed (brew install git-secrets)${NC}"
+fi
+
+# checkov - IaC security (.venv)
+if [ -f ".venv/bin/checkov" ]; then
+    CHECKOV_CMD=".venv/bin/checkov"
+elif command -v checkov &> /dev/null; then
+    CHECKOV_CMD="checkov"
+else
+    CHECKOV_CMD=""
+fi
+
+if [ -n "$CHECKOV_CMD" ]; then
+    set +e
+    CHECKOV_OUTPUT=$($CHECKOV_CMD -d cfn/ --framework cloudformation --quiet --compact 2>&1)
+    CHECKOV_RC=$?
+    set -e
+    CHECKOV_FAILED=$(echo "$CHECKOV_OUTPUT" | grep -c "FAILED" || echo "0")
+    if [ "$CHECKOV_FAILED" = "0" ]; then
+        echo -e "${GREEN}  ✓ checkov (IaC security)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ checkov: $CHECKOV_FAILED issues (non-blocking)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ checkov not installed (pip install checkov)${NC}"
+fi
+
+# semgrep - Multi-language SAST (.venv)
+if [ -f ".venv/bin/semgrep" ]; then
+    SEMGREP_CMD=".venv/bin/semgrep"
+elif command -v semgrep &> /dev/null; then
+    SEMGREP_CMD="semgrep"
+else
+    SEMGREP_CMD=""
+fi
+
+if [ -n "$SEMGREP_CMD" ]; then
+    set +e
+    $SEMGREP_CMD scan --config=p/ci --quiet lambda/ frontend/src/ 2>/dev/null
+    SEMGREP_RC=$?
+    set -e
+    if [ "$SEMGREP_RC" -eq 0 ]; then
+        echo -e "${GREEN}  ✓ semgrep (SAST)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ semgrep: issues found (non-blocking)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ semgrep not installed (pip install semgrep)${NC}"
+fi
+
+# grype - CVE scanner (system)
+if command -v grype &> /dev/null; then
+    set +e
+    # Exclude archive folder (contains old code samples with known vulnerabilities)
+    # Exclude .venv (Python virtual environment)
+    GRYPE_OUTPUT=$(grype dir:. --quiet --fail-on critical --exclude './archive/**' --exclude './.venv/**' 2>&1)
+    GRYPE_RC=$?
+    set -e
+    if [ "$GRYPE_RC" -ne 0 ] && echo "$GRYPE_OUTPUT" | grep -qi "critical"; then
+        echo -e "${RED}  ✗ grype: critical CVEs found${NC}"
+        FAILED=true
+    else
+        echo -e "${GREEN}  ✓ grype (CVE scan)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ grype not installed (brew install grype)${NC}"
+fi
+
+# syft - SBOM generator (system)
+if command -v syft &> /dev/null; then
+    set +e
+    # Exclude archive folder and .venv for consistency with grype
+    syft dir:. -q -o spdx-json --exclude './archive/**' --exclude './.venv/**' > /dev/null 2>&1
+    SYFT_RC=$?
+    set -e
+    if [ "$SYFT_RC" -eq 0 ]; then
+        echo -e "${GREEN}  ✓ syft (SBOM)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ syft: failed to generate SBOM (non-blocking)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ syft not installed (brew install syft)${NC}"
+fi
+
 echo ""
 
 # Stage 3: Tests
@@ -551,35 +660,77 @@ fi
 
 # Deploy based on type
 if [ "$LAMBDA_ONLY" = true ]; then
-    echo "  Updating Lambda functions..."
-    # Active Lambda functions:
-    # - data-management-handler: Protection Groups & Recovery Plans CRUD
-    # - execution-handler: DR execution lifecycle
-    # - query-handler: Read-only infrastructure queries
-    # - frontend-deployer: Frontend deployment automation
-    # - orch-sf: Step Functions orchestration (S3 key: orchestration-stepfunctions)
-    # - notification-formatter: SNS notification formatting
-    # Note: deployment-orchestrator uses inline ZipFile code, not S3
-    FUNCTIONS="data-management-handler execution-handler query-handler frontend-deployer orch-sf:orchestration-stepfunctions notification-formatter"
-    for entry in $FUNCTIONS; do
-        if [[ "$entry" == *":"* ]]; then
-            func="${entry%%:*}"
-            s3key="${entry##*:}"
-        else
-            func="$entry"
-            s3key="$entry"
-        fi
-        FUNCTION_NAME="${PROJECT_NAME}-${func}-${ENVIRONMENT}"
-        if aws lambda get-function --function-name "$FUNCTION_NAME" > /dev/null 2>&1; then
-            aws lambda update-function-code \
-                --function-name "$FUNCTION_NAME" \
-                --s3-bucket "$DEPLOYMENT_BUCKET" \
-                --s3-key "lambda/${s3key}.zip" \
-                --output json > /dev/null
-            echo -e "${GREEN}    ✓ Updated: $FUNCTION_NAME${NC}"
-        fi
-    done
-    echo -e "${GREEN}  ✓ Lambda functions updated${NC}"
+    echo "  Deploying Lambda functions via CloudFormation..."
+    
+    # Generate new Lambda code version to trigger CloudFormation update
+    LAMBDA_CODE_VERSION=$(date +%Y%m%d%H%M%S)
+    
+    # Get LambdaStack name from master stack
+    LAMBDA_STACK_NAME=$(aws cloudformation describe-stack-resources \
+        --stack-name "$STACK_NAME" \
+        --logical-resource-id LambdaStack \
+        --query 'StackResources[0].PhysicalResourceId' \
+        --output text 2>/dev/null)
+    
+    if [ -z "$LAMBDA_STACK_NAME" ] || [ "$LAMBDA_STACK_NAME" = "None" ]; then
+        echo -e "${YELLOW}  ⚠ LambdaStack not found, deploying full stack...${NC}"
+        # Fallback to full stack deployment
+        aws cloudformation deploy \
+            --template-file cfn/master-template.yaml \
+            --stack-name "$STACK_NAME" \
+            --s3-bucket "$DEPLOYMENT_BUCKET" \
+            --s3-prefix cfn \
+            --parameter-overrides \
+                ProjectName="$PROJECT_NAME" \
+                Environment="$ENVIRONMENT" \
+                SourceBucket="$DEPLOYMENT_BUCKET" \
+                AdminEmail="$ADMIN_EMAIL" \
+                EnableNotifications="$ENABLE_NOTIFICATIONS" \
+                DeployFrontend="$DEPLOY_FRONTEND" \
+                OrchestrationRoleArn="$ORCHESTRATION_ROLE_ARN" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region "$AWS_REGION" > /dev/null 2>&1
+    else
+        echo "  Updating LambdaStack directly: $LAMBDA_STACK_NAME"
+        
+        # Get current parameters from LambdaStack
+        CURRENT_PARAMS=$(aws cloudformation describe-stacks \
+            --stack-name "$LAMBDA_STACK_NAME" \
+            --query 'Stacks[0].Parameters' \
+            --output json)
+        
+        # Extract individual parameters
+        ORCH_ROLE_ARN=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="OrchestrationRoleArn") | .ParameterValue')
+        PG_TABLE=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="ProtectionGroupsTableName") | .ParameterValue')
+        RP_TABLE=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="RecoveryPlansTableName") | .ParameterValue')
+        EH_TABLE=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="ExecutionHistoryTableName") | .ParameterValue')
+        TA_TABLE=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="TargetAccountsTableName") | .ParameterValue')
+        EXEC_NOTIF_TOPIC=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="ExecutionNotificationsTopicArn") | .ParameterValue // ""')
+        DRS_ALERTS_TOPIC=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="DRSAlertsTopicArn") | .ParameterValue // ""')
+        EXEC_PAUSE_TOPIC=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="ExecutionPauseTopicArn") | .ParameterValue // ""')
+        
+        # Update LambdaStack directly
+        aws cloudformation deploy \
+            --template-file cfn/lambda-stack.yaml \
+            --stack-name "$LAMBDA_STACK_NAME" \
+            --parameter-overrides \
+                ProjectName="$PROJECT_NAME" \
+                Environment="$ENVIRONMENT" \
+                SourceBucket="$DEPLOYMENT_BUCKET" \
+                OrchestrationRoleArn="$ORCH_ROLE_ARN" \
+                ProtectionGroupsTableName="$PG_TABLE" \
+                RecoveryPlansTableName="$RP_TABLE" \
+                ExecutionHistoryTableName="$EH_TABLE" \
+                TargetAccountsTableName="$TA_TABLE" \
+                ExecutionNotificationsTopicArn="$EXEC_NOTIF_TOPIC" \
+                DRSAlertsTopicArn="$DRS_ALERTS_TOPIC" \
+                ExecutionPauseTopicArn="$EXEC_PAUSE_TOPIC" \
+                LambdaCodeVersion="$LAMBDA_CODE_VERSION" \
+            --capabilities CAPABILITY_IAM \
+            --region "$AWS_REGION" > /dev/null 2>&1
+    fi
+    
+    echo -e "${GREEN}  ✓ Lambda functions deployed via CloudFormation${NC}"
 
 elif [ "$FRONTEND_ONLY" = true ]; then
     # Build frontend

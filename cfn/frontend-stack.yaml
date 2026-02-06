@@ -1,53 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: |
-  AWS DRS Orchestration - Frontend Stack
-  
-  Deploys React web console with S3 hosting and CloudFront CDN.
-  
-  Architecture:
-  - S3 bucket (private, CloudFront-only access via OAC)
-  - CloudFront CDN with HTTPS enforcement
-  - Custom Resource Lambda for automated deployment
-  
-  Deployment Flow:
-  1. CloudFormation creates S3 bucket and CloudFront distribution
-  2. Custom Resource triggers Frontend Deployer Lambda
-  3. Lambda builds React app with Cognito/API config
-  4. Lambda uploads to S3 and invalidates CloudFront cache
-  
-  Security: Public access blocked, AES256 encryption, OAC for S3 access
-  SPA Routing: 403/404 errors return index.html for React Router
-  
-  ============================================================================
-  FRONTEND UPDATE WITHOUT CI/CD PIPELINE
-  ============================================================================
-  
-  The Frontend Deployer Lambda handles all deployment operations automatically.
-  No external CI/CD pipeline is required for frontend-only updates.
-  
-  To trigger a frontend rebuild and redeploy:
-  
-  Option 1: Update FrontendBuildVersion parameter
-    aws cloudformation update-stack \
-      --stack-name aws-drs-orchestration-test \
-      --use-previous-template \
-      --parameters ParameterKey=FrontendBuildVersion,ParameterValue=$(date +%s)
-  
-  Option 2: Use deploy script with --frontend-only flag
-    ./scripts/deploy.sh test --frontend-only
-  
-  What happens on UPDATE:
-  1. CloudFormation detects FrontendBuildVersion change
-  2. Custom Resource triggers Frontend Deployer Lambda
-  3. Lambda injects updated aws-config.json (Cognito, API endpoint)
-  4. Lambda uploads fresh build to S3
-  5. Lambda creates CloudFront invalidation for immediate updates
-  
-  ============================================================================
-  BUCKET CLEANER ON STACK DELETE
-  ============================================================================
-  
-  The Frontend Deployer Lambda includes intelligent bucket cleanup logic.
+Description: >-
+  AWS DRS Orchestration - Frontend Stack. Deploys React web console with S3 hosting,
+  CloudFront CDN, and automated deployment via Custom Resource Lambda. Update
+  FrontendBuildVersion parameter to trigger rebuilds.
   
   SAFETY FIRST: Bucket is ONLY emptied during confirmed stack deletion.
   
@@ -119,6 +74,18 @@ Parameters:
     Type: String
     Description: 'Frontend build version - auto-generated timestamp to trigger rebuilds'
     Default: 'v1'
+
+  WebACLArn:
+    Type: String
+    Description: 'WAF Web ACL ARN for CloudFront protection'
+    Default: ''
+
+# =============================================================================
+# CONDITIONS
+# =============================================================================
+
+Conditions:
+  HasWebACL: !Not [!Equals [!Ref WebACLArn, '']]
 
 # =============================================================================
 # RESOURCES
@@ -209,6 +176,7 @@ Resources:
         Enabled: true
         Comment: !Sub '${ProjectName} Frontend Distribution'
         DefaultRootObject: index.html
+        WebACLId: !If [HasWebACL, !Ref WebACLArn, !Ref 'AWS::NoValue']
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
@@ -246,6 +214,7 @@ Resources:
         PriceClass: PriceClass_100
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
+          MinimumProtocolVersion: TLSv1.2_2021
       Tags:
         - Key: Project
           Value: !Ref ProjectName

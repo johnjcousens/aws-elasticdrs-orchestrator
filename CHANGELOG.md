@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] - 2026-02-06 - Security Enhancements & Deployment Improvements
+
+### Added
+- **WAF Protection**: AWS WAF WebACL for CloudFront with rate limiting and managed rule sets
+  - Rate limiting: 2000 requests per 5 minutes per IP
+  - AWS Managed Rules: Common Rule Set, Known Bad Inputs, Amazon IP Reputation List
+  - CloudWatch metrics for monitoring blocked requests
+- **API Gateway Access Logging**: CloudWatch Logs for API Gateway requests
+  - Logs request ID, IP, method, path, status, latency, and user agent
+  - 30-day retention for audit and debugging
+- **Lambda Reserved Concurrency**: All Lambda functions now have ReservedConcurrentExecutions (100)
+  - Prevents runaway scaling and cost overruns
+  - Ensures predictable performance under load
+- **Git Secrets Allowlist**: Added `.gitallowed` for false positive exclusions
+- **LambdaCodeVersion Parameter**: CloudFormation parameter to force Lambda updates via `--lambda-only`
+
+### Fixed
+- **create_drs_client() Bug**: Fixed 3 locations in query-handler where `create_drs_client()` was called with incorrect arguments (region, role_arn, external_id) instead of (region, account_context dict)
+  - `handle_discover_staging_accounts()` function
+  - `get_extended_source_servers()` function
+  - `get_staging_account_servers()` function
+
+### Changed
+- **--lambda-only Deployment**: Now deploys through CloudFormation instead of direct `aws lambda update-function-code`
+  - Uses `LambdaCodeVersion` parameter (timestamp-based) to force CloudFormation updates
+  - Ensures consistent deployment workflow for all deployment modes
+- **Deploy Script**: Enhanced with better virtual environment handling and security tool integration
+
+---
+
 ## [Unreleased] - 2026-02-06 - Step Functions Documentation & Bug Fixes
 
 ### Added

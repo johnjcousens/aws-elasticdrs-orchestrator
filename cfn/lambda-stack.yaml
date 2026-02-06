@@ -48,6 +48,11 @@ Parameters:
     Type: String
     Description: "DynamoDB table name for Target Accounts"
 
+  LambdaCodeVersion:
+    Type: String
+    Description: "Version identifier to force Lambda code updates (timestamp)"
+    Default: "initial"
+
   ExecutionNotificationsTopicArn:
     Type: String
     Default: ""
@@ -74,7 +79,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${ProjectName}-data-management-handler-${Environment}"
-      Description: "Data Management handler for Protection Groups and Recovery Plans"
+      Description: !Sub "Data Management handler for Protection Groups and Recovery Plans (v${LambdaCodeVersion})"
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !Ref OrchestrationRoleArn
@@ -83,6 +88,7 @@ Resources:
         S3Key: "lambda/data-management-handler.zip"
       Timeout: 120
       MemorySize: 512
+      ReservedConcurrentExecutions: 50
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -104,7 +110,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${ProjectName}-execution-handler-${Environment}"
-      Description: "Execution handler for DR operations and lifecycle management (v2)"
+      Description: !Sub "Execution handler for DR operations and lifecycle management (v${LambdaCodeVersion})"
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !Ref OrchestrationRoleArn
@@ -113,6 +119,7 @@ Resources:
         S3Key: "lambda/execution-handler.zip"
       Timeout: 300
       MemorySize: 512
+      ReservedConcurrentExecutions: 50
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -134,7 +141,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${ProjectName}-query-handler-${Environment}"
-      Description: "Query handler for read-only DRS and EC2 infrastructure queries"
+      Description: !Sub "Query handler for read-only DRS and EC2 infrastructure queries (v${LambdaCodeVersion})"
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !Ref OrchestrationRoleArn
@@ -143,6 +150,7 @@ Resources:
         S3Key: "lambda/query-handler.zip"
       Timeout: 60
       MemorySize: 256
+      ReservedConcurrentExecutions: 50
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -165,7 +173,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${ProjectName}-dr-orch-sf-${Environment}"
-      Description: "Generic wave-based orchestration (refactored, no DRS code)"
+      Description: !Sub "Generic wave-based orchestration (v${LambdaCodeVersion})"
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !Ref OrchestrationRoleArn
@@ -174,6 +182,7 @@ Resources:
         S3Key: "lambda/dr-orchestration-stepfunction.zip"
       Timeout: 120
       MemorySize: 512
+      ReservedConcurrentExecutions: 50
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -195,7 +204,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${ProjectName}-frontend-deployer-${Environment}"
-      Description: "Builds and deploys React frontend to S3/CloudFront with bucket cleanup"
+      Description: !Sub "Builds and deploys React frontend to S3/CloudFront (v${LambdaCodeVersion})"
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !Ref OrchestrationRoleArn
@@ -204,6 +213,7 @@ Resources:
         S3Key: "lambda/frontend-deployer.zip"
       Timeout: 900
       MemorySize: 2048
+      ReservedConcurrentExecutions: 10
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -244,7 +254,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub "${ProjectName}-notification-formatter-${Environment}"
-      Description: "Formats DRS orchestration events into user-friendly notifications"
+      Description: !Sub "Formats DRS orchestration events into user-friendly notifications (v${LambdaCodeVersion})"
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !Ref OrchestrationRoleArn
@@ -253,6 +263,7 @@ Resources:
         S3Key: "lambda/notification-formatter.zip"
       Timeout: 60
       MemorySize: 256
+      ReservedConcurrentExecutions: 50
       Environment:
         Variables:
           EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn

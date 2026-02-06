@@ -1,5 +1,12 @@
 # Development and CI/CD Tools
 # Install with: pip install -r requirements-dev.txt
+#
+# Additional tools (not pip-installable):
+#   cfn_nag:    gem install cfn-nag          (Ruby gem for CloudFormation security)
+#   shellcheck: brew install shellcheck      (Shell script linter)
+#   grype:      brew install grype           (CVE/vulnerability scanner)
+#   syft:       brew install syft            (SBOM generator)
+#   npm audit:  comes with Node.js           (JavaScript dependency audit)
 
 # CloudFormation validation
 cfn-lint==1.43.4
@@ -13,6 +20,8 @@ isort==5.13.2
 bandit==1.9.2
 detect-secrets==1.5.0
 safety==3.3.1
+checkov==3.2.334
+semgrep==1.102.0
 
 # Testing
 pytest==8.3.4

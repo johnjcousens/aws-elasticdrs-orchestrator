@@ -4180,11 +4180,15 @@ def handle_discover_staging_accounts(query_params: Dict) -> Dict:
         for region in DRS_REGIONS:
             try:
                 # Get DRS client for this region
-                regional_drs = create_drs_client(
-                    region,
-                    target_account.get("roleArn"),
-                    target_account.get("externalId"),
-                )
+                account_context = {
+                    "accountId": target_account_id,
+                    "assumeRoleName": (
+                        target_account.get("roleArn", "").split("/")[-1] if target_account.get("roleArn") else None
+                    ),
+                    "externalId": target_account.get("externalId"),
+                    "isCurrentAccount": False,
+                }
+                regional_drs = create_drs_client(region, account_context)
 
                 # Query source servers
                 paginator = regional_drs.get_paginator("describe_source_servers")
@@ -4447,11 +4451,19 @@ def get_extended_source_servers(target_account_id: str, role_arn: str, external_
     """Get set of extended source server ARNs in target account across all DRS regions."""
     extended_arns = set()
 
+    # Build account context for cross-account access
+    account_context = {
+        "accountId": target_account_id,
+        "assumeRoleName": role_arn.split("/")[-1] if role_arn else None,
+        "externalId": external_id,
+        "isCurrentAccount": False,
+    }
+
     # Query all DRS regions
     for region in DRS_REGIONS:
         try:
             # Create DRS client for this region with cross-account access
-            regional_drs = create_drs_client(region, role_arn, external_id)
+            regional_drs = create_drs_client(region, account_context)
 
             # Get all source servers
             paginator = regional_drs.get_paginator("describe_source_servers")
@@ -4498,6 +4510,14 @@ def get_staging_account_servers(staging_account_id: str, role_arn: str, external
     else:
         print(f"Staging account {staging_account_id} is different from current - assuming role {role_arn}")
 
+    # Build account context for cross-account access
+    account_context = {
+        "accountId": staging_account_id,
+        "assumeRoleName": role_arn.split("/")[-1] if role_arn else None,
+        "externalId": external_id,
+        "isCurrentAccount": use_default_credentials,
+    }
+
     # Query all DRS regions
     for region in DRS_REGIONS:
         try:
@@ -4507,7 +4527,7 @@ def get_staging_account_servers(staging_account_id: str, role_arn: str, external
                 regional_drs = boto3.client("drs", region_name=region)
             else:
                 # Use cross-account access for different account
-                regional_drs = create_drs_client(region, role_arn, external_id)
+                regional_drs = create_drs_client(region, account_context)
 
             # Get all source servers
             paginator = regional_drs.get_paginator("describe_source_servers")

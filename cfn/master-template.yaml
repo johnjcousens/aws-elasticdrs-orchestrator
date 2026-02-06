@@ -320,6 +320,7 @@ Resources:
                   - iam:GetInstanceProfile
                   - iam:ListInstanceProfiles
                   - iam:ListRoles
+                  - iam:ListAccountAliases
                 Resource: "*"
         
         # STS AssumeRole for cross-account DRS operations
@@ -897,6 +898,26 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
+  # WAF Web ACL for CloudFront protection using AWS Managed Rules
+  # Provides baseline security without IP restrictions
+  # Must be deployed in us-east-1 for CloudFront association
+  WAFStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: DeployFrontendCondition
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/waf-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 5
+
   # Deploys React frontend to S3 with CloudFront distribution for global content delivery
   # Injects runtime configuration (API endpoint, Cognito pools) during deployment via custom resource
   # 60-minute timeout accommodates frontend build, S3 sync, and CloudFront invalidation
@@ -908,6 +929,7 @@ Resources:
     DependsOn:
       - LambdaStack
       - ApiGatewayDeploymentStack
+      - WAFStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/frontend-stack.yaml'
       Parameters:
@@ -920,6 +942,7 @@ Resources:
         FrontendDeployerFunctionArn: !GetAtt LambdaStack.Outputs.FrontendDeployerFunctionArn
         SourceBucket: !Ref SourceBucket
         FrontendBuildVersion: !Ref FrontendBuildVersion
+        WebACLArn: !GetAtt WAFStack.Outputs.WebACLArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
