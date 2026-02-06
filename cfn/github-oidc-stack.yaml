@@ -1,8 +1,29 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - GitHub Actions OIDC Integration (Deploy Once Manually)'
+Description: |
+  AWS DRS Orchestration - GitHub Actions OIDC Integration
+  
+  Enables passwordless authentication for GitHub Actions CI/CD pipelines.
+  Deploy this stack ONCE manually before using GitHub Actions workflows.
+  
+  Authentication Flow:
+  1. GitHub Actions requests OIDC token from GitHub's identity provider
+  2. Workflow assumes IAM role using sts:AssumeRoleWithWebIdentity
+  3. Role trust policy validates GitHub org, repo, and branch/environment
+  4. Temporary credentials granted for deployment operations
+  
+  Security Model:
+  - No long-lived AWS credentials stored in GitHub
+  - Role assumption restricted to specific repository and branches
+  - Session duration limited to 1 hour
+  - Permissions scoped to deployment operations only
+  
+  Prerequisites:
+  - GitHub OIDC provider must exist in AWS account
+  - If not present, create via: aws iam create-open-id-connect-provider
 
-# This stack should be deployed ONCE manually before using GitHub Actions.
-# It creates the OIDC provider and IAM role for GitHub Actions to assume.
+# =============================================================================
+# PARAMETERS
+# =============================================================================
 
 Parameters:
   ProjectName:
@@ -32,10 +53,24 @@ Parameters:
     Type: String
     Description: 'Name of the application stack that GitHub Actions will deploy'
 
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
 Resources:
-  # IAM Role for GitHub Actions
-  # Note: Uses existing GitHub OIDC provider (arn:aws:iam::ACCOUNT:oidc-provider/token.actions.githubusercontent.com)
-  # If OIDC provider doesn't exist, create it manually or uncomment the GitHubOidcProvider resource below
+  # ===========================================================================
+  # GITHUB ACTIONS IAM ROLE
+  # ===========================================================================
+  # IAM role assumed by GitHub Actions workflows via OIDC federation.
+  # Trust policy restricts access to specific GitHub repository and branches.
+  # 
+  # Allowed principals:
+  # - Main branch pushes: repo:org/repo:ref:refs/heads/main
+  # - Pull requests: repo:org/repo:pull_request
+  # - Environment deployments: repo:org/repo:environment:*
+  #
+  # Note: Uses existing GitHub OIDC provider in account.
+  # If provider doesn't exist, create it first or uncomment GitHubOidcProvider below.
   GitHubActionsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -56,12 +91,21 @@ Resources:
                   - !Sub 'repo:${GitHubOrg}/${GitHubRepo}:pull_request'
                   - !Sub 'repo:${GitHubOrg}/${GitHubRepo}:environment:*'
       MaxSessionDuration: 3600
+      # =========================================================================
+      # DEPLOYMENT PERMISSIONS POLICY
+      # =========================================================================
+      # Grants permissions required for CloudFormation deployments.
+      # Organized by AWS service with comments explaining each permission set.
       Policies:
         - PolicyName: GitHubActionsDeploymentPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # S3 Access for deployment buckets (both current and archive test)
+              # ---------------------------------------------------------------
+              # S3: Deployment Bucket Access
+              # ---------------------------------------------------------------
+              # Read/write access to deployment artifact buckets.
+              # Used for: CloudFormation templates, Lambda packages, frontend builds
               - Effect: Allow
                 Action:
                   - s3:GetObject
@@ -76,7 +120,11 @@ Resources:
                   # Archive test stack bucket
                   - 'arn:aws:s3:::aws-drs-orchestrator-archive-test-bucket'
                   - 'arn:aws:s3:::aws-drs-orchestrator-archive-test-bucket/*'
-              # S3 Access for frontend buckets (created by CloudFormation for both stacks)
+              # ---------------------------------------------------------------
+              # S3: Frontend Bucket Management
+              # ---------------------------------------------------------------
+              # Full bucket management for CloudFront-hosted frontend.
+              # CloudFormation creates/configures these buckets during deployment.
               - Effect: Allow
                 Action:
                   - s3:CreateBucket
@@ -117,7 +165,11 @@ Resources:
                   # All DRS orchestrator frontend buckets (wildcard pattern)
                   - !Sub 'arn:aws:s3:::aws-*drs-orchestrator*-fe-${AWS::AccountId}-*'
                   - !Sub 'arn:aws:s3:::aws-*drs-orchestrator*-fe-${AWS::AccountId}-*/*'
-              # CloudFormation - Full access for all DRS orchestration stacks
+              # ---------------------------------------------------------------
+              # CloudFormation: Stack Management
+              # ---------------------------------------------------------------
+              # Full stack lifecycle management for DRS orchestration stacks.
+              # Includes create, update, delete, and change set operations.
               - Effect: Allow
                 Action:
                   - cloudformation:CreateStack
@@ -140,12 +192,17 @@ Resources:
                   # Allow access to all DRS orchestration stacks (current and archive test)
                   - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-*drs-orchestrat*/*'
                   - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-*elasticdrs-orchestrat*/*'
+              # CloudFormation: Global operations (no resource restriction)
               - Effect: Allow
                 Action:
                   - cloudformation:ValidateTemplate
                   - cloudformation:ListStacks
                 Resource: '*'
-              # IAM for CloudFormation deployments
+              # ---------------------------------------------------------------
+              # IAM: Role Management for CloudFormation
+              # ---------------------------------------------------------------
+              # Required for CloudFormation to create/manage Lambda execution roles,
+              # Step Functions roles, and other service roles defined in templates.
               - Effect: Allow
                 Action:
                   - iam:CreateRole
@@ -165,73 +222,91 @@ Resources:
                   - iam:UpdateAssumeRolePolicy
                   - iam:CreateServiceLinkedRole
                 Resource: '*'
-              # Lambda
+              # ---------------------------------------------------------------
+              # COMPUTE & ORCHESTRATION SERVICES
+              # ---------------------------------------------------------------
+              # Lambda: Function deployment and configuration
               - Effect: Allow
                 Action:
                   - lambda:*
                 Resource: '*'
-              # API Gateway
+              # Step Functions: State machine deployment
+              - Effect: Allow
+                Action:
+                  - states:*
+                Resource: '*'
+              # EventBridge: Scheduled rules and event routing
+              - Effect: Allow
+                Action:
+                  - events:*
+                Resource: '*'
+              # ---------------------------------------------------------------
+              # API & FRONTEND SERVICES
+              # ---------------------------------------------------------------
+              # API Gateway: REST API deployment
               - Effect: Allow
                 Action:
                   - apigateway:*
                 Resource: '*'
-              # DynamoDB
+              # CloudFront: CDN distribution management
               - Effect: Allow
                 Action:
-                  - dynamodb:*
+                  - cloudfront:*
                 Resource: '*'
-              # Cognito
+              # Cognito: User authentication infrastructure
               - Effect: Allow
                 Action:
                   - cognito-idp:*
                   - cognito-identity:*
                 Resource: '*'
-              # Step Functions
+              # ---------------------------------------------------------------
+              # DATA & STORAGE SERVICES
+              # ---------------------------------------------------------------
+              # DynamoDB: Table deployment and configuration
               - Effect: Allow
                 Action:
-                  - states:*
+                  - dynamodb:*
                 Resource: '*'
-              # EventBridge
-              - Effect: Allow
-                Action:
-                  - events:*
-                Resource: '*'
-              # CloudFront
-              - Effect: Allow
-                Action:
-                  - cloudfront:*
-                Resource: '*'
-              # SNS
+              # ---------------------------------------------------------------
+              # NOTIFICATION & LOGGING SERVICES
+              # ---------------------------------------------------------------
+              # SNS: Notification topic deployment
               - Effect: Allow
                 Action:
                   - sns:*
                 Resource: '*'
-              # CloudWatch Logs
+              # CloudWatch Logs: Log group management
               - Effect: Allow
                 Action:
                   - logs:*
                 Resource: '*'
-              # WAF
+              # ---------------------------------------------------------------
+              # SECURITY SERVICES
+              # ---------------------------------------------------------------
+              # WAF: Web application firewall rules
               - Effect: Allow
                 Action:
                   - wafv2:*
                 Resource: '*'
-              # Secrets Manager
+              # Secrets Manager: Secret storage for API keys
               - Effect: Allow
                 Action:
                   - secretsmanager:*
                 Resource: '*'
-              # KMS
+              # KMS: Encryption key management
               - Effect: Allow
                 Action:
                   - kms:*
                 Resource: '*'
-              # STS for identity verification
+              # ---------------------------------------------------------------
+              # UTILITY PERMISSIONS
+              # ---------------------------------------------------------------
+              # STS: Identity verification for deployment scripts
               - Effect: Allow
                 Action:
                   - sts:GetCallerIdentity
                 Resource: '*'
-              # Resource tagging
+              # Resource tagging: Tag management across services
               - Effect: Allow
                 Action:
                   - tag:*
@@ -242,19 +317,28 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# Values required for GitHub Actions workflow configuration.
+# Add these to GitHub repository secrets for CI/CD integration.
+
 Outputs:
+  # Primary output: Role ARN for GitHub Actions to assume
   GitHubActionsRoleArn:
     Description: 'IAM Role ARN for GitHub Actions (use in GitHub secrets as AWS_ROLE_ARN)'
     Value: !GetAtt GitHubActionsRole.Arn
     Export:
       Name: !Sub '${AWS::StackName}-GitHubActionsRoleArn'
 
+  # Reference to existing OIDC provider
   OidcProviderArn:
     Description: 'GitHub OIDC Provider ARN (existing provider in account)'
     Value: !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
     Export:
       Name: !Sub '${AWS::StackName}-OidcProviderArn'
 
+  # Deployment configuration outputs
   DeploymentBucketName:
     Description: 'S3 bucket for deployment artifacts'
     Value: !Ref DeploymentBucket
@@ -267,6 +351,7 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-ApplicationStackName'
 
+  # Setup instructions for GitHub repository configuration
   GitHubSecretsInstructions:
     Description: 'Instructions for GitHub repository secrets'
     Value: !Sub |
