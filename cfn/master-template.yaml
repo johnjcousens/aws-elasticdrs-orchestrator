@@ -74,7 +74,7 @@ Parameters:
     Description: >-
       Optional ARN of an existing orchestration role for all Lambda functions.
       If empty (default), the stack creates a unified role with all required permissions.
-      If provided (e.g., from HRP), all Lambdas use that role instead.
+      If provided, all Lambdas use that role instead of creating a new one.
     AllowedPattern: '^(arn:aws:iam::[0-9]{12}:role/.+)?$'
     ConstraintDescription: 'Must be a valid IAM role ARN or empty'
 
@@ -86,7 +86,7 @@ Parameters:
       - 'false'
     Description: >-
       Set to 'false' to skip frontend deployment (S3, CloudFront, frontend-builder).
-      Use 'false' for API-only deployments or HRP integration.
+      Use 'false' for API-only deployments or backend integration scenarios.
 
   FrontendBuildVersion:
     Type: String

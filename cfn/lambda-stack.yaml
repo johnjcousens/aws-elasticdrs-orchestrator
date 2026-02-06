@@ -267,13 +267,13 @@ Resources:
           Value: !Ref Environment
 
   # ============================================================================
-  # DRS Agent Deployer - COMMENTED OUT (Under Development)
+  # DRS Agent Deployer - COMMENTED OUT (Not Yet Implemented)
   # ============================================================================
   # Automated DRS agent deployment across AWS accounts
   # Discovers instances with DR tags and deploys DRS agents via SSM
   # Supports cross-account role assumption for multi-account orchestration
   #
-  # TODO: Complete development before enabling
+  # Implementation requirements before enabling:
   # - Finalize SSM command execution logic
   # - Add comprehensive error handling
   # - Implement retry mechanisms
