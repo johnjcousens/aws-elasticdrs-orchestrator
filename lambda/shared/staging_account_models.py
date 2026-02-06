@@ -175,7 +175,7 @@ def validate_staging_account_structure(staging_account: Dict) -> Dict:
     Checks that all required fields are present and have valid formats:
     - accountId: 12-digit string
     - accountName: non-empty string
-    - roleArn: valid IAM role ARN format (optional - will be constructed if not provided)
+    - roleArn: valid IAM role ARN format (optional - constructed if not provided)
     - externalId: non-empty string
 
     Args:

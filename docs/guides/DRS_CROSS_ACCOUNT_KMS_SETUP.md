@@ -447,12 +447,12 @@ aws kms get-key-policy \
 # In target account (111122223333)
 # Describe the key (should succeed)
 aws kms describe-key \
-  --key-id arn:aws:kms:us-east-1:444455556666:alias/drs-cross-account-ebs \
+  --key-id arn:aws:kms:us-east-1:STAGING_ACCOUNT_ID:alias/your-kms-alias \
   --region us-east-1
 
 # Try to decrypt (will fail without actual ciphertext, but should not give permission error)
 aws kms decrypt \
-  --key-id arn:aws:kms:us-east-1:444455556666:alias/drs-cross-account-ebs \
+  --key-id arn:aws:kms:us-east-1:STAGING_ACCOUNT_ID:alias/your-kms-alias \
   --ciphertext-blob fileb://test-ciphertext.bin \
   --region us-east-1
 # Expected: InvalidCiphertextException (not AccessDeniedException)

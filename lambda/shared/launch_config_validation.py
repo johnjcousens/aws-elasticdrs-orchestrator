@@ -394,7 +394,7 @@ ALLOWED_FIELDS = [
 ]
 
 # DRS-managed fields that MUST NOT be modified by customers
-# These fields are controlled by AWS DRS and modifications will be
+# These fields are controlled by AWS DRS and modifications are
 # ignored or cause recovery failures
 BLOCKED_FIELDS = [
     "imageId",  # DRS creates recovery-specific AMIs
@@ -412,7 +412,7 @@ def validate_aws_approved_fields(config: Dict[str, Any]) -> Dict[str, Any]:
 
     This function ensures that only fields officially supported by AWS
     DRS Configuration Synchronizer are present in the configuration.
-    Any DRS-managed fields will be rejected with clear error messages.
+    Any DRS-managed fields are rejected with clear error messages.
 
     AWS-approved fields (safe for customer modification):
     - staticPrivateIp: Static private IP address
@@ -902,7 +902,7 @@ def validate_no_duplicate_ips(
         protection_group: Protection group dict containing servers array
         current_server_id: Server ID being updated (excluded from check)
         new_ip: New static private IP being assigned
-        new_subnet_id: Subnet ID where the IP will be assigned
+        new_subnet_id: Subnet ID where the IP is assigned
 
     Returns:
         Dict containing validation result:

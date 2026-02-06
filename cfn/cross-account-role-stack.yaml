@@ -16,9 +16,8 @@ Metadata:
 
 Parameters:
   OrchestrationAccountId:
-    Description: 'AWS Account ID where DRS Orchestration is deployed (777788889999)'
+    Description: 'AWS Account ID where DRS Orchestration is deployed'
     Type: String
-    Default: '777788889999'
     AllowedPattern: '[0-9]{12}'
     ConstraintDescription: 'Must be a valid 12-digit AWS account ID'
   

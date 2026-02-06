@@ -430,7 +430,7 @@ def validate_target_account(account_id: str) -> Dict:
                     }
                 )
             else:
-                # TODO: Implement cross-account role assumption and validation
+                # Cross-account role assumption and validation not implemented
                 validation_results["validationResults"].append(
                     {
                         "service": "IAM",
