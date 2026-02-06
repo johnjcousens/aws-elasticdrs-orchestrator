@@ -2181,7 +2181,7 @@ def poll_wave_status(state: Dict) -> Dict:
     times out. Checks for cancellation, tracks server launch status, and
     manages wave transitions.
 
-    Archive Pattern: State passed directly, returns complete state object.
+    State Ownership Pattern: State passed directly, returns complete state object.
 
     Args:
         state: Complete state object with job_id, region, wave tracking
@@ -2201,7 +2201,7 @@ def poll_wave_status(state: Dict) -> Dict:
         DynamoDB updates for server details (instanceId, privateIp) are
         handled by execution-poller Lambda to avoid race conditions.
     """
-    # State passed directly (archive pattern)
+    # State passed directly (state ownership pattern)
     job_id = state.get("job_id")
     wave_number = state.get("current_wave_number", 0)
     region = state.get("region", "us-east-1")
