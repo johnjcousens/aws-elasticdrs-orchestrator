@@ -2989,6 +2989,7 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
             account_context = {
                 "accountId": pg.get("accountId"),
                 "assumeRoleName": pg.get("assumeRoleName"),
+                "externalId": pg.get("externalId"),
             }
         resolved_servers = query_drs_servers_by_tags(region, selection_tags, account_context)
 
@@ -4999,6 +5000,51 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         else:  # HYPER-CRITICAL
             status_message = "Immediate action required"
 
+        # Step 9.5: Calculate regional capacity breakdown
+        # Group all servers by region across all accounts (target + staging)
+        regional_capacity = {}
+
+        for account in account_results:
+            for region_data in account.get("regionalBreakdown", []):
+                region = region_data.get("region")
+                if not region:
+                    continue
+
+                if region not in regional_capacity:
+                    regional_capacity[region] = {
+                        "region": region,
+                        "replicatingServers": 0,
+                        "maxReplicating": 0,
+                        "recoveryServers": 0,
+                        "recoveryMax": 4000,  # Per region limit
+                        "accountCount": 0,
+                    }
+
+                # Add replication capacity
+                regional_capacity[region]["replicatingServers"] += region_data.get("replicatingServers", 0)
+                regional_capacity[region]["maxReplicating"] += region_data.get("maxReplicating", 300)
+
+                # Count all accounts (target + staging) with servers in this region
+                regional_capacity[region]["accountCount"] += 1
+
+                # Add recovery capacity - ALL servers (target + staging) recover into target account
+                regional_capacity[region]["recoveryServers"] += region_data.get("replicatingServers", 0)
+
+        # Calculate percentages for regional capacity
+        for region_data in regional_capacity.values():
+            region_data["replicationPercent"] = (
+                (region_data["replicatingServers"] / region_data["maxReplicating"] * 100)
+                if region_data["maxReplicating"] > 0
+                else 0.0
+            )
+            region_data["recoveryPercent"] = (
+                (region_data["recoveryServers"] / region_data["recoveryMax"] * 100)
+                if region_data["recoveryMax"] > 0
+                else 0.0
+            )
+            region_data["replicationAvailable"] = region_data["maxReplicating"] - region_data["replicatingServers"]
+            region_data["recoveryAvailable"] = region_data["recoveryMax"] - region_data["recoveryServers"]
+
         # Step 10: Build response
         total_replicating = combined_metrics.get("totalReplicating", 0)
         max_replicating = combined_metrics.get("maxReplicating", 0)
@@ -5015,6 +5061,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             },
             "accounts": account_results,
             "recoveryCapacity": recovery_capacity,
+            "regionalCapacity": list(regional_capacity.values()),
             "concurrentJobs": concurrent_jobs_data,
             "serversInJobs": servers_in_jobs_data,
             "maxServersPerJob": max_per_job_data,

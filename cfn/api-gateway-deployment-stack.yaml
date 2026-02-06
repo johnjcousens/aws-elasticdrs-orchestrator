@@ -199,7 +199,7 @@ Resources:
       # Force update on every stack update using StackId
       ForceUpdate: !Ref AWS::StackId
       # Force replacement - increment version to trigger new deployment
-      Version: "2026-02-03-capacity-all-endpoint"
+      Version: "2026-02-05-tag-sync-get-method"
 
   # ============================================================================
   # API STAGE WITH ENTERPRISE CONFIGURATION

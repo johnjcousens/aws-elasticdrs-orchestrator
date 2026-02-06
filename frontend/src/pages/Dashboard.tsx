@@ -79,6 +79,13 @@ export const Dashboard: React.FC = () => {
   
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
   const [stagingSyncLoading, setStagingSyncLoading] = useState(false);
+  const [lastTagSync, setLastTagSync] = useState<{
+    lastSync: string | null;
+    source: string;
+    totalSynced: number;
+    totalFailed: number;
+    status: string;
+  } | null>(null);
   
   const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
   const [capacityLoading, setCapacityLoading] = useState(false);
@@ -172,6 +179,21 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchExecutions]);
 
+  // Fetch last tag sync status
+  useEffect(() => {
+    const fetchLastTagSync = async () => {
+      try {
+        const status = await apiClient.getLastTagSyncStatus();
+        if (status.lastSync) {
+          setLastTagSync(status);
+        }
+      } catch (err) {
+        console.debug('Could not fetch last tag sync status:', err);
+      }
+    };
+    fetchLastTagSync();
+  }, []);
+
   // Fetch DRS capacity for ALL accounts (dashboard is universal)
   useEffect(() => {
     if (availableAccounts.length > 0) {
@@ -197,7 +219,16 @@ export const Dashboard: React.FC = () => {
       await apiClient.triggerTagSync(accountId);
       const accountName = getCurrentAccountName();
       const accountDisplay = accountName ? `${accountName} (${accountId})` : accountId;
-      toast.success(`Tag sync initiated for account ${accountDisplay} - EC2 tags will be synced to DRS servers`);
+      toast.success(`Tag sync started for account ${accountDisplay} - running in background`);
+      
+      // Update last sync status to show "in progress"
+      setLastTagSync({
+        lastSync: new Date().toISOString(),
+        source: 'manual',
+        totalSynced: 0,
+        totalFailed: 0,
+        status: 'IN_PROGRESS',
+      });
     } catch (err) {
       console.error('Error triggering tag sync:', err);
       toast.error('Failed to trigger tag sync');
@@ -322,6 +353,14 @@ export const Dashboard: React.FC = () => {
             description="Real-time execution status and system metrics"
             actions={
               <SpaceBetween direction="horizontal" size="xs">
+                {lastTagSync && lastTagSync.lastSync && (
+                  <Box variant="small" color="text-body-secondary" padding={{ top: 'xs' }}>
+                    Last sync: {new Date(lastTagSync.lastSync).toLocaleString()}
+                    {lastTagSync.status === 'IN_PROGRESS' ? ' (running...)' : 
+                     lastTagSync.status === 'SUCCESS' ? ` (${lastTagSync.totalSynced} synced)` :
+                     lastTagSync.status === 'PARTIAL' ? ` (${lastTagSync.totalSynced} synced, ${lastTagSync.totalFailed} failed)` : ''}
+                  </Box>
+                )}
                 <Button
                   iconName="refresh"
                   onClick={handleRefresh}

@@ -20,6 +20,14 @@ import { CapacityDashboard } from "../CapacityDashboard";
 import type { CombinedCapacityData } from "../../types/staging-accounts";
 import "@testing-library/jest-dom";
 
+// Mock the API module
+vi.mock("../../services/staging-accounts-api", () => ({
+  getCombinedCapacity: vi.fn(),
+}));
+
+// Import the mocked function for test control
+import { getCombinedCapacity } from "../../services/staging-accounts-api";
+
 // Mock data for tests
 const mockCapacityDataOK: CombinedCapacityData = {
   combined: {
@@ -243,12 +251,12 @@ const mockCapacityDataMultipleAccounts: CombinedCapacityData = {
 describe("CapacityDashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
+    // Set up the mock to return OK data by default
+    vi.mocked(getCombinedCapacity).mockResolvedValue(mockCapacityDataOK);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.useRealTimers();
   });
 
   describe("Rendering with OK status", () => {
@@ -263,9 +271,10 @@ describe("CapacityDashboard", () => {
       // Check combined capacity section
       expect(screen.getByText("Combined Replication Capacity")).toBeInTheDocument();
       expect(screen.getByText(/Total Replicating/i)).toBeInTheDocument();
-      expect(screen.getByText(/Percentage Used/i)).toBeInTheDocument();
-      expect(screen.getByText(/Available Slots/i)).toBeInTheDocument();
-      expect(screen.getByText(/Status/i)).toBeInTheDocument();
+      // Use getAllByText for elements that appear multiple times
+      expect(screen.getAllByText(/Percentage Used/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Available Slots/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Status/i).length).toBeGreaterThan(0);
     });
 
     it("displays correct capacity metrics for OK status", async () => {
@@ -275,9 +284,10 @@ describe("CapacityDashboard", () => {
         expect(screen.queryByText("Loading capacity data...")).not.toBeInTheDocument();
       });
 
-      // Check that numbers are displayed (mock data shows 267 / 1,200)
-      expect(screen.getByText(/267/)).toBeInTheDocument();
-      expect(screen.getByText(/1,200/)).toBeInTheDocument();
+      // Check that numbers are displayed (mock data shows 150 / 900)
+      // Use getAllByText since values appear in multiple places
+      expect(screen.getAllByText(/150/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/900/).length).toBeGreaterThan(0);
     });
 
     it("renders per-account capacity breakdown", async () => {
@@ -356,9 +366,9 @@ describe("CapacityDashboard", () => {
         expect(screen.queryByText("Loading capacity data...")).not.toBeInTheDocument();
       });
 
-      // Check that regions are displayed
-      expect(screen.getByText(/us-east-1/)).toBeInTheDocument();
-      expect(screen.getByText(/us-west-2/)).toBeInTheDocument();
+      // Check that regions are displayed (use getAllByText since regions appear multiple times)
+      expect(screen.getAllByText(/us-east-1/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/us-west-2/).length).toBeGreaterThan(0);
     });
 
     it("displays account type badges", async () => {
