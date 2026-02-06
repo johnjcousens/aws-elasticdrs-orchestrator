@@ -4172,16 +4172,22 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
 
         # If this is an async execution (self-invoked), run the actual sync
         if is_async_execution:
-            print("Running async tag sync execution")
+            print(
+                f"Running async tag sync execution - target_account_id: {target_account_id}, region: {region}, source: {sync_source}"
+            )
             try:
                 if not target_account_id:
+                    print("Starting tag sync for ALL target accounts...")
                     result = _sync_tags_all_target_accounts(region, sync_source)
                 else:
+                    print(f"Starting tag sync for single account: {target_account_id}")
                     result = _sync_tags_for_account(target_account_id, region, assume_role_name)
                 # Clear lock on completion
                 _clear_tag_sync_lock()
+                print("Async tag sync completed successfully")
                 return result
-            except Exception:
+            except Exception as e:
+                print(f"Async tag sync failed with error: {e}")
                 _clear_tag_sync_lock()
                 raise
 
@@ -4248,8 +4254,8 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
         return response(500, {"error": str(e)})
 
 
-# Lock timeout in seconds (5 minutes max for tag sync)
-TAG_SYNC_LOCK_TTL = 300
+# Lock timeout in seconds (15 minutes max for tag sync)
+TAG_SYNC_LOCK_TTL = 900
 
 
 def _is_tag_sync_running() -> bool:
@@ -4672,8 +4678,13 @@ def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
     for page in paginator.paginate(filters={}, maxResults=200):
         source_servers.extend(page.get("items", []))
 
+    print(f"Tag sync: Found {len(source_servers)} DRS source servers in {drs_region}")
+
     synced = 0
     failed = 0
+    skipped_no_instance = 0
+    skipped_disconnected = 0
+    skipped_no_tags = 0
 
     for server in source_servers:
         try:
@@ -4683,15 +4694,17 @@ def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
             source_region = server.get("sourceCloudProperties", {}).get("originRegion", drs_region)
 
             if not instance_id:
+                skipped_no_instance += 1
                 continue
 
             # Skip disconnected servers
             replication_state = server.get("dataReplicationInfo", {}).get("dataReplicationState", "")
             if replication_state == "DISCONNECTED":
+                skipped_disconnected += 1
                 continue
 
             # Get or create EC2 client for source region
-            # EC2 instances are always in the same account as DRS servers (target account)
+            # EC2 instances are in the target account (same account as DRS servers)
             # Staging account is only used for replication infrastructure
             ec2_client_key = f"{source_region}"
             if ec2_client_key not in ec2_clients:
@@ -4702,18 +4715,23 @@ def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
             try:
                 ec2_response = ec2_client.describe_instances(InstanceIds=[instance_id])
                 if not ec2_response["Reservations"]:
+                    print(f"Warning: Instance {instance_id} not found in account {account_context.get('accountId')}")
+                    failed += 1
                     continue
                 instance = ec2_response["Reservations"][0]["Instances"][0]
                 ec2_tags = {
                     tag["Key"]: tag["Value"] for tag in instance.get("Tags", []) if not tag["Key"].startswith("aws:")
                 }
             except Exception as e:
-                # Skip instances that cannot be described (permissions,
-                # deleted, etc.)
-                print(f"Warning: Could not describe instance {instance_id}: {e}")
+                # Skip instances that cannot be described (permissions, deleted, etc.)
+                print(
+                    f"Warning: Could not describe instance {instance_id} in account {account_context.get('accountId')}: {e}"
+                )
+                failed += 1
                 continue
 
             if not ec2_tags:
+                skipped_no_tags += 1
                 continue
 
             # Sync tags to DRS source server
@@ -4745,11 +4763,22 @@ def sync_tags_in_region(drs_region: str, account_context: dict = None) -> dict:
                         'unknown')}: {e}"
             )
 
+    print(
+        f"Tag sync {drs_region} complete: {synced} synced, {failed} failed, "
+        f"skipped: {skipped_no_instance} no instance, {skipped_disconnected} disconnected, "
+        f"{skipped_no_tags} no tags"
+    )
+
     return {
         "total": len(source_servers),
         "synced": synced,
         "failed": failed,
         "region": drs_region,
+        "skipped": {
+            "noInstanceId": skipped_no_instance,
+            "disconnected": skipped_disconnected,
+            "noTags": skipped_no_tags,
+        },
     }
 
 
