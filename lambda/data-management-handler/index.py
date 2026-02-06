@@ -1,278 +1,179 @@
 """
-Data Management Handler - Protection Groups and Recovery Plans CRUD Operations
+Data Management Handler Lambda
 
-Handles all data management operations for the DR Orchestration Platform including
-Protection Groups, Recovery Plans, Tag Synchronization, and Configuration Management.
+Manages Protection Groups, Recovery Plans, Target Accounts, and Configuration for the
+DR Orchestration Platform. Provides CRUD operations via API Gateway and direct invocation.
 
-## Architecture Pattern
+HANDLER ARCHITECTURE:
+The platform uses three specialized handlers with distinct responsibilities:
 
-Dual Invocation Support:
-- API Gateway Mode: REST API endpoints for frontend/CLI
-- Direct Invocation Mode: Function calls from Step Functions/Lambda
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │                        API Gateway + Cognito                        │
+    │                         (User Authentication)                       │
+    └─────────────────────────────────────────────────────────────────────┘
+                │                    │                    │
+                ▼                    ▼                    ▼
+    ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐
+    │ data-management   │ │ execution-handler │ │  query-handler    │
+    │ handler (this)    │ │                   │ │                   │
+    ├───────────────────┤ ├───────────────────┤ ├───────────────────┤
+    │ CRUD Operations:  │ │ Recovery Actions: │ │ Read Operations:  │
+    │ - Protection Grps │ │ - Start recovery  │ │ - List executions │
+    │ - Recovery Plans  │ │ - Cancel exec     │ │ - Poll DRS jobs   │
+    │ - Target Accounts │ │ - Terminate inst  │ │ - Server status   │
+    │ - Tag sync        │ │ - Apply configs   │ │ - Dashboard data  │
+    │ - Launch configs  │ └───────────────────┘ └───────────────────┘
+    └───────────────────┘
 
-## Integration Points
+HANDLER RESPONSIBILITIES:
+- data-management-handler (this): CRUD for Protection Groups, Recovery Plans, Target
+  Accounts, Tag Sync, Launch Configs (API Gateway + Direct Invocation)
+- execution-handler: Start/cancel recovery, terminate instances, apply launch configs
+- query-handler: Poll DRS jobs, list executions, dashboard metrics, server status
+- dr-orchestration-stepfunction: Wave orchestration, state management, handler coordination
 
-### 1. API Gateway Invocation (Frontend/CLI)
-```bash
-# Create Protection Group
-curl -X POST https://api.example.com/protection-groups \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "groupName": "Production Web Servers",
-    "region": "us-east-1",
-    "accountId": "123456789012",
-    "sourceServerIds": ["s-abc123...", "s-def456..."]
-  }'
+DUAL INVOCATION SUPPORT:
+This Lambda supports two invocation patterns:
 
-# Create Recovery Plan
-curl -X POST https://api.example.com/recovery-plans \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "planName": "Production DR Plan",
-    "waves": [
-      {"waveNumber": 1, "waveName": "Critical", "protectionGroupId": "pg-123"}
-    ]
-  }'
-```
+1. API Gateway Mode (Frontend/CLI):
+   - REST API endpoints with Cognito authentication
+   - Request/response via HTTP methods (GET, POST, PUT, DELETE)
+   - Path parameters and query strings for resource identification
 
-### 2. Direct Lambda Invocation (Step Functions)
-```python
-import boto3
+2. Direct Invocation Mode (Step Functions/Lambda/CLI):
+   - Function calls with operation parameter
+   - Bypasses API Gateway for internal operations
+   - Used by Step Functions for configuration lookups
 
-lambda_client = boto3.client('lambda')
+SECURITY MODEL:
+- API Gateway mode: Authentication via Cognito JWT tokens
+- Direct invocation mode: IAM role-based access control
+- Cross-account DRS operations: IAM role assumption to target accounts
+- Input validation: All inputs validated before processing
 
-# Create Protection Group
-response = lambda_client.invoke(
-    FunctionName='data-management-handler',
-    InvocationType='RequestResponse',
-    Payload=json.dumps({
-        "operation": "create_protection_group",
-        "body": {
-            "groupName": "Production Web Servers",
-            "region": "us-east-1",
-            "sourceServerIds": ["s-abc123..."]
-        }
-    })
-)
+KEY CAPABILITIES:
+- Protection Group management with tag-based or explicit server selection
+- Recovery Plan management with multi-wave configuration
+- Target Account registration and cross-account role validation
+- Tag synchronization from EC2 to DRS source servers
+- Per-server launch configuration overrides
+- Configuration import/export for disaster recovery
 
-# List Recovery Plans
-response = lambda_client.invoke(
-    FunctionName='data-management-handler',
-    InvocationType='RequestResponse',
-    Payload=json.dumps({
-        "operation": "list_recovery_plans",
-        "queryParams": {}
-    })
-)
-```
+PROTECTION GROUP FEATURES:
+- Tag-based server selection: Dynamic resolution at execution time
+- Explicit server selection: Static list of DRS source server IDs
+- Per-server launch configs: Override instance type, subnet, security groups
+- Server conflict detection: Prevents servers in multiple groups
+- Replication state validation: Ensures servers are ready for recovery
 
-### 3. AWS CLI Direct Invocation
-```bash
-# Create Protection Group
-aws lambda invoke \
-  --function-name data-management-handler \
-  --payload '{
-    "operation": "create_protection_group",
-    "body": {
-      "groupName": "Production Web Servers",
-      "region": "us-east-1",
-      "sourceServerIds": ["s-abc123..."]
-    }
-  }' \
-  response.json
+RECOVERY PLAN FEATURES:
+- Multi-wave execution: Sequential waves with dependency management
+- Pause gates: Manual approval points between waves
+- Wave dependencies: dependsOnWaves for complex orchestration
+- DRS quota validation: Max 100 servers per wave (DRS limit)
+- Active execution detection: Prevents conflicting operations
 
-# Resolve Tag-Based Protection Group
-aws lambda invoke \
-  --function-name data-management-handler \
-  --payload '{
-    "operation": "resolve_protection_group_tags",
-    "body": {
-      "region": "us-east-1",
-      "tags": {"Environment": "production", "Tier": "web"}
-    }
-  }' \
-  response.json
-```
+DYNAMODB DATA FLOW:
+The platform uses 5 DynamoDB tables for configuration and state management:
 
-## Supported Operations
+    +-------------------------+     +----------------------------+
+    |   protection-groups     |     |     recovery-plans         |
+    +-------------------------+     +----------------------------+
+    | PK: groupId             |     | PK: planId                 |
+    |                         |     |                            |
+    | - groupName             |<----| - waves[].protectionGroupId|
+    | - sourceServerIds[]     |     | - waves[].waveNumber       |
+    | - serverSelectionTags{} |     | - waves[].pauseBeforeWave  |
+    | - launchConfig{}        |     | - waves[].dependsOnWaves[] |
+    | - servers[] (per-srv)   |     | - planName                 |
+    | - region                |     | - description              |
+    | - accountId             |     +----------------------------+
+    +-------------------------+
+              │
+              │  Referenced by
+              ▼
+    +-------------------------------------------------------------------+
+    |                      execution-history                            |
+    +-------------------------------------------------------------------+
+    | PK: executionId                                                   |
+    | SK: planId (GSI for querying executions by plan)                  |
+    |                                                                   |
+    | - status: RUNNING | PAUSED | COMPLETED | FAILED | CANCELLED       |
+    | - currentWave, waveStatuses[], serverExecutions[]                 |
+    +-------------------------------------------------------------------+
 
-### Protection Groups (6 operations)
-- `create_protection_group`: Create new protection group
-- `list_protection_groups`: List all protection groups
-- `get_protection_group`: Get protection group details
-- `update_protection_group`: Update protection group configuration
-- `delete_protection_group`: Delete protection group
-- `resolve_protection_group_tags`: Preview servers matching tags
+    +-------------------------+     +----------------------------+
+    |    target-accounts      |     |    tag-sync-config         |
+    +-------------------------+     +----------------------------+
+    | PK: accountId           |     | PK: configId               |
+    |                         |     |                            |
+    | - accountName           |     | - enabled                  |
+    | - assumeRoleName        |     | - tagMappings[]            |
+    | - externalId            |     | - syncFrequency            |
+    | - regions[]             |     | - lastSyncTime             |
+    | - stagingAccounts[]     |     +----------------------------+
+    | - IsCurrentAccount      |
+    +-------------------------+
 
-### Recovery Plans (5 operations)
-- `create_recovery_plan`: Create new recovery plan
-- `list_recovery_plans`: List all recovery plans
-- `get_recovery_plan`: Get recovery plan details
-- `update_recovery_plan`: Update recovery plan configuration
-- `delete_recovery_plan`: Delete recovery plan
+DATA VALIDATION RULES:
+- Protection Group names: Unique (case-insensitive), valid region, valid server IDs
+- Recovery Plan names: Unique (case-insensitive), valid wave config, no circular deps
+- Server assignments: No server in multiple Protection Groups
+- Wave size: Max 100 servers per wave (DRS StartRecovery API limit)
+- Replication state: Servers must have healthy replication for recovery
 
-### Tag Synchronization (2 operations)
-- `handle_drs_tag_sync`: Sync EC2 tags to DRS source servers
-- `get_tag_sync_settings`: Get tag sync configuration
-- `update_tag_sync_settings`: Update tag sync configuration
+API ENDPOINTS (API Gateway Mode):
+Protection Groups:
+- GET/POST /protection-groups - List/Create
+- GET/PUT/DELETE /protection-groups/{id} - Read/Update/Delete
+- POST /protection-groups/resolve - Preview tag-based selection
 
-### Configuration Management (1 operation)
-- `import_configuration`: Import protection groups and recovery plans
+Recovery Plans:
+- GET/POST /recovery-plans - List/Create
+- GET/PUT/DELETE /recovery-plans/{id} - Read/Update/Delete
 
-## API Endpoints (API Gateway Mode)
+Target Accounts:
+- GET/POST /accounts/targets - List/Register
+- GET/PUT/DELETE /accounts/targets/{id} - Read/Update/Delete
+- POST /accounts/targets/{id}/validate - Validate cross-account access
 
-### Protection Groups
-- `GET /protection-groups` - List all protection groups
-- `POST /protection-groups` - Create protection group
-- `POST /protection-groups/resolve` - Resolve tag-based selection
-- `GET /protection-groups/{id}` - Get protection group
-- `PUT /protection-groups/{id}` - Update protection group
-- `DELETE /protection-groups/{id}` - Delete protection group
+Configuration:
+- POST /drs/tag-sync - Trigger tag synchronization
+- GET/PUT /config/tag-sync - Get/Update tag sync settings
+- POST /config/import - Import configuration
 
-### Recovery Plans
-- `GET /recovery-plans` - List all recovery plans
-- `POST /recovery-plans` - Create recovery plan
-- `GET /recovery-plans/{id}` - Get recovery plan
-- `PUT /recovery-plans/{id}` - Update recovery plan
-- `DELETE /recovery-plans/{id}` - Delete recovery plan
+DIRECT INVOCATION OPERATIONS:
+Protection Groups: create_protection_group, list_protection_groups, get_protection_group,
+                   update_protection_group, delete_protection_group, resolve_protection_group_tags
+Recovery Plans: create_recovery_plan, list_recovery_plans, get_recovery_plan,
+                update_recovery_plan, delete_recovery_plan
+Tag Sync: handle_drs_tag_sync, get_tag_sync_settings, update_tag_sync_settings
+Config: import_configuration
 
-### Tag Sync & Configuration
-- `POST /drs/tag-sync` - Trigger tag synchronization
-- `GET /config/tag-sync` - Get tag sync settings
-- `PUT /config/tag-sync` - Update tag sync settings
-- `POST /config/import` - Import configuration
+SHARED UTILITIES (lambda/shared/):
+Common modules used by this Lambda for cross-account and validation operations:
 
-### Target Accounts
-- `GET /accounts/targets` - List target accounts
-- `POST /accounts/targets` - Register target account
-- `GET /accounts/targets/{id}` - Get target account
-- `PUT /accounts/targets/{id}` - Update target account
-- `DELETE /accounts/targets/{id}` - Delete target account
-- `POST /accounts/targets/{id}/validate` - Validate account access
+    +---------------------------+------------------------------------------------+
+    | Module                    | Purpose                                        |
+    +---------------------------+------------------------------------------------+
+    | account_utils.py          | get_account_name(), get_target_accounts()      |
+    | conflict_detection.py     | check_server_conflicts_*(), get_shared_pgs()   |
+    | cross_account.py          | create_drs_client(), create_ec2_client()       |
+    | config_merge.py           | get_effective_launch_config() for overrides    |
+    | response_utils.py         | response() for standardized API responses      |
+    | drs_utils.py              | transform_drs_server_for_frontend()            |
+    +---------------------------+------------------------------------------------+
 
-## Data Validation
+PERFORMANCE CHARACTERISTICS:
+- Memory: 512 MB (moderate complexity with DRS API calls)
+- Timeout: 120 seconds (tag resolution can query many servers)
+- Concurrency: Supports concurrent operations with DynamoDB optimistic locking
 
-### Protection Group Validation
-- Unique name (case-insensitive)
-- Valid AWS region
-- Valid DRS server IDs
-- No server conflicts (servers not in other groups)
-- Healthy replication state
-
-### Recovery Plan Validation
-- Unique name (case-insensitive)
-- Valid wave configuration
-- No circular dependencies
-- Wave size limits (max 100 servers per wave)
-- Protection groups exist
-- No conflicts with active executions
-
-### Tag-Based Selection
-- Valid tag format (key-value pairs)
-- No exact tag conflicts with existing groups
-- Servers exist in DRS with specified tags
-
-## DynamoDB Tables
-
-### Protection Groups Table
-- Primary Key: `groupId`
-- Attributes: groupName, region, accountId, sourceServerIds, serverSelectionTags
-
-### Recovery Plans Table
-- Primary Key: `planId`
-- Attributes: planName, waves, description, createdAt, updatedAt
-- GSI: planIdIndex (for execution queries)
-
-### Executions Table
-- Primary Key: `executionId`
-- GSI: planIdIndex (for active execution checks)
-
-### Target Accounts Table
-- Primary Key: `accountId`
-- Attributes: accountName, assumeRoleName, status, IsCurrentAccount
-
-### Tag Sync Config Table
-- Primary Key: `configId`
-- Attributes: enabled, tagMappings, syncFrequency
-
-## Performance Characteristics
-
-### Memory: 512 MB
-Moderate complexity with DRS API calls and DynamoDB operations.
-
-### Timeout: 120 seconds
-Tag resolution can be slow when querying large numbers of DRS servers.
-
-### Concurrency
-Supports concurrent operations with DynamoDB optimistic locking.
-
-## Error Handling
-
-### Validation Errors (400)
-- Missing required fields
-- Invalid format
-- Duplicate names
-- Server conflicts
-
-### Not Found Errors (404)
-- Protection group not found
-- Recovery plan not found
-- Target account not found
-
-### Conflict Errors (409)
-- Active execution in progress
-- Server already assigned
-- Tag conflicts
-
-### Internal Errors (500)
-- DynamoDB errors
-- DRS API errors
-- Cross-account access failures
-
-## Testing Considerations
-
-### Mock DynamoDB Tables
-```python
-import boto3
-from moto import mock_dynamodb
-
-@mock_dynamodb
-def test_create_protection_group():
-    # Create mock tables
-    dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-    table = dynamodb.create_table(...)
-
-    # Test operation
-    event = {
-        "operation": "create_protection_group",
-        "body": {"groupName": "Test Group", ...}
-    }
-    result = lambda_handler(event, None)
-    assert result["statusCode"] == 200
-```
-
-### Mock DRS API
-```python
-from unittest.mock import patch
-
-with patch('boto3.client') as mock_client:
-    mock_drs = mock_client.return_value
-    mock_drs.describe_source_servers.return_value = {
-        "items": [{"sourceServerID": "s-123"}]
-    }
-
-    result = resolve_protection_group_tags({"tags": {...}})
-```
-
-Data Management Operations:
-- Protection Groups: Create, read, update, delete, resolve tags
-- Recovery Plans: Create, read, update, delete, validate
-- Tag Synchronization: Sync EC2 tags to DRS source servers
-- Configuration Management: Import/export configuration
-
-Performance:
-- Memory: 512 MB (moderate complexity, DRS API calls)
-- Timeout: 120 seconds (tag resolution can be slow)
+ERROR HANDLING:
+- 400 Bad Request: Validation errors, missing fields, duplicate names, server conflicts
+- 404 Not Found: Protection group, recovery plan, or target account not found
+- 409 Conflict: Active execution in progress, server already assigned
+- 500 Internal Error: DynamoDB errors, DRS API errors, cross-account failures
 """
 
 import json
