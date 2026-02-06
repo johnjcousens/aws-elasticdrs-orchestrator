@@ -1,33 +1,39 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: |
-  DRS Agent Installer SSM Document Stack
-  
-  Creates an SSM document for installing AWS Elastic Disaster Recovery (DRS)
-  Replication Agent with cross-account support.
-  
-  Based on AWS-provided AWSDisasterRecovery-InstallDRAgentOnInstance with
-  added AccountId parameter for cross-account replication scenarios.
-  
-  Supported Platforms:
-  - Windows: PowerShell-based installation
-  - Linux: Shell script with Python helper
-  
-  Cross-Account Replication:
-  - AccountId parameter specifies target AWS account for replication
-  - Leave empty for same-account replication
-  - Enables hub-and-spoke DR architecture
-  
-  Security Features:
-  - SHA512 checksum validation of downloaded installer
-  - Dual-stack (IPv4/IPv6) download URLs with fallback
-  - Temporary directory cleanup after installation
-  
-  Usage:
-  Run via AWS Systems Manager Run Command:
-    aws ssm send-command \
-      --document-name DRS-InstallAgentCrossAccount-{environment} \
-      --targets Key=instanceids,Values=i-1234567890abcdef0 \
-      --parameters Region=us-east-1,AccountId=111122223333
+  DRS Agent Installer SSM Document - Creates SSM document for installing AWS DRS
+  Replication Agent with cross-account support. Based on AWS-provided
+  AWSDisasterRecovery-InstallDRAgentOnInstance with added AccountId parameter.
+  Supports Windows (PowerShell) and Linux (Shell/Python). Features: SHA512
+  checksum validation, dual-stack URLs with fallback, temp directory cleanup.
+  Usage: aws ssm send-command --document-name DRS-InstallAgentCrossAccount-{env}
+  --targets Key=instanceids,Values=i-xxx --parameters Region=us-east-1,AccountId=111122223333
+
+# =============================================================================
+# COMPARISON WITH AWS MANAGED DOCUMENT
+# =============================================================================
+# This document is based on AWS-provided AWSDisasterRecovery-InstallDRAgentOnInstance.
+# All original functionality is preserved with the addition of cross-account support.
+#
+# Identical Features (verified against AWS managed document):
+# - Region parameter: All 28 DRS-supported regions
+# - Tags parameter: Same validation pattern and processing logic
+# - Windows: TLS 1.2 enforcement, dual-stack URLs with fallback
+# - Windows: SHA512 checksum validation (PowerShell 3.x and 4.x+ compatible)
+# - Windows: Tag parsing and argument construction
+# - Windows: Temporary directory creation and cleanup
+# - Windows: Comprehensive error handling with stack traces
+# - Linux: Dual-stack download URLs with fallback
+# - Linux: SHA512 checksum validation using sha512sum
+# - Linux: Python 2/3 auto-detection (python3 preferred)
+# - Linux: Tag processing via Python script
+# - Linux: File cleanup after installation
+# - Both: 3600 second (1 hour) timeout
+#
+# Added Enhancement:
+# - AccountId parameter: 12-digit AWS account ID for cross-account replication
+#   - Windows: $requestedAccountId variable, --account-id argument
+#   - Linux: account_id variable in Python script, --account-id argument
+#   - Leave empty for same-account replication (default behavior)
 
 # =============================================================================
 # PARAMETERS
@@ -54,13 +60,21 @@ Resources:
   # 
   # Key Enhancements over AWS default:
   # - AccountId parameter for cross-account replication
-  # - Fallback download URLs for reliability
-  # - Comprehensive error handling
+  # - Enables hub-and-spoke DR architecture where source servers in multiple
+  #   accounts replicate to a central DR account
   # 
   # Document Parameters:
   # - Region: Target AWS region for DRS replication (required)
   # - AccountId: Target account for cross-account setup (optional)
   # - Tags: Resource tags for the source server (optional)
+  #
+  # Installation Flow:
+  # 1. Create temporary directory
+  # 2. Download installer and SHA512 hash (dual-stack with fallback)
+  # 3. Validate checksum
+  # 4. Execute installer with region, account-id (if provided), and tags
+  # 5. Clean up temporary files
+  # 6. Return exit code
   DRSAgentInstallerDocument:
     Type: AWS::SSM::Document
     Properties:
