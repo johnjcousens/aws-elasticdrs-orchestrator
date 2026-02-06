@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'EventBridge rules for scheduled DRS orchestration drills'
+Description: 'EventBridge rules for scheduled DRS tag sync and optional DR drills'
 
 Parameters:
   ProjectName:

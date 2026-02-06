@@ -3,12 +3,12 @@ Description: |
   DR Orchestration Master Stack
   
   Deploys complete wave-based disaster recovery orchestration solution via nested stacks:
-  - Database: DynamoDB tables for Protection Groups, Recovery Plans, Execution History
+  - Database: DynamoDB tables for Protection Groups, Recovery Plans, Execution History, Target Accounts
   - Notification: SNS topics for execution events, DRS alerts, pause notifications
-  - Lambda: 6 functions for API, orchestration, polling, notifications, frontend
+  - Lambda: 6 functions (data-management, execution, query, dr-orchestration-stepfunction, frontend-deployer, notification-formatter)
   - Step Functions: Wave-based orchestration state machine with Archive Pattern
   - API Gateway: REST API with Cognito authentication (7 nested stacks)
-  - EventBridge: DRS event routing and scheduled polling
+  - EventBridge: DRS event routing and scheduled tag sync
   - Frontend: React UI hosted on S3/CloudFront (optional)
   
   Unified IAM Role: All Lambda functions share single orchestration role for DRS, DynamoDB,
