@@ -1,5 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - SNS Notification Infrastructure'
+Description: |
+  AWS DRS Orchestration - SNS Notification Infrastructure
+  
+  Provides multi-channel notification system for DR orchestration events.
+  
+  Notification Channels:
+  - ExecutionNotificationsTopic: DR execution lifecycle events (start, complete, fail)
+  - DRSOperationalAlertsTopic: Real-time DRS service alerts via EventBridge
+  - ExecutionPauseTopic: Human approval gates for wave transitions
+  
+  Event Sources:
+  - Step Functions: Execution status changes, pause gates
+  - Lambda Functions: Custom notifications, error alerts
+  - EventBridge: Native DRS service events (replication stalled, launch failures)
+  
+  Integration Points:
+  - Notification Formatter Lambda: Transforms raw events into human-readable messages
+  - Step Functions: Publishes to pause topic for manual approval workflows
+  - EventBridge Rules: Captures DRS native events for operational alerting
 
 Parameters:
   ProjectName:
@@ -15,7 +33,14 @@ Parameters:
     Description: 'Admin email for critical notifications'
 
 Resources:
-  # ===== EXECUTION NOTIFICATIONS =====
+  # =============================================================================
+  # EXECUTION NOTIFICATIONS
+  # =============================================================================
+  # Primary notification channel for DR execution lifecycle events.
+  # Receives messages from:
+  # - Step Functions: Execution start, completion, failure
+  # - Lambda Functions: Custom status updates, error notifications
+  # - Notification Formatter: Human-readable execution summaries
   
   ExecutionNotificationsTopic:
     Type: AWS::SNS::Topic
@@ -23,6 +48,8 @@ Resources:
       TopicName: !Sub '${ProjectName}-execution-notifications-${Environment}'
       DisplayName: 'DRS Orchestration Execution Notifications'
       
+  # Email subscription for admin notifications
+  # Requires email confirmation before notifications are delivered
   ExecutionNotificationsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -30,7 +57,14 @@ Resources:
       TopicArn: !Ref ExecutionNotificationsTopic
       Endpoint: !Ref AdminEmail
 
-  # ===== DRS OPERATIONAL ALERTS =====
+  # =============================================================================
+  # DRS OPERATIONAL ALERTS
+  # =============================================================================
+  # Real-time alerts for DRS service health and operational issues.
+  # Receives messages from:
+  # - EventBridge Rules: Native DRS events (replication stalled, launch failures)
+  # - Lambda Functions: Custom DRS health checks, threshold alerts
+  # Use case: Immediate notification of DRS issues requiring attention
   
   DRSOperationalAlertsTopic:
     Type: AWS::SNS::Topic
@@ -38,6 +72,7 @@ Resources:
       TopicName: !Sub '${ProjectName}-drs-alerts-${Environment}'
       DisplayName: 'DRS Operational Alerts'
       
+  # Email subscription for DRS operational alerts
   DRSOperationalAlertsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -45,7 +80,14 @@ Resources:
       TopicArn: !Ref DRSOperationalAlertsTopic
       Endpoint: !Ref AdminEmail
 
-  # ===== EXECUTION PAUSE TOPIC =====
+  # =============================================================================
+  # EXECUTION PAUSE TOPIC
+  # =============================================================================
+  # Human approval gates for wave-based DR orchestration.
+  # Receives messages from:
+  # - Step Functions: Pause state notifications requiring manual approval
+  # Use case: Enables human-in-the-loop validation between DR waves
+  # Workflow: Step Functions pauses → SNS notification → Admin reviews → Resume via API
   
   ExecutionPauseTopic:
     Type: AWS::SNS::Topic
@@ -53,6 +95,7 @@ Resources:
       TopicName: !Sub '${ProjectName}-execution-pause-${Environment}'
       DisplayName: 'DRS Orchestration Execution Pause'
       
+  # Email subscription for pause notifications
   ExecutionPauseSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -60,8 +103,16 @@ Resources:
       TopicArn: !Ref ExecutionPauseTopic
       Endpoint: !Ref AdminEmail
 
-  # ===== EVENTBRIDGE RULES FOR DRS EVENTS =====
+  # =============================================================================
+  # EVENTBRIDGE RULES FOR DRS EVENTS
+  # =============================================================================
+  # Captures native AWS DRS service events and routes to operational alerts.
+  # DRS emits events for: replication status changes, launch results, agent health
+  # These rules filter for critical events requiring immediate attention.
   
+  # Rule: DRS Recovery Launch Failures
+  # Triggers when a DRS recovery instance fails to launch
+  # Common causes: IAM permissions, subnet capacity, instance type availability
   DRSRecoveryFailureRule:
     Type: AWS::Events::Rule
     Properties:
@@ -90,6 +141,10 @@ Resources:
                 "message": "DRS recovery launch failed for source server <sourceServerId> in region <region>"
               }
 
+  # Rule: DRS Replication Stalled
+  # Triggers when data replication stops progressing
+  # Common causes: Network issues, agent problems, storage constraints
+  # Critical for maintaining RPO (Recovery Point Objective)
   DRSReplicationStalledRule:
     Type: AWS::Events::Rule
     Properties:
@@ -118,8 +173,14 @@ Resources:
                 "message": "DRS replication stalled for source server <sourceServerId> in region <region>"
               }
 
-  # ===== SNS TOPIC POLICIES =====
+  # =============================================================================
+  # SNS TOPIC POLICIES
+  # =============================================================================
+  # Define which AWS services can publish to each SNS topic.
+  # Follows least-privilege: only services that need to publish are allowed.
   
+  # Policy: Execution Notifications Topic
+  # Allows Lambda and Step Functions to publish execution status updates
   ExecutionNotificationsTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
@@ -142,6 +203,8 @@ Resources:
             Action: sns:Publish
             Resource: !Ref ExecutionNotificationsTopic
 
+  # Policy: DRS Operational Alerts Topic
+  # Allows EventBridge to publish native DRS service events
   DRSOperationalAlertsTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
@@ -158,6 +221,8 @@ Resources:
             Action: sns:Publish
             Resource: !Ref DRSOperationalAlertsTopic
 
+  # Policy: Execution Pause Topic
+  # Allows Step Functions to publish pause gate notifications
   ExecutionPauseTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
@@ -174,7 +239,13 @@ Resources:
             Action: sns:Publish
             Resource: !Ref ExecutionPauseTopic
 
-  # ===== NOTIFICATION FORMATTER LAMBDA =====
+  # =============================================================================
+  # NOTIFICATION FORMATTER LAMBDA ROLE
+  # =============================================================================
+  # IAM role for the Notification Formatter Lambda function.
+  # The Lambda function transforms raw event data into human-readable messages
+  # and publishes to the appropriate SNS topic based on event type.
+  # Permissions: CloudWatch Logs (basic execution) + SNS Publish to all topics
   
   NotificationFormatterRole:
     Type: AWS::IAM::Role
@@ -201,6 +272,12 @@ Resources:
                   - !Ref ExecutionNotificationsTopic
                   - !Ref DRSOperationalAlertsTopic
                   - !Ref ExecutionPauseTopic
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+# Exported values for cross-stack references.
+# Other stacks (Lambda, Step Functions) import these ARNs to publish notifications.
 
 Outputs:
   ExecutionNotificationsTopicArn:
