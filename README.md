@@ -1,6 +1,6 @@
 # AWS DRS Orchestration Solution
 
-Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, dependency management, and automated health checks.
+Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, dependency management, and automated health checks.
 
 [![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
 [![Version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
@@ -56,7 +56,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Simplified DRS Management**: Eliminates need to manually configure each server's launch template in the DRS console
 
 ### Comprehensive REST API
-- **44 API Endpoints**: Complete REST API across 9 categories with RBAC security
+- **58 API Endpoints**: Complete REST API across 9 categories with RBAC security
 - **Cross-Account Operations**: Manage DRS across multiple AWS accounts
 - **Direct Lambda Invocation**: Bypass API Gateway for AWS-native automation
 - **DRS Operations**: Supports core orchestration operations (describe servers, start recovery, get/update launch configuration, describe jobs and events, describe recovery instances)
@@ -67,7 +67,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ![AWS DRS Orchestration - Comprehensive Architecture](docs/architecture/AWS-DRS-Orchestration-Architecture-Comprehensive.png)
 
-**Components**: CloudFront CDN, S3 Static Hosting, Cognito User Pool, API Gateway, 6 Lambda Functions, Step Functions, DynamoDB (4 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
+**Components**: CloudFront CDN, S3 Static Hosting, Cognito User Pool, API Gateway, 6 Lambda functions, Step Functions, DynamoDB (4 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
 
 **User Roles**: DRSOrchestrationAdmin, DRSRecoveryManager, DRSPlanManager, DRSOperator, DRSReadOnly
 
@@ -100,9 +100,9 @@ The solution supports **3 flexible deployment modes** to accommodate different u
 |------|-------------------|----------|--------------|----------|
 | **1. Default Standalone** | All (IAM + DB + Lambda + API) | ✅ Deployed | $12-40 | Complete self-contained solution with web UI |
 | **2. API-Only Standalone** | All (IAM + DB + Lambda + API) | ❌ Skipped | $8-30 | Direct Lambda invocation OR Cognito RBAC API calls |
-| **3. Lambda-Only Integration** | Lambda only (External IAM + DB + Step Functions) | ❌ Skipped | $1-5 | Direct Lambda invocation for external platforms |
+| **3. External IAM Integration** | All resources, external IAM role | ❌ Skipped | $8-30 | Centralized IAM management, external role |
 
-**Mode 1** provides a complete standalone solution with CloudFront CDN, Cognito authentication, and React UI. **Mode 2** removes the frontend but keeps API Gateway for Cognito-authenticated RBAC API calls OR direct Lambda invocation with OrchestrationRole. **Mode 3** deploys only Lambda functions for direct invocation when external systems provide DynamoDB tables, Step Functions, and IAM roles.
+**Mode 1** provides a complete standalone solution with CloudFront CDN, Cognito authentication, and React UI. **Mode 2** removes the frontend but keeps API Gateway for Cognito-authenticated RBAC API calls OR direct Lambda invocation with OrchestrationRole. **Mode 3** uses an externally-provided IAM role for all Lambda functions, enabling centralized permission management.
 
 **📖 See [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) for complete documentation, migration procedures, and troubleshooting.**
 
@@ -135,7 +135,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev \
+    SourceBucket=aws-drs-orchestration-dev \
     AdminEmail=admin@example.com
 
 # Mode 2: API-Only Standalone (No Frontend)
@@ -146,26 +146,22 @@ aws cloudformation deploy \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev \
+    SourceBucket=aws-drs-orchestration-dev \
     AdminEmail=admin@example.com \
     DeployFrontend=false
 
-# Mode 3: Lambda-Only Integration (External Resources)
+# Mode 3: External IAM Role Integration
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-lambda-only \
+  --stack-name aws-drs-orchestration-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev \
-    OrchestrationRoleArn=arn:aws:iam::ACCOUNT_ID:role/ExternalOrchestrationRole \
-    DynamoDBTableArns=arn:aws:dynamodb:REGION:ACCOUNT_ID:table/protection-groups,arn:aws:dynamodb:REGION:ACCOUNT_ID:table/recovery-plans,arn:aws:dynamodb:REGION:ACCOUNT_ID:table/execution-history,arn:aws:dynamodb:REGION:ACCOUNT_ID:table/target-accounts \
-    StateMachineArn=arn:aws:states:REGION:ACCOUNT_ID:stateMachine:drs-orchestration \
-    DeployFrontend=false \
-    DeployAPI=false \
-    DeployDatabase=false \
-    DeployStepFunctions=false
+    SourceBucket=aws-drs-orchestration-dev \
+    AdminEmail=admin@example.com \
+    OrchestrationRoleArn=arn:aws:iam::111122223333:role/ExternalOrchestrationRole \
+    DeployFrontend=false
 ```
 
 ### CloudFormation Parameters
@@ -173,19 +169,12 @@ aws cloudformation deploy \
 **Core Parameters:**
 - `ProjectName` (String, default: 'aws-drs-orchestration') - Project identifier for resource naming
 - `Environment` (String, default: 'dev') - Environment name (dev, test, prod)
-- `DeploymentBucket` (String, required) - S3 bucket for deployment artifacts
+- `SourceBucket` (String, required) - S3 bucket containing nested CloudFormation templates and Lambda code
 - `AdminEmail` (String, required) - Admin email for Cognito user pool
 
 **Deployment Mode Parameters:**
 - `DeployFrontend` (String, default: 'true') - Deploy frontend (S3 + CloudFront)
-- `DeployAPI` (String, default: 'true') - Deploy API Gateway
-- `DeployDatabase` (String, default: 'true') - Deploy DynamoDB tables
-- `DeployStepFunctions` (String, default: 'true') - Deploy Step Functions state machine
-
-**External Integration Parameters (Mode 3):**
 - `OrchestrationRoleArn` (String, optional) - External IAM role ARN for Lambda functions
-- `DynamoDBTableArns` (String, optional) - Comma-separated ARNs for 4 external DynamoDB tables
-- `StateMachineArn` (String, optional) - External Step Functions state machine ARN
 
 **Example with All Parameters:**
 ```bash
@@ -196,12 +185,9 @@ aws cloudformation deploy \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev \
+    SourceBucket=aws-drs-orchestration-dev \
     AdminEmail=admin@example.com \
-    DeployFrontend=true \
-    DeployAPI=true \
-    DeployDatabase=true \
-    DeployStepFunctions=true
+    DeployFrontend=true
 ```
 
 **See [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) for complete documentation.**
@@ -492,7 +478,7 @@ All Lambda functions use the **UnifiedOrchestrationRole** (or externally-provide
 | `frontend-deployer` | `lambda/frontend-deployer/` | Frontend deployment automation (CloudFormation Custom Resource) | N/A |
 | `notification-formatter` | `lambda/notification-formatter/` | SNS notification formatting | N/A |
 
-**Total API Endpoints**: 44 endpoints across 3 API handlers
+**Total API Endpoints**: 58 endpoints across 3 API handlers
 
 #### Shared Modules (`lambda/shared/`)
 
@@ -575,7 +561,7 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 - [Lambda Handlers Complete Analysis](docs/analysis/LAMBDA_HANDLERS_COMPLETE_ANALYSIS.md) - Comprehensive analysis of all three Lambda handlers (15,000+ lines of code)
 
 ### Reference Documentation
-- [API Endpoints Reference](docs/reference/API_ENDPOINTS_CURRENT.md) - Complete API endpoint documentation (44 endpoints)
+- [API Endpoints Reference](docs/reference/API_ENDPOINTS_CURRENT.md) - Complete API endpoint documentation (58 endpoints)
 - [Orchestration Role Specification](docs/reference/ORCHESTRATION_ROLE_SPECIFICATION.md) - IAM role requirements
 - [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) - Comprehensive IAM policy analysis
 - [DRS Service Limits and Capabilities](docs/reference/DRS_SERVICE_LIMITS_AND_CAPABILITIES.md) - Service quotas and constraints
@@ -660,7 +646,7 @@ aws cloudformation deploy \
 
 ## Upcoming Features
 
-### DRS AllowLaunchingIntoThisInstance Pattern (In Development)
+### DRS AllowLaunchingIntoThisInstance Pattern
 
 A comprehensive implementation of AWS DRS AllowLaunchingIntoThisInstance pattern that enables launching recovery instances into pre-provisioned EC2 instances, preserving instance identity (instance ID, private IP, network configuration) through complete disaster recovery cycles.
 
@@ -677,25 +663,12 @@ A comprehensive implementation of AWS DRS AllowLaunchingIntoThisInstance pattern
 - 15+ new API Gateway endpoints
 - Dual invocation pattern support (API Gateway + Direct Lambda)
 
-**Implementation Status**:
-- ✅ Requirements complete (13 user stories, 12 acceptance criteria)
-- ✅ Design complete (2,738 lines, comprehensive architecture)
-- ✅ Tasks defined (234 tasks across 9 phases)
-- 🚧 Implementation in progress (9-week timeline)
-
 **Test Coverage**: 104 tests planned (59 unit + 37 integration + 8 E2E)
-
-**Documentation**: See [.kiro/specs/drs-allow-launching-into-instance/](.kiro/specs/drs-allow-launching-into-instance/) for complete requirements, design, and implementation tasks.
 
 ## Directory Structure
 
 ```text
 aws-elasticdrs-orchestrator/
-├── .kiro/                        # Kiro AI development specs and steering
-│   ├── specs/                    # Feature specifications
-│   │   └── drs-allow-launching-into-instance/  # AllowLaunchingIntoThisInstance spec
-│   ├── settings/                 # Kiro configuration
-│   └── steering/                 # Development guidelines
 ├── cfn/                          # CloudFormation IaC (16 templates)
 │   ├── master-template.yaml      # Root orchestrator for nested stacks
 │   └── github-oidc-stack.yaml    # OIDC integration (optional)
@@ -745,4 +718,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built for enterprise disaster recovery on AWS**
+**Built for disaster recovery on AWS**
