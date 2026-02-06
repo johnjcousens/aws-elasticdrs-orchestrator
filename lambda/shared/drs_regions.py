@@ -11,23 +11,23 @@ Source: https://docs.aws.amazon.com/drs/latest/userguide/supported-regions.html
 # Last updated: February 2026
 DRS_REGIONS = [
     # US
-    "us-east-1",       # N. Virginia
-    "us-east-2",       # Ohio
-    "us-west-1",       # N. California
-    "us-west-2",       # Oregon
+    "us-east-1",  # N. Virginia
+    "us-east-2",  # Ohio
+    "us-west-1",  # N. California
+    "us-west-2",  # Oregon
     # Europe
-    "eu-west-1",       # Ireland
-    "eu-west-2",       # London
-    "eu-west-3",       # Paris
-    "eu-central-1",    # Frankfurt
-    "eu-central-2",    # Zurich
-    "eu-north-1",      # Stockholm
-    "eu-south-1",      # Milan
-    "eu-south-2",      # Spain
+    "eu-west-1",  # Ireland
+    "eu-west-2",  # London
+    "eu-west-3",  # Paris
+    "eu-central-1",  # Frankfurt
+    "eu-central-2",  # Zurich
+    "eu-north-1",  # Stockholm
+    "eu-south-1",  # Milan
+    "eu-south-2",  # Spain
     # Asia Pacific
-    "ap-east-1",       # Hong Kong
-    "ap-south-1",      # Mumbai
-    "ap-south-2",      # Hyderabad
+    "ap-east-1",  # Hong Kong
+    "ap-south-1",  # Mumbai
+    "ap-south-2",  # Hyderabad
     "ap-southeast-1",  # Singapore
     "ap-southeast-2",  # Sydney
     "ap-southeast-3",  # Jakarta
@@ -36,21 +36,21 @@ DRS_REGIONS = [
     "ap-northeast-2",  # Seoul
     "ap-northeast-3",  # Osaka
     # Middle East
-    "me-south-1",      # Bahrain
-    "me-central-1",    # UAE
+    "me-south-1",  # Bahrain
+    "me-central-1",  # UAE
     # Africa
-    "af-south-1",      # Cape Town
+    "af-south-1",  # Cape Town
     # Israel
-    "il-central-1",    # Tel Aviv
+    "il-central-1",  # Tel Aviv
     # Americas
-    "ca-central-1",    # Canada
-    "sa-east-1",       # São Paulo
+    "ca-central-1",  # Canada
+    "sa-east-1",  # São Paulo
 ]
 
 # GovCloud regions (require separate AWS accounts)
 DRS_GOVCLOUD_REGIONS = [
-    "us-gov-west-1",   # GovCloud (US-West)
-    "us-gov-east-1",   # GovCloud (US-East)
+    "us-gov-west-1",  # GovCloud (US-West)
+    "us-gov-east-1",  # GovCloud (US-East)
 ]
 
 
