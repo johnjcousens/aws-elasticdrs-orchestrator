@@ -1,46 +1,108 @@
 """
 Execution Handler - AWS Elastic DR (DRS) Execution Operations
 
-Central Lambda function for DRS execution lifecycle management.
+Central Lambda function for DRS execution lifecycle management including
+recovery initiation, pause/resume, cancellation, and status polling.
+
+HANDLER ARCHITECTURE:
+The platform uses four specialized handlers with distinct responsibilities:
+
+    +-------------------------------------------------------------------------+
+    |                        API Gateway + Cognito                            |
+    |                         (User Authentication)                           |
+    +-------------------------------------------------------------------------+
+                |                    |                    |
+                v                    v                    v
+    +---------------------+ +---------------------+ +---------------------+
+    | data-management     | | execution-handler   | |  query-handler      |
+    |     handler         | |    (this Lambda)    | |                     |
+    +---------------------+ +---------------------+ +---------------------+
+    | CRUD Operations:    | | Recovery Actions:   | | Read Operations:    |
+    | - Protection Grps   | | - Start recovery    | | - List executions   |
+    | - Recovery Plans    | | - Cancel exec       | | - Poll DRS jobs     |
+    | - Tag sync          | | - Terminate inst    | | - Server status     |
+    | - Launch configs    | | - Apply configs     | | - Dashboard data    |
+    +---------------------+ +---------------------+ +---------------------+
+                                  |                    |
+                                  |   Direct Invoke    |
+                                  |   (No API Gateway) |
+                                  v                    v
+    +-------------------------------------------------------------------------+
+    |              dr-orchestration-stepfunction                              |
+    |                                                                         |
+    |  Step Functions invokes this Lambda for wave recovery operations        |
+    +-------------------------------------------------------------------------+
+                                       |
+                                       v
+    +-------------------------------------------------------------------------+
+    |                    AWS DRS (Target Account)                             |
+    |              Cross-account via DRSOrchestrationRole                     |
+    +-------------------------------------------------------------------------+
 
 INVOCATION PATTERNS:
-    1. API Gateway (HTTP requests from frontend/CLI)
-       - POST /executions - execute_recovery_plan()
-       - GET /executions - list_executions()
-       - GET /executions/{id} - get_execution_details()
-       - POST /executions/{id}/cancel - cancel_execution()
-       - POST /executions/{id}/pause - pause_execution()
-       - POST /executions/{id}/resume - resume_execution()
+1. API Gateway (HTTP requests from frontend/CLI):
+   - POST /executions - Start recovery plan execution
+   - GET /executions - List all executions
+   - GET /executions/{id} - Get execution details
+   - POST /executions/{id}/cancel - Cancel running execution
+   - POST /executions/{id}/pause - Pause at next wave boundary
+   - POST /executions/{id}/resume - Resume paused execution
+   - POST /executions/{id}/terminate - Terminate recovery instances
 
-    2. Direct Lambda Invocation (operation-based routing)
-       - operation="find" - Find active executions (EventBridge scheduled)
-       - operation="poll" - Poll DRS job status for execution
-       - operation="finalize" - Mark execution complete (Step Functions)
+2. Direct Lambda Invocation (Step Functions orchestration):
+   - action="start_wave_recovery" - Initiate DRS StartRecovery for wave
+   - action="apply_launch_configs" - Apply Protection Group configs to DRS
+   - action="poll_wave_status" - Check DRS job and instance status
 
-    3. Step Functions (orchestration callbacks)
-       - Async execution worker pattern
-       - State machine lifecycle management
+3. EventBridge Scheduled (background polling):
+   - operation="find" - Find active executions needing status updates
+   - operation="poll" - Poll DRS job status for specific execution
 
-OPERATION ROUTING:
-    Event must include "operation" field for direct invocation:
-    {
-        "operation": "find|poll|finalize",
-        "executionId": "uuid",
-        "planId": "uuid"
-    }
+DYNAMODB DATA FLOW:
+This handler reads/writes to 3 DynamoDB tables:
 
-ARCHITECTURE:
-    - Consolidated handler (replaces execution-finder + execution-poller)
-    - Step Functions controls execution lifecycle
-    - Polling updates wave status WITHOUT finalizing
-    - EventBridge triggers periodic polling (30s interval)
+    +-------------------------+     +-------------------------+
+    |   protection-groups     |     |     recovery-plans      |
+    +-------------------------+     +-------------------------+
+    | PK: groupId             |     | PK: planId              |
+    | - launchConfig{}        |     | - waves[]               |
+    | - servers[] (per-srv)   |     | - planName              |
+    | - sourceServerIds[]     |     +-------------------------+
+    +-------------------------+               |
+              |                               |
+              | Read configs at wave start    | Read plan at execution start
+              v                               v
+    +-------------------------------------------------------------------+
+    |                      execution-history                            |
+    +-------------------------------------------------------------------+
+    | PK: executionId                                                   |
+    | SK: planId                                                        |
+    |                                                                   |
+    | - status: RUNNING | PAUSED | COMPLETED | FAILED | CANCELLED       |
+    | - currentWave, waveStatuses[], serverExecutions[]                 |
+    | - taskToken: Step Functions callback for pause/resume             |
+    +-------------------------------------------------------------------+
 
-KEY INTEGRATION POINTS:
-    - DynamoDB: execution_history_table (execution state)
-    - Step Functions: Orchestrates multi-wave executions
-    - DRS API: Job status, recovery instances, server replication
-    - EC2 API: Instance details for server enrichment
-    - EventBridge: Scheduled polling trigger
+EXECUTION LIFECYCLE:
+1. Start: Validate plan, check conflicts, create execution record, start Step Functions
+2. Wave Start: Apply launch configs to DRS, call StartRecovery API
+3. Polling: Monitor DRS job status, update execution record
+4. Pause: Store taskToken, update status to PAUSED, send SNS notification
+5. Resume: Retrieve taskToken, call SendTaskSuccess, continue next wave
+6. Complete: Update final status, record recovery instance details
+
+SHARED UTILITIES (lambda/shared/):
+    +-------------------------------+--------------------------------------------+
+    | Module                        | Purpose                                    |
+    +-------------------------------+--------------------------------------------+
+    | config_merge.py               | Merge group defaults with per-server       |
+    | conflict_detection.py         | Check server conflicts across executions   |
+    | cross_account.py              | create_drs_client() with role assumption   |
+    | drs_limits.py                 | Validate DRS service limits and quotas     |
+    | drs_utils.py                  | enrich_server_data() for EC2 details       |
+    | execution_utils.py            | can_terminate_execution() helper           |
+    | response_utils.py             | API Gateway response formatting            |
+    +-------------------------------+--------------------------------------------+
 """
 
 import json
@@ -238,7 +300,7 @@ def analyze_execution_outcome(waves: List[Dict]) -> Dict:
     }
 
 
-# Helper functions for table access (for compatibility with moved code)
+# Helper functions for table access
 def get_protection_groups_table():
     """Get Protection Groups table reference"""
     return protection_groups_table
@@ -506,7 +568,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 409,
                 {
                     "error": "PLAN_EXECUTION_CONFLICT",
-                    "message": "Another execution of this Recovery Plan is currently starting. Please wait and try again.",  # noqa: E501
+                    "message": "Another execution of this Recovery Plan is in progress. Please wait and try again.",  # noqa: E501
                     "planId": plan_id,
                 },
             )
@@ -1105,7 +1167,7 @@ def get_server_launch_configurations(region: str, server_ids: List[str]) -> Dict
     Fetch launch configurations for all servers in wave from DRS.
 
     Retrieves DRS launch configuration settings for each server to determine how
-    instances will be launched during recovery. Uses safe defaults if configuration
+    instances are launched during recovery. Uses safe defaults if configuration
     query fails to ensure recovery can proceed.
 
     ## Use Cases
@@ -1583,7 +1645,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
     5. Update state with job details and initial server statuses
     6. Store wave result in DynamoDB for frontend display
 
-    Tag-Based Resolution (AWSM-1103):
+    Tag-Based Resolution:
     Servers are resolved at execution time by querying DRS for servers
     matching the Protection Group's serverSelectionTags. This enables
     dynamic discovery without maintaining static server lists. The
@@ -1593,7 +1655,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
     - Priority-based waves: dr:priority maps to wave numbers
       (critical→1, high→2, etc.)
 
-    Wave Execution (AWSM-1103):
+    Wave Execution:
     - Sequential waves: This wave must complete before next wave starts
     - Parallel within wave: All servers launched simultaneously via
       batch API
@@ -1617,8 +1679,8 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         execution. Empty server lists (no tags matched) mark wave
         complete without error.
 
-    HRP Platform Extension:
-        Other technology adapters (Aurora, ECS, Lambda, Route53) will
+    Platform Extension:
+        Other technology adapters (Aurora, ECS, Lambda, Route53) can
         implement similar start_wave_recovery functions with
         service-specific APIs while maintaining the same wave execution
         pattern and state management.
@@ -1706,7 +1768,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                 }
             )
 
-        # Update state in-place (archive pattern - AWSM-1103)
+        # Update state in-place (state ownership pattern)
         state["current_wave_number"] = wave_number
         state["job_id"] = job_id
         state["region"] = region
@@ -2104,7 +2166,7 @@ def cancel_execution(execution_id: str, body: Dict) -> Dict:
 
         # Statuses that indicate a wave is done
         completed_statuses = ["COMPLETED", "FAILED", "TIMEOUT"]
-        # Statuses that indicate a wave is currently running
+        # Statuses that indicate a wave is running
         in_progress_statuses = [
             "IN_PROGRESS",
             "POLLING",
@@ -2516,7 +2578,7 @@ def handle_poll_operation(event: Dict, context) -> Dict:
     - NEVER calls finalize_execution() (prevents premature completion)
 
     WHY NO FINALIZATION: Multi-wave executions have waves created sequentially
-    by Step Functions. Poller only sees current wave, not future waves.
+    by Step Functions. Poller only sees the active wave, not subsequent waves.
     Only Step Functions knows when ALL waves complete.
 
     DATA ENRICHMENT:
@@ -2862,7 +2924,7 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
     - Updates: status=COMPLETED, completedTime=now()
 
     WHY STEP FUNCTIONS ONLY: Step Functions maintains authoritative list
-    of all waves (including future waves not yet created in DynamoDB).
+    of all waves (including subsequent waves not yet created in DynamoDB).
     Only Step Functions knows when execution is truly complete.
 
     IDEMPOTENCY: Returns success if already COMPLETED/FAILED/TERMINATED.
@@ -5659,8 +5721,8 @@ def get_server_details_map(server_ids: List[str], region: str = "us-east-1") -> 
                     data_rep_info = server.get("dataReplicationInfo", {})
 
                     server_map[source_id] = {
-                        "hostname": hostname or f"server-{source_id[-8:]}",  # Fallback hostname
-                        "nameTag": name_tag,  # Will be updated from EC2 below if needed
+                        "hostname": hostname or f"server-{source_id[-8:]}",
+                        "nameTag": name_tag,  # Updated from EC2 if available
                         "region": region,
                         "sourceInstanceId": source_instance_id,
                         "sourceAccountId": source_account_id,
@@ -5781,8 +5843,8 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
                 recovery_map[source_server_id] = {
                     "ec2InstanceID": ec2_instance_id,
                     "instanceType": ri.get("instanceType", ""),
-                    "privateIp": "",  # Will be updated from EC2
-                    "ec2State": "unknown",  # Will be updated from EC2
+                    "privateIp": "",  # Updated from EC2 describe call
+                    "ec2State": "unknown",  # Updated from EC2 describe call
                     "launchTime": ri.get("launchTime", ""),
                 }
 

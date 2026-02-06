@@ -370,7 +370,7 @@ def lambda_handler(event, context):
         "body": "{...}"
     }
 
-    Direct Invocation Event (HRP Mode):
+    Direct Invocation Event (CLI/SDK Mode):
     {
         "operation": "create_protection_group",
         "body": {...}
@@ -382,7 +382,7 @@ def lambda_handler(event, context):
             # API Gateway invocation (standalone mode)
             return handle_api_gateway_request(event, context)
         elif "operation" in event:
-            # Direct invocation (HRP mode)
+            # Direct invocation (CLI/SDK mode)
             return handle_direct_invocation(event, context)
         elif "synch_tags" in event or "synch_instance_type" in event:
             # EventBridge scheduled tag sync trigger
@@ -596,7 +596,7 @@ def handle_api_gateway_request(event, context):
 
 
 def handle_direct_invocation(event, context):
-    """Handle direct Lambda invocation (HRP mode)"""
+    """Handle direct Lambda invocation (CLI/SDK mode)"""
     operation = event.get("operation")
     body = event.get("body", {})
     query_params = event.get("queryParams", {})
@@ -637,28 +637,22 @@ def handle_direct_invocation(event, context):
 
 
 # ============================================================================
-# Protection Groups Functions (Batch 1 - To be extracted)
+# Protection Groups Functions
 # ============================================================================
-
-# Functions will be extracted here in Batch 1
 
 
 # ============================================================================
-# Recovery Plans Functions (Batch 2 - To be extracted)
+# Recovery Plans Functions
 # ============================================================================
-
-# Functions will be extracted here in Batch 2
 
 
 # ============================================================================
-# Tag Sync & Config Functions (Batch 3 - To be extracted)
+# Tag Sync & Config Functions
 # ============================================================================
-
-# Functions will be extracted here in Batch 3
 
 
 # ============================================================================
-# Helper Functions (Batch 4 - To be extracted)
+# Helper Functions
 # ============================================================================
 
 
@@ -1123,7 +1117,7 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
     Request body:
     {
         "region": "us-east-1",
-        "serverSelectionTags": {"DR-Application": "HRP", "DR-Tier": "Database"}
+        "serverSelectionTags": {"DR-Application": "MyApp", "DR-Tier": "Database"}
     }
 
     Returns list of servers matching ALL specified tags.
@@ -5787,7 +5781,7 @@ def create_target_account(body: Dict) -> Dict:
             else:
                 account_name = f"Account {account_id}"
 
-        # Check if this will be the first account (for default setting)
+        # Check if this is the first account (for default setting)
         is_first_account = False
         try:
             scan_result = target_accounts_table.scan(Select="COUNT")

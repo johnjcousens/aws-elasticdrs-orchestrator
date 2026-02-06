@@ -111,7 +111,16 @@ docs/HRP/
 docs/confluence/
 docs/user-stories/
 docs/changelog/
+docs/analysis/
+docs/performance/
+docs/reference/
+docs/troubleshooting/
+docs/deployment/
 history/
+
+# Exported configuration files (contain account-specific data)
+docs/drs-orchestration-config-*.json
+docs/drs-manifest*.json
 
 # Root-level internal docs (not in subdirectories)
 /DEPLOYMENT_*.md
@@ -190,9 +199,28 @@ aws_logo.png
 .kiro/settings/
 .kiro/steering/
 
+# -------------------------
+# INTERNAL SCRIPTS (contain hardcoded account IDs)
+# -------------------------
+# Keep only deploy.sh and verify-dev-tools.sh for public repo
+scripts/apply-kms-fix.py
+scripts/attach_iam_profile.sh
+scripts/check_ssm_status.sh
+scripts/create_instances_example.sh
+scripts/create_staging_instances.sh
+scripts/create_target_instances.sh
+scripts/deploy_drs_agents.sh
+scripts/deploy-cross-account-roles.sh
+scripts/deploy-drs-agents-lambda.sh
+scripts/deploy-drs-lambda.sh
+scripts/empty-frontend-buckets.sh
+scripts/fix-kms-drs-permissions.py
+scripts/fix-kms-drs-permissions.sh
+scripts/setup-cross-account-kms.sh
+scripts/verify-cross-account-kms.sh
+scripts/verify-cross-account-roles.sh
+scripts/verify-drs-kms-setup.py
+scripts/staging-accounts/
+
 # Hypothesis test artifacts
 .hypothesis/
-
-# Exported configuration files
-drs-orchestration-config-*.json
-drs-manifest.json

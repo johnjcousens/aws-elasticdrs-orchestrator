@@ -30,8 +30,8 @@ The platform uses three specialized handlers with distinct responsibilities:
     ┌─────────────────────────────────────────────────────────────────────┐
     │              dr-orchestration-stepfunction (this Lambda)            │
     │                                                                     │
-    │  Step Functions invokes this Lambda, which orchestrates waves by   │
-    │  directly invoking execution-handler and query-handler via IAM     │
+    │  Step Functions invokes this Lambda, which orchestrates waves by    │
+    │  directly invoking execution-handler and query-handler via IAM      │
     └─────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -83,6 +83,89 @@ DRS ADAPTER LIFECYCLE PHASES:
 2. ACTIVATE: Validate instance launch status and apply configurations
 3. CLEANUP: Remove temporary resources after successful recovery
 4. REPLICATE: Re-establish replication to primary region for failback
+
+DYNAMODB DATA FLOW:
+The platform uses 4 DynamoDB tables for configuration and state management:
+
+    +-------------------------+     +----------------------------+
+    |   protection-groups     |     |     recovery-plans         |
+    +-------------------------+     +----------------------------+
+    | PK: groupId             |     | PK: planId                 |
+    |                         |     |                            |
+    | - groupName             |<----| - waves[].protectionGroupId|
+    | - sourceServerIds[]     |     | - waves[].waveNumber       |
+    | - launchConfig{}        |     | - waves[].pauseBeforeWave  |
+    | - servers[] (per-srv)   |     | - waves[].dependsOnWaves[] |
+    | - region                |     | - planName                 |
+    | - accountId             |     | - description              |
+    +-------------------------+     +----------------------------+
+              |                             |
+              |  Read at execution start    |
+              v                             v
+    +-------------------------------------------------------------------+
+    |                      execution-history                            |
+    +-------------------------------------------------------------------+
+    | PK: executionId                                                   |
+    | SK: planId (GSI for querying executions by plan)                  |
+    |                                                                   |
+    | - status: RUNNING | PAUSED | COMPLETED | FAILED | CANCELLED       |
+    | - currentWave: 0, 1, 2...                                         |
+    | - waveStatuses[]: Per-wave status with DRS job IDs                |
+    | - serverExecutions[]: Per-server recovery instance details        |
+    | - startTime, endTime, lastUpdated                                 |
+    | - taskToken: Step Functions callback token for pause/resume       |
+    | - isDrill: true for DR drills, false for production recovery      |
+    +-------------------------------------------------------------------+
+              |
+              |  Cross-account lookup
+              v
+    +-------------------------+
+    |    target-accounts      |
+    +-------------------------+
+    | PK: accountId           |
+    |                         |
+    | - accountName           |
+    | - roleArn (optional)    |
+    | - externalId            |
+    | - regions[]             |
+    | - accountType: target   |
+    +-------------------------+
+
+DATA FLOW DURING EXECUTION:
+1. Start Execution:
+   - Read recovery-plans to get wave configuration
+   - Read protection-groups for each wave's server list and launch configs
+   - Read target-accounts for cross-account role ARN
+   - Create execution-history record with status=RUNNING
+
+2. Wave Execution:
+   - Apply launch configs to DRS (per-server overrides merged with group defaults)
+   - Call DRS StartRecovery API in target account
+   - Update execution-history with DRS job ID and wave status
+
+3. Polling:
+   - Query DRS DescribeJobs for job completion status
+   - Query DRS DescribeRecoveryInstances for launched instance details
+   - Update execution-history with server recovery instance data
+
+4. Pause/Resume:
+   - Store Step Functions taskToken in execution-history
+   - Update status to PAUSED, send SNS notification
+   - On resume, retrieve taskToken and call SendTaskSuccess
+
+5. Completion:
+   - Update execution-history with final status and endTime
+   - Record per-server recovery instance details (ID, type, IP, launch time)
+
+SHARED UTILITIES (lambda/shared/):
+Common modules used by this Lambda for cross-account operations:
+
+    +---------------------------+------------------------------------------------+
+    | Module                    | Purpose                                        |
+    +---------------------------+------------------------------------------------+
+    | account_utils.py          | construct_role_arn() - build IAM role ARN      |
+    | cross_account.py          | create_drs_client() with IAM role assumption   |
+    +---------------------------+------------------------------------------------+
 """
 
 import json
