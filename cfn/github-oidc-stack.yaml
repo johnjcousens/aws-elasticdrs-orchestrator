@@ -1,115 +1,117 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: |
-  AWS DRS Orchestration - GitHub Actions OIDC Integration
-  
-  Enables passwordless authentication for GitHub Actions CI/CD pipelines.
-  Deploy this stack ONCE manually before using GitHub Actions workflows.
-  
-  Authentication Flow:
-  1. GitHub Actions requests OIDC token from GitHub's identity provider
-  2. Workflow assumes IAM role using sts:AssumeRoleWithWebIdentity
-  3. Role trust policy validates GitHub org, repo, and branch/environment
-  4. Temporary credentials granted for deployment operations
-  
-  Security Model:
-  - No long-lived AWS credentials stored in GitHub
-  - Role assumption restricted to specific repository and branches
-  - Session duration limited to 1 hour
-  - Permissions scoped to deployment operations only
-  
-  Prerequisites:
-  - GitHub OIDC provider must exist in AWS account
-  - If not present, create via AWS CLI:
-      aws iam create-open-id-connect-provider \
-        --url https://token.actions.githubusercontent.com \
-        --client-id-list sts.amazonaws.com
-  
-  ============================================================================
-  GITHUB REPOSITORY SETUP
-  ============================================================================
-  
-  Step 1: Add Repository Secrets (Settings > Secrets and variables > Actions)
-  ---------------------------------------------------------------------------
-  Required secrets:
-    AWS_ROLE_ARN        : (from stack output GitHubActionsRoleArn)
-    AWS_REGION          : us-east-1 (or your deployment region)
-    DEPLOYMENT_BUCKET   : aws-drs-orchestration-test (your S3 bucket)
-    STACK_NAME          : aws-drs-orchestration-test (your CloudFormation stack)
-  
-  Optional secrets:
-    ADMIN_EMAIL         : admin@example.com (for SNS notifications)
-  
-  Step 2: Configure Workflow Permissions
-  ---------------------------------------------------------------------------
-  Your workflow MUST have id-token write permission for OIDC:
-  
-    permissions:
-      id-token: write    # Required for OIDC token generation
-      contents: read     # Required to checkout repository
-  
-  Step 3: Add AWS Credentials Step to Workflow
-  ---------------------------------------------------------------------------
-  Use aws-actions/configure-aws-credentials action:
-  
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ${{ secrets.AWS_REGION }}
-        role-session-name: GitHubActions-${{ github.run_id }}
-  
-  Step 4: Example Complete Workflow (.github/workflows/deploy.yml)
-  ---------------------------------------------------------------------------
-    name: Deploy to AWS
-    on:
-      push:
-        branches: [main]
-      pull_request:
-        branches: [main]
-    
-    permissions:
-      id-token: write
-      contents: read
-    
-    jobs:
-      deploy:
-        runs-on: ubuntu-latest
-        steps:
-          - name: Checkout
-            uses: actions/checkout@v4
-          
-          - name: Configure AWS Credentials
-            uses: aws-actions/configure-aws-credentials@v4
-            with:
-              role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-              aws-region: ${{ secrets.AWS_REGION }}
-              role-session-name: GitHubActions-${{ github.run_id }}
-          
-          - name: Verify AWS Identity
-            run: aws sts get-caller-identity
-          
-          - name: Deploy CloudFormation
-            run: |
-              aws cloudformation deploy \
-                --template-file cfn/master-template.yaml \
-                --stack-name ${{ secrets.STACK_NAME }} \
-                --capabilities CAPABILITY_NAMED_IAM \
-                --no-fail-on-empty-changeset
-  
-  Troubleshooting:
-  ---------------------------------------------------------------------------
-  - "Not authorized to perform sts:AssumeRoleWithWebIdentity"
-    → Check role trust policy matches your GitHub org/repo/branch
-    → Verify OIDC provider exists in AWS account
-  
-  - "Credentials could not be loaded"
-    → Ensure workflow has 'id-token: write' permission
-    → Check role ARN is correct in secrets
-  
-  - "Access Denied" on AWS resources
-    → Verify IAM role has required permissions for the operation
-    → Check resource ARNs in policy match your environment
+Description: >-
+  AWS DRS Orchestration - GitHub Actions OIDC Integration. Enables passwordless
+  authentication for GitHub Actions CI/CD. Deploy once before using workflows.
 
+# =============================================================================
+# GITHUB ACTIONS OIDC SETUP GUIDE
+# =============================================================================
+#
+# Authentication Flow:
+# 1. GitHub Actions requests OIDC token from GitHub's identity provider
+# 2. Workflow assumes IAM role using sts:AssumeRoleWithWebIdentity
+# 3. Role trust policy validates GitHub org, repo, and branch/environment
+# 4. Temporary credentials granted for deployment operations
+#
+# Security Model:
+# - No long-lived AWS credentials stored in GitHub
+# - Role assumption restricted to specific repository and branches
+# - Session duration limited to 1 hour
+# - Permissions scoped to deployment operations only
+#
+# Prerequisites:
+# - GitHub OIDC provider must exist in AWS account
+# - If not present, create via AWS CLI:
+#     aws iam create-open-id-connect-provider \
+#       --url https://token.actions.githubusercontent.com \
+#       --client-id-list sts.amazonaws.com
+#
+# =============================================================================
+# GITHUB REPOSITORY SETUP
+# =============================================================================
+#
+# Step 1: Add Repository Secrets (Settings > Secrets and variables > Actions)
+# ---------------------------------------------------------------------------
+# Required secrets:
+#   AWS_ROLE_ARN        : (from stack output GitHubActionsRoleArn)
+#   AWS_REGION          : us-east-1 (or your deployment region)
+#   DEPLOYMENT_BUCKET   : aws-drs-orchestration-test (your S3 bucket)
+#   STACK_NAME          : aws-drs-orchestration-test (your CloudFormation stack)
+#
+# Optional secrets:
+#   ADMIN_EMAIL         : admin@example.com (for SNS notifications)
+#
+# Step 2: Configure Workflow Permissions
+# ---------------------------------------------------------------------------
+# Your workflow MUST have id-token write permission for OIDC:
+#
+#   permissions:
+#     id-token: write    # Required for OIDC token generation
+#     contents: read     # Required to checkout repository
+#
+# Step 3: Add AWS Credentials Step to Workflow
+# ---------------------------------------------------------------------------
+# Use aws-actions/configure-aws-credentials action:
+#
+#   - name: Configure AWS Credentials
+#     uses: aws-actions/configure-aws-credentials@v4
+#     with:
+#       role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+#       aws-region: ${{ secrets.AWS_REGION }}
+#       role-session-name: GitHubActions-${{ github.run_id }}
+#
+# Step 4: Example Complete Workflow (.github/workflows/deploy.yml)
+# ---------------------------------------------------------------------------
+#   name: Deploy to AWS
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
+#       branches: [main]
+#
+#   permissions:
+#     id-token: write
+#     contents: read
+#
+#   jobs:
+#     deploy:
+#       runs-on: ubuntu-latest
+#       steps:
+#         - name: Checkout
+#           uses: actions/checkout@v4
+#
+#         - name: Configure AWS Credentials
+#           uses: aws-actions/configure-aws-credentials@v4
+#           with:
+#             role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+#             aws-region: ${{ secrets.AWS_REGION }}
+#             role-session-name: GitHubActions-${{ github.run_id }}
+#
+#         - name: Verify AWS Identity
+#           run: aws sts get-caller-identity
+#
+#         - name: Deploy CloudFormation
+#           run: |
+#             aws cloudformation deploy \
+#               --template-file cfn/master-template.yaml \
+#               --stack-name ${{ secrets.STACK_NAME }} \
+#               --capabilities CAPABILITY_NAMED_IAM \
+#               --no-fail-on-empty-changeset
+#
+# Troubleshooting:
+# ---------------------------------------------------------------------------
+# - "Not authorized to perform sts:AssumeRoleWithWebIdentity"
+#   → Check role trust policy matches your GitHub org/repo/branch
+#   → Verify OIDC provider exists in AWS account
+#
+# - "Credentials could not be loaded"
+#   → Ensure workflow has 'id-token: write' permission
+#   → Check role ARN is correct in secrets
+#
+# - "Access Denied" on AWS resources
+#   → Verify IAM role has required permissions for the operation
+#   → Check resource ARNs in policy match your environment
+#
 # =============================================================================
 # PARAMETERS
 # =============================================================================

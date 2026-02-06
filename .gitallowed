@@ -1,0 +1,14 @@
+# Git-secrets allowed patterns for false positives
+# These are placeholder/example AWS account IDs used in documentation and tests
+
+# Standard AWS documentation placeholder account IDs
+111122223333
+123456789012
+444455556666
+777777777777
+
+# Example instance IDs in documentation
+i-xxx
+
+# Patterns for test files with placeholder account IDs
+accountId="[0-9]{12}"

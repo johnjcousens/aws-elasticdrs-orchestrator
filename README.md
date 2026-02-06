@@ -532,6 +532,9 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 | **DRSReadOnly** | Audit and monitoring |
 
 ### Security Features
+- **WAF Protection**: AWS WAF WebACL with rate limiting (2000 req/5min) and AWS managed rules
+- **API Gateway Logging**: CloudWatch access logs for all API requests (30-day retention)
+- **Lambda Concurrency Limits**: Reserved concurrency (100) prevents runaway scaling
 - **Encryption**: All data encrypted at rest and in transit
 - **Authentication**: Cognito JWT token-based authentication (45-minute session timeout)
 - **Authorization**: API-level RBAC enforcement
