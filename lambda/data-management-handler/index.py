@@ -3515,20 +3515,27 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
 
         for wave in plan.get("waves", []):
             pg_id = wave.get("protectionGroupId")
+            print(f"DEBUG: Processing wave with PG ID: {pg_id}")
             if not pg_id:
+                print("DEBUG: No PG ID in wave, skipping")
                 continue
 
             pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
             pg = pg_result.get("Item", {})
+            print(f"DEBUG: Retrieved PG: {pg_id}, has Item: {'Item' in pg_result}")
             if not pg:
+                print(f"DEBUG: No PG data for {pg_id}, skipping")
                 continue
 
             # Get region from protection group
             pg_region = pg.get("region", "us-east-1")
             if pg_region:
                 region = pg_region
+            print(f"DEBUG: PG {pg_id} region: {pg_region}")
 
             # Extract account context from Protection Group (for cross-account)
+            pg_account_id = pg.get("accountId")
+            print(f"DEBUG: PG {pg_id} - accountId from PG: {pg_account_id}, current account_context: {account_context}")
             if pg.get("accountId") and not account_context:
                 from shared.cross_account import get_current_account_id
 
