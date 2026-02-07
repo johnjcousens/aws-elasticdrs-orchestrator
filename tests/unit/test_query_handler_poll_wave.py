@@ -52,7 +52,6 @@ def setup_query_handler_import():
         sys.modules["index"] = original_index
 
 
-
 @pytest.fixture
 def mock_env_vars():
     """Set up environment variables for tests"""
@@ -60,10 +59,7 @@ def mock_env_vars():
         os.environ,
         {
             "EXECUTION_HISTORY_TABLE": "test-execution-table",
-            "EXECUTION_HANDLER_ARN": (
-                "arn:aws:lambda:us-east-1:123456789012:function:"
-                "test-execution-handler"
-            ),
+            "EXECUTION_HANDLER_ARN": ("arn:aws:lambda:us-east-1:123456789012:function:" "test-execution-handler"),
             "PROJECT_NAME": "test-project",
             "ENVIRONMENT": "test",
         },
@@ -161,7 +157,6 @@ def sample_state():
     }
 
 
-
 class TestPollWaveStatusInProgress:
     """Test wave in progress (Task 2.10)"""
 
@@ -176,9 +171,7 @@ class TestPollWaveStatusInProgress:
         from index import poll_wave_status
 
         # Mock execution history table (no cancellation)
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # Mock DRS job response - servers in progress
         mock_drs_client.describe_jobs.return_value = {
@@ -209,9 +202,7 @@ class TestPollWaveStatusInProgress:
 
         # Mock job events
         mock_drs_client.describe_job_log_items.return_value = {
-            "items": [
-                {"event": "LAUNCHING_STARTED", "eventDateTime": "2026-01-31"}
-            ]
+            "items": [{"event": "LAUNCHING_STARTED", "eventDateTime": "2026-01-31"}]
         }
 
         with patch("index.get_execution_history_table", return_value=mock_dynamodb_table):
@@ -234,9 +225,7 @@ class TestPollWaveStatusInProgress:
         """Test wave in progress during conversion phase"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # All servers still pending (converting)
         mock_drs_client.describe_jobs.return_value = {
@@ -266,9 +255,7 @@ class TestPollWaveStatusInProgress:
         }
 
         mock_drs_client.describe_job_log_items.return_value = {
-            "items": [
-                {"event": "CONVERSION_STARTED", "eventDateTime": "2026-01-31"}
-            ]
+            "items": [{"event": "CONVERSION_STARTED", "eventDateTime": "2026-01-31"}]
         }
 
         with patch("index.get_execution_history_table", return_value=mock_dynamodb_table):
@@ -277,7 +264,6 @@ class TestPollWaveStatusInProgress:
 
         # Verify wave is still in progress
         assert result["wave_completed"] is False
-
 
 
 class TestPollWaveStatusCompleted:
@@ -294,9 +280,7 @@ class TestPollWaveStatusCompleted:
         from index import poll_wave_status
 
         # Mock execution history table (no cancellation)
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
         mock_dynamodb_table.update_item.return_value = {}
 
         # Mock DRS job response - all servers launched
@@ -358,9 +342,7 @@ class TestPollWaveStatusCompleted:
         """Test wave completed and starts next wave via Lambda invocation"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # All servers launched
         mock_drs_client.describe_jobs.return_value = {
@@ -391,21 +373,35 @@ class TestPollWaveStatusCompleted:
 
         mock_drs_client.describe_job_log_items.return_value = {"items": []}
 
-        # Mock Lambda invocation response
-        mock_response = Mock()
-        mock_response.get.return_value = None  # No FunctionError
-        mock_response.__getitem__ = Mock(
+        # Mock Lambda invocation responses - now there are 2 invocations:
+        # 1. First invocation: enrich server data (poll operation)
+        # 2. Second invocation: start next wave
+        enrich_response = Mock()
+        enrich_response.get.return_value = None  # No FunctionError
+        enrich_response.__getitem__ = Mock(
+            return_value=Mock(
+                read=Mock(return_value=json.dumps({"statusCode": 200, "body": "Server data enriched"}).encode())
+            )
+        )
+
+        next_wave_response = Mock()
+        next_wave_response.get.return_value = None  # No FunctionError
+        next_wave_response.__getitem__ = Mock(
             return_value=Mock(
                 read=Mock(
-                    return_value=json.dumps({
-                        "job_id": "drsjob-xyz789",
-                        "current_wave_number": 1,
-                        "wave_completed": False,
-                    }).encode()
+                    return_value=json.dumps(
+                        {
+                            "job_id": "drsjob-xyz789",
+                            "current_wave_number": 1,
+                            "wave_completed": False,
+                        }
+                    ).encode()
                 )
             )
         )
-        mock_lambda_client.invoke.return_value = mock_response
+
+        # Return different responses for each invocation
+        mock_lambda_client.invoke.side_effect = [enrich_response, next_wave_response]
 
         with patch("index.get_execution_history_table", return_value=mock_dynamodb_table):
             with patch("index.create_drs_client", return_value=mock_drs_client):
@@ -413,18 +409,26 @@ class TestPollWaveStatusCompleted:
                     with patch("time.time", return_value=1234567920):
                         result = poll_wave_status(sample_state)
 
-        # Verify Lambda was invoked to start next wave
-        mock_lambda_client.invoke.assert_called_once()
-        call_args = mock_lambda_client.invoke.call_args
-        assert call_args[1]["FunctionName"] == os.environ["EXECUTION_HANDLER_ARN"]
-        payload = json.loads(call_args[1]["Payload"])
-        assert payload["action"] == "start_wave_recovery"
-        assert payload["wave_number"] == 1
+        # Verify Lambda was invoked twice (enrich + start next wave)
+        assert mock_lambda_client.invoke.call_count == 2
+
+        # Verify first invocation was for enrichment
+        first_call = mock_lambda_client.invoke.call_args_list[0]
+        assert first_call[1]["FunctionName"] == os.environ["EXECUTION_HANDLER_ARN"]
+        first_payload = json.loads(first_call[1]["Payload"])
+        assert first_payload["operation"] == "poll"
+        assert first_payload["executionId"] == "exec-123"
+
+        # Verify second invocation was for starting next wave
+        second_call = mock_lambda_client.invoke.call_args_list[1]
+        assert second_call[1]["FunctionName"] == os.environ["EXECUTION_HANDLER_ARN"]
+        second_payload = json.loads(second_call[1]["Payload"])
+        assert second_payload["action"] == "start_wave_recovery"
+        assert second_payload["wave_number"] == 1
 
         # Verify state was updated with next wave
         assert result["job_id"] == "drsjob-xyz789"
         assert result["current_wave_number"] == 1
-
 
 
 class TestPollWaveStatusFailed:
@@ -440,9 +444,7 @@ class TestPollWaveStatusFailed:
         """Test wave failed with servers failing to launch"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # Mock DRS job response - some servers failed
         mock_drs_client.describe_jobs.return_value = {
@@ -497,9 +499,7 @@ class TestPollWaveStatusFailed:
         """Test wave failed with all servers failing"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # All servers failed - mix of FAILED and TERMINATED
         # Job status is STARTED (not COMPLETED) to avoid the
@@ -552,9 +552,7 @@ class TestPollWaveStatusFailed:
         """Test wave failed when job completed but no instances created"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # Job completed but no servers launched
         mock_drs_client.describe_jobs.return_value = {
@@ -595,7 +593,6 @@ class TestPollWaveStatusFailed:
         assert "no recovery instances created" in result["error"]
 
 
-
 class TestPollWaveStatusTimeout:
     """Test wave timeout (Task 2.13)"""
 
@@ -613,9 +610,7 @@ class TestPollWaveStatusTimeout:
         sample_state["current_wave_max_wait_time"] = 3600
         sample_state["current_wave_update_time"] = 60
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         with patch("index.get_execution_history_table", return_value=mock_dynamodb_table):
             result = poll_wave_status(sample_state)
@@ -640,9 +635,7 @@ class TestPollWaveStatusTimeout:
         sample_state["current_wave_max_wait_time"] = 3600
         sample_state["current_wave_update_time"] = 30
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         with patch("index.get_execution_history_table", return_value=mock_dynamodb_table):
             result = poll_wave_status(sample_state)
@@ -650,7 +643,6 @@ class TestPollWaveStatusTimeout:
         # Verify wave timed out
         assert result["wave_completed"] is True
         assert result["status"] == "timeout"
-
 
 
 class TestPollWaveStatusCancellation:
@@ -666,9 +658,7 @@ class TestPollWaveStatusCancellation:
         from index import poll_wave_status
 
         # Mock execution history table showing cancellation
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "CANCELLING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "CANCELLING"}}
         mock_dynamodb_table.update_item.return_value = {}
 
         with patch("index.get_execution_history_table", return_value=mock_dynamodb_table):
@@ -744,7 +734,6 @@ class TestPollWaveStatusCancellation:
         assert "duration_seconds" in result
 
 
-
 class TestPollWaveStatusPause:
     """Test pause before next wave (Task 2.15)"""
 
@@ -761,9 +750,7 @@ class TestPollWaveStatusPause:
         # Set pauseBeforeWave on wave 1
         sample_state["waves"][1]["pauseBeforeWave"] = True
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
         mock_dynamodb_table.update_item.return_value = {}
 
         # All servers launched in wave 0
@@ -823,9 +810,7 @@ class TestPollWaveStatusPause:
         # No pauseBeforeWave on wave 1
         sample_state["waves"][1]["pauseBeforeWave"] = False
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # All servers launched
         mock_drs_client.describe_jobs.return_value = {
@@ -856,20 +841,34 @@ class TestPollWaveStatusPause:
 
         mock_drs_client.describe_job_log_items.return_value = {"items": []}
 
-        # Mock Lambda invocation
-        mock_response = Mock()
-        mock_response.get.return_value = None
-        mock_response.__getitem__ = Mock(
+        # Mock Lambda invocation responses - now there are 2 invocations:
+        # 1. First invocation: enrich server data (poll operation)
+        # 2. Second invocation: start next wave
+        enrich_response = Mock()
+        enrich_response.get.return_value = None
+        enrich_response.__getitem__ = Mock(
+            return_value=Mock(
+                read=Mock(return_value=json.dumps({"statusCode": 200, "body": "Server data enriched"}).encode())
+            )
+        )
+
+        next_wave_response = Mock()
+        next_wave_response.get.return_value = None
+        next_wave_response.__getitem__ = Mock(
             return_value=Mock(
                 read=Mock(
-                    return_value=json.dumps({
-                        "job_id": "drsjob-xyz789",
-                        "current_wave_number": 1,
-                    }).encode()
+                    return_value=json.dumps(
+                        {
+                            "job_id": "drsjob-xyz789",
+                            "current_wave_number": 1,
+                        }
+                    ).encode()
                 )
             )
         )
-        mock_lambda_client.invoke.return_value = mock_response
+
+        # Return different responses for each invocation
+        mock_lambda_client.invoke.side_effect = [enrich_response, next_wave_response]
 
         with patch("index.get_execution_history_table", return_value=mock_dynamodb_table):
             with patch("index.create_drs_client", return_value=mock_drs_client):
@@ -879,8 +878,8 @@ class TestPollWaveStatusPause:
         # Verify next wave started (not paused)
         assert result.get("status") != "paused"
         assert "paused_before_wave" not in result
-        mock_lambda_client.invoke.assert_called_once()
-
+        # Verify Lambda was invoked twice (enrich + start next wave)
+        assert mock_lambda_client.invoke.call_count == 2
 
 
 class TestPollWaveStatusLambdaInvocation:
@@ -897,9 +896,7 @@ class TestPollWaveStatusLambdaInvocation:
         """Test successful Lambda invocation to start next wave"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # All servers launched
         mock_drs_client.describe_jobs.return_value = {
@@ -930,40 +927,60 @@ class TestPollWaveStatusLambdaInvocation:
 
         mock_drs_client.describe_job_log_items.return_value = {"items": []}
 
-        # Mock successful Lambda invocation
-        mock_response = Mock()
-        mock_response.get.return_value = None  # No FunctionError
-        mock_response.__getitem__ = Mock(
+        # Mock Lambda invocation responses - now there are 2 invocations:
+        # 1. First invocation: enrich server data (poll operation)
+        # 2. Second invocation: start next wave
+        enrich_response = Mock()
+        enrich_response.get.return_value = None  # No FunctionError
+        enrich_response.__getitem__ = Mock(
+            return_value=Mock(
+                read=Mock(return_value=json.dumps({"statusCode": 200, "body": "Server data enriched"}).encode())
+            )
+        )
+
+        next_wave_response = Mock()
+        next_wave_response.get.return_value = None  # No FunctionError
+        next_wave_response.__getitem__ = Mock(
             return_value=Mock(
                 read=Mock(
-                    return_value=json.dumps({
-                        "job_id": "drsjob-wave2",
-                        "current_wave_number": 1,
-                        "region": "us-east-1",
-                        "server_ids": ["s-004", "s-005"],
-                        "wave_completed": False,
-                    }).encode()
+                    return_value=json.dumps(
+                        {
+                            "job_id": "drsjob-wave2",
+                            "current_wave_number": 1,
+                            "region": "us-east-1",
+                            "server_ids": ["s-004", "s-005"],
+                            "wave_completed": False,
+                        }
+                    ).encode()
                 )
             )
         )
-        mock_lambda_client.invoke.return_value = mock_response
+
+        # Return different responses for each invocation
+        mock_lambda_client.invoke.side_effect = [enrich_response, next_wave_response]
 
         with patch("index.get_execution_history_table", return_value=mock_dynamodb_table):
             with patch("index.create_drs_client", return_value=mock_drs_client):
                 with patch("boto3.client", return_value=mock_lambda_client):
                     result = poll_wave_status(sample_state)
 
-        # Verify Lambda invocation
-        mock_lambda_client.invoke.assert_called_once()
-        call_args = mock_lambda_client.invoke.call_args
-        assert call_args[1]["FunctionName"] == os.environ["EXECUTION_HANDLER_ARN"]
-        assert call_args[1]["InvocationType"] == "RequestResponse"
+        # Verify Lambda invoked twice (enrich + start next wave)
+        assert mock_lambda_client.invoke.call_count == 2
 
-        # Verify payload
-        payload = json.loads(call_args[1]["Payload"])
-        assert payload["action"] == "start_wave_recovery"
-        assert payload["wave_number"] == 1
-        assert "state" in payload
+        # Verify first invocation was for enrichment
+        first_call = mock_lambda_client.invoke.call_args_list[0]
+        assert first_call[1]["FunctionName"] == os.environ["EXECUTION_HANDLER_ARN"]
+        first_payload = json.loads(first_call[1]["Payload"])
+        assert first_payload["operation"] == "poll"
+
+        # Verify second invocation was for starting next wave
+        second_call = mock_lambda_client.invoke.call_args_list[1]
+        assert second_call[1]["FunctionName"] == os.environ["EXECUTION_HANDLER_ARN"]
+        assert second_call[1]["InvocationType"] == "RequestResponse"
+        second_payload = json.loads(second_call[1]["Payload"])
+        assert second_payload["action"] == "start_wave_recovery"
+        assert second_payload["wave_number"] == 1
+        assert "state" in second_payload
 
         # Verify state updated with response
         assert result["job_id"] == "drsjob-wave2"
@@ -981,9 +998,7 @@ class TestPollWaveStatusLambdaInvocation:
         """Test Lambda invocation with function error"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # All servers launched
         mock_drs_client.describe_jobs.return_value = {
@@ -1020,10 +1035,12 @@ class TestPollWaveStatusLambdaInvocation:
         mock_response.__getitem__ = Mock(
             return_value=Mock(
                 read=Mock(
-                    return_value=json.dumps({
-                        "errorMessage": "Protection Group not found",
-                        "errorType": "ValueError",
-                    }).encode()
+                    return_value=json.dumps(
+                        {
+                            "errorMessage": "Protection Group not found",
+                            "errorType": "ValueError",
+                        }
+                    ).encode()
                 )
             )
         )
@@ -1050,9 +1067,7 @@ class TestPollWaveStatusLambdaInvocation:
         """Test Lambda invocation with client error"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # All servers launched
         mock_drs_client.describe_jobs.return_value = {
@@ -1105,7 +1120,6 @@ class TestPollWaveStatusLambdaInvocation:
         assert "Failed to start wave 1" in result["status_reason"]
 
 
-
 class TestPollWaveStatusEdgeCases:
     """Test edge cases and error handling"""
 
@@ -1121,9 +1135,7 @@ class TestPollWaveStatusEdgeCases:
         # Remove job_id from state
         del sample_state["job_id"]
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         with patch("index.get_execution_history_table", return_value=mock_dynamodb_table):
             result = poll_wave_status(sample_state)
@@ -1141,9 +1153,7 @@ class TestPollWaveStatusEdgeCases:
         """Test handling when DRS job not found"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # Mock DRS job not found
         mock_drs_client.describe_jobs.return_value = {"items": []}
@@ -1167,9 +1177,7 @@ class TestPollWaveStatusEdgeCases:
         """Test job with no participating servers still pending"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # Job still initializing (no servers yet)
         mock_drs_client.describe_jobs.return_value = {
@@ -1199,9 +1207,7 @@ class TestPollWaveStatusEdgeCases:
         """Test job completed with no participating servers"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # Job completed but no servers
         mock_drs_client.describe_jobs.return_value = {
@@ -1233,9 +1239,7 @@ class TestPollWaveStatusEdgeCases:
         """Test DRS API error handling"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # Mock DRS API error
         mock_drs_client.describe_jobs.side_effect = ClientError(
@@ -1267,9 +1271,7 @@ class TestPollWaveStatusEdgeCases:
         """Test that existing server data is preserved during updates"""
         from index import poll_wave_status
 
-        mock_dynamodb_table.get_item.return_value = {
-            "Item": {"status": "RUNNING"}
-        }
+        mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
         # Mock DRS job response
         mock_drs_client.describe_jobs.return_value = {
