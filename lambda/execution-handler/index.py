@@ -2076,6 +2076,26 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
             if has_completed_waves:
                 print("DEBUG: Enriching completed waves with recovery instance data")
                 execution = reconcile_wave_status_with_drs(execution)
+
+                # CRITICAL FIX: Persist wave status updates to DynamoDB
+                # The reconcile_wave_status_with_drs function updates wave status in memory,
+                # but we need to persist these updates so termination logic works correctly
+                try:
+                    updated_waves = execution.get("waves", [])
+                    execution_history_table.update_item(
+                        Key={
+                            "executionId": execution_id,
+                            "planId": execution.get("planId"),
+                        },
+                        UpdateExpression="SET waves = :waves, updatedAt = :updated",
+                        ExpressionAttributeValues={
+                            ":waves": updated_waves,
+                            ":updated": int(time.time()),
+                        },
+                    )
+                    print(f"✅ Persisted wave status updates to DynamoDB for {execution_id}")
+                except Exception as persist_error:
+                    print(f"Error persisting wave updates: {persist_error}")
         except Exception as enrich_error:
             print(f"Error enriching completed waves: {enrich_error}")
             # Don't fail the request if enrichment fails
@@ -2783,7 +2803,8 @@ def handle_poll_operation(event: Dict, context) -> Dict:
                 "INITIATED",
                 "STARTED",
             ]:
-                updated_wave = poll_wave_with_enrichment(wave, execution.get("executionType", "DRILL"))
+                account_context = execution.get("accountContext")
+                updated_wave = poll_wave_with_enrichment(wave, execution.get("executionType", "DRILL"), account_context)
                 updated_waves.append(updated_wave)
             else:
                 # PENDING or other status - don't poll yet
@@ -2860,11 +2881,16 @@ def handle_poll_operation(event: Dict, context) -> Dict:
         return response(500, {"error": str(e)})
 
 
-def poll_wave_with_enrichment(wave: Dict, execution_type: str) -> Dict:
+def poll_wave_with_enrichment(wave: Dict, execution_type: str, account_context: Dict = None) -> Dict:
     """
     Poll wave status from DRS and enrich with EC2 data.
 
     Combines DRS job status with EC2 instance details for complete server data.
+
+    Args:
+        wave: Wave record with jobId and region
+        execution_type: DRILL or RECOVERY
+        account_context: Target account credentials (accountId, assumeRoleName, externalId)
     """
     try:
         job_id = wave.get("jobId")
@@ -2874,8 +2900,17 @@ def poll_wave_with_enrichment(wave: Dict, execution_type: str) -> Dict:
             print(f"Wave {wave.get('waveName')} has no jobId")
             return wave
 
+        # Get credentials for target account if cross-account
+        if account_context and not account_context.get("isCurrentAccount"):
+            from shared.account_utils import get_target_account_session
+
+            session = get_target_account_session(account_context)
+            drs_client = session.client("drs", region_name=region)
+            print(f"Using cross-account DRS client for account {account_context.get('accountId')}")
+        else:
+            drs_client = boto3.client("drs", region_name=region)
+
         # Query DRS for job status
-        drs_client = boto3.client("drs", region_name=region)
         job_response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
 
         if not job_response.get("items"):
@@ -2894,7 +2929,12 @@ def poll_wave_with_enrichment(wave: Dict, execution_type: str) -> Dict:
 
         participating_servers = job.get("participatingServers", [])
         if participating_servers:
-            ec2_client = boto3.client("ec2", region_name=region)
+            # Use same session for EC2 client
+            if account_context and not account_context.get("isCurrentAccount"):
+                ec2_client = session.client("ec2", region_name=region)
+            else:
+                ec2_client = boto3.client("ec2", region_name=region)
+
             enriched_servers = enrich_server_data(participating_servers, drs_client, ec2_client)
             print(f"DEBUG: Enriched {len(enriched_servers)} servers")
             print(
@@ -3474,18 +3514,25 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         # Centralized logic prevents frontend/backend inconsistencies
         execution["terminationMetadata"] = can_terminate_execution(execution)
 
-        # Update cache with fresh data
+        # CRITICAL FIX: Persist wave status updates to DynamoDB
+        # The reconcile_wave_status_with_drs function updates wave status in memory,
+        # but we need to persist these updates so termination logic works correctly
         try:
+            waves = execution.get("waves", [])
             execution_history_table.update_item(
                 Key={
                     "executionId": execution_id,
                     "planId": execution.get("planId"),
                 },
-                UpdateExpression="SET updatedAt = :updated",
-                ExpressionAttributeValues={":updated": int(time.time())},
+                UpdateExpression="SET waves = :waves, updatedAt = :updated",
+                ExpressionAttributeValues={
+                    ":waves": waves,
+                    ":updated": int(time.time()),
+                },
             )
-        except Exception as cache_error:
-            print(f"Error updating cache: {cache_error}")
+            print(f"✅ Persisted wave status updates to DynamoDB for {execution_id}")
+        except Exception as persist_error:
+            print(f"Error persisting wave updates: {persist_error}")
 
         return response(200, execution)
 
