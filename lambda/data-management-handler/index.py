@@ -3549,10 +3549,26 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 )
 
                 if pg_account_id != current_account_id:
+                    # Look up target account configuration to get externalId
+                    assume_role_name = pg.get("assumeRoleName", "DRSOrchestrationRole")
+                    external_id = None
+
+                    try:
+                        account_result = target_accounts_table.get_item(Key={"accountId": pg_account_id})
+                        if "Item" in account_result:
+                            account_config = account_result["Item"]
+                            external_id = account_config.get("externalId")
+                            # Use role name from target account config if available
+                            if account_config.get("assumeRoleName"):
+                                assume_role_name = account_config["assumeRoleName"]
+                            print(f"DEBUG: Retrieved externalId from target accounts table: {external_id}")
+                    except Exception as e:
+                        print(f"DEBUG: Error looking up target account config: {e}")
+
                     account_context = {
                         "accountId": pg_account_id,
-                        "assumeRoleName": pg.get("assumeRoleName"),
-                        "externalId": pg.get("externalId"),
+                        "assumeRoleName": assume_role_name,
+                        "externalId": external_id,
                         "isCurrentAccount": False,
                     }
                     print(f"Using cross-account context: {account_context}")
