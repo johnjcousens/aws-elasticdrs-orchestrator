@@ -2720,12 +2720,37 @@ def handle_poll_operation(event: Dict, context) -> Dict:
                     print(f"   Summary: {summary}")
                     print(f"   Details: {details}")
 
-                    # Update DynamoDB with analyzed status
-                    update_expr = "SET #status = :status, endTime = :endtime, lastPolledTime = :time"
+                    # CRITICAL: Update wave statuses to terminal state
+                    # When SF completes, waves may still show STARTED/IN_PROGRESS
+                    # This prevents terminate button from showing (can_terminate_execution checks wave status)
+                    updated_waves = []
+                    for wave in waves:
+                        wave_copy = wave.copy()
+                        current_wave_status = wave_copy.get("status", "").upper()
+                        # Only update non-terminal wave statuses
+                        if current_wave_status not in ["COMPLETED", "FAILED", "TERMINATED", "TIMEOUT", "CANCELLED"]:
+                            # Set wave status based on execution outcome
+                            if new_status == "COMPLETED":
+                                wave_copy["status"] = "COMPLETED"
+                            elif new_status == "PARTIAL":
+                                # For PARTIAL, check if this wave has any launched servers
+                                server_statuses = wave_copy.get("serverStatuses", [])
+                                has_launched = any(
+                                    s.get("launchStatus") in ["LAUNCHED", "TERMINATED"] for s in server_statuses
+                                )
+                                wave_copy["status"] = "COMPLETED" if has_launched else "FAILED"
+                            else:
+                                # FAILED, TIMEOUT, TERMINATED
+                                wave_copy["status"] = new_status
+                        updated_waves.append(wave_copy)
+
+                    # Update DynamoDB with analyzed status and updated waves
+                    update_expr = "SET #status = :status, endTime = :endtime, lastPolledTime = :time, waves = :waves"
                     expr_values = {
                         ":status": new_status,
                         ":endtime": int(time.time()),
                         ":time": int(time.time()),
+                        ":waves": updated_waves,
                     }
 
                     if error_message:
@@ -2744,7 +2769,7 @@ def handle_poll_operation(event: Dict, context) -> Dict:
                         ExpressionAttributeValues=expr_values,
                     )
 
-                    print(f"✅ Execution {execution_id} marked as {new_status}")
+                    print(f"✅ Execution {execution_id} marked as {new_status}, waves updated to terminal state")
                     return {
                         "statusCode": 200,
                         "executionId": execution_id,
