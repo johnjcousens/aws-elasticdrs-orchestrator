@@ -866,6 +866,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         # Collect all server IDs from all waves by resolving protection groups
         all_server_ids = set()
         region = "us-east-1"
+        account_context = None  # Track account context for cross-account DRS queries
 
         for wave in plan.get("waves", []):
             pg_id = wave.get("protectionGroupId")
@@ -882,6 +883,16 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
             if pg_region:
                 region = pg_region
 
+            # Extract account context from Protection Group (for cross-account)
+            if pg.get("accountId") and not account_context:
+                account_context = {
+                    "accountId": pg.get("accountId"),
+                    "assumeRoleName": pg.get("assumeRoleName"),
+                    "externalId": pg.get("externalId"),
+                    "isCurrentAccount": False,
+                }
+                print(f"Using cross-account context: {account_context}")
+
             # Check for explicit server IDs first
             explicit_servers = pg.get("sourceServerIds", [])
             if explicit_servers:
@@ -894,14 +905,6 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 print(f"PG {pg_id} has selection tags: {selection_tags}")
                 if selection_tags:
                     try:
-                        # Extract account context from Protection Group
-                        account_context = None
-                        if pg.get("accountId"):
-                            account_context = {
-                                "accountId": pg.get("accountId"),
-                                "assumeRoleName": pg.get("assumeRoleName"),
-                                "externalId": pg.get("externalId"),
-                            }
                         resolved = query_drs_servers_by_tags(pg_region, selection_tags, account_context)
                         print(f"Resolved {len(resolved)} servers from tags")
                         for server in resolved:
@@ -924,8 +927,40 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 },
             )
 
-        # Query DRS for recovery instances
-        drs_client = boto3.client("drs", region_name=region)
+        # Query DRS for recovery instances (with cross-account support)
+        if account_context and not account_context.get("isCurrentAccount", True):
+            # Cross-account: assume role and create DRS client
+            from shared.account_utils import construct_role_arn
+            from shared.cross_account import get_cross_account_session
+
+            account_id = account_context["accountId"]
+            assume_role_name = account_context.get("assumeRoleName")
+            external_id = account_context.get("externalId")
+
+            # Construct role ARN
+            if assume_role_name:
+                role_arn = f"arn:aws:iam::{account_id}:role/{assume_role_name}"
+            else:
+                role_arn = construct_role_arn(account_id)
+
+            print(f"Assuming role for cross-account DRS query: {role_arn}")
+
+            try:
+                session = get_cross_account_session(role_arn, external_id)
+                drs_client = session.client("drs", region_name=region)
+                print(f"Created cross-account DRS client for account {account_id}")
+            except Exception as e:
+                print(f"Error assuming role for DRS query: {e}")
+                return response(
+                    500,
+                    {
+                        "error": "CROSS_ACCOUNT_ACCESS_FAILED",
+                        "message": f"Failed to access target account {account_id}: {str(e)}",
+                    },
+                )
+        else:
+            # Current account: use default credentials
+            drs_client = boto3.client("drs", region_name=region)
 
         existing_instances = []
         try:
@@ -1008,7 +1043,29 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         # Enrich with EC2 instance details (Name tag, IP, launch time)
         if existing_instances:
             try:
-                ec2_client = boto3.client("ec2", region_name=region)
+                # Create EC2 client (with cross-account support)
+                if account_context and not account_context.get("isCurrentAccount", True):
+                    # Use the same session we created for DRS
+                    from shared.account_utils import construct_role_arn
+                    from shared.cross_account import get_cross_account_session
+
+                    account_id = account_context["accountId"]
+                    assume_role_name = account_context.get("assumeRoleName")
+                    external_id = account_context.get("externalId")
+
+                    # Construct role ARN
+                    if assume_role_name:
+                        role_arn = f"arn:aws:iam::{account_id}:role/{assume_role_name}"
+                    else:
+                        role_arn = construct_role_arn(account_id)
+
+                    session = get_cross_account_session(role_arn, external_id)
+                    ec2_client = session.client("ec2", region_name=region)
+                    print(f"Created cross-account EC2 client for account {account_id}")
+                else:
+                    # Current account: use default credentials
+                    ec2_client = boto3.client("ec2", region_name=region)
+
                 ec2_ids = [inst["ec2InstanceId"] for inst in existing_instances if inst.get("ec2InstanceId")]
                 if ec2_ids:
                     ec2_response = ec2_client.describe_instances(InstanceIds=ec2_ids)
