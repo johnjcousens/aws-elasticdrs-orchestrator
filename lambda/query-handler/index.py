@@ -2198,8 +2198,9 @@ def poll_wave_status(state: Dict) -> Dict:
     - wave_results: Updated with server statuses and completion time
 
     Note:
-        DynamoDB updates for server details (instanceId, privateIp) are
-        handled by execution-poller Lambda to avoid race conditions.
+        Server EC2 instance details (instanceId, privateIp, instanceType) are
+        enriched by invoking execution-handler poll operation when wave
+        completes successfully.
     """
     # State passed directly (state ownership pattern)
     job_id = state.get("job_id")
@@ -2397,10 +2398,41 @@ def poll_wave_status(state: Dict) -> Dict:
             state["wave_completed"] = True
             state["completed_waves"] = state.get("completed_waves", 0) + 1
 
+            # Invoke execution-handler to enrich server data with EC2 details
+            # This must happen BEFORE marking wave complete to ensure data
+            # is available in UI
+            try:
+                print(f"Invoking execution-handler to enrich server data for " f"execution {execution_id}")
+                lambda_client = boto3.client("lambda")
+                enrich_response = lambda_client.invoke(
+                    FunctionName=os.environ.get(
+                        "EXECUTION_HANDLER_ARN",
+                        f"aws-drs-orchestration-execution-handler-" f"{os.environ.get('ENVIRONMENT', 'test')}",
+                    ),
+                    InvocationType="RequestResponse",
+                    Payload=json.dumps(
+                        {
+                            "operation": "poll",
+                            "executionId": execution_id,
+                            "planId": plan_id,
+                        }
+                    ),
+                )
+
+                # Check for function error
+                if enrich_response.get("FunctionError"):
+                    error_payload = json.loads(enrich_response["Payload"].read())
+                    print(f"⚠️ Error enriching server data: {error_payload}")
+                else:
+                    enrich_result = json.loads(enrich_response["Payload"].read())
+                    print(f"✅ Server data enriched successfully: " f"{enrich_result.get('statusCode')}")
+            except Exception as enrich_error:
+                print(f"⚠️ Failed to invoke execution-handler for enrichment: " f"{enrich_error}")
+                # Don't fail the wave - enrichment is best-effort
+
             # Update wave result in Step Functions state
             # EC2 instance details (instanceId, privateIp, instanceType) are
-            # populated by execution-poller which is the single source of
-            # truth
+            # populated by execution-handler poll operation above
             for wr in state.get("wave_results", []):
                 if wr.get("waveNumber") == wave_number:
                     wr["status"] = "COMPLETED"
