@@ -96,22 +96,14 @@ export const Dashboard: React.FC = () => {
   // Ref to track if capacity data has been loaded (avoids dependency on capacityData)
   const capacityLoadedRef = useRef(false);
 
-  // Fetch capacity data for ALL accounts (universal dashboard)
-  const fetchCapacityData = useCallback(async (bustCache = false) => {
-    // Dashboard shows ALL accounts - single API call for better performance
-    if (availableAccounts.length === 0) {
-      setCapacityData(null);
-      return;
-    }
-
-    // Only show loading spinner on initial load (when no data exists) or when busting cache
-    if (!capacityLoadedRef.current || bustCache) {
-      setCapacityLoading(true);
-    }
+  // Refresh capacity data callback for staging account changes
+  const refreshCapacityData = useCallback(async () => {
+    if (availableAccounts.length === 0) return;
+    
+    setCapacityLoading(true);
     setCapacityError(null);
     
     try {
-      // Fetch capacity for ALL target accounts in a single API call
       const data = await getAllAccountsCapacity();
       setCapacityData(data);
       capacityLoadedRef.current = true;
@@ -123,13 +115,6 @@ export const Dashboard: React.FC = () => {
       setCapacityLoading(false);
     }
   }, [availableAccounts.length]);
-
-  // Refresh capacity data callback for staging account changes
-  const refreshCapacityData = useCallback(() => {
-    if (availableAccounts.length > 0) {
-      fetchCapacityData(true); // Force cache bust
-    }
-  }, [availableAccounts.length, fetchCapacityData]);
 
   // Setup staging account refresh coordination
   useStagingAccountRefresh({
@@ -150,45 +135,54 @@ export const Dashboard: React.FC = () => {
     }
   }, [accountsLoading, availableAccounts.length, openSettingsModal]);
 
-  const fetchExecutions = useCallback(async () => {
+  // Fetch executions when account changes
+  useEffect(() => {
     const accountId = getCurrentAccountId();
     if (!accountId) {
       setLoading(false);
       return;
     }
 
-    try {
-      // Only show loading spinner on initial load (when no data exists)
-      if (isInitialLoadRef.current) {
-        setLoading(true);
+    let isMounted = true;
+    
+    const doFetch = async () => {
+      if (!isMounted) return;
+      
+      try {
+        // Only show loading spinner on initial load
+        if (isInitialLoadRef.current) {
+          setLoading(true);
+        }
+        const response = await apiClient.listExecutions({ 
+          limit: 100,
+          accountId 
+        });
+        if (!isMounted) return;
+        
+        const items = Array.isArray(response?.items) ? response.items : [];
+        setExecutions(items);
+        if (items.length > 0) {
+          isInitialLoadRef.current = false;
+        }
+        setError(null);
+      } catch (err) {
+        if (!isMounted) return;
+        setError('Failed to load executions');
+        console.error('Error fetching executions:', err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      // Pass accountId to API call for multi-account support
-      const response = await apiClient.listExecutions({ 
-        limit: 100,
-        accountId 
-      });
-      // Defensive check: ensure items is an array
-      const items = Array.isArray(response?.items) ? response.items : [];
-      setExecutions(items);
-      // Mark initial load as complete after first successful fetch
-      if (items.length > 0) {
-        isInitialLoadRef.current = false;
-      }
-      setError(null);
-    } catch (err) {
-      setError('Failed to load executions');
-      console.error('Error fetching executions:', err);
-    } finally {
-      setLoading(false);
-    }
+    };
+    
+    doFetch();
+    const interval = setInterval(doFetch, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [getCurrentAccountId]);
-
-  // Fetch executions when account changes
-  useEffect(() => {
-    fetchExecutions();
-    const interval = setInterval(fetchExecutions, 30000);
-    return () => clearInterval(interval);
-  }, [fetchExecutions]);
 
   // Fetch last tag sync status and poll while in progress
   useEffect(() => {
@@ -214,9 +208,15 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
+    let isMounted = true;
+    
     const pollTagSyncStatus = async () => {
+      if (!isMounted) return;
+      
       try {
         const status = await apiClient.getLastTagSyncStatus();
+        if (!isMounted) return;
+        
         if (status.lastSync) {
           setLastTagSync(status);
           
@@ -234,26 +234,61 @@ export const Dashboard: React.FC = () => {
         }
       } catch (err) {
         console.debug('Could not fetch tag sync status:', err);
+        // Don't break the polling on error - just log and continue
       }
     };
 
     // Poll every 5 seconds while in progress
     const interval = setInterval(pollTagSyncStatus, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [lastTagSync?.status]);
 
   // Fetch DRS capacity for ALL accounts (dashboard is universal)
   useEffect(() => {
-    if (availableAccounts.length > 0) {
-      fetchCapacityData();
-      const interval = setInterval(() => {
-        fetchCapacityData();
-      }, 30000);
-      return () => clearInterval(interval);
-    } else {
+    if (availableAccounts.length === 0) {
       setCapacityData(null);
+      return;
     }
-  }, [availableAccounts.length, fetchCapacityData]);
+
+    let isMounted = true;
+    
+    const doFetch = async () => {
+      if (!isMounted) return;
+      
+      // Only show loading spinner on initial load
+      if (!capacityLoadedRef.current) {
+        setCapacityLoading(true);
+      }
+      setCapacityError(null);
+      
+      try {
+        const data = await getAllAccountsCapacity();
+        if (!isMounted) return;
+        
+        setCapacityData(data);
+        capacityLoadedRef.current = true;
+      } catch (err) {
+        if (!isMounted) return;
+        console.error('Error fetching capacity data:', err);
+        setCapacityError('Unable to fetch capacity data');
+        setCapacityData(null);
+      } finally {
+        if (isMounted) {
+          setCapacityLoading(false);
+        }
+      }
+    };
+    
+    doFetch();
+    const interval = setInterval(doFetch, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [availableAccounts.length]);
 
   const handleTagSync = async () => {
     const accountId = getCurrentAccountId();
@@ -289,11 +324,18 @@ export const Dashboard: React.FC = () => {
     const accountId = getCurrentAccountId();
     
     // Refresh executions (still per-account)
-    fetchExecutions();
+    if (accountId) {
+      try {
+        const response = await apiClient.listExecutions({ limit: 100, accountId });
+        setExecutions(Array.isArray(response?.items) ? response.items : []);
+      } catch (err) {
+        console.error('Error refreshing executions:', err);
+      }
+    }
     
     // Refresh capacity data (all accounts)
     if (availableAccounts.length > 0) {
-      fetchCapacityData(true); // Force cache bust
+      refreshCapacityData();
     }
     
     // Sync staging accounts in background for current account
@@ -314,7 +356,7 @@ export const Dashboard: React.FC = () => {
           toast.success(`Staging accounts updated. ${changeMsg}`);
           
           // Refresh capacity data again to show updated staging accounts
-          fetchCapacityData(true);
+          refreshCapacityData();
         }
       } catch (err) {
         console.error('Error syncing staging accounts:', err);
