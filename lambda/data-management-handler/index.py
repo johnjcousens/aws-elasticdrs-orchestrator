@@ -3535,6 +3535,10 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 current_account_id = get_current_account_id()
                 pg_account_id = pg.get("accountId")
 
+                print(
+                    f"DEBUG: Checking account context - PG account: {pg_account_id}, Current account: {current_account_id}"
+                )
+
                 if pg_account_id != current_account_id:
                     account_context = {
                         "accountId": pg_account_id,
