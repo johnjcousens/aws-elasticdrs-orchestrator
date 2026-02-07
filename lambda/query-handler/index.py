@@ -5272,44 +5272,45 @@ def handle_get_all_accounts_capacity() -> Dict:
             try:
                 # Use us-east-1 as default region for job queries
                 region = os.environ.get("AWS_REGION", "us-east-1")
-                
+
                 # Create DRS client for this account
                 account_context = {
                     "accountId": target_account_id,
                     "roleArn": target_account.get("roleArn"),
                     "externalId": target_account.get("externalId"),
                 }
-                
+
                 drs_client = create_drs_client(region, account_context)
-                
+
                 # Query active jobs
                 jobs_response = drs_client.describe_jobs(
                     filters={
                         "jobIDs": [],  # Empty = all jobs
                     },
-                    maxResults=1000
+                    maxResults=1000,
                 )
-                
+
                 active_jobs = [
-                    job for job in jobs_response.get("items", [])
-                    if job.get("status") in ["PENDING", "STARTED"]
+                    job for job in jobs_response.get("items", []) if job.get("status") in ["PENDING", "STARTED"]
                 ]
-                
+
                 # Count concurrent jobs
                 total_concurrent_jobs += len(active_jobs)
-                
+
                 # Count servers in active jobs
                 for job in active_jobs:
                     participating_servers = job.get("participatingServers", [])
                     job_server_count = len(participating_servers)
                     total_servers_in_jobs += job_server_count
-                    
+
                     # Track max servers in any single job
                     if job_server_count > max_servers_per_job:
                         max_servers_per_job = job_server_count
-                
-                print(f"Account {target_account_id}: {len(active_jobs)} active jobs, {total_servers_in_jobs} servers in jobs")
-                
+
+                print(
+                    f"Account {target_account_id}: {len(active_jobs)} active jobs, {total_servers_in_jobs} servers in jobs"
+                )
+
             except Exception as e:
                 print(f"Warning: Could not query DRS jobs for account {target_account_id}: {e}")
                 # Continue without job data for this account
