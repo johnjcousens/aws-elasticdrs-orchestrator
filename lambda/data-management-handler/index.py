@@ -226,7 +226,12 @@ protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_
 recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
 executions_table = dynamodb.Table(EXECUTIONS_TABLE) if EXECUTIONS_TABLE else None
 target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
-tag_sync_config_table = dynamodb.Table(TAG_SYNC_CONFIG_TABLE) if TAG_SYNC_CONFIG_TABLE else None
+# Fall back to target_accounts_table for tag sync config if dedicated table not configured
+tag_sync_config_table = (
+    dynamodb.Table(TAG_SYNC_CONFIG_TABLE)
+    if TAG_SYNC_CONFIG_TABLE
+    else (dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None)
+)
 
 # Invalid replication states that block DR operations
 INVALID_REPLICATION_STATES = [
@@ -3506,6 +3511,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         # Collect all server IDs from all waves by resolving protection groups
         all_server_ids = set()
         region = "us-east-1"
+        account_context = None  # Track account context for cross-account DRS queries
 
         for wave in plan.get("waves", []):
             pg_id = wave.get("protectionGroupId")
@@ -3521,6 +3527,24 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
             pg_region = pg.get("region", "us-east-1")
             if pg_region:
                 region = pg_region
+
+            # Extract account context from Protection Group (for cross-account)
+            if pg.get("accountId") and not account_context:
+                from shared.cross_account import get_current_account_id
+
+                current_account_id = get_current_account_id()
+                pg_account_id = pg.get("accountId")
+
+                if pg_account_id != current_account_id:
+                    account_context = {
+                        "accountId": pg_account_id,
+                        "assumeRoleName": pg.get("assumeRoleName"),
+                        "externalId": pg.get("externalId"),
+                        "isCurrentAccount": False,
+                    }
+                    print(f"Using cross-account context: {account_context}")
+                else:
+                    print(f"Protection group is in current account {current_account_id}, no cross-account needed")
 
             # Check for explicit server IDs first
             explicit_servers = pg.get("sourceServerIds", [])
@@ -3564,8 +3588,8 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 },
             )
 
-        # Query DRS for recovery instances
-        drs_client = create_drs_client(region)
+        # Query DRS for recovery instances (with cross-account support)
+        drs_client = create_drs_client(region, account_context)
 
         existing_instances = []
         try:
@@ -3666,7 +3690,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         # Enrich with EC2 instance details (Name tag, IP, launch time)
         if existing_instances:
             try:
-                ec2_client = create_ec2_client(region)
+                ec2_client = create_ec2_client(region, account_context)
                 ec2_ids = [inst["ec2InstanceId"] for inst in existing_instances if inst.get("ec2InstanceId")]
                 if ec2_ids:
                     ec2_response = ec2_client.describe_instances(InstanceIds=ec2_ids)
@@ -4263,7 +4287,7 @@ def _is_tag_sync_running() -> bool:
     try:
         if not tag_sync_config_table:
             return False
-        result = tag_sync_config_table.get_item(Key={"configKey": "tag_sync_lock"})
+        result = tag_sync_config_table.get_item(Key={"accountId": "_tag_sync_lock"})
         if "Item" not in result:
             return False
         lock = result["Item"]
@@ -4284,7 +4308,7 @@ def _set_tag_sync_lock() -> None:
             return
         tag_sync_config_table.put_item(
             Item={
-                "configKey": "tag_sync_lock",
+                "accountId": "_tag_sync_lock",
                 "status": "IN_PROGRESS",
                 "startedAt": int(time.time()),
             }
@@ -4300,7 +4324,7 @@ def _clear_tag_sync_lock() -> None:
             return
         tag_sync_config_table.put_item(
             Item={
-                "configKey": "tag_sync_lock",
+                "accountId": "_tag_sync_lock",
                 "status": "COMPLETED",
                 "completedAt": int(time.time()),
             }
@@ -4316,7 +4340,7 @@ def _save_tag_sync_result(result: Dict, source: str = "manual") -> None:
             return
         tag_sync_config_table.put_item(
             Item={
-                "configKey": "last_tag_sync",
+                "accountId": "_last_tag_sync",
                 "timestamp": int(time.time()),
                 "source": source,  # "manual", "eventbridge", "settings_update"
                 "totalAccounts": result.get("total_accounts", 1),
@@ -4336,15 +4360,38 @@ def get_last_tag_sync_status() -> Dict:
         if not tag_sync_config_table:
             return response(200, {"message": "No sync history available"})
 
-        result = tag_sync_config_table.get_item(Key={"configKey": "last_tag_sync"})
+        from datetime import datetime
+
+        # First check if a sync is currently running
+        if _is_tag_sync_running():
+            # Get the lock to show when it started
+            lock_result = tag_sync_config_table.get_item(Key={"accountId": "_tag_sync_lock"})
+            started_at = 0
+            if "Item" in lock_result:
+                started_at = lock_result["Item"].get("startedAt", 0)
+            iso_started = datetime.utcfromtimestamp(started_at).isoformat() + "Z" if started_at else None
+
+            return response(
+                200,
+                {
+                    "lastSync": iso_started,
+                    "source": "manual",
+                    "totalAccounts": 0,
+                    "totalSynced": 0,
+                    "totalFailed": 0,
+                    "totalServers": 0,
+                    "status": "IN_PROGRESS",
+                },
+            )
+
+        # No sync running, return last completed sync
+        result = tag_sync_config_table.get_item(Key={"accountId": "_last_tag_sync"})
         if "Item" not in result:
             return response(200, {"message": "No sync history available"})
 
         item = result["Item"]
         # Convert timestamp to ISO format
         timestamp = item.get("timestamp", 0)
-        from datetime import datetime
-
         iso_time = datetime.utcfromtimestamp(timestamp).isoformat() + "Z" if timestamp else None
 
         return response(
@@ -4492,6 +4539,68 @@ def _sync_tags_all_target_accounts(region: str = None, source: str = "manual") -
     return response(200, summary)
 
 
+def _get_initialized_drs_regions(account_context: Dict) -> List[str]:
+    """
+    Quickly detect which regions have DRS initialized by checking for source servers.
+
+    This is much faster than iterating all 30 DRS regions - it only makes one API call
+    per region to check if DRS is initialized (has any source servers).
+
+    Uses concurrent execution to check multiple regions in parallel.
+    """
+    import concurrent.futures
+
+    account_id = account_context.get("accountId")
+    is_current_account = account_context.get("isCurrentAccount", True)
+
+    def check_region(region: str) -> str:
+        """Check if a region has DRS source servers. Returns region name or None."""
+        try:
+            if is_current_account:
+                drs_client = boto3.client("drs", region_name=region)
+            else:
+                # Cross-account: assume role
+                assume_role_name = account_context.get("assumeRoleName", "DRSOrchestrationRole")
+                external_id = account_context.get("externalId", "drs-orchestration-cross-account")
+                sts_client = boto3.client("sts")
+                role_arn = f"arn:aws:iam::{account_id}:role/{assume_role_name}"
+                assumed = sts_client.assume_role(
+                    RoleArn=role_arn,
+                    RoleSessionName="drs-region-check",
+                    ExternalId=external_id,
+                )
+                creds = assumed["Credentials"]
+                drs_client = boto3.client(
+                    "drs",
+                    region_name=region,
+                    aws_access_key_id=creds["AccessKeyId"],
+                    aws_secret_access_key=creds["SecretAccessKey"],
+                    aws_session_token=creds["SessionToken"],
+                )
+
+            # Quick check - just get 1 server to see if DRS is initialized
+            resp = drs_client.describe_source_servers(maxResults=1)
+            if resp.get("items"):
+                return region
+            return None
+        except Exception:
+            # Region not initialized or access denied - skip it
+            return None
+
+    initialized_regions = []
+
+    # Check regions in parallel (max 10 concurrent)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_region = {executor.submit(check_region, r): r for r in DRS_REGIONS}
+        for future in concurrent.futures.as_completed(future_to_region):
+            result = future.result()
+            if result:
+                initialized_regions.append(result)
+
+    print(f"Found {len(initialized_regions)} initialized DRS regions: {initialized_regions}")
+    return initialized_regions
+
+
 def _sync_tags_single_account(account_context: Dict, region: str = None) -> Dict:
     """Sync tags for a single account across DRS regions."""
     account_id = account_context.get("accountId")
@@ -4504,7 +4613,30 @@ def _sync_tags_single_account(account_context: Dict, region: str = None) -> Dict
 
     print(f"Starting tag sync for account {account_id} ({account_name or 'Unknown'})")
 
-    regions_to_sync = [region] if region else DRS_REGIONS
+    # Optimize: Only sync regions that have DRS initialized
+    if region:
+        regions_to_sync = [region]
+    else:
+        # First, quickly detect which regions have DRS servers
+        print("Detecting initialized DRS regions...")
+        regions_to_sync = _get_initialized_drs_regions(account_context)
+        if not regions_to_sync:
+            print("No initialized DRS regions found - nothing to sync")
+            return response(
+                200,
+                {
+                    "message": f"No DRS servers found in account {account_id}",
+                    "accountId": account_id,
+                    "accountName": account_name,
+                    "total_regions": len(DRS_REGIONS),
+                    "regions_with_servers": 0,
+                    "total_servers": 0,
+                    "total_synced": 0,
+                    "total_failed": 0,
+                    "regions": [],
+                },
+            )
+        print(f"Will sync {len(regions_to_sync)} regions: {regions_to_sync}")
 
     for sync_region in regions_to_sync:
         try:
