@@ -4,7 +4,7 @@
  * Operational dashboard showing execution status, metrics, and system health.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   SpaceBetween,
@@ -79,6 +79,7 @@ export const Dashboard: React.FC = () => {
   
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
   const [stagingSyncLoading, setStagingSyncLoading] = useState(false);
+  const [isTagSyncPolling, setIsTagSyncPolling] = useState(false);
   const [lastTagSync, setLastTagSync] = useState<{
     lastSync: string | null;
     source: string;
@@ -90,23 +91,40 @@ export const Dashboard: React.FC = () => {
   const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
   const [capacityLoading, setCapacityLoading] = useState(false);
   const [capacityError, setCapacityError] = useState<string | null>(null);
-  
-  // Ref to track if this is the initial load (avoids dependency on executions.length)
-  const isInitialLoadRef = useRef(true);
-  // Ref to track if capacity data has been loaded (avoids dependency on capacityData)
-  const capacityLoadedRef = useRef(false);
 
-  // Refresh capacity data callback for staging account changes
-  const refreshCapacityData = useCallback(async () => {
-    if (availableAccounts.length === 0) return;
-    
+  // Fetch executions - useCallback so it can be called from handleRefresh and useEffect
+  const fetchExecutions = useCallback(async () => {
+    const accountId = getCurrentAccountId();
+    if (!accountId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await apiClient.listExecutions({ 
+        limit: 100,
+        accountId 
+      });
+      
+      const items = Array.isArray(response?.items) ? response.items : [];
+      setExecutions(items);
+      setError(null);
+    } catch (err) {
+      setError('Failed to load executions');
+      console.error('Error fetching executions:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [getCurrentAccountId]);
+
+  // Fetch capacity data - simple callback, check is done in useEffect
+  const fetchCapacityData = useCallback(async () => {
     setCapacityLoading(true);
     setCapacityError(null);
     
     try {
       const data = await getAllAccountsCapacity();
       setCapacityData(data);
-      capacityLoadedRef.current = true;
     } catch (err) {
       console.error('Error fetching capacity data:', err);
       setCapacityError('Unable to fetch capacity data');
@@ -114,17 +132,16 @@ export const Dashboard: React.FC = () => {
     } finally {
       setCapacityLoading(false);
     }
-  }, [availableAccounts.length]);
+  }, []);
 
   // Setup staging account refresh coordination
   useStagingAccountRefresh({
-    onRefreshCapacity: refreshCapacityData,
+    onRefreshCapacity: fetchCapacityData,
   });
+
   // Open settings modal if no accounts configured
-  // Only open settings modal if accounts have finished loading AND there are no accounts
   useEffect(() => {
     if (!accountsLoading && availableAccounts.length === 0) {
-      // Add a small delay to avoid race conditions with account loading
       const timer = setTimeout(() => {
         if (availableAccounts.length === 0) {
           openSettingsModal('accounts');
@@ -135,7 +152,7 @@ export const Dashboard: React.FC = () => {
     }
   }, [accountsLoading, availableAccounts.length, openSettingsModal]);
 
-  // Fetch executions when account changes
+  // Fetch executions when account changes - setup interval
   useEffect(() => {
     const accountId = getCurrentAccountId();
     if (!accountId) {
@@ -143,46 +160,10 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    let isMounted = true;
-    
-    const doFetch = async () => {
-      if (!isMounted) return;
-      
-      try {
-        // Only show loading spinner on initial load
-        if (isInitialLoadRef.current) {
-          setLoading(true);
-        }
-        const response = await apiClient.listExecutions({ 
-          limit: 100,
-          accountId 
-        });
-        if (!isMounted) return;
-        
-        const items = Array.isArray(response?.items) ? response.items : [];
-        setExecutions(items);
-        if (items.length > 0) {
-          isInitialLoadRef.current = false;
-        }
-        setError(null);
-      } catch (err) {
-        if (!isMounted) return;
-        setError('Failed to load executions');
-        console.error('Error fetching executions:', err);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-    
-    doFetch();
-    const interval = setInterval(doFetch, 30000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [getCurrentAccountId]);
+    fetchExecutions();
+    const interval = setInterval(fetchExecutions, 30000);
+    return () => clearInterval(interval);
+  }, [selectedAccount, fetchExecutions]);
 
   // Fetch last tag sync status and poll while in progress
   useEffect(() => {
@@ -204,14 +185,29 @@ export const Dashboard: React.FC = () => {
 
   // Poll for tag sync status while in progress
   useEffect(() => {
-    if (lastTagSync?.status !== 'IN_PROGRESS') {
+    // Only poll when polling is active
+    if (!isTagSyncPolling) {
       return;
     }
 
     let isMounted = true;
+    let pollCount = 0;
+    const MAX_POLLS = 60; // Max 5 minutes of polling (60 * 5 seconds)
     
     const pollTagSyncStatus = async () => {
       if (!isMounted) return;
+      
+      pollCount++;
+      
+      // Safety timeout - stop polling after max attempts
+      if (pollCount > MAX_POLLS) {
+        console.warn('Tag sync polling timeout - stopping after max attempts');
+        setIsTagSyncPolling(false);
+        // Reset status to allow retry
+        setLastTagSync(prev => prev ? { ...prev, status: 'TIMEOUT' } : null);
+        toast.error('Tag sync status check timed out. Please refresh to check status.');
+        return;
+      }
       
       try {
         const status = await apiClient.getLastTagSyncStatus();
@@ -220,75 +216,55 @@ export const Dashboard: React.FC = () => {
         if (status.lastSync) {
           setLastTagSync(status);
           
-          // Show toast when sync completes
-          if (status.status === 'SUCCESS') {
-            toast.success(`Tag sync completed: ${status.totalSynced} servers synced`);
-          } else if (status.status === 'PARTIAL') {
-            toast(`Tag sync completed: ${status.totalSynced} synced, ${status.totalFailed} failed`, {
-              icon: '⚠️',
-              duration: 5000,
-            });
-          } else if (status.status === 'FAILED') {
-            toast.error(`Tag sync failed: ${status.totalFailed} servers failed`);
+          // Stop polling and show toast when sync completes
+          if (status.status !== 'IN_PROGRESS') {
+            setIsTagSyncPolling(false);
+            
+            if (status.status === 'SUCCESS') {
+              toast.success(`Tag sync completed: ${status.totalSynced} servers synced`);
+            } else if (status.status === 'PARTIAL') {
+              toast(`Tag sync completed: ${status.totalSynced} synced, ${status.totalFailed} failed`, {
+                icon: '⚠️',
+                duration: 5000,
+              });
+            } else if (status.status === 'FAILED') {
+              toast.error(`Tag sync failed: ${status.totalFailed} servers failed`);
+            }
           }
         }
       } catch (err) {
-        console.debug('Could not fetch tag sync status:', err);
-        // Don't break the polling on error - just log and continue
+        console.error('Error polling tag sync status:', err);
+        // On repeated errors, stop polling to prevent infinite loop
+        if (pollCount > 3) {
+          setIsTagSyncPolling(false);
+          setLastTagSync(prev => prev ? { ...prev, status: 'ERROR' } : null);
+          toast.error('Failed to check tag sync status');
+        }
       }
     };
 
     // Poll every 5 seconds while in progress
     const interval = setInterval(pollTagSyncStatus, 5000);
+    // Also poll immediately
+    pollTagSyncStatus();
+    
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [lastTagSync?.status]);
+  }, [isTagSyncPolling]);
 
-  // Fetch DRS capacity for ALL accounts (dashboard is universal)
+  // Fetch DRS capacity for ALL accounts - setup interval
   useEffect(() => {
     if (availableAccounts.length === 0) {
       setCapacityData(null);
       return;
     }
 
-    let isMounted = true;
-    
-    const doFetch = async () => {
-      if (!isMounted) return;
-      
-      // Only show loading spinner on initial load
-      if (!capacityLoadedRef.current) {
-        setCapacityLoading(true);
-      }
-      setCapacityError(null);
-      
-      try {
-        const data = await getAllAccountsCapacity();
-        if (!isMounted) return;
-        
-        setCapacityData(data);
-        capacityLoadedRef.current = true;
-      } catch (err) {
-        if (!isMounted) return;
-        console.error('Error fetching capacity data:', err);
-        setCapacityError('Unable to fetch capacity data');
-        setCapacityData(null);
-      } finally {
-        if (isMounted) {
-          setCapacityLoading(false);
-        }
-      }
-    };
-    
-    doFetch();
-    const interval = setInterval(doFetch, 30000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [availableAccounts.length]);
+    fetchCapacityData();
+    const interval = setInterval(fetchCapacityData, 30000);
+    return () => clearInterval(interval);
+  }, [selectedAccount, availableAccounts.length, fetchCapacityData]);
 
   const handleTagSync = async () => {
     const accountId = getCurrentAccountId();
@@ -312,6 +288,8 @@ export const Dashboard: React.FC = () => {
         totalFailed: 0,
         status: 'IN_PROGRESS',
       });
+      // Start polling for status updates
+      setIsTagSyncPolling(true);
     } catch (err) {
       console.error('Error triggering tag sync:', err);
       toast.error('Failed to trigger tag sync');
@@ -324,19 +302,10 @@ export const Dashboard: React.FC = () => {
     const accountId = getCurrentAccountId();
     
     // Refresh executions (still per-account)
-    if (accountId) {
-      try {
-        const response = await apiClient.listExecutions({ limit: 100, accountId });
-        setExecutions(Array.isArray(response?.items) ? response.items : []);
-      } catch (err) {
-        console.error('Error refreshing executions:', err);
-      }
-    }
+    fetchExecutions();
     
     // Refresh capacity data (all accounts)
-    if (availableAccounts.length > 0) {
-      refreshCapacityData();
-    }
+    fetchCapacityData();
     
     // Sync staging accounts in background for current account
     if (accountId) {
@@ -356,7 +325,7 @@ export const Dashboard: React.FC = () => {
           toast.success(`Staging accounts updated. ${changeMsg}`);
           
           // Refresh capacity data again to show updated staging accounts
-          refreshCapacityData();
+          fetchCapacityData();
         }
       } catch (err) {
         console.error('Error syncing staging accounts:', err);
@@ -449,7 +418,9 @@ export const Dashboard: React.FC = () => {
                     Last sync: {new Date(lastTagSync.lastSync).toLocaleString()}
                     {lastTagSync.status === 'IN_PROGRESS' ? ' (running...)' : 
                      lastTagSync.status === 'SUCCESS' ? ` (${lastTagSync.totalSynced} synced)` :
-                     lastTagSync.status === 'PARTIAL' ? ` (${lastTagSync.totalSynced} synced, ${lastTagSync.totalFailed} failed)` : ''}
+                     lastTagSync.status === 'PARTIAL' ? ` (${lastTagSync.totalSynced} synced, ${lastTagSync.totalFailed} failed)` :
+                     lastTagSync.status === 'TIMEOUT' ? ' (status check timed out)' :
+                     lastTagSync.status === 'ERROR' ? ' (status check failed)' : ''}
                   </Box>
                 )}
                 <Button
@@ -462,7 +433,7 @@ export const Dashboard: React.FC = () => {
                 <Button
                   onClick={handleTagSync}
                   loading={tagSyncLoading}
-                  disabled={!selectedAccount || lastTagSync?.status === 'IN_PROGRESS'}
+                  disabled={!selectedAccount || (lastTagSync?.status === 'IN_PROGRESS' && isTagSyncPolling)}
                   iconName="upload"
                 >
                   Sync Tags
