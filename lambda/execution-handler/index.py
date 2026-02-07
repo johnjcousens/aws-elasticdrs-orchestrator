@@ -885,13 +885,21 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
 
             # Extract account context from Protection Group (for cross-account)
             if pg.get("accountId") and not account_context:
-                account_context = {
-                    "accountId": pg.get("accountId"),
-                    "assumeRoleName": pg.get("assumeRoleName"),
-                    "externalId": pg.get("externalId"),
-                    "isCurrentAccount": False,
-                }
-                print(f"Using cross-account context: {account_context}")
+                from shared.cross_account import get_current_account_id
+
+                current_account_id = get_current_account_id()
+                pg_account_id = pg.get("accountId")
+
+                if pg_account_id != current_account_id:
+                    account_context = {
+                        "accountId": pg_account_id,
+                        "assumeRoleName": pg.get("assumeRoleName"),
+                        "externalId": pg.get("externalId"),
+                        "isCurrentAccount": False,
+                    }
+                    print(f"Using cross-account context: {account_context}")
+                else:
+                    print(f"Protection group is in current account {current_account_id}, no cross-account needed")
 
             # Check for explicit server IDs first
             explicit_servers = pg.get("sourceServerIds", [])
