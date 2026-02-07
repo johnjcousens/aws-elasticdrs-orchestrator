@@ -3493,9 +3493,11 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
     Returns info about any recovery instances that haven't been terminated yet.
     Used by frontend to prompt user before starting a new drill.
     """
+    print(f"XDEBUG: check_existing_recovery_instances called for plan {plan_id}")
     try:
         # Get the recovery plan
         plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
+        print(f"XDEBUG: Retrieved plan, has Item: {'Item' in plan_result}")
         if "Item" not in plan_result:
             return response(
                 404,
