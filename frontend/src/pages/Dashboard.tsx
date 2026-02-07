@@ -4,7 +4,7 @@
  * Operational dashboard showing execution status, metrics, and system health.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   SpaceBetween,
@@ -90,6 +90,11 @@ export const Dashboard: React.FC = () => {
   const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
   const [capacityLoading, setCapacityLoading] = useState(false);
   const [capacityError, setCapacityError] = useState<string | null>(null);
+  
+  // Ref to track if this is the initial load (avoids dependency on executions.length)
+  const isInitialLoadRef = useRef(true);
+  // Ref to track if capacity data has been loaded (avoids dependency on capacityData)
+  const capacityLoadedRef = useRef(false);
 
   // Fetch capacity data for ALL accounts (universal dashboard)
   const fetchCapacityData = useCallback(async (bustCache = false) => {
@@ -100,7 +105,7 @@ export const Dashboard: React.FC = () => {
     }
 
     // Only show loading spinner on initial load (when no data exists) or when busting cache
-    if (!capacityData || bustCache) {
+    if (!capacityLoadedRef.current || bustCache) {
       setCapacityLoading(true);
     }
     setCapacityError(null);
@@ -109,6 +114,7 @@ export const Dashboard: React.FC = () => {
       // Fetch capacity for ALL target accounts in a single API call
       const data = await getAllAccountsCapacity();
       setCapacityData(data);
+      capacityLoadedRef.current = true;
     } catch (err) {
       console.error('Error fetching capacity data:', err);
       setCapacityError('Unable to fetch capacity data');
@@ -116,7 +122,7 @@ export const Dashboard: React.FC = () => {
     } finally {
       setCapacityLoading(false);
     }
-  }, [availableAccounts.length, capacityData]);
+  }, [availableAccounts.length]);
 
   // Refresh capacity data callback for staging account changes
   const refreshCapacityData = useCallback(() => {
@@ -153,7 +159,7 @@ export const Dashboard: React.FC = () => {
 
     try {
       // Only show loading spinner on initial load (when no data exists)
-      if (executions.length === 0) {
+      if (isInitialLoadRef.current) {
         setLoading(true);
       }
       // Pass accountId to API call for multi-account support
@@ -162,7 +168,12 @@ export const Dashboard: React.FC = () => {
         accountId 
       });
       // Defensive check: ensure items is an array
-      setExecutions(Array.isArray(response?.items) ? response.items : []);
+      const items = Array.isArray(response?.items) ? response.items : [];
+      setExecutions(items);
+      // Mark initial load as complete after first successful fetch
+      if (items.length > 0) {
+        isInitialLoadRef.current = false;
+      }
       setError(null);
     } catch (err) {
       setError('Failed to load executions');
@@ -170,7 +181,7 @@ export const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [getCurrentAccountId, executions.length]);
+  }, [getCurrentAccountId]);
 
   // Fetch executions when account changes
   useEffect(() => {
@@ -179,7 +190,7 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchExecutions]);
 
-  // Fetch last tag sync status
+  // Fetch last tag sync status and poll while in progress
   useEffect(() => {
     const fetchLastTagSync = async () => {
       try {
@@ -187,12 +198,49 @@ export const Dashboard: React.FC = () => {
         if (status.lastSync) {
           setLastTagSync(status);
         }
+        return status;
       } catch (err) {
         console.debug('Could not fetch last tag sync status:', err);
+        return null;
       }
     };
+    
     fetchLastTagSync();
   }, []);
+
+  // Poll for tag sync status while in progress
+  useEffect(() => {
+    if (lastTagSync?.status !== 'IN_PROGRESS') {
+      return;
+    }
+
+    const pollTagSyncStatus = async () => {
+      try {
+        const status = await apiClient.getLastTagSyncStatus();
+        if (status.lastSync) {
+          setLastTagSync(status);
+          
+          // Show toast when sync completes
+          if (status.status === 'SUCCESS') {
+            toast.success(`Tag sync completed: ${status.totalSynced} servers synced`);
+          } else if (status.status === 'PARTIAL') {
+            toast(`Tag sync completed: ${status.totalSynced} synced, ${status.totalFailed} failed`, {
+              icon: '⚠️',
+              duration: 5000,
+            });
+          } else if (status.status === 'FAILED') {
+            toast.error(`Tag sync failed: ${status.totalFailed} servers failed`);
+          }
+        }
+      } catch (err) {
+        console.debug('Could not fetch tag sync status:', err);
+      }
+    };
+
+    // Poll every 5 seconds while in progress
+    const interval = setInterval(pollTagSyncStatus, 5000);
+    return () => clearInterval(interval);
+  }, [lastTagSync?.status]);
 
   // Fetch DRS capacity for ALL accounts (dashboard is universal)
   useEffect(() => {
@@ -372,7 +420,7 @@ export const Dashboard: React.FC = () => {
                 <Button
                   onClick={handleTagSync}
                   loading={tagSyncLoading}
-                  disabled={!selectedAccount}
+                  disabled={!selectedAccount || lastTagSync?.status === 'IN_PROGRESS'}
                   iconName="upload"
                 >
                   Sync Tags
