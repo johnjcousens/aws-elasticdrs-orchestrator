@@ -115,26 +115,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
 
-  // Inactivity timeout (4 hours) - only logout after extended inactivity
-  const INACTIVITY_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+  // Auto-logout timeout (45 minutes) - logout before 60 minute token expiry
+  const AUTO_LOGOUT_TIMEOUT = 45 * 60 * 1000; // 45 minutes in milliseconds
   
-  // Token refresh timer (50 minutes - before 60 minute expiry)
-  const TOKEN_REFRESH_TIME = 50 * 60 * 1000; // 50 minutes in milliseconds
+  // Token refresh timer (40 minutes - refresh tokens before auto-logout)
+  const TOKEN_REFRESH_TIME = 40 * 60 * 1000; // 40 minutes in milliseconds
   
   // Use refs to avoid dependency cycles that cause infinite re-renders
-  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoLogoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const tokenRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const authCheckInProgressRef = useRef(false);
   const hasCheckedAuthRef = useRef(false);
   const lastActivityRef = useRef<number>(Date.now());
 
   /**
-   * Clear inactivity timer
+   * Clear auto-logout timer
    */
-  const clearInactivityTimer = useCallback(() => {
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = null;
+  const clearAutoLogoutTimer = useCallback(() => {
+    if (autoLogoutTimerRef.current) {
+      clearTimeout(autoLogoutTimerRef.current);
+      autoLogoutTimerRef.current = null;
     }
   }, []);
 
@@ -152,17 +152,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Clear both authentication timers
    */
   const clearAuthTimers = useCallback(() => {
-    clearInactivityTimer();
+    clearAutoLogoutTimer();
     clearTokenRefreshTimer();
-  }, [clearInactivityTimer, clearTokenRefreshTimer]);
+  }, [clearAutoLogoutTimer, clearTokenRefreshTimer]);
 
   /**
-   * Start inactivity timer - logout after extended inactivity
+   * Start auto-logout timer - logout after 45 minutes
    */
-  const startInactivityTimer = useCallback(() => {
-    clearInactivityTimer();
+  const startAutoLogoutTimer = useCallback(() => {
+    clearAutoLogoutTimer();
     
-    inactivityTimerRef.current = setTimeout(() => {
+    autoLogoutTimerRef.current = setTimeout(() => {
+      console.log('Auto-logout triggered after 45 minutes');
       // Use ref to avoid circular dependency
       clearAuthTimers();
       setAuthState({
@@ -171,20 +172,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loading: false,
         error: undefined,
       });
-    }, INACTIVITY_TIMEOUT);
-  }, [clearInactivityTimer, clearAuthTimers, INACTIVITY_TIMEOUT]);
+    }, AUTO_LOGOUT_TIMEOUT);
+  }, [clearAutoLogoutTimer, clearAuthTimers, AUTO_LOGOUT_TIMEOUT]);
 
   /**
-   * Record user activity and reset inactivity timer
+   * Record user activity and reset auto-logout timer
    */
   const recordActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
     
-    // Only restart inactivity timer if user is authenticated
+    // Only restart auto-logout timer if user is authenticated
     if (authState.isAuthenticated) {
-      startInactivityTimer();
+      startAutoLogoutTimer();
     }
-  }, [authState.isAuthenticated, startInactivityTimer]);
+  }, [authState.isAuthenticated, startAutoLogoutTimer]);
 
   /**
    * Refresh authentication tokens
@@ -201,8 +202,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           refreshTokens();
         }, TOKEN_REFRESH_TIME);
         
-        clearInactivityTimer();
-        inactivityTimerRef.current = setTimeout(() => {
+        clearAutoLogoutTimer();
+        autoLogoutTimerRef.current = setTimeout(() => {
+          console.log('Auto-logout triggered after 45 minutes');
           // Use direct auth clearing to avoid circular dependency
           clearAuthTimers();
           setAuthState({
@@ -211,7 +213,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             loading: false,
             error: undefined,
           });
-        }, INACTIVITY_TIMEOUT);
+        }, AUTO_LOGOUT_TIMEOUT);
       } else {
         // Sign out if token refresh fails
         console.warn('Token refresh failed - no tokens in session');
@@ -234,7 +236,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         error: undefined,
       });
     }
-  }, [clearTokenRefreshTimer, clearInactivityTimer, clearAuthTimers, TOKEN_REFRESH_TIME, INACTIVITY_TIMEOUT]);
+  }, [clearTokenRefreshTimer, clearAutoLogoutTimer, clearAuthTimers, TOKEN_REFRESH_TIME, AUTO_LOGOUT_TIMEOUT]);
 
   /**
    * Start token refresh timer
@@ -248,12 +250,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [clearTokenRefreshTimer, refreshTokens, TOKEN_REFRESH_TIME]);
 
   /**
-   * Start both authentication timers (inactivity and token refresh)
+   * Start both authentication timers (auto-logout and token refresh)
    */
   const startAuthTimers = useCallback(() => {
-    startInactivityTimer();
+    startAutoLogoutTimer();
     startTokenRefreshTimer();
-  }, [startInactivityTimer, startTokenRefreshTimer]);
+  }, [startAutoLogoutTimer, startTokenRefreshTimer]);
 
   /**
    * Check current authentication status
@@ -404,8 +406,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     return () => {
       // Cleanup timers
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
+      if (autoLogoutTimerRef.current) {
+        clearTimeout(autoLogoutTimerRef.current);
       }
       if (tokenRefreshTimerRef.current) {
         clearTimeout(tokenRefreshTimerRef.current);
