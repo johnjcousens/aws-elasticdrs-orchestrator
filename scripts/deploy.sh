@@ -126,6 +126,48 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
+# ============================================================================
+# SCRIPT LOCK - PREVENT CONCURRENT EXECUTIONS
+# ============================================================================
+
+LOCK_FILE="/tmp/deploy-${STACK_NAME}.lock"
+LOCK_PID_FILE="/tmp/deploy-${STACK_NAME}.pid"
+
+# Function to cleanup lock on exit
+cleanup_lock() {
+    if [ -f "$LOCK_FILE" ]; then
+        rm -f "$LOCK_FILE"
+        rm -f "$LOCK_PID_FILE"
+    fi
+}
+
+# Set trap to cleanup on exit
+trap cleanup_lock EXIT INT TERM
+
+# Check if another deployment is running
+if [ -f "$LOCK_FILE" ]; then
+    LOCK_PID=$(cat "$LOCK_PID_FILE" 2>/dev/null || echo "")
+    
+    # Check if the process is still running
+    if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
+        echo -e "${RED}❌ Another deployment is already running (PID: $LOCK_PID)${NC}"
+        echo -e "${YELLOW}   Lock file: $LOCK_FILE${NC}"
+        echo -e "${YELLOW}   Wait for the current deployment to complete.${NC}"
+        echo ""
+        echo "   To check process: ps -p $LOCK_PID"
+        echo "   To force unlock (if stale): rm -f $LOCK_FILE $LOCK_PID_FILE"
+        exit 1
+    else
+        # Stale lock file - process no longer exists
+        echo -e "${YELLOW}⚠ Removing stale lock file (process $LOCK_PID no longer exists)${NC}"
+        rm -f "$LOCK_FILE" "$LOCK_PID_FILE"
+    fi
+fi
+
+# Create lock file
+touch "$LOCK_FILE"
+echo $$ > "$LOCK_PID_FILE"
+
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Deploy: $STACK_NAME${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
@@ -160,9 +202,23 @@ fi
 
 echo ""
 
+# Set AWS profile if not already set
+if [ -z "$AWS_PROFILE" ]; then
+    # Check if credentials file exists
+    if [ -f ~/.aws/credentials ]; then
+        # Look for profile matching orchestration account (438465159935)
+        if grep -q '\[438465159935_AdministratorAccess\]' ~/.aws/credentials; then
+            export AWS_PROFILE="438465159935_AdministratorAccess"
+            echo -e "${BLUE}Using AWS profile: $AWS_PROFILE${NC}"
+        fi
+    fi
+fi
+
 # Verify AWS credentials
 if ! aws sts get-caller-identity > /dev/null 2>&1; then
     echo -e "${RED}❌ AWS credentials not configured${NC}"
+    echo -e "${YELLOW}   Set AWS_PROFILE environment variable or configure AWS credentials${NC}"
+    echo -e "${YELLOW}   Example: export AWS_PROFILE=438465159935_AdministratorAccess${NC}"
     exit 1
 fi
 

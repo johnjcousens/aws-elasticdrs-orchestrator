@@ -69,9 +69,36 @@ Parameters:
     Description: "SNS topic ARN for execution pause notifications"
 
 Resources:
-  # Lambda Functions
+  # ===========================================================================
+  # DEAD LETTER QUEUE FOR LAMBDA FUNCTIONS
+  # ===========================================================================
+  # SQS queue to capture failed Lambda invocations for debugging
+  # Required for CKV_AWS_116 (Lambda DLQ configuration)
+  # All Lambda functions in this stack share this DLQ
+  
+  LambdaDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      QueueName: !Sub "${ProjectName}-lambda-dlq-${Environment}"
+      MessageRetentionPeriod: 1209600  # 14 days
+      KmsMasterKeyId: alias/aws/sqs
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ===========================================================================
+  # LAMBDA FUNCTIONS
+  # ===========================================================================
   # All functions share unified OrchestrationRoleArn for DRS, DynamoDB, SNS, Step Functions access
   # Supports cross-account DRS operations via IAM role assumption
+  # 
+  # NOTE: CloudWatch Log Groups are NOT explicitly created here.
+  # Lambda automatically creates log groups on first invocation.
+  # This avoids "already exists" errors during CloudFormation updates.
 
   # Data Management Handler for Protection Groups and Recovery Plans CRUD operations
   # Handles tag resolution, launch configuration, and conflict detection
@@ -89,6 +116,8 @@ Resources:
       Timeout: 900  # 15 minutes - needed for tag sync across many accounts/regions
       MemorySize: 512
       ReservedConcurrentExecutions: 50
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -120,6 +149,8 @@ Resources:
       Timeout: 300
       MemorySize: 512
       ReservedConcurrentExecutions: 50
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -151,6 +182,8 @@ Resources:
       Timeout: 60
       MemorySize: 256
       ReservedConcurrentExecutions: 50
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -183,6 +216,8 @@ Resources:
       Timeout: 120
       MemorySize: 512
       ReservedConcurrentExecutions: 50
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -214,6 +249,8 @@ Resources:
       Timeout: 900
       MemorySize: 2048
       ReservedConcurrentExecutions: 10
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
       Environment:
         Variables:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
@@ -264,6 +301,8 @@ Resources:
       Timeout: 60
       MemorySize: 256
       ReservedConcurrentExecutions: 50
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
       Environment:
         Variables:
           EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
@@ -415,3 +454,16 @@ Outputs:
     Value: !GetAtt DataManagementHandlerFunction.Arn
     Export:
       Name: !Sub "${AWS::StackName}-ApiHandlerArn"
+
+  # Dead Letter Queue outputs
+  LambdaDeadLetterQueueArn:
+    Description: "Lambda Dead Letter Queue ARN"
+    Value: !GetAtt LambdaDeadLetterQueue.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaDLQArn"
+
+  LambdaDeadLetterQueueUrl:
+    Description: "Lambda Dead Letter Queue URL"
+    Value: !Ref LambdaDeadLetterQueue
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaDLQUrl"

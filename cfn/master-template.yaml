@@ -502,6 +502,32 @@ Resources:
                 Action:
                   - elasticloadbalancing:DescribeLoadBalancers
                 Resource: "*"
+        
+        # SQS access for Lambda Dead Letter Queue
+        # Required for CKV_AWS_116 (Lambda DLQ configuration)
+        - PolicyName: SQSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:${ProjectName}-*"
+        
+        # API Gateway deployment access for deployment orchestrator Lambda
+        # Required for creating API deployments and managing stages
+        - PolicyName: ApiGatewayDeploymentAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/restapis/*"
 
   # DynamoDB tables for Protection Groups, Recovery Plans, Execution History, Target Accounts
   DatabaseStack:
@@ -864,6 +890,10 @@ Resources:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
+        OrchestrationRoleArn: !If
+          - CreateOrchestrationRole
+          - !GetAtt UnifiedOrchestrationRole.Arn
+          - !Ref OrchestrationRoleArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName

@@ -240,17 +240,17 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     }
   }, [isAuthenticated, authLoading]);
 
-  const getCurrentAccountId = (): string | null => {
+  const getCurrentAccountId = useCallback((): string | null => {
     return selectedAccount?.value || null;
-  };
+  }, [selectedAccount?.value]);
 
-  const getCurrentAccountName = (): string | null => {
+  const getCurrentAccountName = useCallback((): string | null => {
     const accountId = selectedAccount?.value;
     if (!accountId) return null;
     
     const account = availableAccounts.find(acc => acc.accountId === accountId);
     return account?.accountName || accountId;
-  };
+  }, [selectedAccount?.value, availableAccounts]);
 
   // Apply default account selection when accounts are loaded (only once)
   useEffect(() => {

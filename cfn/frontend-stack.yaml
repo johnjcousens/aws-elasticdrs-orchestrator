@@ -93,6 +93,77 @@ Conditions:
 
 Resources:
   # ===========================================================================
+  # S3 BUCKET FOR ACCESS LOGGING
+  # ===========================================================================
+  # Dedicated bucket for S3 and CloudFront access logs.
+  # Required for CKV_AWS_18 (S3 logging) and CKV_AWS_86 (CloudFront logging).
+  AccessLogsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: !Sub '${ProjectName}-access-logs-${AWS::AccountId}-${Environment}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 90
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: AccessLogs
+
+  # Bucket policy for access logs bucket - allows S3 and CloudFront to write logs
+  AccessLogsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AccessLogsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Deny non-HTTPS access
+          - Sid: DenyNonHTTPS
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt AccessLogsBucket.Arn
+              - !Sub '${AccessLogsBucket.Arn}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+          # Allow S3 to write access logs
+          - Sid: S3ServerAccessLogsPolicy
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Action: 's3:PutObject'
+            Resource: !Sub '${AccessLogsBucket.Arn}/s3-logs/*'
+            Condition:
+              ArnLike:
+                'aws:SourceArn': !Sub 'arn:${AWS::Partition}:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}'
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
+  # ===========================================================================
   # S3 BUCKET FOR FRONTEND HOSTING
   # ===========================================================================
   # Private bucket for React build artifacts. CloudFront serves content via OAC.
@@ -107,6 +178,7 @@ Resources:
   # - Current versions expire after 90 days (forces refresh)
   FrontendBucket:
     Type: AWS::S3::Bucket
+    DependsOn: AccessLogsBucketPolicy
     DeletionPolicy: Delete
     Properties:
       BucketName: !Sub '${ProjectName}-fe-${AWS::AccountId}-${Environment}'
@@ -121,6 +193,9 @@ Resources:
         RestrictPublicBuckets: true
       VersioningConfiguration:
         Status: Enabled
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogsBucket
+        LogFilePrefix: 's3-logs/'
       LifecycleConfiguration:
         Rules:
           - Id: DeleteOldVersions
@@ -177,6 +252,10 @@ Resources:
         Comment: !Sub '${ProjectName} Frontend Distribution'
         DefaultRootObject: index.html
         WebACLId: !If [HasWebACL, !Ref WebACLArn, !Ref 'AWS::NoValue']
+        Logging:
+          Bucket: !GetAtt AccessLogsBucket.DomainName
+          Prefix: 'cloudfront-logs/'
+          IncludeCookies: false
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
@@ -214,7 +293,6 @@ Resources:
         PriceClass: PriceClass_100
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
-          MinimumProtocolVersion: TLSv1.2_2021
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -233,15 +311,29 @@ Resources:
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
+        Version: '2012-10-17'
         Statement:
-          - Effect: Allow
+          # Deny non-HTTPS access (CKV_AWS_18 requirement)
+          - Sid: DenyNonHTTPS
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt FrontendBucket.Arn
+              - !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+          # Allow CloudFront to read objects
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
             Principal:
               Service: cloudfront.amazonaws.com
-            Action: s3:GetObject
+            Action: 's3:GetObject'
             Resource: !Sub '${FrontendBucket.Arn}/*'
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+                'AWS:SourceArn': !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
   # ===========================================================================
   # CUSTOM RESOURCE: FRONTEND DEPLOYMENT
@@ -281,6 +373,13 @@ Resources:
 # Exported values for cross-stack references and deployment verification.
 
 Outputs:
+  # Access logs bucket for S3 and CloudFront logging
+  AccessLogsBucketName:
+    Description: 'S3 bucket for access logs'
+    Value: !Ref AccessLogsBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-AccessLogsBucketName'
+
   # S3 bucket name for manual deployments or debugging
   FrontendBucketName:
     Description: 'S3 bucket for frontend hosting'
