@@ -2579,12 +2579,18 @@ def handle_operation(event: Dict, context) -> Dict:
          --payload '{"operation": "resume", "executionId": "uuid"}' \\
          response.json
 
+    6. Get execution details (for environments without API Gateway):
+       aws lambda invoke --function-name execution-handler \\
+         --payload '{"operation": "get_execution_details", "executionId": "uuid", "queryParams": {"planId": "uuid"}}' \\
+         response.json
+
     OPERATION BEHAVIORS:
     - find: Queries DynamoDB, self-invokes poll for each active execution
     - poll: Updates wave status, enriches server data, NEVER finalizes
     - finalize: Marks execution COMPLETED (idempotent, requires all waves complete)
     - pause: Changes execution status to PAUSED
     - resume: Changes execution status to POLLING and resumes Step Functions
+    - get_execution_details: Returns execution details with enriched server data
 
     RETURNS:
         Dict with statusCode and operation-specific response data
@@ -2601,6 +2607,13 @@ def handle_operation(event: Dict, context) -> Dict:
         return handle_pause_operation(event, context)
     elif operation == "resume":
         return handle_resume_operation(event, context)
+    elif operation == "get_execution_details":
+        # Support direct Lambda invocation for getting execution details
+        execution_id = event.get("executionId")
+        query_params = event.get("queryParams", {})
+        if not execution_id:
+            return response(400, {"error": "Missing executionId"})
+        return get_execution_details(execution_id, query_params)
     else:
         return response(
             400,
@@ -2613,6 +2626,7 @@ def handle_operation(event: Dict, context) -> Dict:
                     "finalize",
                     "pause",
                     "resume",
+                    "get_execution_details",
                 ],
             },
         )
