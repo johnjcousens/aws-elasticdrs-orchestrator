@@ -66,17 +66,45 @@ Parameters:
     Type: String
     Description: REST API ID from API Gateway Core Stack
 
+  OrchestrationRoleArn:
+    Type: String
+    Description: ARN of the unified orchestration role from master stack
+
 # =============================================================================
 # RESOURCES
 # =============================================================================
 
 Resources:
   # ===========================================================================
+  # DEAD LETTER QUEUE FOR DEPLOYMENT ORCHESTRATOR
+  # ===========================================================================
+  # SQS queue to capture failed Lambda invocations for debugging
+  # Required for CKV_AWS_116 (Lambda DLQ configuration)
+  
+  DeploymentOrchestratorDLQ:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      QueueName: !Sub "${ProjectName}-deployment-dlq-${Environment}"
+      MessageRetentionPeriod: 1209600  # 14 days
+      KmsMasterKeyId: alias/aws/sqs
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ===========================================================================
   # DEPLOYMENT ORCHESTRATOR LAMBDA
   # ===========================================================================
   # Custom Lambda function that creates API Gateway deployments.
   # Uses boto3 to call create_deployment API with proper error handling.
   # Returns DeploymentId and ApiEndpoint to CloudFormation for use by Stage.
+  #
+  # NOTE: CloudWatch Log Group is NOT explicitly created here.
+  # Lambda automatically creates log groups on first invocation.
+  # This avoids "already exists" errors during CloudFormation updates.
   
   DeploymentOrchestratorFunction:
     Type: AWS::Lambda::Function
@@ -84,9 +112,11 @@ Resources:
       FunctionName: !Sub '${ProjectName}-deployment-orchestrator-${Environment}'
       Runtime: python3.12
       Handler: index.lambda_handler
-      Role: !GetAtt DeploymentOrchestratorRole.Arn
+      Role: !Ref OrchestrationRoleArn
       Timeout: 300
       ReservedConcurrentExecutions: 5
+      DeadLetterConfig:
+        TargetArn: !GetAtt DeploymentOrchestratorDLQ.Arn
       Environment:
         Variables:
           LOG_LEVEL: INFO
@@ -146,42 +176,6 @@ Resources:
                   cfnresponse.send(event, context, cfnresponse.FAILED, {
                       'Error': str(e)
                   })
-
-  # ===========================================================================
-  # DEPLOYMENT ORCHESTRATOR IAM ROLE
-  # ===========================================================================
-  # Minimal permissions for the orchestrator to create deployments.
-  # Only allows apigateway:GET and apigateway:POST on the specific REST API.
-  
-  DeploymentOrchestratorRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub '${ProjectName}-deployment-orchestrator-${Environment}'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: ApiGatewayDeploymentPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - apigateway:GET
-                  - apigateway:POST
-                Resource: 
-                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/*'
-                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/deployments'
-                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/deployments/*'
-                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/stages/*'
-                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/gatewayresponses'
-                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/gatewayresponses/*'
 
   # ===========================================================================
   # GATEWAY RESPONSES (CORS FOR ERROR RESPONSES)
@@ -288,6 +282,8 @@ Resources:
   # Stores request/response metadata for debugging and compliance.
   ApiGatewayAccessLogGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub '/aws/apigateway/${ProjectName}-${Environment}-access-logs'
       RetentionInDays: 30

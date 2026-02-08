@@ -447,8 +447,11 @@ def enrich_server_data(participating_servers: List[Dict], drs_client, ec2_client
     if source_server_ids:
         try:
             source_response = drs_client.describe_source_servers(filters={"sourceServerIDs": source_server_ids})
+            print(f"DEBUG: describe_source_servers returned {len(source_response.get('items', []))} servers")
             for source_server in source_response.get("items", []):
                 source_id = source_server.get("sourceServerID")
+                tags = source_server.get("tags", {})
+                print(f"DEBUG: Source server {source_id} tags: {tags}")
                 source_servers_map[source_id] = source_server
         except Exception as e:
             print(f"Error querying source servers: {e}")
@@ -496,13 +499,16 @@ def enrich_server_data(participating_servers: List[Dict], drs_client, ec2_client
             hints = source_props.get("identificationHints", {})
             source_instance_id = hints.get("awsInstanceID", "")
 
-            normalized.update(
-                {
-                    "serverName": server_name,
-                    "ipAddress": ip_address,
-                    "sourceInstanceId": source_instance_id,
-                }
-            )
+            # Build update dict - only include serverName if we found a Name tag
+            # This preserves any existing serverName fallback (like sourceServerId)
+            update_dict = {
+                "ipAddress": ip_address,
+                "sourceInstanceId": source_instance_id,
+            }
+            if server_name:
+                update_dict["serverName"] = server_name
+
+            normalized.update(update_dict)
 
         # Add recovery instance EC2 details if available
         recovery_instance_id = normalized.get("recoveryInstanceId")
