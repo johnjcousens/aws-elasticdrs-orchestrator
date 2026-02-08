@@ -1837,27 +1837,45 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             print(f"Applying launchConfig to {len(server_ids)} servers " f"before recovery")
             apply_launch_config_before_recovery(drs_client, server_ids, launch_config, region, pg)
 
-        source_servers = [{"sourceServerID": sid} for sid in server_ids]
+        # Use start_drs_recovery_for_wave to get Name tags
+        wave_job_result = start_drs_recovery_for_wave(
+            server_ids=server_ids,
+            region=region,
+            is_drill=is_drill,
+            execution_id=execution_id,
+            execution_type="DRILL" if is_drill else "RECOVERY",
+            plan_name=state.get("plan_name"),
+            wave_name=wave_name,
+            wave_number=wave_number,
+            cognito_user=state.get("cognito_user"),
+            account_context=account_context,
+        )
 
-        response = drs_client.start_recovery(isDrill=is_drill, sourceServers=source_servers)
+        job_id = wave_job_result.get("jobId")
+        server_results = wave_job_result.get("servers", [])
 
-        job_id = response["job"]["jobID"]
+        if not job_id:
+            print(f"Failed to start DRS recovery for wave {wave_number}")
+            state["wave_completed"] = True
+            state["status"] = "failed"
+            state["error"] = "Failed to start DRS recovery"
+            return
+
         print(f"✅ DRS Job created: {job_id}")
 
-        # Build initial serverStatuses - execution-poller enriches
-        # with details
+        # Build serverStatuses from enriched server results (includes Name tags)
         server_statuses = []
-        for server_id in server_ids:
+        for server_result in server_results:
             server_statuses.append(
                 {
-                    "sourceServerId": server_id,
-                    "serverName": server_id,  # Poller updates with Name
+                    "sourceServerId": server_result.get("sourceServerId"),
+                    "serverName": server_result.get("serverName", server_result.get("sourceServerId")),
                     "hostname": "",
                     "launchStatus": "PENDING",
                     "instanceId": "",
                     "privateIp": "",
                     "instanceType": "",
-                    "launchTime": 0,
+                    "launchTime": server_result.get("launchTime", 0),
                 }
             )
 
