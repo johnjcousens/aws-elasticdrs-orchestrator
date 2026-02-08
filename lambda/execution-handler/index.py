@@ -1208,11 +1208,13 @@ def initiate_wave(
         ec2_client = create_ec2_client(region, account_context)
 
         # Build initial server status objects with just source server IDs
+        # CRITICAL: Use PascalCase "sourceServerID" here because enrich_server_data
+        # expects this format before normalizing to camelCase
         initial_servers = []
         for server_id in server_ids:
             initial_servers.append(
                 {
-                    "sourceServerId": server_id,
+                    "sourceServerID": server_id,  # PascalCase for enrich_server_data
                     "launchStatus": "PENDING",
                 }
             )
