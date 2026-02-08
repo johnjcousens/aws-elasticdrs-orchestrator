@@ -79,14 +79,6 @@ export const Dashboard: React.FC = () => {
   
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
   const [stagingSyncLoading, setStagingSyncLoading] = useState(false);
-  const [isTagSyncPolling, setIsTagSyncPolling] = useState(false);
-  const [lastTagSync, setLastTagSync] = useState<{
-    lastSync: string | null;
-    source: string;
-    totalSynced: number;
-    totalFailed: number;
-    status: string;
-  } | null>(null);
   
   const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
   const [capacityLoading, setCapacityLoading] = useState(false);
@@ -165,95 +157,6 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [selectedAccount, fetchExecutions]);
 
-  // Fetch last tag sync status and poll while in progress
-  useEffect(() => {
-    const fetchLastTagSync = async () => {
-      try {
-        const status = await apiClient.getLastTagSyncStatus();
-        if (status.lastSync) {
-          setLastTagSync(status);
-        }
-        return status;
-      } catch (err) {
-        console.debug('Could not fetch last tag sync status:', err);
-        return null;
-      }
-    };
-    
-    fetchLastTagSync();
-  }, []);
-
-  // Poll for tag sync status while in progress
-  useEffect(() => {
-    // Only poll when polling is active
-    if (!isTagSyncPolling) {
-      return;
-    }
-
-    let isMounted = true;
-    let pollCount = 0;
-    const MAX_POLLS = 60; // Max 5 minutes of polling (60 * 5 seconds)
-    
-    const pollTagSyncStatus = async () => {
-      if (!isMounted) return;
-      
-      pollCount++;
-      
-      // Safety timeout - stop polling after max attempts
-      if (pollCount > MAX_POLLS) {
-        console.warn('Tag sync polling timeout - stopping after max attempts');
-        setIsTagSyncPolling(false);
-        // Reset status to allow retry
-        setLastTagSync(prev => prev ? { ...prev, status: 'TIMEOUT' } : null);
-        toast.error('Tag sync status check timed out. Please refresh to check status.');
-        return;
-      }
-      
-      try {
-        const status = await apiClient.getLastTagSyncStatus();
-        if (!isMounted) return;
-        
-        if (status.lastSync) {
-          setLastTagSync(status);
-          
-          // Stop polling and show toast when sync completes
-          if (status.status !== 'IN_PROGRESS') {
-            setIsTagSyncPolling(false);
-            
-            if (status.status === 'SUCCESS') {
-              toast.success(`Tag sync completed: ${status.totalSynced} servers synced`);
-            } else if (status.status === 'PARTIAL') {
-              toast(`Tag sync completed: ${status.totalSynced} synced, ${status.totalFailed} failed`, {
-                icon: '⚠️',
-                duration: 5000,
-              });
-            } else if (status.status === 'FAILED') {
-              toast.error(`Tag sync failed: ${status.totalFailed} servers failed`);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error polling tag sync status:', err);
-        // On repeated errors, stop polling to prevent infinite loop
-        if (pollCount > 3) {
-          setIsTagSyncPolling(false);
-          setLastTagSync(prev => prev ? { ...prev, status: 'ERROR' } : null);
-          toast.error('Failed to check tag sync status');
-        }
-      }
-    };
-
-    // Poll every 5 seconds while in progress
-    const interval = setInterval(pollTagSyncStatus, 5000);
-    // Also poll immediately
-    pollTagSyncStatus();
-    
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [isTagSyncPolling]);
-
   // Fetch DRS capacity for ALL accounts - setup interval
   useEffect(() => {
     if (availableAccounts.length === 0) {
@@ -279,17 +182,6 @@ export const Dashboard: React.FC = () => {
       const accountName = getCurrentAccountName();
       const accountDisplay = accountName ? `${accountName} (${accountId})` : accountId;
       toast.success(`Tag sync started for account ${accountDisplay} - running in background`);
-      
-      // Update last sync status to show "in progress"
-      setLastTagSync({
-        lastSync: new Date().toISOString(),
-        source: 'manual',
-        totalSynced: 0,
-        totalFailed: 0,
-        status: 'IN_PROGRESS',
-      });
-      // Start polling for status updates
-      setIsTagSyncPolling(true);
     } catch (err) {
       console.error('Error triggering tag sync:', err);
       toast.error('Failed to trigger tag sync');
@@ -413,16 +305,6 @@ export const Dashboard: React.FC = () => {
             description="Real-time execution status and system metrics"
             actions={
               <SpaceBetween direction="horizontal" size="xs">
-                {lastTagSync && lastTagSync.lastSync && (
-                  <Box variant="small" color="text-body-secondary" padding={{ top: 'xs' }}>
-                    Last sync: {new Date(lastTagSync.lastSync).toLocaleString()}
-                    {lastTagSync.status === 'IN_PROGRESS' ? ' (running...)' : 
-                     lastTagSync.status === 'SUCCESS' ? ` (${lastTagSync.totalSynced} synced)` :
-                     lastTagSync.status === 'PARTIAL' ? ` (${lastTagSync.totalSynced} synced, ${lastTagSync.totalFailed} failed)` :
-                     lastTagSync.status === 'TIMEOUT' ? ' (status check timed out)' :
-                     lastTagSync.status === 'ERROR' ? ' (status check failed)' : ''}
-                  </Box>
-                )}
                 <Button
                   iconName="refresh"
                   onClick={handleRefresh}
@@ -433,7 +315,7 @@ export const Dashboard: React.FC = () => {
                 <Button
                   onClick={handleTagSync}
                   loading={tagSyncLoading}
-                  disabled={!selectedAccount || (lastTagSync?.status === 'IN_PROGRESS' && isTagSyncPolling)}
+                  disabled={!selectedAccount}
                   iconName="upload"
                 >
                   Sync Tags
