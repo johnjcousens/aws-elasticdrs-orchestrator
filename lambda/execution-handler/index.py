@@ -2186,7 +2186,15 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
 
             if has_completed_waves:
                 print("DEBUG: Enriching completed waves with recovery instance data")
-                execution = reconcile_wave_status_with_drs(execution)
+
+                # Get account context for cross-account DRS/EC2 queries
+                account_context = execution.get("accountContext")
+                if account_context:
+                    print(
+                        f"DEBUG: Using account context for cross-account enrichment: accountId={account_context.get('accountId')}"
+                    )
+
+                execution = reconcile_wave_status_with_drs(execution, account_context)
 
                 # CRITICAL FIX: Persist wave status updates to DynamoDB
                 # The reconcile_wave_status_with_drs function updates wave status in memory,
@@ -5836,21 +5844,39 @@ def get_execution_history(plan_id: str) -> Dict:
         return response(500, {"error": str(e)})
 
 
-def get_server_details_map(server_ids: List[str], region: str = "us-east-1") -> Dict[str, Dict]:
+def get_server_details_map(
+    server_ids: List[str], region: str = "us-east-1", account_context: Optional[Dict] = None
+) -> Dict[str, Dict]:
     """
     Get DRS source server details for a list of server IDs.
     PERFORMANCE OPTIMIZED: Faster API calls and better error handling.
     Returns a map of serverId -> {hostname, name, region, sourceInstanceId, sourceAccountId, ...}
+
+    Args:
+        server_ids: List of DRS source server IDs
+        region: AWS region
+        account_context: Optional cross-account context with roleArn and externalId
     """
     server_map = {}
     if not server_ids:
         return server_map
 
     print(f"DEBUG: Getting server details for {len(server_ids)} servers in {region}")
+    if account_context:
+        print(f"DEBUG: Using cross-account context for server details lookup")
 
     try:
-        # Use regional DRS client
-        drs_client = boto3.client("drs", region_name=region)
+        # Use regional DRS client with cross-account credentials if provided
+        if account_context:
+            from shared.cross_account import get_cross_account_session
+
+            role_arn = account_context.get("roleArn")
+            external_id = account_context.get("externalId")
+            session = get_cross_account_session(role_arn, external_id)
+            drs_client = session.client("drs", region_name=region)
+            print(f"DEBUG: Created cross-account DRS client for server details in {region}")
+        else:
+            drs_client = boto3.client("drs", region_name=region)
 
         # PERFORMANCE OPTIMIZATION: Use filters if possible to reduce data transfer
         # Get source servers (DRS API doesn't support filtering by ID list, so get all and filter)
@@ -6175,18 +6201,24 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
     return execution
 
 
-def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
+def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Dict] = None) -> Dict:
     """
     Reconcile wave status with actual DRS job results - REAL-TIME DATA.
 
     This ensures our UI shows the exact same status as the AWS Management Console
     by querying DRS directly for current job status.
+
+    Args:
+        execution: Execution data with waves to reconcile
+        account_context: Optional cross-account context with roleArn and externalId
     """
     try:
         waves = execution.get("waves", [])
         updated_waves = []
 
         print(f"DEBUG: Reconciling {len(waves)} waves with real-time DRS data")
+        if account_context:
+            print(f"DEBUG: Using cross-account context: roleArn={account_context.get('roleArn')}")
 
         for wave in waves:
             wave_status = wave.get("status", "")
@@ -6201,7 +6233,19 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
 
                     # Query DRS for actual job status - REAL-TIME
                     region = wave.get("region", "us-east-1")
-                    drs_client = boto3.client("drs", region_name=region)
+
+                    # Create DRS client with cross-account credentials if provided
+                    if account_context:
+                        from shared.cross_account import get_cross_account_session
+
+                        role_arn = account_context.get("roleArn")
+                        external_id = account_context.get("externalId")
+                        session = get_cross_account_session(role_arn, external_id)
+                        drs_client = session.client("drs", region_name=region)
+                        print(f"DEBUG: Created cross-account DRS client for region {region}")
+                    else:
+                        drs_client = boto3.client("drs", region_name=region)
+                        print(f"DEBUG: Created local DRS client for region {region}")
 
                     response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
 
@@ -6287,7 +6331,9 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         source_server_details = {}
                         if source_server_ids:
                             try:
-                                source_server_details = get_server_details_map(source_server_ids, region)
+                                source_server_details = get_server_details_map(
+                                    source_server_ids, region, account_context
+                                )
                                 print(f"DEBUG: Got details for {len(source_server_details)} source servers")
                             except Exception as ss_error:
                                 print(f"WARNING: Could not get source server details: {ss_error}")
@@ -6353,7 +6399,18 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
 
                                 if ec2_instance_ids:
                                     try:
-                                        ec2_client = boto3.client("ec2", region_name=region)
+                                        # Create EC2 client with cross-account credentials if provided
+                                        if account_context:
+                                            from shared.cross_account import get_cross_account_session
+
+                                            role_arn = account_context.get("roleArn")
+                                            external_id = account_context.get("externalId")
+                                            session = get_cross_account_session(role_arn, external_id)
+                                            ec2_client = session.client("ec2", region_name=region)
+                                            print(f"DEBUG: Created cross-account EC2 client for region {region}")
+                                        else:
+                                            ec2_client = boto3.client("ec2", region_name=region)
+
                                         ec2_response = ec2_client.describe_instances(InstanceIds=ec2_instance_ids)
 
                                         # Build map of instance ID to instance details
