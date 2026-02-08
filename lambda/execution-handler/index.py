@@ -1181,48 +1181,6 @@ def initiate_wave(
 
         print(f"Initiating recovery for {len(server_ids)} servers in region {region}")
 
-        # CRITICAL: Enrich server data with Name tags BEFORE starting recovery
-        # This ensures server names are visible immediately in the UI
-        from shared.drs_utils import enrich_server_data
-        from shared.cross_account import create_drs_client, create_ec2_client
-
-        # Determine account context from protection group
-        account_context = None
-        if pg.get("accountId"):
-            from shared.cross_account import get_current_account_id
-
-            current_account_id = get_current_account_id()
-            pg_account_id = pg.get("accountId")
-
-            if pg_account_id != current_account_id:
-                account_context = {
-                    "accountId": pg_account_id,
-                    "assumeRoleName": pg.get("assumeRoleName"),
-                    "externalId": pg.get("externalId"),
-                    "isCurrentAccount": False,
-                }
-                print(f"Using cross-account context for enrichment: account {pg_account_id}")
-
-        # Create cross-account DRS and EC2 clients
-        drs_client = create_drs_client(region, account_context)
-        ec2_client = create_ec2_client(region, account_context)
-
-        # Build initial server status objects with just source server IDs
-        # CRITICAL: Use PascalCase "sourceServerID" here because enrich_server_data
-        # expects this format before normalizing to camelCase
-        initial_servers = []
-        for server_id in server_ids:
-            initial_servers.append(
-                {
-                    "sourceServerID": server_id,  # PascalCase for enrich_server_data
-                    "launchStatus": "PENDING",
-                }
-            )
-
-        # Enrich with Name tags from DRS source servers
-        enriched_servers = enrich_server_data(initial_servers, drs_client, ec2_client)
-        print(f"Enriched {len(enriched_servers)} servers with Name tags before launch")
-
         # Launch ALL servers in wave with ONE DRS API call
         wave_job_result = start_drs_recovery_for_wave(
             server_ids,
@@ -1237,17 +1195,9 @@ def initiate_wave(
             account_context=account_context,
         )
 
-        # Extract job ID and server results
+        # Extract job ID and server results (Name tags already included)
         wave_job_id = wave_job_result.get("jobId")
         server_results = wave_job_result.get("servers", [])
-
-        # Merge enriched data (Name tags) with launch results
-        enriched_map = {s["sourceServerId"]: s for s in enriched_servers}
-        for server in server_results:
-            server_id = server.get("sourceServerId")
-            if server_id in enriched_map:
-                # Copy Name tag from enriched data
-                server["serverName"] = enriched_map[server_id].get("serverName")
 
         # Wave status is INITIATED (not IN_PROGRESS)
         has_failures = any(s["status"] == "FAILED" for s in server_results)
@@ -1582,6 +1532,27 @@ def start_drs_recovery_for_wave(
             )
 
         print(f"[DRS API] Wave initiation complete - ExecutionPoller will track job {job_id}")
+
+        # Query DRS for Name tags from source servers
+        try:
+            source_response = drs_client.describe_source_servers(filters={"sourceServerIDs": server_ids})
+            name_tags = {}
+            for source_server in source_response.get("items", []):
+                source_id = source_server.get("sourceServerID")
+                tags = source_server.get("tags", {})
+                name_tag = tags.get("Name", "")
+                if name_tag:
+                    name_tags[source_id] = name_tag
+
+            # Add Name tags to server results
+            for server in server_results:
+                server_id = server.get("sourceServerId")
+                if server_id in name_tags:
+                    server["serverName"] = name_tags[server_id]
+
+            print(f"[DRS API] Added Name tags for {len(name_tags)} servers")
+        except Exception as e:
+            print(f"[DRS API] Warning: Could not fetch Name tags: {e}")
 
         return {
             "jobId": job_id,
