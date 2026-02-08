@@ -2182,7 +2182,10 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
         # This ensures UI shows recovery instance details without requiring /realtime endpoint
         try:
             waves = execution.get("waves", [])
-            has_completed_waves = any(wave.get("status", "").upper() in ["COMPLETED", "FAILED"] for wave in waves)
+            # Check for terminal wave statuses: COMPLETED, FAILED, ERROR
+            has_completed_waves = any(
+                wave.get("status", "").upper() in ["COMPLETED", "FAILED", "ERROR"] for wave in waves
+            )
 
             if has_completed_waves:
                 print("DEBUG: Enriching completed waves with recovery instance data")
