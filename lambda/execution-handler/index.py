@@ -1137,6 +1137,7 @@ def initiate_wave(
     wave_name: str = None,
     wave_number: int = None,
     cognito_user: Dict = None,
+    account_context: Dict = None,
 ) -> Dict:
     """Initiate DRS recovery jobs for a wave without waiting for completion"""
     try:
@@ -1180,6 +1181,46 @@ def initiate_wave(
 
         print(f"Initiating recovery for {len(server_ids)} servers in region {region}")
 
+        # CRITICAL: Enrich server data with Name tags BEFORE starting recovery
+        # This ensures server names are visible immediately in the UI
+        from shared.drs_utils import enrich_server_data
+        from shared.cross_account import create_drs_client, create_ec2_client
+
+        # Determine account context from protection group
+        account_context = None
+        if pg.get("accountId"):
+            from shared.cross_account import get_current_account_id
+
+            current_account_id = get_current_account_id()
+            pg_account_id = pg.get("accountId")
+
+            if pg_account_id != current_account_id:
+                account_context = {
+                    "accountId": pg_account_id,
+                    "assumeRoleName": pg.get("assumeRoleName"),
+                    "externalId": pg.get("externalId"),
+                    "isCurrentAccount": False,
+                }
+                print(f"Using cross-account context for enrichment: account {pg_account_id}")
+
+        # Create cross-account DRS and EC2 clients
+        drs_client = create_drs_client(region, account_context)
+        ec2_client = create_ec2_client(region, account_context)
+
+        # Build initial server status objects with just source server IDs
+        initial_servers = []
+        for server_id in server_ids:
+            initial_servers.append(
+                {
+                    "sourceServerId": server_id,
+                    "launchStatus": "PENDING",
+                }
+            )
+
+        # Enrich with Name tags from DRS source servers
+        enriched_servers = enrich_server_data(initial_servers, drs_client, ec2_client)
+        print(f"Enriched {len(enriched_servers)} servers with Name tags before launch")
+
         # Launch ALL servers in wave with ONE DRS API call
         wave_job_result = start_drs_recovery_for_wave(
             server_ids,
@@ -1191,11 +1232,20 @@ def initiate_wave(
             wave_name=wave_name,
             wave_number=wave_number,
             cognito_user=cognito_user,
+            account_context=account_context,
         )
 
         # Extract job ID and server results
         wave_job_id = wave_job_result.get("jobId")
         server_results = wave_job_result.get("servers", [])
+
+        # Merge enriched data (Name tags) with launch results
+        enriched_map = {s["sourceServerId"]: s for s in enriched_servers}
+        for server in server_results:
+            server_id = server.get("sourceServerId")
+            if server_id in enriched_map:
+                # Copy Name tag from enriched data
+                server["serverName"] = enriched_map[server_id].get("serverName")
 
         # Wave status is INITIATED (not IN_PROGRESS)
         has_failures = any(s["status"] == "FAILED" for s in server_results)
@@ -1456,6 +1506,7 @@ def start_drs_recovery_for_wave(
     wave_name: str = None,
     wave_number: int = None,
     cognito_user: Dict = None,
+    account_context: Dict = None,
 ) -> Dict:
     """
     Launch DRS recovery for all servers in a wave with ONE API call
@@ -1466,12 +1517,16 @@ def start_drs_recovery_for_wave(
         is_drill: True for drill, False for actual recovery
         execution_id: Execution ID for tracking
         execution_type: 'DRILL' or 'RECOVERY'
+        account_context: Cross-account context for target account DRS queries
 
     Returns:
         Dict with JobId (wave-level) and Servers array
     """
     try:
-        drs_client = boto3.client("drs", region_name=region)
+        # Create DRS client with cross-account support
+        from shared.cross_account import create_drs_client
+
+        drs_client = create_drs_client(region, account_context)
 
         print(f"[DRS API] Starting {execution_type} {'drill' if is_drill else 'recovery'}")
         print(f"[DRS API] Region: {region}, Servers: {len(server_ids)}")
