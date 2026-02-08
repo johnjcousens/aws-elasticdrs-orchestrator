@@ -226,12 +226,9 @@ protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_
 recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
 executions_table = dynamodb.Table(EXECUTIONS_TABLE) if EXECUTIONS_TABLE else None
 target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
-# Fall back to target_accounts_table for tag sync config if dedicated table not configured
-tag_sync_config_table = (
-    dynamodb.Table(TAG_SYNC_CONFIG_TABLE)
-    if TAG_SYNC_CONFIG_TABLE
-    else (dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None)
-)
+# Only use dedicated tag sync config table if configured
+# DO NOT fall back to target_accounts_table to avoid data corruption
+tag_sync_config_table = dynamodb.Table(TAG_SYNC_CONFIG_TABLE) if TAG_SYNC_CONFIG_TABLE else None
 
 # Invalid replication states that block DR operations
 INVALID_REPLICATION_STATES = [
