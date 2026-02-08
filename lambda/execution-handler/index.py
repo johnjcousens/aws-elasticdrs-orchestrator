@@ -3063,9 +3063,11 @@ def poll_wave_with_enrichment(wave: Dict, execution_type: str, account_context: 
 
         # Get credentials for target account if cross-account
         if account_context and not account_context.get("isCurrentAccount"):
-            from shared.account_utils import get_target_account_session
+            from shared.cross_account import get_cross_account_session
 
-            session = get_target_account_session(account_context)
+            role_arn = account_context.get("roleArn")
+            external_id = account_context.get("externalId")
+            session = get_cross_account_session(role_arn, external_id)
             drs_client = session.client("drs", region_name=region)
             print(f"Using cross-account DRS client for account {account_context.get('accountId')}")
         else:
