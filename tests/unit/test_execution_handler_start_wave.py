@@ -50,7 +50,6 @@ def setup_execution_handler_import():
         sys.modules["index"] = original_index
 
 
-
 @pytest.fixture
 def mock_env_vars():
     """Set up environment variables for tests"""
@@ -109,7 +108,6 @@ def sample_state():
     }
 
 
-
 @pytest.fixture
 def sample_protection_group():
     """Sample Protection Group for testing"""
@@ -148,28 +146,51 @@ class TestStartWaveRecoverySuccessful:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        # Mock DRS start_recovery response
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
-        }
-
         # Mock query_drs_servers_by_tags to return server IDs
         mock_server_ids = ["s-001", "s-002", "s-003"]
 
+        # Mock start_drs_recovery_for_wave response (includes Name tags)
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {
+                    "sourceServerId": "s-001",
+                    "serverName": "server-001",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+                {
+                    "sourceServerId": "s-002",
+                    "serverName": "server-002",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+                {
+                    "sourceServerId": "s-003",
+                    "serverName": "server-003",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
+        }
+
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=mock_server_ids,
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
-                            with patch("time.time", return_value=1234567890):
-                                start_wave_recovery(sample_state, 0)
+                        with patch("index.apply_launch_config_before_recovery"):
+                            with patch(
+                                "index.start_drs_recovery_for_wave",
+                                return_value=mock_wave_job_result,
+                            ):
+                                with patch("time.time", return_value=1234567890):
+                                    start_wave_recovery(sample_state, 0)
 
         # Verify state was updated correctly
         assert sample_state["current_wave_number"] == 0
@@ -188,15 +209,13 @@ class TestStartWaveRecoverySuccessful:
         assert wave_result["serverIds"] == mock_server_ids
         assert len(wave_result["serverStatuses"]) == 3
 
-        # Verify DRS start_recovery was called correctly
-        mock_drs_client.start_recovery.assert_called_once()
-        call_args = mock_drs_client.start_recovery.call_args
-        assert call_args[1]["isDrill"] is True
-        assert len(call_args[1]["sourceServers"]) == 3
+        # Verify server statuses include Name tags
+        for i, server_status in enumerate(wave_result["serverStatuses"]):
+            assert server_status["sourceServerId"] == mock_server_ids[i]
+            assert server_status["serverName"] == f"server-{mock_server_ids[i][-3:]}"
 
         # Verify DynamoDB update was called
         exec_table.update_item.assert_called_once()
-
 
     def test_successful_wave_start_with_explicit_server_ids(
         self,
@@ -224,17 +243,36 @@ class TestStartWaveRecoverySuccessful:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-xyz789"}
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-xyz789",
+            "servers": [
+                {
+                    "sourceServerId": "s-100",
+                    "serverName": "server-100",
+                    "RecoveryJobId": "drsjob-xyz789",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+                {
+                    "sourceServerId": "s-101",
+                    "serverName": "server-101",
+                    "RecoveryJobId": "drsjob-xyz789",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
         }
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
-                    with patch("time.time", return_value=1234567890):
-                        start_wave_recovery(sample_state, 0)
+                with patch("index.create_drs_client", return_value=mock_drs_client):
+                    with patch(
+                        "index.start_drs_recovery_for_wave",
+                        return_value=mock_wave_job_result,
+                    ):
+                        with patch("time.time", return_value=1234567890):
+                            start_wave_recovery(sample_state, 0)
 
         # Verify explicit server IDs were used
         assert sample_state["server_ids"] == ["s-100", "s-101"]
@@ -246,9 +284,7 @@ class TestStartWaveRecoverySuccessful:
 class TestStartWaveRecoveryProtectionGroupNotFound:
     """Test Protection Group not found (Task 1.10)"""
 
-    def test_protection_group_not_found(
-        self, mock_env_vars, mock_dynamodb_tables, sample_state
-    ):
+    def test_protection_group_not_found(self, mock_env_vars, mock_dynamodb_tables, sample_state):
         """Test handling when Protection Group does not exist"""
         from index import start_wave_recovery
 
@@ -264,9 +300,7 @@ class TestStartWaveRecoveryProtectionGroupNotFound:
         assert "not found" in sample_state["error"]
         assert "pg-789" in sample_state["error"]
 
-    def test_wave_missing_protection_group_id(
-        self, mock_env_vars, sample_state
-    ):
+    def test_wave_missing_protection_group_id(self, mock_env_vars, sample_state):
         """Test handling when wave has no protectionGroupId"""
         from index import start_wave_recovery
 
@@ -279,7 +313,6 @@ class TestStartWaveRecoveryProtectionGroupNotFound:
         assert sample_state["wave_completed"] is True
         assert sample_state["status"] == "failed"
         assert "No protectionGroupId" in sample_state["error"]
-
 
 
 class TestStartWaveRecoveryEmptyServerList:
@@ -305,14 +338,10 @@ class TestStartWaveRecoveryEmptyServerList:
 
         # Verify wave marked complete without error
         assert sample_state["wave_completed"] is True
-        assert "status" not in sample_state or sample_state.get(
-            "status"
-        ) != "failed"
+        assert "status" not in sample_state or sample_state.get("status") != "failed"
         assert "error" not in sample_state
 
-    def test_empty_server_list_no_explicit_ids(
-        self, mock_env_vars, mock_dynamodb_tables, sample_state
-    ):
+    def test_empty_server_list_no_explicit_ids(self, mock_env_vars, mock_dynamodb_tables, sample_state):
         """Test handling when wave has no serverIds and PG has no tags"""
         from index import start_wave_recovery
 
@@ -334,9 +363,7 @@ class TestStartWaveRecoveryEmptyServerList:
 
         # Verify wave marked complete without error
         assert sample_state["wave_completed"] is True
-        assert "status" not in sample_state or sample_state.get(
-            "status"
-        ) != "failed"
+        assert "status" not in sample_state or sample_state.get("status") != "failed"
 
 
 class TestStartWaveRecoveryDRSAPIError:
@@ -356,24 +383,35 @@ class TestStartWaveRecoveryDRSAPIError:
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
-        # Mock DRS API error
-        mock_drs_client.start_recovery.side_effect = ClientError(
-            {
-                "Error": {
-                    "Code": "ThrottlingException",
-                    "Message": "Rate exceeded",
-                }
-            },
-            "StartRecovery",
-        )
+        # Mock start_drs_recovery_for_wave to return failure
+        mock_wave_job_result = {
+            "jobId": None,
+            "servers": [
+                {
+                    "sourceServerId": "s-001",
+                    "status": "FAILED",
+                    "error": "ThrottlingException: Rate exceeded",
+                    "launchTime": 1234567890,
+                },
+                {
+                    "sourceServerId": "s-002",
+                    "status": "FAILED",
+                    "error": "ThrottlingException: Rate exceeded",
+                    "launchTime": 1234567890,
+                },
+            ],
+        }
 
         with patch("index.protection_groups_table", pg_table):
-            with patch("index.create_drs_client", return_value=mock_drs_client):
-                with patch(
-                    "index.query_drs_servers_by_tags",
-                    return_value=["s-001", "s-002"],
-                ):
-                    with patch("index.apply_launch_config_before_recovery"):
+            with patch(
+                "index.query_drs_servers_by_tags",
+                return_value=["s-001", "s-002"],
+            ):
+                with patch("index.apply_launch_config_before_recovery"):
+                    with patch(
+                        "index.start_drs_recovery_for_wave",
+                        return_value=mock_wave_job_result,
+                    ):
                         start_wave_recovery(sample_state, 0)
 
         # Verify error state
@@ -381,7 +419,6 @@ class TestStartWaveRecoveryDRSAPIError:
         assert sample_state["status"] == "failed"
         assert "error" in sample_state
         assert len(sample_state["error"]) > 0
-
 
     def test_drs_describe_source_servers_error(
         self,
@@ -437,24 +474,34 @@ class TestStartWaveRecoveryDRSAPIError:
             "UpdateItem",
         )
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {
+                    "sourceServerId": "s-001",
+                    "serverName": "server-001",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
         }
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001"],
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
-                            with patch("time.time", return_value=1234567890):
-                                start_wave_recovery(sample_state, 0)
+                        with patch("index.apply_launch_config_before_recovery"):
+                            with patch(
+                                "index.start_drs_recovery_for_wave",
+                                return_value=mock_wave_job_result,
+                            ):
+                                with patch("time.time", return_value=1234567890):
+                                    start_wave_recovery(sample_state, 0)
 
         # Verify wave started successfully despite DynamoDB error
         assert sample_state["job_id"] == "drsjob-abc123"
@@ -482,24 +529,18 @@ class TestStartWaveRecoveryCrossAccountContext:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
-        }
+        mock_drs_client.start_recovery.return_value = {"job": {"jobID": "drsjob-abc123"}}
 
         mock_create_drs_client = Mock(return_value=mock_drs_client)
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", mock_create_drs_client
-                ):
+                with patch("index.create_drs_client", mock_create_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001"],
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
+                        with patch("index.apply_launch_config_before_recovery"):
                             with patch("time.time", return_value=1234567890):
                                 start_wave_recovery(sample_state, 0)
 
@@ -511,7 +552,6 @@ class TestStartWaveRecoveryCrossAccountContext:
         assert account_context["accountId"] == "123456789012"
         assert account_context["assumeRoleName"] == "DRSRole"
         assert account_context["isCurrentAccount"] is False
-
 
     def test_cross_account_context_snake_case_format(
         self,
@@ -549,24 +589,18 @@ class TestStartWaveRecoveryCrossAccountContext:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
-        }
+        mock_drs_client.start_recovery.return_value = {"job": {"jobID": "drsjob-abc123"}}
 
         mock_create_drs_client = Mock(return_value=mock_drs_client)
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", mock_create_drs_client
-                ):
+                with patch("index.create_drs_client", mock_create_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001"],
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
+                        with patch("index.apply_launch_config_before_recovery"):
                             with patch("time.time", return_value=1234567890):
                                 start_wave_recovery(state_snake_case, 0)
 
@@ -599,24 +633,18 @@ class TestStartWaveRecoveryCrossAccountContext:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
-        }
+        mock_drs_client.start_recovery.return_value = {"job": {"jobID": "drsjob-abc123"}}
 
         mock_create_drs_client = Mock(return_value=mock_drs_client)
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", mock_create_drs_client
-                ):
+                with patch("index.create_drs_client", mock_create_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001"],
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
+                        with patch("index.apply_launch_config_before_recovery"):
                             with patch("time.time", return_value=1234567890):
                                 start_wave_recovery(sample_state, 0)
 
@@ -625,7 +653,6 @@ class TestStartWaveRecoveryCrossAccountContext:
         account_context = call_args[0][1]
         assert account_context["isCurrentAccount"] is True
         assert "assumeRoleName" not in account_context
-
 
 
 class TestStartWaveRecoveryLaunchConfig:
@@ -648,17 +675,13 @@ class TestStartWaveRecoveryLaunchConfig:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
-        }
+        mock_drs_client.start_recovery.return_value = {"job": {"jobID": "drsjob-abc123"}}
 
         mock_apply_launch_config = Mock()
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001", "s-002"],
@@ -702,17 +725,13 @@ class TestStartWaveRecoveryLaunchConfig:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
-        }
+        mock_drs_client.start_recovery.return_value = {"job": {"jobID": "drsjob-abc123"}}
 
         mock_apply_launch_config = Mock()
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001"],
@@ -748,8 +767,18 @@ class TestStartWaveRecoveryStateUpdates:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {
+                    "sourceServerId": "s-001",
+                    "serverName": "server-001",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
         }
 
         # Store original state reference
@@ -757,18 +786,18 @@ class TestStartWaveRecoveryStateUpdates:
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001"],
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
-                            with patch("time.time", return_value=1234567890):
-                                result = start_wave_recovery(sample_state, 0)
+                        with patch("index.apply_launch_config_before_recovery"):
+                            with patch(
+                                "index.start_drs_recovery_for_wave",
+                                return_value=mock_wave_job_result,
+                            ):
+                                with patch("time.time", return_value=1234567890):
+                                    result = start_wave_recovery(sample_state, 0)
 
         # Verify function returns None (modifies in-place)
         assert result is None
@@ -784,7 +813,6 @@ class TestStartWaveRecoveryStateUpdates:
         assert "wave_completed" in sample_state
         assert "current_wave_total_wait_time" in sample_state
 
-
     def test_wave_result_appended_to_list(
         self,
         mock_env_vars,
@@ -797,9 +825,7 @@ class TestStartWaveRecoveryStateUpdates:
         from index import start_wave_recovery
 
         # Add existing wave result
-        sample_state["wave_results"] = [
-            {"waveNumber": 0, "status": "COMPLETED"}
-        ]
+        sample_state["wave_results"] = [{"waveNumber": 0, "status": "COMPLETED"}]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -807,8 +833,18 @@ class TestStartWaveRecoveryStateUpdates:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {
+                    "sourceServerId": "s-001",
+                    "serverName": "server-001",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
         }
 
         # Start wave 1 (second wave)
@@ -822,18 +858,18 @@ class TestStartWaveRecoveryStateUpdates:
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001"],
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
-                            with patch("time.time", return_value=1234567890):
-                                start_wave_recovery(sample_state, 1)
+                        with patch("index.apply_launch_config_before_recovery"):
+                            with patch(
+                                "index.start_drs_recovery_for_wave",
+                                return_value=mock_wave_job_result,
+                            ):
+                                with patch("time.time", return_value=1234567890):
+                                    start_wave_recovery(sample_state, 1)
 
         # Verify wave result was appended (not replaced)
         assert len(sample_state["wave_results"]) == 2
@@ -857,24 +893,41 @@ class TestStartWaveRecoveryStateUpdates:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {
+                    "sourceServerId": "s-001",
+                    "serverName": "server-001",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+                {
+                    "sourceServerId": "s-002",
+                    "serverName": "server-002",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
         }
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001", "s-002"],
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
-                            with patch("time.time", return_value=1234567890):
-                                start_wave_recovery(sample_state, 0)
+                        with patch("index.apply_launch_config_before_recovery"):
+                            with patch(
+                                "index.start_drs_recovery_for_wave",
+                                return_value=mock_wave_job_result,
+                            ):
+                                with patch("time.time", return_value=1234567890):
+                                    start_wave_recovery(sample_state, 0)
 
         # Verify server statuses structure
         wave_result = sample_state["wave_results"][0]
@@ -916,28 +969,40 @@ class TestStartWaveRecoveryDrillVsRecovery:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {
+                    "sourceServerId": "s-001",
+                    "serverName": "server-001",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
         }
+
+        mock_start_drs_recovery = Mock(return_value=mock_wave_job_result)
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001"],
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
-                            with patch("time.time", return_value=1234567890):
-                                start_wave_recovery(sample_state, 0)
+                        with patch("index.apply_launch_config_before_recovery"):
+                            with patch(
+                                "index.start_drs_recovery_for_wave",
+                                mock_start_drs_recovery,
+                            ):
+                                with patch("time.time", return_value=1234567890):
+                                    start_wave_recovery(sample_state, 0)
 
-        # Verify isDrill=True was passed
-        call_args = mock_drs_client.start_recovery.call_args
-        assert call_args[1]["isDrill"] is True
+        # Verify isDrill=True was passed to start_drs_recovery_for_wave
+        call_args = mock_start_drs_recovery.call_args
+        assert call_args[1]["is_drill"] is True
 
     def test_recovery_execution_type(
         self,
@@ -958,25 +1023,37 @@ class TestStartWaveRecoveryDrillVsRecovery:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        mock_drs_client.start_recovery.return_value = {
-            "job": {"jobID": "drsjob-abc123"}
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {
+                    "sourceServerId": "s-001",
+                    "serverName": "server-001",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
         }
+
+        mock_start_drs_recovery = Mock(return_value=mock_wave_job_result)
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
-                with patch(
-                    "index.create_drs_client", return_value=mock_drs_client
-                ):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
                         return_value=["s-001"],
                     ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery"
-                        ):
-                            with patch("time.time", return_value=1234567890):
-                                start_wave_recovery(sample_state, 0)
+                        with patch("index.apply_launch_config_before_recovery"):
+                            with patch(
+                                "index.start_drs_recovery_for_wave",
+                                mock_start_drs_recovery,
+                            ):
+                                with patch("time.time", return_value=1234567890):
+                                    start_wave_recovery(sample_state, 0)
 
-        # Verify isDrill=False was passed
-        call_args = mock_drs_client.start_recovery.call_args
-        assert call_args[1]["isDrill"] is False
+        # Verify isDrill=False was passed to start_drs_recovery_for_wave
+        call_args = mock_start_drs_recovery.call_args
+        assert call_args[1]["is_drill"] is False
