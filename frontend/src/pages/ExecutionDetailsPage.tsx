@@ -55,7 +55,6 @@ export const ExecutionDetailsPage: React.FC = () => {
     jobIds: string[];
     region?: string;
   } | null>(null);
-  const [terminationProgress, setTerminationProgress] = useState<number>(0);
 
   // Fetch execution details and job logs
   const fetchExecution = useCallback(async (silent = false) => {
@@ -206,7 +205,6 @@ export const ExecutionDetailsPage: React.FC = () => {
 
     if (isTerminated) {
       setTerminationInProgress(false);
-      setTerminationProgress(100);
       // NOW show the success message - termination is actually complete
       const instanceCount = terminationJobInfo?.totalInstances || 0;
       if (instanceCount > 0) {
@@ -218,56 +216,14 @@ export const ExecutionDetailsPage: React.FC = () => {
       return;
     }
 
-    // Poll for termination job status if we have job IDs
-    const pollTerminationStatus = async () => {
-      if (terminationJobInfo?.jobIds?.length && executionId) {
-        try {
-          const region = terminationJobInfo.region || 'us-west-2';
-          const statusResult = await apiClient.getTerminationStatus(executionId, terminationJobInfo.jobIds, region);
-          
-          // Update progress - handle case where DRS clears participatingServers on completion
-          if (statusResult.progressPercent !== undefined) {
-            setTerminationProgress(statusResult.progressPercent);
-          } else if (statusResult.allCompleted) {
-            // If all jobs completed but no progress percent, set to 100%
-            setTerminationProgress(100);
-          } else {
-            // Calculate progress based on job completion status
-            const completedJobs = statusResult.jobs?.filter(j => j.status === 'COMPLETED').length || 0;
-            const totalJobs = statusResult.jobs?.length || 1;
-            const jobProgress = Math.round((completedJobs / totalJobs) * 100);
-            setTerminationProgress(jobProgress);
-          }
-          
-          // Check if all jobs completed
-          if (statusResult.allCompleted) {
-            setTerminationInProgress(false);
-            setTerminationProgress(100);
-            const instanceCount = terminationJobInfo?.totalInstances || statusResult.totalServers || 0;
-            if (statusResult.anyFailed) {
-              setTerminateSuccess(`Terminated ${statusResult.completedServers} of ${instanceCount} recovery instance(s). Some failed.`);
-            } else {
-              setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
-            }
-            setTerminationJobInfo(null);
-            // Refresh execution to update UI
-            fetchExecution(true);
-          }
-        } catch (err) {
-          console.error('Error polling termination status:', err);
-        }
-      }
-      // Also refresh execution status
+    // Simple polling - just refresh execution status periodically
+    const interval = setInterval(() => {
       fetchExecution(true);
-    };
-
-    const interval = setInterval(pollTerminationStatus, 3000); // Poll every 3 seconds
-    // Initial poll
-    pollTerminationStatus();
+    }, 5000); // Poll every 5 seconds
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terminationInProgress, terminationJobInfo?.totalInstances, terminationJobInfo?.jobIds, terminationJobInfo?.region, executionId, fetchExecution]);
+  }, [terminationInProgress, executionId, fetchExecution]);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
@@ -335,7 +291,6 @@ export const ExecutionDetailsPage: React.FC = () => {
           jobIds: jobIds,
           region: region
         });
-        setTerminationProgress(10); // Start with 10% to show progress has begun
         
         // Keep terminationInProgress true - polling will detect when complete
         // Do NOT show success message yet - wait for actual completion
@@ -742,25 +697,8 @@ export const ExecutionDetailsPage: React.FC = () => {
               <SpaceBetween size="s">
                 <div>
                   {terminationJobInfo 
-                    ? `Terminating ${terminationJobInfo.totalInstances} recovery instance(s) via DRS. This may take a few minutes...`
-                    : 'Terminating recovery instances from DRS. This may take a few minutes...'}
-                </div>
-                
-                {/* Termination Progress Bar */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
-                      Termination Progress
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
-                      {terminationProgress}%
-                    </div>
-                  </div>
-                  <ProgressBar
-                    value={terminationProgress}
-                    variant="standalone"
-                    status={terminationProgress === 100 ? "success" : "in-progress"}
-                  />
+                    ? `Terminating ${terminationJobInfo.totalInstances} recovery instance(s) via DRS. This may take a few minutes. Refresh the page to see completion status.`
+                    : 'Terminating recovery instances from DRS. This may take a few minutes. Refresh the page to see completion status.'}
                 </div>
 
                 {terminationJobInfo?.jobIds?.length && (
