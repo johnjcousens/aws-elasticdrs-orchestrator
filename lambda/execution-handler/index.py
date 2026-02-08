@@ -109,7 +109,7 @@ import json
 import os
 import time
 import uuid
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
