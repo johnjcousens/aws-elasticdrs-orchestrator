@@ -364,6 +364,7 @@ export interface WaveExecution {
   waveNumber: number;
   waveName: string;
   status: ExecutionStatus;
+  statusMessage?: string;
   startTime?: string | number;
   endTime?: string | number;
   duration?: number;
