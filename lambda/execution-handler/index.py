@@ -5977,7 +5977,8 @@ def get_staging_account_job_details(
 
                 for job in jobs_response.get("items", []):
                     job_type = job.get("type", "")
-                    if "SNAPSHOT" not in job_type.upper() and "CONVERSION" not in job_type.upper():
+                    # Only process CREATE_CONVERTED_SNAPSHOT jobs (staging account conversion jobs)
+                    if job_type != "CREATE_CONVERTED_SNAPSHOT":
                         continue
 
                     # Check if this job involves any of our servers
