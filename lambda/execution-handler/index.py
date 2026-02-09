@@ -109,6 +109,7 @@ import json
 import os
 import time
 import uuid
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import boto3
@@ -5863,6 +5864,188 @@ def get_execution_history(plan_id: str) -> Dict:
         return response(500, {"error": str(e)})
 
 
+def get_staging_account_job_details(
+    participating_servers: List[Dict],
+    region: str,
+    account_context: Optional[Dict] = None,
+    target_account_id: Optional[str] = None,
+) -> List[Dict]:
+    """
+    Get staging account conversion job details for extended source servers.
+
+    Extended source servers replicate through staging accounts and have TWO DRS jobs:
+    1. Staging Account Job: Creates converted snapshots (conversion phase)
+    2. Target Account Job: Launches recovery instances (recovery phase)
+
+    This function queries staging accounts to find conversion jobs for servers
+    that have stagingArea configuration.
+
+    Args:
+        participating_servers: List of servers from target account DRS job
+        region: AWS region
+        account_context: Optional cross-account context for target account
+        target_account_id: Target account ID (required for staging account lookup)
+
+    Returns:
+        List of staging job details with timing and status information
+    """
+    staging_jobs = []
+
+    if not target_account_id:
+        print("DEBUG: No target account ID provided, cannot query staging accounts")
+        return staging_jobs
+
+    try:
+        # First, get full source server details to check for staging area
+        source_server_ids = [s.get("sourceServerID", "") for s in participating_servers if s.get("sourceServerID")]
+
+        if not source_server_ids:
+            return staging_jobs
+
+        print(f"DEBUG: Checking {len(source_server_ids)} servers for staging account jobs")
+
+        # Get source server details to identify extended servers
+        if account_context:
+            from shared.cross_account import get_cross_account_session
+
+            role_arn = account_context.get("roleArn")
+            external_id = account_context.get("externalId")
+            session = get_cross_account_session(role_arn, external_id)
+            drs_client = session.client("drs", region_name=region)
+        else:
+            drs_client = boto3.client("drs", region_name=region)
+
+        # Query source servers to get staging area information
+        paginator = drs_client.get_paginator("describe_source_servers")
+        extended_servers = {}  # Map of sourceServerId -> stagingAccountID
+
+        for page in paginator.paginate():
+            for server in page.get("items", []):
+                source_id = server.get("sourceServerID")
+                if source_id in source_server_ids:
+                    staging_area = server.get("stagingArea", {})
+                    if staging_area:
+                        staging_account_id = staging_area.get("stagingAccountID", "")
+                        if staging_account_id:
+                            extended_servers[source_id] = staging_account_id
+                            print(f"DEBUG: Server {source_id} is extended, staging account: {staging_account_id}")
+
+        if not extended_servers:
+            print("DEBUG: No extended source servers found")
+            return staging_jobs
+
+        # Group servers by staging account
+        servers_by_staging_account = {}
+        for source_id, staging_account_id in extended_servers.items():
+            if staging_account_id not in servers_by_staging_account:
+                servers_by_staging_account[staging_account_id] = []
+            servers_by_staging_account[staging_account_id].append(source_id)
+
+        print(
+            f"DEBUG: Found {len(extended_servers)} extended servers across "
+            f"{len(servers_by_staging_account)} staging accounts"
+        )
+
+        # Query each staging account for conversion jobs
+        for staging_account_id, server_ids in servers_by_staging_account.items():
+            try:
+                # Get staging account credentials from target account configuration
+                staging_context = get_staging_account_context(staging_account_id, target_account_id)
+
+                if not staging_context:
+                    print(f"WARNING: Could not get credentials for staging account {staging_account_id}")
+                    continue
+
+                # Create DRS client for staging account
+                from shared.cross_account import get_cross_account_session
+
+                staging_role_arn = staging_context.get("roleArn")
+                staging_external_id = staging_context.get("externalId")
+                staging_session = get_cross_account_session(staging_role_arn, staging_external_id)
+                staging_drs_client = staging_session.client("drs", region_name=region)
+
+                print(
+                    f"DEBUG: Querying staging account {staging_account_id} for conversion jobs "
+                    f"involving {len(server_ids)} servers"
+                )
+
+                # Query recent jobs in staging account
+                # Look for "Create converted snapshot" jobs that match our servers
+                jobs_response = staging_drs_client.describe_jobs(
+                    filters={"fromDate": (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%S.000Z")}
+                )
+
+                for job in jobs_response.get("items", []):
+                    job_type = job.get("type", "")
+                    if "SNAPSHOT" not in job_type.upper() and "CONVERSION" not in job_type.upper():
+                        continue
+
+                    # Check if this job involves any of our servers
+                    job_servers = job.get("participatingServers", [])
+                    job_server_ids = [s.get("sourceServerID", "") for s in job_servers]
+
+                    matching_servers = set(server_ids) & set(job_server_ids)
+                    if matching_servers:
+                        staging_job = {
+                            "jobId": job.get("jobID", ""),
+                            "stagingAccountId": staging_account_id,
+                            "type": job.get("type", ""),
+                            "status": job.get("status", ""),
+                            "statusMessage": job.get("statusMessage", ""),
+                            "creationDateTime": job.get("creationDateTime", ""),
+                            "endDateTime": job.get("endDateTime", ""),
+                            "participatingServers": len(matching_servers),
+                            "serverIds": list(matching_servers),
+                        }
+                        staging_jobs.append(staging_job)
+                        print(
+                            f"DEBUG: Found staging job {staging_job['jobId']} in account "
+                            f"{staging_account_id}: {staging_job['status']}, "
+                            f"{len(matching_servers)} servers"
+                        )
+
+            except Exception as staging_error:
+                print(f"ERROR: Failed to query staging account {staging_account_id}: {staging_error}")
+                continue
+
+    except Exception as e:
+        print(f"ERROR: Failed to get staging account job details: {e}")
+
+    return staging_jobs
+
+
+def get_staging_account_context(staging_account_id: str, target_account_id: str) -> Optional[Dict]:
+    """
+    Get staging account credentials from target account configuration.
+
+    Args:
+        staging_account_id: Staging account ID
+        target_account_id: Target account ID that owns the staging account configuration
+
+    Returns:
+        Dict with roleArn and externalId for staging account, or None if not found
+    """
+    try:
+        # Query target accounts table for staging account configuration
+        from shared.staging_account_models import get_staging_accounts
+
+        staging_accounts = get_staging_accounts(target_account_id)
+
+        for staging_account in staging_accounts:
+            if staging_account.accountId == staging_account_id:
+                return {
+                    "roleArn": staging_account.roleArn,
+                    "externalId": staging_account.externalId,
+                }
+
+        print(f"WARNING: Staging account {staging_account_id} not found in target account configuration")
+        return None
+
+    except Exception as e:
+        print(f"ERROR: Failed to get staging account context: {e}")
+        return None
+
+
 def get_server_details_map(
     server_ids: List[str], region: str = "us-east-1", account_context: Optional[Dict] = None
 ) -> Dict[str, Dict]:
@@ -5882,7 +6065,7 @@ def get_server_details_map(
 
     print(f"DEBUG: Getting server details for {len(server_ids)} servers in {region}")
     if account_context:
-        print(f"DEBUG: Using cross-account context for server details lookup")
+        print("DEBUG: Using cross-account context for server details lookup")
 
     try:
         # Use regional DRS client with cross-account credentials if provided
@@ -6333,6 +6516,22 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
                                 [s for s in participating_servers if s.get("launchStatus") == "LAUNCHED"]
                             ),
                         }
+
+                        # EXTENDED SOURCE SERVERS: Check for staging account conversion jobs
+                        # For servers replicating through staging accounts, there are TWO jobs:
+                        # 1. Staging account: Creates converted snapshots (conversion phase)
+                        # 2. Target account: Launches recovery instances (recovery phase)
+                        # We need to track BOTH to show accurate timing and progress
+                        target_account_id = None
+                        if account_context:
+                            target_account_id = account_context.get("accountId")
+
+                        staging_job_details = get_staging_account_job_details(
+                            participating_servers, region, account_context, target_account_id
+                        )
+                        if staging_job_details:
+                            wave["DRSJobDetails"]["stagingJobs"] = staging_job_details
+                            print(f"DEBUG: Found {len(staging_job_details)} staging account jobs for wave {wave_name}")
 
                         # CRITICAL FIX: Map participatingServers to servers field for frontend
                         # Frontend expects wave.servers or wave.serverExecutions for expandable server details
