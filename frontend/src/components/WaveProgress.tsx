@@ -67,7 +67,10 @@ const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse |
       return status === 'LAUNCHED';
     });
     
-    const anyFailed = servers.some(s => {
+    // Only check for failures if servers have actually started launching
+    // During early phases (cleanup, snapshot, conversion), servers won't have launch status yet
+    const serversWithStatus = servers.filter(s => s.launchStatus || s.status);
+    const anyFailed = serversWithStatus.length > 0 && serversWithStatus.some(s => {
       const status = (s.launchStatus || s.status || '').toUpperCase();
       return status === 'FAILED';
     });
