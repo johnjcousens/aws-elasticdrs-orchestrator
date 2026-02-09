@@ -376,7 +376,7 @@ def log_direct_invocation(
         
         # Build audit log entry
         audit_log = {
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "event_type": "direct_invocation",
             "principal": principal,
             "operation": operation,
