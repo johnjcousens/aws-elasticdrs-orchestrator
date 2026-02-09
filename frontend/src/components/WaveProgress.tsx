@@ -829,45 +829,57 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     return (
                       <SpaceBetween size="l">
                         {/* Phase 1: Staging Account Conversion (Extended Source Servers Only) */}
-                        {hasStagingJobs && stagingJobs.map((stagingJob, idx) => {
-                          const stagingEvents = stagingJobLogs[stagingJob.jobId] || [];
-                          const isLoading = loadingStagingJobs.has(stagingJob.jobId);
+                        {hasStagingJobs && (() => {
+                          // Combine all staging job events and sort by timestamp
+                          const allStagingEvents: Array<JobLogEvent & { jobId: string }> = [];
+                          const anyLoading = stagingJobs.some(sj => loadingStagingJobs.has(sj.jobId));
+                          const totalServers = stagingJobs.reduce((sum, sj) => sum + sj.participatingServers, 0);
                           
-                          // Filter target account events to exclude extended server events
-                          const extendedServerIds = new Set(stagingJob.serverIds);
+                          for (const stagingJob of stagingJobs) {
+                            const events = stagingJobLogs[stagingJob.jobId] || [];
+                            events.forEach(event => {
+                              allStagingEvents.push({ ...event, jobId: stagingJob.jobId });
+                            });
+                          }
+                          
+                          // Sort by timestamp
+                          allStagingEvents.sort((a, b) => {
+                            const timeA = new Date(a.logDateTime).getTime();
+                            const timeB = new Date(b.logDateTime).getTime();
+                            return timeA - timeB;
+                          });
                           
                           return (
                             <Container
-                              key={stagingJob.jobId}
                               header={
                                 <Box>
                                   <div style={{ fontWeight: 600, marginBottom: '4px' }}>
                                     Phase 1: Staging Account Conversion
                                   </div>
                                   <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
-                                    Job ID: <code>{stagingJob.jobId}</code> • 
-                                    Staging Account: <code>{stagingJob.stagingAccountId}</code> • 
-                                    {stagingJob.participatingServers} server{stagingJob.participatingServers !== 1 ? 's' : ''}
-                                    {stagingJob.status && (
-                                      <span> • Status: <Badge color={stagingJob.status === 'COMPLETED' ? 'green' : 'blue'}>
-                                        {stagingJob.status}
-                                      </Badge></span>
-                                    )}
+                                    {stagingJobs.length} staging job{stagingJobs.length !== 1 ? 's' : ''} • 
+                                    {totalServers} server{totalServers !== 1 ? 's' : ''} • 
+                                    {stagingJobs.map((sj, idx) => (
+                                      <span key={sj.jobId}>
+                                        {idx > 0 && ', '}
+                                        <code>{sj.jobId}</code>
+                                      </span>
+                                    ))}
                                   </div>
                                 </Box>
                               }
                             >
-                              {isLoading ? (
+                              {anyLoading ? (
                                 <Box textAlign="center" padding="m">
                                   <div style={{ color: '#5f6b7a' }}>Loading staging job events...</div>
                                 </Box>
-                              ) : stagingEvents.length === 0 ? (
+                              ) : allStagingEvents.length === 0 ? (
                                 <Box textAlign="center" padding="m">
                                   <div style={{ color: '#5f6b7a' }}>No staging job events available</div>
                                 </Box>
                               ) : (
                                 <SpaceBetween size="s">
-                                  {stagingEvents.map((event, eventIdx) => (
+                                  {allStagingEvents.map((event, eventIdx) => (
                                     <Box key={eventIdx} padding="s">
                                       <div style={{ fontWeight: 500 }}>
                                         {formatJobLogEvent(event)}
@@ -880,6 +892,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                                         {event.conversionServerId && (
                                           <span> • Conversion: <code style={{ fontSize: '11px' }}>{event.conversionServerId}</code></span>
                                         )}
+                                        <span> • Job: <code style={{ fontSize: '11px' }}>{event.jobId}</code></span>
                                       </div>
                                       {event.error && (
                                         <Alert type="error" header="Event Error" dismissible={false}>
@@ -908,7 +921,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                               )}
                             </Container>
                           );
-                        })}
+                        })()}
 
                         {/* Phase 2: Target Account Recovery (All Servers) */}
                         <Container
