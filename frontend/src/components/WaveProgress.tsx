@@ -7,7 +7,7 @@
  * Based on archive reference pattern for stability.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   SpaceBetween,
@@ -20,6 +20,7 @@ import {
   Link,
 } from '@cloudscape-design/components';
 import { StatusBadge } from './StatusBadge';
+import apiClient from '../services/api';
 import type { WaveExecution, ServerExecution, JobLogsResponse, JobLogEvent } from '../types';
 
 interface WaveProgressProps {
@@ -27,6 +28,22 @@ interface WaveProgressProps {
   currentWave?: number;
   totalWaves?: number;
   jobLogs?: JobLogsResponse | null;
+}
+
+interface StagingJobDetails {
+  jobId: string;
+  stagingAccountId: string;
+  type: string;
+  status: string;
+  statusMessage?: string;
+  creationDateTime: string;
+  endDateTime?: string;
+  participatingServers: number;
+  serverIds: string[];
+}
+
+interface StagingJobLogs {
+  [jobId: string]: JobLogEvent[];
 }
 
 /**
@@ -528,6 +545,61 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
   const [expandedJobEvents, setExpandedJobEvents] = useState<Set<number>>(
     new Set(currentWave !== undefined ? [currentWave] : [0])
   );
+  
+  // State for staging job logs
+  const [stagingJobLogs, setStagingJobLogs] = useState<StagingJobLogs>({});
+  const [loadingStagingJobs, setLoadingStagingJobs] = useState<Set<string>>(new Set());
+
+  // Fetch staging job logs when waves with staging jobs are detected
+  useEffect(() => {
+    const fetchStagingJobLogs = async () => {
+      if (!jobLogs) return;
+      
+      for (const wave of waves) {
+        const stagingJobs = (wave as any).DRSJobDetails?.stagingJobs as StagingJobDetails[] | undefined;
+        
+        if (stagingJobs && stagingJobs.length > 0) {
+          for (const stagingJob of stagingJobs) {
+            const jobId = stagingJob.jobId;
+            
+            // Skip if already loaded or loading
+            if (stagingJobLogs[jobId] || loadingStagingJobs.has(jobId)) {
+              continue;
+            }
+            
+            // Mark as loading
+            setLoadingStagingJobs(prev => new Set([...prev, jobId]));
+            
+            try {
+              // Fetch job logs for this staging job
+              const executionId = jobLogs.executionId;
+              const response = await apiClient.getJobLogs(executionId, jobId);
+              
+              // Extract events from the response
+              const jobLog = response.jobLogs?.find(log => log.jobId === jobId);
+              if (jobLog) {
+                setStagingJobLogs(prev => ({
+                  ...prev,
+                  [jobId]: jobLog.events
+                }));
+              }
+            } catch (error) {
+              console.error(`Failed to fetch staging job logs for ${jobId}:`, error);
+            } finally {
+              // Remove from loading set
+              setLoadingStagingJobs(prev => {
+                const next = new Set(prev);
+                next.delete(jobId);
+                return next;
+              });
+            }
+          }
+        }
+      }
+    };
+    
+    fetchStagingJobLogs();
+  }, [waves, jobLogs]); // Re-run when waves or jobLogs change
 
   const progress = calculateProgress(waves, totalWaves, jobLogs);
   
@@ -699,7 +771,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 </ExpandableSection>
               )}
 
-              {/* Enhanced DRS Job Events Timeline - CRITICAL MISSING FEATURE */}
+              {/* Enhanced DRS Job Events Timeline - Multi-Phase Support for Extended Source Servers */}
               {wave.jobId && jobLogs && (
                 <ExpandableSection
                   headerText="DRS Job Events"
@@ -719,8 +791,10 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 >
                   {(() => {
                     const waveJobLogs = getWaveJobLogs(jobLogs, waveNum);
+                    const stagingJobs = (wave as any).DRSJobDetails?.stagingJobs as StagingJobDetails[] | undefined;
+                    const hasStagingJobs = stagingJobs && stagingJobs.length > 0;
                     
-                    if (waveJobLogs.length === 0) {
+                    if (waveJobLogs.length === 0 && !hasStagingJobs) {
                       return (
                         <Box textAlign="center" color="inherit" padding="m">
                           <div style={{ color: '#5f6b7a' }}>
@@ -735,60 +809,164 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                       );
                     }
 
-                    // Create timeline items from job log events
-                    const timelineItems = waveJobLogs.map((event) => ({
-                      type: event.error ? 'error' : 'success',
-                      content: (
-                        <Box>
-                          <div style={{ fontWeight: 500 }}>
-                            {formatJobLogEvent(event)}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
-                            {formatTimestamp(event.logDateTime)}
-                            {event.sourceServerId && (
-                              <span> • Server: <code style={{ fontSize: '11px' }}>{event.sourceServerId}</code></span>
-                            )}
-                            {event.conversionServerId && (
-                              <span> • Conversion: <code style={{ fontSize: '11px' }}>{event.conversionServerId}</code></span>
-                            )}
-                          </div>
-                          {event.error && (
-                            <Alert type="error" header="Event Error" dismissible={false}>
-                              {event.error}
-                            </Alert>
-                          )}
-                          {event.eventData && Object.keys(event.eventData).length > 0 && (
-                            <details style={{ marginTop: '8px' }}>
-                              <summary style={{ fontSize: '12px', color: '#5f6b7a', cursor: 'pointer' }}>
-                                Event Details
-                              </summary>
-                              <pre style={{ 
-                                fontSize: '11px', 
-                                color: '#5f6b7a', 
-                                marginTop: '4px',
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word'
-                              }}>
-                                {JSON.stringify(event.eventData, null, 2)}
-                              </pre>
-                            </details>
-                          )}
-                        </Box>
-                      )
-                    }));
-
                     return (
-                      <SpaceBetween size="s">
-                        <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '8px' }}>
-                          Job ID: <code>{wave.jobId}</code> • {waveJobLogs.length} events
-                        </div>
-                        <SpaceBetween size="s">
-                          {timelineItems.map((item, index) => (
-                            <Box key={index} padding="s" variant="div">
-                              {item.content}
+                      <SpaceBetween size="l">
+                        {/* Phase 1: Staging Account Conversion (Extended Source Servers Only) */}
+                        {hasStagingJobs && stagingJobs.map((stagingJob, idx) => {
+                          const stagingEvents = stagingJobLogs[stagingJob.jobId] || [];
+                          const isLoading = loadingStagingJobs.has(stagingJob.jobId);
+                          
+                          // Filter target account events to exclude extended server events
+                          const extendedServerIds = new Set(stagingJob.serverIds);
+                          
+                          return (
+                            <Container
+                              key={stagingJob.jobId}
+                              header={
+                                <Box>
+                                  <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                                    Phase 1: Staging Account Conversion
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
+                                    Job ID: <code>{stagingJob.jobId}</code> • 
+                                    Staging Account: <code>{stagingJob.stagingAccountId}</code> • 
+                                    {stagingJob.participatingServers} server{stagingJob.participatingServers !== 1 ? 's' : ''}
+                                    {stagingJob.status && (
+                                      <span> • Status: <Badge color={stagingJob.status === 'COMPLETED' ? 'green' : 'blue'}>
+                                        {stagingJob.status}
+                                      </Badge></span>
+                                    )}
+                                  </div>
+                                </Box>
+                              }
+                            >
+                              {isLoading ? (
+                                <Box textAlign="center" padding="m">
+                                  <div style={{ color: '#5f6b7a' }}>Loading staging job events...</div>
+                                </Box>
+                              ) : stagingEvents.length === 0 ? (
+                                <Box textAlign="center" padding="m">
+                                  <div style={{ color: '#5f6b7a' }}>No staging job events available</div>
+                                </Box>
+                              ) : (
+                                <SpaceBetween size="s">
+                                  {stagingEvents.map((event, eventIdx) => (
+                                    <Box key={eventIdx} padding="s">
+                                      <div style={{ fontWeight: 500 }}>
+                                        {formatJobLogEvent(event)}
+                                      </div>
+                                      <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
+                                        {formatTimestamp(event.logDateTime)}
+                                        {event.sourceServerId && (
+                                          <span> • Server: <code style={{ fontSize: '11px' }}>{event.sourceServerId}</code></span>
+                                        )}
+                                        {event.conversionServerId && (
+                                          <span> • Conversion: <code style={{ fontSize: '11px' }}>{event.conversionServerId}</code></span>
+                                        )}
+                                      </div>
+                                      {event.error && (
+                                        <Alert type="error" header="Event Error" dismissible={false}>
+                                          {event.error}
+                                        </Alert>
+                                      )}
+                                      {event.eventData && Object.keys(event.eventData).length > 0 && (
+                                        <details style={{ marginTop: '8px' }}>
+                                          <summary style={{ fontSize: '12px', color: '#5f6b7a', cursor: 'pointer' }}>
+                                            Event Details
+                                          </summary>
+                                          <pre style={{ 
+                                            fontSize: '11px', 
+                                            color: '#5f6b7a', 
+                                            marginTop: '4px',
+                                            whiteSpace: 'pre-wrap',
+                                            wordBreak: 'break-word'
+                                          }}>
+                                            {JSON.stringify(event.eventData, null, 2)}
+                                          </pre>
+                                        </details>
+                                      )}
+                                    </Box>
+                                  ))}
+                                </SpaceBetween>
+                              )}
+                            </Container>
+                          );
+                        })}
+
+                        {/* Phase 2: Target Account Recovery (All Servers) */}
+                        <Container
+                          header={
+                            <Box>
+                              <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                                {hasStagingJobs ? 'Phase 2: Target Account Recovery' : 'DRS Job Events'}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
+                                Job ID: <code>{wave.jobId}</code> • {waveJobLogs.length} events
+                              </div>
                             </Box>
-                          ))}
-                        </SpaceBetween>
+                          }
+                        >
+                          {waveJobLogs.length === 0 ? (
+                            <Box textAlign="center" padding="m">
+                              <div style={{ color: '#5f6b7a' }}>No target account events available</div>
+                            </Box>
+                          ) : (
+                            <SpaceBetween size="s">
+                              {waveJobLogs.map((event, eventIdx) => {
+                                // For extended servers, filter out conversion events (they're in staging phase)
+                                const extendedServerIds = new Set(
+                                  stagingJobs?.flatMap(sj => sj.serverIds) || []
+                                );
+                                const isExtendedServer = event.sourceServerId && extendedServerIds.has(event.sourceServerId);
+                                const isConversionEvent = event.event?.includes('CONVERSION') || 
+                                                         event.event?.includes('SNAPSHOT');
+                                
+                                // Skip conversion events for extended servers (shown in staging phase)
+                                if (isExtendedServer && isConversionEvent) {
+                                  return null;
+                                }
+                                
+                                return (
+                                  <Box key={eventIdx} padding="s">
+                                    <div style={{ fontWeight: 500 }}>
+                                      {formatJobLogEvent(event)}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
+                                      {formatTimestamp(event.logDateTime)}
+                                      {event.sourceServerId && (
+                                        <span> • Server: <code style={{ fontSize: '11px' }}>{event.sourceServerId}</code></span>
+                                      )}
+                                      {event.conversionServerId && (
+                                        <span> • Conversion: <code style={{ fontSize: '11px' }}>{event.conversionServerId}</code></span>
+                                      )}
+                                    </div>
+                                    {event.error && (
+                                      <Alert type="error" header="Event Error" dismissible={false}>
+                                        {event.error}
+                                      </Alert>
+                                    )}
+                                    {event.eventData && Object.keys(event.eventData).length > 0 && (
+                                      <details style={{ marginTop: '8px' }}>
+                                        <summary style={{ fontSize: '12px', color: '#5f6b7a', cursor: 'pointer' }}>
+                                          Event Details
+                                        </summary>
+                                        <pre style={{ 
+                                          fontSize: '11px', 
+                                          color: '#5f6b7a', 
+                                          marginTop: '4px',
+                                          whiteSpace: 'pre-wrap',
+                                          wordBreak: 'break-word'
+                                        }}>
+                                          {JSON.stringify(event.eventData, null, 2)}
+                                        </pre>
+                                      </details>
+                                    )}
+                                  </Box>
+                                );
+                              }).filter(Boolean)}
+                            </SpaceBetween>
+                          )}
+                        </Container>
                       </SpaceBetween>
                     );
                   })()}
