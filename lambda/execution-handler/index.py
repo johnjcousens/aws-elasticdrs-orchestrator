@@ -2585,6 +2585,11 @@ def handle_operation(event: Dict, context) -> Dict:
          --payload '{"operation": "get_execution_details", "executionId": "uuid", "queryParams": {"planId": "uuid"}}' \\
          response.json
 
+    7. Start execution (for environments without API Gateway):
+       aws lambda invoke --function-name execution-handler \\
+         --payload '{"operation": "start_execution", "planId": "uuid", "executionType": "DRILL", "initiatedBy": "user@example.com"}' \\
+         response.json
+
     OPERATION BEHAVIORS:
     - find: Queries DynamoDB, self-invokes poll for each active execution
     - poll: Updates wave status, enriches server data, NEVER finalizes
@@ -2592,6 +2597,7 @@ def handle_operation(event: Dict, context) -> Dict:
     - pause: Changes execution status to PAUSED
     - resume: Changes execution status to POLLING and resumes Step Functions
     - get_execution_details: Returns execution details with enriched server data
+    - start_execution: Starts a new recovery execution (DRILL or RECOVERY)
 
     RETURNS:
         Dict with statusCode and operation-specific response data
@@ -2615,6 +2621,16 @@ def handle_operation(event: Dict, context) -> Dict:
         if not execution_id:
             return response(400, {"error": "Missing executionId"})
         return get_execution_details(execution_id, query_params)
+    elif operation == "start_execution":
+        # Support direct Lambda invocation for starting recovery executions
+        # This enables direct invocation without API Gateway
+        body = {
+            "planId": event.get("planId"),
+            "executionType": event.get("executionType", "DRILL"),
+            "initiatedBy": event.get("initiatedBy", "direct-invocation"),
+            "accountContext": event.get("accountContext"),
+        }
+        return execute_recovery_plan(body, event=None)
     else:
         return response(
             400,
@@ -2628,6 +2644,7 @@ def handle_operation(event: Dict, context) -> Dict:
                     "pause",
                     "resume",
                     "get_execution_details",
+                    "start_execution",
                 ],
             },
         )
@@ -3064,12 +3081,10 @@ def poll_wave_with_enrichment(wave: Dict, execution_type: str, account_context: 
 
         # Get credentials for target account if cross-account
         if account_context and not account_context.get("isCurrentAccount"):
-            from shared.cross_account import get_cross_account_session
+            from shared.cross_account import create_drs_client
 
-            role_arn = account_context.get("roleArn")
-            external_id = account_context.get("externalId")
-            session = get_cross_account_session(role_arn, external_id)
-            drs_client = session.client("drs", region_name=region)
+            # Use create_drs_client helper which properly handles accountContext structure
+            drs_client = create_drs_client(region, account_context)
             print(f"Using cross-account DRS client for account {account_context.get('accountId')}")
         else:
             drs_client = boto3.client("drs", region_name=region)
@@ -3093,11 +3108,10 @@ def poll_wave_with_enrichment(wave: Dict, execution_type: str, account_context: 
 
         participating_servers = job.get("participatingServers", [])
         if participating_servers:
-            # Use same session for EC2 client
-            if account_context and not account_context.get("isCurrentAccount"):
-                ec2_client = session.client("ec2", region_name=region)
-            else:
-                ec2_client = boto3.client("ec2", region_name=region)
+            # Create EC2 client with same account context as DRS client
+            from shared.cross_account import create_ec2_client
+
+            ec2_client = create_ec2_client(region, account_context)
 
             enriched_servers = enrich_server_data(participating_servers, drs_client, ec2_client)
             print(f"DEBUG: Enriched {len(enriched_servers)} servers")
@@ -3367,6 +3381,227 @@ def handle_resume_operation(event: Dict, context) -> Dict:
         return response(500, {"error": str(e)})
 
 
+def _delegate_to_query_handler(operation: str, parameters: Dict) -> Dict:
+    """
+    Delegate operation to query-handler Lambda.
+
+    Used for read-only operations that are implemented in query-handler.
+    Enables execution-handler to be a complete entry point for all execution-related operations.
+
+    Args:
+        operation: Operation name to delegate (e.g., "list_executions", "get_execution")
+        parameters: Operation-specific parameters to pass through
+
+    Returns:
+        Dict with operation results or error information
+
+    Environment Variables:
+        QUERY_HANDLER_FUNCTION_NAME: Required - Name of query-handler Lambda function
+    """
+    try:
+        query_handler_name = os.environ.get("QUERY_HANDLER_FUNCTION_NAME")
+        if not query_handler_name:
+            return {
+                "error": "CONFIGURATION_ERROR",
+                "message": "QUERY_HANDLER_FUNCTION_NAME environment variable not set",
+            }
+
+        payload = {"operation": operation, "parameters": parameters}
+
+        response = lambda_client.invoke(
+            FunctionName=query_handler_name, InvocationType="RequestResponse", Payload=json.dumps(payload, cls=DecimalEncoder)
+        )
+
+        result = json.loads(response["Payload"].read())
+        return result
+    except Exception as e:
+        print(f"Error delegating to query-handler: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return {"error": "DELEGATION_FAILED", "message": str(e), "operation": operation}
+
+
+def handle_direct_invocation(event: Dict, context) -> Dict:
+    """
+    Handle direct Lambda invocations with operation-based routing.
+
+    Provides standardized interface for headless operation without API Gateway.
+    Supports execution lifecycle operations: start, cancel, pause, resume, terminate.
+
+    Event format:
+    {
+        "operation": "start_execution|cancel_execution|pause_execution|resume_execution|terminate_instances|get_recovery_instances|list_executions|get_execution",
+        "parameters": {
+            # Operation-specific parameters
+        }
+    }
+
+    Returns raw data (no API Gateway wrapping) for direct invocation mode.
+
+    OPERATIONS:
+        start_execution: Start recovery plan execution
+            parameters: {planId, executionType, initiatedBy, accountContext?}
+
+        cancel_execution: Cancel running execution
+            parameters: {executionId, reason?}
+
+        pause_execution: Pause execution at next wave boundary
+            parameters: {executionId, reason?}
+
+        resume_execution: Resume paused execution
+            parameters: {executionId}
+
+        terminate_instances: Terminate recovery instances
+            parameters: {executionId}
+
+        get_recovery_instances: Get recovery instance details
+            parameters: {executionId}
+
+        list_executions: List all executions (delegates to query-handler)
+            parameters: {status?, planId?, limit?, nextToken?}
+
+        get_execution: Get execution details (delegates to query-handler)
+            parameters: {executionId}
+
+    RETURNS:
+        Raw dict with operation results (no statusCode/headers wrapping)
+
+    ERROR RESPONSES:
+        {"error": "MISSING_OPERATION", "message": "..."}
+        {"error": "INVALID_OPERATION", "message": "..."}
+        {"error": "OPERATION_FAILED", "message": "..."}
+    """
+    # Import IAM utilities
+    from shared.iam_utils import (
+        extract_iam_principal,
+        validate_iam_authorization,
+        log_direct_invocation,
+        create_authorization_error_response,
+        validate_direct_invocation_event,
+    )
+    
+    # Validate event format
+    if not validate_direct_invocation_event(event):
+        error_response = {
+            "error": "INVALID_EVENT_FORMAT",
+            "message": "Event must contain 'operation' field"
+        }
+        log_direct_invocation(
+            principal="unknown",
+            operation="invalid",
+            params={},
+            result=error_response,
+            success=False,
+            context=context
+        )
+        return error_response
+    
+    # Extract IAM principal from context
+    principal = extract_iam_principal(context)
+    
+    # Validate authorization
+    if not validate_iam_authorization(principal):
+        error_response = create_authorization_error_response()
+        log_direct_invocation(
+            principal=principal,
+            operation=event.get("operation"),
+            params=event.get("parameters", {}),
+            result=error_response,
+            success=False,
+            context=context
+        )
+        return error_response
+    
+    operation = event.get("operation")
+    parameters = event.get("parameters", {})
+
+    if not operation:
+        error_response = {"error": "MISSING_OPERATION", "message": "operation field is required"}
+        log_direct_invocation(
+            principal=principal,
+            operation="missing",
+            params=parameters,
+            result=error_response,
+            success=False,
+            context=context
+        )
+        return error_response
+
+    # Map operations to handler functions
+    operations = {
+        "start_execution": lambda: execute_recovery_plan(parameters, None),
+        "cancel_execution": lambda: cancel_execution(parameters.get("executionId"), parameters),
+        "pause_execution": lambda: pause_execution(parameters.get("executionId"), parameters),
+        "resume_execution": lambda: resume_execution(parameters.get("executionId")),
+        "terminate_instances": lambda: terminate_recovery_instances(parameters.get("executionId")),
+        "get_recovery_instances": lambda: get_recovery_instances(parameters.get("executionId")),
+        # Delegation operations - forward to query-handler
+        "list_executions": lambda: _delegate_to_query_handler("list_executions", parameters),
+        "get_execution": lambda: _delegate_to_query_handler("get_execution", parameters),
+    }
+
+    if operation not in operations:
+        error_response = {
+            "error": "INVALID_OPERATION",
+            "message": f"Unknown operation: {operation}",
+            "validOperations": list(operations.keys()),
+        }
+        log_direct_invocation(
+            principal=principal,
+            operation=operation,
+            params=parameters,
+            result=error_response,
+            success=False,
+            context=context
+        )
+        return error_response
+
+    try:
+        result = operations[operation]()
+
+        # Extract body from API Gateway response format if present
+        if isinstance(result, dict) and "statusCode" in result:
+            body = json.loads(result.get("body", "{}"))
+            # Log successful invocation
+            log_direct_invocation(
+                principal=principal,
+                operation=operation,
+                params=parameters,
+                result=body,
+                success=True,
+                context=context
+            )
+            return body
+
+        # Log successful invocation
+        log_direct_invocation(
+            principal=principal,
+            operation=operation,
+            params=parameters,
+            result=result,
+            success=True,
+            context=context
+        )
+        return result
+
+    except Exception as e:
+        print(f"Error executing operation {operation}: {e}")
+        import traceback
+
+        traceback.print_exc()
+        error_response = {"error": "OPERATION_FAILED", "message": str(e), "operation": operation}
+        log_direct_invocation(
+            principal=principal,
+            operation=operation,
+            params=parameters,
+            result=error_response,
+            success=False,
+            context=context
+        )
+        return error_response
+
+
 def lambda_handler(event, context):
     """
     Unified Lambda handler - routes requests based on invocation pattern.
@@ -3375,19 +3610,45 @@ def lambda_handler(event, context):
 
     1. API Gateway (HTTP REST API)
        Routes HTTP requests to appropriate handlers based on method + path.
+       Event: {"requestContext": {...}, "httpMethod": "...", "path": "..."}
        Example:
            POST /executions
            GET /executions/{id}
            POST /executions/{id}/cancel
+       Triggered by: User browser, CLI, or API client
+       Routes to: API Gateway routing logic
 
     2. Direct Lambda Invocation - Worker Pattern
        Async background execution of recovery plans.
        Event: {"worker": true, "executionId": "...", "planId": "...", ...}
        Triggered by: execute_recovery_plan() for async processing
+       Routes to: execute_recovery_plan_worker()
 
-    3. Direct Lambda Invocation - Operation Pattern
-       Operation-based routing for lifecycle management.
-       Event: {"operation": "find|poll|finalize|pause|resume", "executionId": "...", "planId": "..."}
+    3. Direct Lambda Invocation - Action Pattern (Step Functions)
+       Action-based routing for Step Functions orchestration.
+       Event: {"action": "start_wave_recovery", "state": {...}, "wave_number": 0}
+       
+       Supported actions:
+       - start_wave_recovery: Initiate DRS StartRecovery for wave
+       
+       Triggered by: Step Functions state machine
+       Routes to: start_wave_recovery()
+
+    4. Direct Lambda Invocation - Standardized Operation Pattern (NEW)
+       Operation-based routing with standardized event format.
+       Event: {"operation": "start_execution|cancel_execution|...", "parameters": {...}}
+       
+       Supported operations:
+       - start_execution, cancel_execution, pause_execution, resume_execution
+       - terminate_instances, get_recovery_instances
+       - list_executions, get_execution (delegates to query-handler)
+       
+       Triggered by: Direct Lambda invocation from CLI, SDK, or other services
+       Routes to: handle_direct_invocation()
+
+    5. Direct Lambda Invocation - Legacy Operation Pattern
+       Operation-based routing for lifecycle management (backward compatibility).
+       Event: {"operation": "find|poll|finalize", "executionId": "...", "planId": "..."}
 
        Operations:
        - "find": Query DynamoDB for POLLING/CANCELLING executions, invoke poll for each
@@ -3398,32 +3659,45 @@ def lambda_handler(event, context):
        - EventBridge (find operation, 30s schedule)
        - Self-invocation (poll operation, from find)
        - Step Functions (finalize operation, after all waves complete)
+       
+       Routes to: handle_operation()
+       Note: Legacy pattern for backward compatibility with polling operations
 
-    4. EventBridge Scheduled Trigger
+    6. EventBridge Scheduled Trigger
        Periodic polling of active executions.
        Event: {"source": "aws.events", ...}
        Routes to: handle_find_operation()
 
     ROUTING LOGIC:
-       1. Check for worker=true → execute_recovery_plan_worker()
-       2. Check for operation field → handle_operation()
-       3. Check for source=aws.events → handle_find_operation()
-       4. Default: API Gateway routing by httpMethod + path
+       1. Check for requestContext → API Gateway routing
+       2. Check for worker=true → execute_recovery_plan_worker()
+       3. Check for action field → action-based routing (Step Functions)
+       4. Check for operation + parameters → handle_direct_invocation() (NEW)
+       5. Check for operation only → handle_operation() (LEGACY)
+       6. Check for source=aws.events → handle_find_operation()
+       7. Default: Invalid invocation error
 
     RETURNS:
        API Gateway format: {"statusCode": int, "headers": {...}, "body": json}
+       Direct invocation format: Raw dict with operation results
     """
     try:
         print(f"Event: {json.dumps(event)}")
 
-        # Check if this is a worker invocation (async background task)
-        if isinstance(event, dict) and event.get("worker"):
+        # 1. Check if this is an API Gateway invocation
+        if isinstance(event, dict) and "requestContext" in event:
+            print("API Gateway invocation detected")
+            # Continue to API Gateway routing logic below
+            pass  # Fall through to API Gateway routing
+
+        # 2. Check if this is a worker invocation (async background task)
+        elif isinstance(event, dict) and event.get("worker"):
             print("Worker invocation detected - executing recovery plan worker")
             execute_recovery_plan_worker(event)
             return {"statusCode": 200, "body": "Worker completed"}
 
-        # Check if this is an action-based invocation (for orchestration)
-        if isinstance(event, dict) and event.get("action"):
+        # 3. Check if this is an action-based invocation (Step Functions)
+        elif isinstance(event, dict) and event.get("action"):
             action = event.get("action")
             print(f"Action-based invocation detected: {action}")
 
@@ -3458,16 +3732,32 @@ def lambda_handler(event, context):
                     },
                 )
 
-        # Check if this is an operation-based invocation (find, poll, finalize)
-        if isinstance(event, dict) and event.get("operation"):
+        # 4. Check if this is a direct invocation with operation and parameters (NEW standardized pattern)
+        elif isinstance(event, dict) and event.get("operation") and event.get("parameters") is not None:
+            print(f"Direct invocation detected: {event.get('operation')}")
+            return handle_direct_invocation(event, context)
+
+        # 5. Check if this is an operation-based invocation (find, poll, finalize) - LEGACY
+        elif isinstance(event, dict) and event.get("operation"):
             operation = event.get("operation")
-            print(f"Operation-based invocation detected: {operation}")
+            print(f"Legacy operation-based invocation detected: {operation}")
             return handle_operation(event, context)
 
-        # Check if this is an EventBridge scheduled invocation (polling trigger)
-        if isinstance(event, dict) and event.get("source") == "aws.events":
+        # 6. Check if this is an EventBridge scheduled invocation (polling trigger)
+        elif isinstance(event, dict) and event.get("source") == "aws.events":
             print("EventBridge scheduled invocation detected - finding executions to poll")
             return handle_find_operation(event, context)
+
+        # 7. If none of the above patterns match and not API Gateway, return error
+        elif not isinstance(event, dict) or "requestContext" not in event:
+            print("Invalid invocation - no recognized pattern")
+            return {
+                "error": "INVALID_INVOCATION",
+                "message": "Event must contain 'requestContext', 'worker', 'action', 'operation', or 'source'",
+                "receivedKeys": list(event.keys()) if isinstance(event, dict) else "not a dict",
+            }
+
+        # API Gateway routing logic (continues from check #1)
 
         # API Gateway invocation - route based on HTTP method and path
         http_method = event.get("httpMethod", "")
@@ -3653,7 +3943,19 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         # REAL-TIME WAVE STATUS: Reconcile wave status with actual DRS job results
         try:
             print("Reconciling wave status with real-time DRS data")
-            execution = reconcile_wave_status_with_drs(execution)
+
+            # Get account context from execution record for cross-account DRS queries
+            account_context = execution.get("accountContext")
+            if account_context:
+                print(
+                    f"Using account context for polling: "
+                    f"accountId={account_context.get('accountId')}, "
+                    f"isCurrentAccount={account_context.get('isCurrentAccount')}"
+                )
+            else:
+                print("No account context found - " "using current account credentials")
+
+            execution = reconcile_wave_status_with_drs(execution, account_context)
         except Exception as reconcile_error:
             print(f"Error reconciling wave status: {reconcile_error}")
 
@@ -5906,12 +6208,10 @@ def get_staging_account_job_details(
 
         # Get source server details to identify extended servers
         if account_context:
-            from shared.cross_account import get_cross_account_session
+            from shared.cross_account import create_drs_client
 
-            role_arn = account_context.get("roleArn")
-            external_id = account_context.get("externalId")
-            session = get_cross_account_session(role_arn, external_id)
-            drs_client = session.client("drs", region_name=region)
+            # Use create_drs_client helper which properly handles accountContext structure
+            drs_client = create_drs_client(region, account_context)
         else:
             drs_client = boto3.client("drs", region_name=region)
 
@@ -6071,12 +6371,10 @@ def get_server_details_map(
     try:
         # Use regional DRS client with cross-account credentials if provided
         if account_context:
-            from shared.cross_account import get_cross_account_session
+            from shared.cross_account import create_drs_client
 
-            role_arn = account_context.get("roleArn")
-            external_id = account_context.get("externalId")
-            session = get_cross_account_session(role_arn, external_id)
-            drs_client = session.client("drs", region_name=region)
+            # Use create_drs_client helper which properly handles accountContext structure
+            drs_client = create_drs_client(region, account_context)
             print(f"DEBUG: Created cross-account DRS client for server details in {region}")
         else:
             drs_client = boto3.client("drs", region_name=region)
@@ -6439,12 +6737,10 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
 
                     # Create DRS client with cross-account credentials if provided
                     if account_context:
-                        from shared.cross_account import get_cross_account_session
+                        from shared.cross_account import create_drs_client
 
-                        role_arn = account_context.get("roleArn")
-                        external_id = account_context.get("externalId")
-                        session = get_cross_account_session(role_arn, external_id)
-                        drs_client = session.client("drs", region_name=region)
+                        # Use create_drs_client helper which properly handles accountContext structure
+                        drs_client = create_drs_client(region, account_context)
                         print(f"DEBUG: Created cross-account DRS client for region {region}")
                     else:
                         drs_client = boto3.client("drs", region_name=region)
@@ -6620,12 +6916,10 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
                                     try:
                                         # Create EC2 client with cross-account credentials if provided
                                         if account_context:
-                                            from shared.cross_account import get_cross_account_session
+                                            from shared.cross_account import create_ec2_client
 
-                                            role_arn = account_context.get("roleArn")
-                                            external_id = account_context.get("externalId")
-                                            session = get_cross_account_session(role_arn, external_id)
-                                            ec2_client = session.client("ec2", region_name=region)
+                                            # Use create_ec2_client helper which properly handles accountContext structure
+                                            ec2_client = create_ec2_client(region, account_context)
                                             print(f"DEBUG: Created cross-account EC2 client for region {region}")
                                         else:
                                             ec2_client = boto3.client("ec2", region_name=region)

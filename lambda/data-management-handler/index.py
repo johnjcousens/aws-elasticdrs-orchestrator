@@ -483,6 +483,47 @@ def handle_api_gateway_request(event, context):
 
 def handle_direct_invocation(event, context):
     """Handle direct Lambda invocation (CLI/SDK mode)"""
+    # Import IAM utilities
+    from shared.iam_utils import (
+        extract_iam_principal,
+        validate_iam_authorization,
+        log_direct_invocation,
+        create_authorization_error_response,
+        validate_direct_invocation_event,
+    )
+    
+    # Validate event format
+    if not validate_direct_invocation_event(event):
+        error_response = {
+            "error": "INVALID_EVENT_FORMAT",
+            "message": "Event must contain 'operation' field"
+        }
+        log_direct_invocation(
+            principal="unknown",
+            operation="invalid",
+            params={},
+            result=error_response,
+            success=False,
+            context=context
+        )
+        return error_response
+    
+    # Extract IAM principal from context
+    principal = extract_iam_principal(context)
+    
+    # Validate authorization
+    if not validate_iam_authorization(principal):
+        error_response = create_authorization_error_response()
+        log_direct_invocation(
+            principal=principal,
+            operation=event.get("operation"),
+            params=event.get("body", {}),
+            result=error_response,
+            success=False,
+            context=context
+        )
+        return error_response
+    
     operation = event.get("operation")
     body = event.get("body", {})
     query_params = event.get("queryParams", {})
@@ -533,12 +574,47 @@ def handle_direct_invocation(event, context):
     }
 
     if operation in operations:
-        return operations[operation]()
+        try:
+            result = operations[operation]()
+            # Log successful invocation
+            log_direct_invocation(
+                principal=principal,
+                operation=operation,
+                params={"body": body, "queryParams": query_params},
+                result=result,
+                success=True,
+                context=context
+            )
+            return result
+        except Exception as e:
+            error_response = {
+                "error": "OPERATION_FAILED",
+                "message": str(e),
+                "operation": operation
+            }
+            log_direct_invocation(
+                principal=principal,
+                operation=operation,
+                params={"body": body, "queryParams": query_params},
+                result=error_response,
+                success=False,
+                context=context
+            )
+            return error_response
     else:
-        return {
+        error_response = {
             "error": "UNKNOWN_OPERATION",
             "message": f"Unknown operation: {operation}",
         }
+        log_direct_invocation(
+            principal=principal,
+            operation=operation,
+            params={"body": body, "queryParams": query_params},
+            result=error_response,
+            success=False,
+            context=context
+        )
+        return error_response
 
 
 # ============================================================================
