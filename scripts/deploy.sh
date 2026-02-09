@@ -214,13 +214,34 @@ if [ -z "$AWS_PROFILE" ]; then
     fi
 fi
 
+# Clear AWS CLI cache to ensure fresh credentials
+if [ -d ~/.aws/cli/cache ]; then
+    rm -rf ~/.aws/cli/cache/* 2>/dev/null || true
+    echo -e "${BLUE}Cleared AWS CLI cache${NC}"
+fi
+
 # Verify AWS credentials
 if ! aws sts get-caller-identity > /dev/null 2>&1; then
-    echo -e "${RED}❌ AWS credentials not configured${NC}"
-    echo -e "${YELLOW}   Set AWS_PROFILE environment variable or configure AWS credentials${NC}"
-    echo -e "${YELLOW}   Example: export AWS_PROFILE=438465159935_AdministratorAccess${NC}"
+    # Capture the actual error message
+    ERROR_MSG=$(aws sts get-caller-identity 2>&1)
+    
+    echo -e "${RED}❌ AWS credentials not configured or expired${NC}"
+    
+    # Check if it's an SSO session issue
+    if echo "$ERROR_MSG" | grep -q "SSO session"; then
+        echo -e "${YELLOW}   SSO session has expired${NC}"
+        echo -e "${YELLOW}   Run: aws sso login --profile ${AWS_PROFILE:-438465159935_AdministratorAccess}${NC}"
+    else
+        echo -e "${YELLOW}   Credentials may be expired or invalid${NC}"
+        echo -e "${YELLOW}   Set AWS_PROFILE environment variable or update credentials${NC}"
+        echo -e "${YELLOW}   Example: export AWS_PROFILE=438465159935_AdministratorAccess${NC}"
+    fi
     exit 1
 fi
+
+# Show which account we're authenticated to
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+echo -e "${GREEN}✓ Authenticated to AWS account: $ACCOUNT_ID${NC}"
 
 # Concurrency protection - check if stack is already being updated
 STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")

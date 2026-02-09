@@ -243,6 +243,8 @@ class ApiClient {
             throw new Error('Request timed out. The server may be busy - please try again.');
           } else if (error.code === 'ERR_NETWORK') {
             throw new Error('Network connection failed. Please check your internet connection.');
+          } else if (error.code === 'ERR_NETWORK_CHANGED') {
+            throw new Error('Network connection changed. Please refresh the page to reconnect.');
           } else if (error.code === 'ERR_INTERNET_DISCONNECTED') {
             throw new Error('No internet connection. Please check your network and try again.');
           } else {
