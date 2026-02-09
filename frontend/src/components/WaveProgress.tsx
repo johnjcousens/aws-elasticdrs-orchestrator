@@ -712,6 +712,20 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 </Alert>
               )}
 
+              {/* Wave Status Message (from backend reconciliation) */}
+              {!wave.error && wave.statusMessage && effectiveStatus === 'failed' && (
+                <Alert type="error" header="Wave Failure">
+                  {wave.statusMessage}
+                </Alert>
+              )}
+
+              {/* DRS Job Status Message (for failed/problematic jobs) */}
+              {!wave.error && !wave.statusMessage && (wave as any).DRSJobDetails?.statusMessage && effectiveStatus === 'failed' && (
+                <Alert type="error" header="DRS Job Failure">
+                  {(wave as any).DRSJobDetails.statusMessage}
+                </Alert>
+              )}
+
               {/* Servers Table - Expandable */}
               {hasServers && (
                 <ExpandableSection
