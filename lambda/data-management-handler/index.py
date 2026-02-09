@@ -502,15 +502,34 @@ def handle_direct_invocation(event, context):
         "get_recovery_plan": lambda: get_recovery_plan(body.get("planId")),
         "update_recovery_plan": lambda: update_recovery_plan(body.get("planId"), body),
         "delete_recovery_plan": lambda: delete_recovery_plan(body.get("planId")),
+        # Server Launch Configs (Phase 4: Tasks 5.1-5.4)
+        "update_server_launch_config": lambda: update_server_launch_config(
+            body.get("groupId"), body.get("serverId"), body
+        ),
+        "delete_server_launch_config": lambda: delete_server_launch_config(
+            body.get("groupId"), body.get("serverId")
+        ),
+        "bulk_update_server_configs": lambda: bulk_update_server_launch_config(
+            body.get("groupId"), body
+        ),
+        "validate_static_ip": lambda: validate_server_static_ip(
+            body.get("groupId"), body.get("serverId"), body
+        ),
+        # Target Accounts (Phase 4: Tasks 5.5-5.7)
+        "add_target_account": lambda: create_target_account(body),
+        "update_target_account": lambda: update_target_account(body.get("accountId"), body),
+        "delete_target_account": lambda: delete_target_account(body.get("accountId")),
         # Tag Sync & Config
         "handle_drs_tag_sync": lambda: handle_drs_tag_sync(body),
+        "trigger_tag_sync": lambda: handle_drs_tag_sync(body),  # Alias for handle_drs_tag_sync
         "get_tag_sync_settings": lambda: get_tag_sync_settings(),
         "update_tag_sync_settings": lambda: update_tag_sync_settings(body),
         "import_configuration": lambda: import_configuration(body),
-        # Staging Accounts
+        # Staging Accounts (Phase 4: Tasks 5.8-5.9, 5.12)
         "add_staging_account": lambda: handle_add_staging_account(body),
         "remove_staging_account": lambda: handle_remove_staging_account(body),
         "sync_staging_accounts": lambda: handle_sync_single_account(body.get("targetAccountId")),
+        "sync_extended_source_servers": lambda: handle_sync_single_account(body.get("targetAccountId")),  # Alias
     }
 
     if operation in operations:

@@ -773,6 +773,12 @@ def handle_direct_invocation(event, context):
         "discover_staging_accounts": lambda: handle_discover_staging_accounts(query_params),
         "get_combined_capacity": lambda: handle_get_combined_capacity(query_params),
         "sync_staging_accounts": lambda: handle_sync_staging_accounts(),
+        "get_server_launch_config": lambda: get_server_launch_config_direct(event),
+        "get_server_config_history": lambda: get_server_config_history_direct(event),
+        "get_staging_accounts": lambda: get_staging_accounts_direct(event),
+        "get_tag_sync_status": lambda: get_tag_sync_status_direct(event),
+        "get_tag_sync_settings": lambda: get_tag_sync_settings_direct(event),
+        "get_drs_capacity_conflicts": lambda: get_drs_capacity_conflicts_direct(event),
     }
 
     if operation in operations:
@@ -3068,6 +3074,661 @@ def get_drs_source_server_details(account_id: str, region: str, server_ids: List
     except Exception as e:
         print(f"Error getting server details: {str(e)}")
         return []
+
+
+# ============================================================================
+# Server Launch Configuration Functions
+# ============================================================================
+
+
+def get_server_launch_config_direct(event: Dict) -> Dict:
+    """
+    Get individual server launch configuration for direct invocation.
+
+    Retrieves the launch configuration for a specific server within a
+    protection group. Returns the server's custom configuration if defined,
+    or indicates that group defaults are used.
+
+    Args:
+        event: Direct invocation event with:
+            - groupId: Protection group ID (required)
+            - serverId: Source server ID (required)
+
+    Returns:
+        Dict with server launch configuration:
+        {
+            "serverId": "s-1234567890abcdef0",
+            "launchConfiguration": {
+                "instanceType": "t3.medium",
+                "subnet": "subnet-123",
+                "securityGroups": ["sg-123"],
+                ...
+            }
+        }
+
+        Or error response:
+        {
+            "error": "MISSING_PARAMETER",
+            "message": "groupId and serverId are required"
+        }
+
+    Requirements: 4.3
+    """
+    try:
+        # Extract parameters from event
+        group_id = event.get("groupId")
+        server_id = event.get("serverId")
+
+        # Validate required parameters
+        if not group_id or not server_id:
+            return {
+                "error": "MISSING_PARAMETER",
+                "message": "groupId and serverId are required",
+            }
+
+        # Get protection group from DynamoDB
+        result = protection_groups_table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in result:
+            return {
+                "error": "NOT_FOUND",
+                "message": f"Protection group {group_id} not found",
+            }
+
+        protection_group = result["Item"]
+
+        # Find server in protection group's servers array
+        servers = protection_group.get("servers", [])
+        server_config = next(
+            (s for s in servers if s.get("sourceServerId") == server_id),
+            None,
+        )
+
+        # If server not found in servers array, check if it's in sourceServerIds
+        if not server_config:
+            source_server_ids = protection_group.get("sourceServerIds", [])
+            if server_id not in source_server_ids:
+                return {
+                    "error": "NOT_FOUND",
+                    "message": f"Server {server_id} not found in protection group {group_id}",
+                }
+
+            # Server exists but has no custom config - return group defaults
+            group_defaults = protection_group.get("launchConfig", {})
+            return {
+                "serverId": server_id,
+                "useGroupDefaults": True,
+                "launchConfiguration": group_defaults,
+            }
+
+        # Server has custom configuration
+        launch_template = server_config.get("launchTemplate", {})
+        use_group_defaults = server_config.get("useGroupDefaults", True)
+
+        # Build response
+        response_data = {
+            "serverId": server_id,
+            "useGroupDefaults": use_group_defaults,
+            "launchConfiguration": launch_template,
+        }
+
+        # Add optional fields if present
+        if "instanceId" in server_config:
+            response_data["instanceId"] = server_config["instanceId"]
+        if "instanceName" in server_config:
+            response_data["instanceName"] = server_config["instanceName"]
+        if "tags" in server_config:
+            response_data["tags"] = server_config["tags"]
+
+        return response_data
+
+    except Exception as e:
+        print(f"Error getting server launch config: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {
+            "error": "INTERNAL_ERROR",
+            "message": f"Failed to get server launch configuration: {str(e)}",
+        }
+
+
+def get_server_config_history_direct(event: Dict) -> Dict:
+    """
+    Get configuration change audit history for a specific server.
+
+    Retrieves the history of configuration changes made to a server's launch
+    configuration within a protection group. This includes changes to instance
+    type, subnet, security groups, and other launch parameters.
+
+    NOTE: Configuration history tracking is not yet implemented in the system.
+    This function returns an empty history array with a note indicating that
+    the feature is planned but not available. When a dedicated configuration
+    audit table is added to DynamoDB, this function should be updated to query
+    that table.
+
+    Args:
+        event: Direct invocation event with:
+            - groupId: Protection group ID (required)
+            - serverId: Source server ID (required)
+
+    Returns:
+        Dict with server configuration history:
+        {
+            "serverId": "s-1234567890abcdef0",
+            "groupId": "pg-abc123",
+            "history": [
+                {
+                    "timestamp": "2026-01-25T10:30:00Z",
+                    "user": "admin@example.com",
+                    "action": "UPDATE_LAUNCH_CONFIG",
+                    "changes": {
+                        "instanceType": {"old": "t3.medium", "new": "c6a.xlarge"},
+                        "subnetId": {"old": "subnet-123", "new": "subnet-456"}
+                    }
+                }
+            ]
+        }
+
+        Or error response:
+        {
+            "error": "MISSING_PARAMETER",
+            "message": "groupId and serverId are required"
+        }
+
+    Requirements: 4.4
+    """
+    try:
+        # Extract parameters from event
+        group_id = event.get("groupId")
+        server_id = event.get("serverId")
+
+        # Validate required parameters
+        if not group_id or not server_id:
+            return {
+                "error": "MISSING_PARAMETER",
+                "message": "groupId and serverId are required",
+            }
+
+        # Get protection group from DynamoDB to verify it exists
+        result = protection_groups_table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in result:
+            return {
+                "error": "NOT_FOUND",
+                "message": f"Protection group {group_id} not found",
+            }
+
+        protection_group = result["Item"]
+
+        # Verify server exists in protection group
+        servers = protection_group.get("servers", [])
+        source_server_ids = protection_group.get("sourceServerIds", [])
+
+        server_exists = any(
+            s.get("sourceServerId") == server_id for s in servers
+        ) or server_id in source_server_ids
+
+        if not server_exists:
+            return {
+                "error": "NOT_FOUND",
+                "message": f"Server {server_id} not found in protection group {group_id}",
+            }
+
+        # TODO: Query configuration history table when implemented
+        # For now, return empty history with a note
+        #
+        # Future implementation should:
+        # 1. Query a dedicated ConfigurationHistory DynamoDB table
+        # 2. Use a GSI on (groupId, serverId) for efficient queries
+        # 3. Sort by timestamp descending to get most recent changes first
+        # 4. Include user information from Cognito or IAM principal
+        # 5. Track all configuration changes including:
+        #    - Launch template updates
+        #    - Tag changes
+        #    - Network configuration changes
+        #    - Instance type changes
+        #
+        # Example query:
+        # history_table = dynamodb.Table(CONFIG_HISTORY_TABLE)
+        # result = history_table.query(
+        #     IndexName="GroupServerIndex",
+        #     KeyConditionExpression=Key("groupId").eq(group_id) & Key("serverId").eq(server_id),
+        #     ScanIndexForward=False,  # Sort descending by timestamp
+        #     Limit=100
+        # )
+        # history = result.get("Items", [])
+
+        return {
+            "serverId": server_id,
+            "groupId": group_id,
+            "history": [],
+            "note": "Configuration history tracking is not yet implemented. This feature is planned for a future release.",
+        }
+
+    except Exception as e:
+        print(f"Error getting server config history: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {
+            "error": "INTERNAL_ERROR",
+            "message": f"Failed to get server configuration history: {str(e)}",
+        }
+
+
+def get_staging_accounts_direct(event: Dict) -> Dict:
+    """
+    Get staging accounts for a specific target account.
+
+    Retrieves the list of staging accounts configured for a target account.
+    Staging accounts are used to extend DRS source servers to the target account,
+    allowing the target account to recover servers that are replicating to staging
+    accounts.
+
+    Args:
+        event: Direct invocation event with:
+            - targetAccountId: Target account ID (required)
+
+    Returns:
+        Dict with staging accounts:
+        {
+            "targetAccountId": "123456789012",
+            "stagingAccounts": [
+                {
+                    "accountId": "987654321098",
+                    "accountName": "Staging Account 1",
+                    "roleArn": "arn:aws:iam::987654321098:role/DRSOrchestrationRole",
+                    "externalId": "unique-external-id",
+                    "replicatingServers": 25,
+                    "totalServers": 30,
+                    "status": "active"
+                }
+            ]
+        }
+
+        Or error response:
+        {
+            "error": "MISSING_PARAMETER",
+            "message": "targetAccountId is required"
+        }
+
+    Requirements: 4.3
+    """
+    try:
+        # Extract parameters from event
+        target_account_id = event.get("targetAccountId")
+
+        # Validate required parameters
+        if not target_account_id:
+            return {
+                "error": "MISSING_PARAMETER",
+                "message": "targetAccountId is required",
+            }
+
+        # Validate account ID format (12 digits)
+        if not target_account_id.isdigit() or len(target_account_id) != 12:
+            return {
+                "error": "INVALID_PARAMETER",
+                "message": f"Invalid account ID format: {target_account_id}. Must be 12-digit string.",
+            }
+
+        # Get target account from DynamoDB
+        if not target_accounts_table:
+            return {
+                "error": "INTERNAL_ERROR",
+                "message": "Target accounts table not configured",
+            }
+
+        result = target_accounts_table.get_item(Key={"accountId": target_account_id})
+
+        if "Item" not in result:
+            return {
+                "error": "NOT_FOUND",
+                "message": f"Target account {target_account_id} not found",
+            }
+
+        target_account = result["Item"]
+
+        # Extract staging accounts from target account configuration
+        staging_accounts = target_account.get("stagingAccounts", [])
+
+        # Return staging accounts list
+        return {
+            "targetAccountId": target_account_id,
+            "stagingAccounts": staging_accounts,
+        }
+
+    except Exception as e:
+        print(f"Error getting staging accounts: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {
+            "error": "INTERNAL_ERROR",
+            "message": f"Failed to get staging accounts: {str(e)}",
+        }
+
+
+def get_tag_sync_status_direct(event: Dict) -> Dict:
+    """
+    Get current tag synchronization status.
+
+    Returns the status of the tag synchronization process, including:
+    - Last sync timestamp
+    - Number of servers processed
+    - Number of tags synchronized
+    - Any errors encountered
+
+    NOTE: Tag synchronization is not yet fully implemented in the system.
+    This function returns a placeholder status indicating the feature is planned.
+
+    Args:
+        event: Direct invocation event (no parameters required)
+
+    Returns:
+        Dict with tag sync status:
+        {
+            "enabled": false,
+            "lastSyncTime": null,
+            "serversProcessed": 0,
+            "tagsSynchronized": 0,
+            "status": "not_implemented",
+            "note": "Tag synchronization is not yet implemented..."
+        }
+
+    Requirements: 4.4
+    """
+    try:
+        # TODO: Implement tag synchronization status tracking
+        # When implemented, this should:
+        # 1. Query a TagSyncStatus DynamoDB table or item
+        # 2. Return last sync timestamp, servers processed, tags synced
+        # 3. Include any errors or warnings from last sync
+        # 4. Show sync schedule and next scheduled sync time
+        #
+        # Example implementation:
+        # sync_status_table = dynamodb.Table(TAG_SYNC_STATUS_TABLE)
+        # result = sync_status_table.get_item(Key={"statusId": "current"})
+        # status = result.get("Item", {})
+        #
+        # return {
+        #     "enabled": status.get("enabled", False),
+        #     "lastSyncTime": status.get("lastSyncTime"),
+        #     "serversProcessed": status.get("serversProcessed", 0),
+        #     "tagsSynchronized": status.get("tagsSynchronized", 0),
+        #     "errors": status.get("errors", []),
+        #     "nextScheduledSync": status.get("nextScheduledSync"),
+        #     "status": status.get("status", "idle")
+        # }
+
+        return {
+            "enabled": False,
+            "lastSyncTime": None,
+            "serversProcessed": 0,
+            "tagsSynchronized": 0,
+            "status": "not_implemented",
+            "note": "Tag synchronization is not yet implemented. This feature is planned for a future release.",
+        }
+
+    except Exception as e:
+        print(f"Error getting tag sync status: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {
+            "error": "INTERNAL_ERROR",
+            "message": f"Failed to get tag sync status: {str(e)}",
+        }
+
+
+def get_tag_sync_settings_direct(event: Dict) -> Dict:
+    """
+    Get tag synchronization configuration settings.
+
+    Returns the configuration for tag synchronization, including:
+    - Enabled/disabled status
+    - Sync schedule (cron expression)
+    - Tag filters (which tags to sync)
+    - Source and target configurations
+
+    NOTE: Tag synchronization is not yet fully implemented in the system.
+    This function returns placeholder settings indicating the feature is planned.
+
+    Args:
+        event: Direct invocation event (no parameters required)
+
+    Returns:
+        Dict with tag sync settings:
+        {
+            "enabled": false,
+            "schedule": null,
+            "tagFilters": [],
+            "note": "Tag synchronization is not yet implemented..."
+        }
+
+    Requirements: 4.5
+    """
+    try:
+        # TODO: Implement tag synchronization settings management
+        # When implemented, this should:
+        # 1. Query a TagSyncSettings DynamoDB table or item
+        # 2. Return sync schedule (cron expression)
+        # 3. Return tag filters (include/exclude patterns)
+        # 4. Return source and target account configurations
+        # 5. Return any custom tag mapping rules
+        #
+        # Example implementation:
+        # settings_table = dynamodb.Table(TAG_SYNC_SETTINGS_TABLE)
+        # result = settings_table.get_item(Key={"settingsId": "default"})
+        # settings = result.get("Item", {})
+        #
+        # return {
+        #     "enabled": settings.get("enabled", False),
+        #     "schedule": settings.get("schedule", "rate(5 minutes)"),
+        #     "tagFilters": {
+        #         "include": settings.get("includePatterns", []),
+        #         "exclude": settings.get("excludePatterns", [])
+        #     },
+        #     "sourceAccounts": settings.get("sourceAccounts", []),
+        #     "targetAccounts": settings.get("targetAccounts", []),
+        #     "tagMappings": settings.get("tagMappings", {})
+        # }
+
+        return {
+            "enabled": False,
+            "schedule": None,
+            "tagFilters": {
+                "include": [],
+                "exclude": [],
+            },
+            "sourceAccounts": [],
+            "targetAccounts": [],
+            "note": "Tag synchronization is not yet implemented. This feature is planned for a future release.",
+        }
+
+    except Exception as e:
+        print(f"Error getting tag sync settings: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {
+            "error": "INTERNAL_ERROR",
+            "message": f"Failed to get tag sync settings: {str(e)}",
+        }
+
+
+def get_drs_capacity_conflicts_direct(event: Dict) -> Dict:
+    """
+    Get detected DRS capacity conflicts across accounts.
+
+    Analyzes DRS capacity across all registered accounts and identifies conflicts
+    where capacity limits may be exceeded. This includes:
+    - Accounts approaching the 300 replicating servers limit
+    - Accounts approaching the 4,000 recovery servers limit
+    - Protection groups that would exceed capacity if recovered
+    - Staging account capacity issues
+
+    NOTE: Comprehensive capacity conflict detection is not yet fully implemented.
+    This function returns basic capacity information for all accounts.
+
+    Args:
+        event: Direct invocation event (no parameters required)
+
+    Returns:
+        Dict with capacity conflicts:
+        {
+            "conflicts": [
+                {
+                    "accountId": "123456789012",
+                    "accountName": "Production Account",
+                    "conflictType": "approaching_replication_limit",
+                    "severity": "warning",
+                    "currentUsage": 280,
+                    "limit": 300,
+                    "message": "Account is approaching replication limit..."
+                }
+            ],
+            "totalConflicts": 1
+        }
+
+    Requirements: 4.6
+    """
+    try:
+        # Get all target accounts
+        if not target_accounts_table:
+            return {
+                "error": "INTERNAL_ERROR",
+                "message": "Target accounts table not configured",
+            }
+
+        accounts_response = target_accounts_table.scan()
+        accounts = accounts_response.get("Items", [])
+
+        # Handle pagination
+        while "LastEvaluatedKey" in accounts_response:
+            accounts_response = target_accounts_table.scan(
+                ExclusiveStartKey=accounts_response["LastEvaluatedKey"]
+            )
+            accounts.extend(accounts_response.get("Items", []))
+
+        # Analyze capacity for each account
+        conflicts = []
+
+        for account in accounts:
+            account_id = account.get("accountId")
+            account_name = account.get("accountName", f"Account {account_id[-4:]}")
+
+            try:
+                # Get account capacity across all regions
+                account_context = {
+                    "accountId": account_id,
+                    "assumeRoleName": (
+                        account.get("roleArn", "").split("/")[-1] if account.get("roleArn") else None
+                    ),
+                    "externalId": account.get("externalId"),
+                    "isCurrentAccount": False,
+                }
+
+                # Query capacity (this will use cache if available)
+                capacity_data = get_drs_account_capacity_all_regions(account_context)
+
+                if isinstance(capacity_data, dict) and "statusCode" in capacity_data:
+                    # Extract from API Gateway response format
+                    capacity_data = json.loads(capacity_data.get("body", "{}"))
+
+                total_replicating = capacity_data.get("totalReplicatingServers", 0)
+                total_servers = capacity_data.get("totalServers", 0)
+
+                # Check for conflicts
+                # Warning: > 80% of limit
+                # Critical: > 90% of limit
+
+                # Replication limit (300 servers)
+                replication_limit = 300
+                replication_usage_pct = (total_replicating / replication_limit) * 100
+
+                if replication_usage_pct > 90:
+                    conflicts.append(
+                        {
+                            "accountId": account_id,
+                            "accountName": account_name,
+                            "conflictType": "critical_replication_limit",
+                            "severity": "critical",
+                            "currentUsage": total_replicating,
+                            "limit": replication_limit,
+                            "usagePercentage": round(replication_usage_pct, 1),
+                            "message": f"Account is critically close to replication limit ({total_replicating}/{replication_limit} servers)",
+                        }
+                    )
+                elif replication_usage_pct > 80:
+                    conflicts.append(
+                        {
+                            "accountId": account_id,
+                            "accountName": account_name,
+                            "conflictType": "approaching_replication_limit",
+                            "severity": "warning",
+                            "currentUsage": total_replicating,
+                            "limit": replication_limit,
+                            "usagePercentage": round(replication_usage_pct, 1),
+                            "message": f"Account is approaching replication limit ({total_replicating}/{replication_limit} servers)",
+                        }
+                    )
+
+                # Recovery limit (4,000 servers)
+                recovery_limit = 4000
+                recovery_usage_pct = (total_servers / recovery_limit) * 100
+
+                if recovery_usage_pct > 90:
+                    conflicts.append(
+                        {
+                            "accountId": account_id,
+                            "accountName": account_name,
+                            "conflictType": "critical_recovery_limit",
+                            "severity": "critical",
+                            "currentUsage": total_servers,
+                            "limit": recovery_limit,
+                            "usagePercentage": round(recovery_usage_pct, 1),
+                            "message": f"Account is critically close to recovery limit ({total_servers}/{recovery_limit} servers)",
+                        }
+                    )
+                elif recovery_usage_pct > 80:
+                    conflicts.append(
+                        {
+                            "accountId": account_id,
+                            "accountName": account_name,
+                            "conflictType": "approaching_recovery_limit",
+                            "severity": "warning",
+                            "currentUsage": total_servers,
+                            "limit": recovery_limit,
+                            "usagePercentage": round(recovery_usage_pct, 1),
+                            "message": f"Account is approaching recovery limit ({total_servers}/{recovery_limit} servers)",
+                        }
+                    )
+
+            except Exception as e:
+                print(f"Error analyzing capacity for account {account_id}: {str(e)}")
+                # Continue with other accounts
+                continue
+
+        # Sort conflicts by severity (critical first)
+        conflicts.sort(key=lambda x: 0 if x["severity"] == "critical" else 1)
+
+        return {
+            "conflicts": conflicts,
+            "totalConflicts": len(conflicts),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        print(f"Error getting DRS capacity conflicts: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return {
+            "error": "INTERNAL_ERROR",
+            "message": f"Failed to get DRS capacity conflicts: {str(e)}",
+        }
 
 
 # ============================================================================
