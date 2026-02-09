@@ -788,7 +788,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 </ExpandableSection>
               )}
 
-              {/* Enhanced DRS Job Events Timeline - Multi-Phase Support for Extended Source Servers */}
+              {/* DRS Job Events Timeline - Unified View */}
               {wave.jobId && jobLogs && (
                 <ExpandableSection
                   headerText="DRS Job Events"
@@ -811,7 +811,46 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     const stagingJobs = (wave as any).DRSJobDetails?.stagingJobs as StagingJobDetails[] | undefined;
                     const hasStagingJobs = stagingJobs && stagingJobs.length > 0;
                     
-                    if (waveJobLogs.length === 0 && !hasStagingJobs) {
+                    // Combine all events from all jobs (staging + target) into unified timeline
+                    const allEvents: Array<JobLogEvent & { jobId: string; accountId: string; jobType: string }> = [];
+                    
+                    // Add target account job events
+                    const targetAccountId = (wave as any).DRSJobDetails?.targetAccountId || 'Target Account';
+                    waveJobLogs.forEach(event => {
+                      allEvents.push({
+                        ...event,
+                        jobId: wave.jobId!,
+                        accountId: targetAccountId,
+                        jobType: 'LAUNCH'
+                      });
+                    });
+                    
+                    // Add staging account job events
+                    if (hasStagingJobs) {
+                      for (const stagingJob of stagingJobs) {
+                        const events = stagingJobLogs[stagingJob.jobId] || [];
+                        events.forEach(event => {
+                          allEvents.push({
+                            ...event,
+                            jobId: stagingJob.jobId,
+                            accountId: stagingJob.stagingAccountId,
+                            jobType: stagingJob.type
+                          });
+                        });
+                      }
+                    }
+                    
+                    // Sort all events by timestamp
+                    allEvents.sort((a, b) => {
+                      const timeA = new Date(a.logDateTime).getTime();
+                      const timeB = new Date(b.logDateTime).getTime();
+                      return timeA - timeB;
+                    });
+                    
+                    const anyLoading = hasStagingJobs && stagingJobs.some(sj => loadingStagingJobs.has(sj.jobId));
+                    const totalJobs = 1 + (stagingJobs?.length || 0);
+                    
+                    if (allEvents.length === 0 && !anyLoading) {
                       return (
                         <Box textAlign="center" color="inherit" padding="m">
                           <div style={{ color: '#5f6b7a' }}>
@@ -827,177 +866,74 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     }
 
                     return (
-                      <SpaceBetween size="l">
-                        {/* Phase 1: Staging Account Conversion (Extended Source Servers Only) */}
-                        {hasStagingJobs && (() => {
-                          // Combine all staging job events and sort by timestamp
-                          const allStagingEvents: Array<JobLogEvent & { jobId: string }> = [];
-                          const anyLoading = stagingJobs.some(sj => loadingStagingJobs.has(sj.jobId));
-                          const totalServers = stagingJobs.reduce((sum, sj) => sum + sj.participatingServers, 0);
-                          
-                          for (const stagingJob of stagingJobs) {
-                            const events = stagingJobLogs[stagingJob.jobId] || [];
-                            events.forEach(event => {
-                              allStagingEvents.push({ ...event, jobId: stagingJob.jobId });
-                            });
-                          }
-                          
-                          // Sort by timestamp
-                          allStagingEvents.sort((a, b) => {
-                            const timeA = new Date(a.logDateTime).getTime();
-                            const timeB = new Date(b.logDateTime).getTime();
-                            return timeA - timeB;
-                          });
-                          
-                          return (
-                            <Container
-                              header={
-                                <Box>
-                                  <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                                    Phase 1: Staging Account Conversion
-                                  </div>
-                                  <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
-                                    {stagingJobs.length} staging job{stagingJobs.length !== 1 ? 's' : ''} • 
-                                    {totalServers} server{totalServers !== 1 ? 's' : ''} • 
-                                    {stagingJobs.map((sj, idx) => (
-                                      <span key={sj.jobId}>
-                                        {idx > 0 && ', '}
-                                        <code>{sj.jobId}</code>
-                                      </span>
-                                    ))}
-                                  </div>
-                                </Box>
-                              }
-                            >
-                              {anyLoading ? (
-                                <Box textAlign="center" padding="m">
-                                  <div style={{ color: '#5f6b7a' }}>Loading staging job events...</div>
-                                </Box>
-                              ) : allStagingEvents.length === 0 ? (
-                                <Box textAlign="center" padding="m">
-                                  <div style={{ color: '#5f6b7a' }}>No staging job events available</div>
-                                </Box>
-                              ) : (
-                                <SpaceBetween size="s">
-                                  {allStagingEvents.map((event, eventIdx) => (
-                                    <Box key={eventIdx} padding="s">
-                                      <div style={{ fontWeight: 500 }}>
-                                        {formatJobLogEvent(event)}
-                                      </div>
-                                      <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
-                                        {formatTimestamp(event.logDateTime)}
-                                        {event.sourceServerId && (
-                                          <span> • Server: <code style={{ fontSize: '11px' }}>{event.sourceServerId}</code></span>
-                                        )}
-                                        {event.conversionServerId && (
-                                          <span> • Conversion: <code style={{ fontSize: '11px' }}>{event.conversionServerId}</code></span>
-                                        )}
-                                        <span> • Job: <code style={{ fontSize: '11px' }}>{event.jobId}</code></span>
-                                      </div>
-                                      {event.error && (
-                                        <Alert type="error" header="Event Error" dismissible={false}>
-                                          {event.error}
-                                        </Alert>
-                                      )}
-                                      {event.eventData && Object.keys(event.eventData).length > 0 && (
-                                        <details style={{ marginTop: '8px' }}>
-                                          <summary style={{ fontSize: '12px', color: '#5f6b7a', cursor: 'pointer' }}>
-                                            Event Details
-                                          </summary>
-                                          <pre style={{ 
-                                            fontSize: '11px', 
-                                            color: '#5f6b7a', 
-                                            marginTop: '4px',
-                                            whiteSpace: 'pre-wrap',
-                                            wordBreak: 'break-word'
-                                          }}>
-                                            {JSON.stringify(event.eventData, null, 2)}
-                                          </pre>
-                                        </details>
-                                      )}
-                                    </Box>
-                                  ))}
-                                </SpaceBetween>
+                      <Container
+                        header={
+                          <Box>
+                            <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                              DRS Job Timeline
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
+                              {totalJobs} job{totalJobs !== 1 ? 's' : ''} • {allEvents.length} events
+                              {hasStagingJobs && (
+                                <span>
+                                  {' • '}
+                                  Staging: {stagingJobs.map(sj => sj.jobId).join(', ')}
+                                  {' • '}
+                                  Target: {wave.jobId}
+                                </span>
                               )}
-                            </Container>
-                          );
-                        })()}
-
-                        {/* Phase 2: Target Account Recovery (All Servers) */}
-                        <Container
-                          header={
-                            <Box>
-                              <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-                                {hasStagingJobs ? 'Phase 2: Target Account Recovery' : 'DRS Job Events'}
-                              </div>
-                              <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
-                                Job ID: <code>{wave.jobId}</code> • {waveJobLogs.length} events
-                              </div>
-                            </Box>
-                          }
-                        >
-                          {waveJobLogs.length === 0 ? (
-                            <Box textAlign="center" padding="m">
-                              <div style={{ color: '#5f6b7a' }}>No target account events available</div>
-                            </Box>
-                          ) : (
-                            <SpaceBetween size="s">
-                              {waveJobLogs.map((event, eventIdx) => {
-                                // For extended servers, filter out conversion events (they're in staging phase)
-                                const extendedServerIds = new Set(
-                                  stagingJobs?.flatMap(sj => sj.serverIds) || []
-                                );
-                                const isExtendedServer = event.sourceServerId && extendedServerIds.has(event.sourceServerId);
-                                const isConversionEvent = event.event?.includes('CONVERSION') || 
-                                                         event.event?.includes('SNAPSHOT');
-                                
-                                // Skip conversion events for extended servers (shown in staging phase)
-                                if (isExtendedServer && isConversionEvent) {
-                                  return null;
-                                }
-                                
-                                return (
-                                  <Box key={eventIdx} padding="s">
-                                    <div style={{ fontWeight: 500 }}>
-                                      {formatJobLogEvent(event)}
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
-                                      {formatTimestamp(event.logDateTime)}
-                                      {event.sourceServerId && (
-                                        <span> • Server: <code style={{ fontSize: '11px' }}>{event.sourceServerId}</code></span>
-                                      )}
-                                      {event.conversionServerId && (
-                                        <span> • Conversion: <code style={{ fontSize: '11px' }}>{event.conversionServerId}</code></span>
-                                      )}
-                                    </div>
-                                    {event.error && (
-                                      <Alert type="error" header="Event Error" dismissible={false}>
-                                        {event.error}
-                                      </Alert>
-                                    )}
-                                    {event.eventData && Object.keys(event.eventData).length > 0 && (
-                                      <details style={{ marginTop: '8px' }}>
-                                        <summary style={{ fontSize: '12px', color: '#5f6b7a', cursor: 'pointer' }}>
-                                          Event Details
-                                        </summary>
-                                        <pre style={{ 
-                                          fontSize: '11px', 
-                                          color: '#5f6b7a', 
-                                          marginTop: '4px',
-                                          whiteSpace: 'pre-wrap',
-                                          wordBreak: 'break-word'
-                                        }}>
-                                          {JSON.stringify(event.eventData, null, 2)}
-                                        </pre>
-                                      </details>
-                                    )}
-                                  </Box>
-                                );
-                              }).filter(Boolean)}
-                            </SpaceBetween>
-                          )}
-                        </Container>
-                      </SpaceBetween>
+                            </div>
+                          </Box>
+                        }
+                      >
+                        {anyLoading ? (
+                          <Box textAlign="center" padding="m">
+                            <div style={{ color: '#5f6b7a' }}>Loading job events...</div>
+                          </Box>
+                        ) : (
+                          <SpaceBetween size="s">
+                            {allEvents.map((event, eventIdx) => (
+                              <Box key={eventIdx} padding="s">
+                                <div style={{ fontWeight: 500 }}>
+                                  {formatJobLogEvent(event)}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
+                                  {formatTimestamp(event.logDateTime)}
+                                  <span> • Account: <code style={{ fontSize: '11px' }}>{event.accountId}</code></span>
+                                  <span> • Job: <code style={{ fontSize: '11px' }}>{event.jobId}</code></span>
+                                  {event.sourceServerId && (
+                                    <span> • Server: <code style={{ fontSize: '11px' }}>{event.sourceServerId}</code></span>
+                                  )}
+                                  {event.conversionServerId && (
+                                    <span> • Conversion: <code style={{ fontSize: '11px' }}>{event.conversionServerId}</code></span>
+                                  )}
+                                </div>
+                                {event.error && (
+                                  <Alert type="error" header="Event Error" dismissible={false}>
+                                    {event.error}
+                                  </Alert>
+                                )}
+                                {event.eventData && Object.keys(event.eventData).length > 0 && (
+                                  <details style={{ marginTop: '8px' }}>
+                                    <summary style={{ fontSize: '12px', color: '#5f6b7a', cursor: 'pointer' }}>
+                                      Event Details
+                                    </summary>
+                                    <pre style={{ 
+                                      fontSize: '11px', 
+                                      color: '#5f6b7a', 
+                                      marginTop: '4px',
+                                      whiteSpace: 'pre-wrap',
+                                      wordBreak: 'break-word'
+                                    }}>
+                                      {JSON.stringify(event.eventData, null, 2)}
+                                    </pre>
+                                  </details>
+                                )}
+                              </Box>
+                            ))}
+                          </SpaceBetween>
+                        )}
+                      </Container>
                     );
                   })()}
                 </ExpandableSection>
