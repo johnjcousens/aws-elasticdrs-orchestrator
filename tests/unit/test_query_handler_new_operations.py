@@ -447,11 +447,14 @@ def test_get_drs_capacity_conflicts_no_parameters_required(
 # ============================================================================
 
 
+@patch("shared.iam_utils.validate_iam_authorization")
 def test_handle_direct_invocation_get_staging_accounts(
-    mock_target_accounts_table, lambda_context
+    mock_validate, mock_target_accounts_table, lambda_context
 ):
     """Test direct invocation routing for get_staging_accounts operation."""
     from index import handle_direct_invocation
+
+    mock_validate.return_value = True
 
     event = {
         "operation": "get_staging_accounts",
@@ -471,9 +474,12 @@ def test_handle_direct_invocation_get_staging_accounts(
     assert "stagingAccounts" in result
 
 
-def test_handle_direct_invocation_get_tag_sync_status(lambda_context):
+@patch("shared.iam_utils.validate_iam_authorization")
+def test_handle_direct_invocation_get_tag_sync_status(mock_validate, lambda_context):
     """Test direct invocation routing for get_tag_sync_status operation."""
     from index import handle_direct_invocation
+
+    mock_validate.return_value = True
 
     event = {"operation": "get_tag_sync_status"}
 
@@ -483,9 +489,12 @@ def test_handle_direct_invocation_get_tag_sync_status(lambda_context):
     assert result["status"] == "not_implemented"
 
 
-def test_handle_direct_invocation_get_tag_sync_settings(lambda_context):
+@patch("shared.iam_utils.validate_iam_authorization")
+def test_handle_direct_invocation_get_tag_sync_settings(mock_validate, lambda_context):
     """Test direct invocation routing for get_tag_sync_settings operation."""
     from index import handle_direct_invocation
+
+    mock_validate.return_value = True
 
     event = {"operation": "get_tag_sync_settings"}
 
@@ -495,11 +504,14 @@ def test_handle_direct_invocation_get_tag_sync_settings(lambda_context):
     assert "enabled" in result
 
 
+@patch("shared.iam_utils.validate_iam_authorization")
 def test_handle_direct_invocation_get_drs_capacity_conflicts(
-    mock_target_accounts_table, lambda_context
+    mock_validate, mock_target_accounts_table, lambda_context
 ):
     """Test direct invocation routing for get_drs_capacity_conflicts operation."""
     from index import handle_direct_invocation
+
+    mock_validate.return_value = True
 
     event = {"operation": "get_drs_capacity_conflicts"}
 

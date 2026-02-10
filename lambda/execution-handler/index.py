@@ -139,18 +139,13 @@ from shared.response_utils import (
     DecimalEncoder,
     response,
     error_response,
-    success_response,
-    ERROR_INVALID_INVOCATION,
     ERROR_INVALID_OPERATION,
     ERROR_MISSING_PARAMETER,
     ERROR_INVALID_PARAMETER,
-    ERROR_AUTHORIZATION_FAILED,
     ERROR_NOT_FOUND,
     ERROR_ALREADY_EXISTS,
     ERROR_INVALID_STATE,
-    ERROR_DYNAMODB_ERROR,
     ERROR_DRS_ERROR,
-    ERROR_STEP_FUNCTIONS_ERROR,
     ERROR_STS_ERROR,
     ERROR_INTERNAL_ERROR,
 )
@@ -189,7 +184,11 @@ def analyze_execution_outcome(waves: List[Dict]) -> Dict:
         return {
             "status": "FAILED",
             "summary": "No waves executed",
-            "details": {"wavesCompleted": 0, "wavesFailed": 0, "wavesCancelled": 0},
+            "details": {
+                "wavesCompleted": 0,
+                "wavesFailed": 0,
+                "wavesCancelled": 0,
+            },
         }
 
     # Analyze wave outcomes
@@ -434,7 +433,10 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 error_response(
                     ERROR_MISSING_PARAMETER,
                     "executionType is required - must be DRILL or RECOVERY",
-                    details={"parameter": "executionType", "allowedValues": ["DRILL", "RECOVERY"]},
+                    details={
+                        "parameter": "executionType",
+                        "allowedValues": ["DRILL", "RECOVERY"],
+                    },
                 ),
             )
 
@@ -487,7 +489,10 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 error_response(
                     ERROR_INVALID_STATE,
                     f'Recovery Plan "{plan.get("planName", plan_id)}" has no waves configured - add at least one wave before executing',  # noqa: E501
-                    details={"planId": plan_id, "planName": plan.get("planName")},
+                    details={
+                        "planId": plan_id,
+                        "planName": plan.get("planName"),
+                    },
                 ),
             )
 
@@ -618,7 +623,10 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 error_response(
                     ERROR_INVALID_PARAMETER,
                     f'{len(wave_size_errors)} wave(s) exceed the DRS limit of {DRS_LIMITS["MAX_SERVERS_PER_JOB"]} servers per job',  # noqa: E501
-                    details={"errors": wave_size_errors, "limit": DRS_LIMITS["MAX_SERVERS_PER_JOB"]},
+                    details={
+                        "errors": wave_size_errors,
+                        "limit": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+                    },
                 ),
             )
 
@@ -701,7 +709,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             "totalWaves": len(plan.get("waves", [])),
             "accountContext": account_context,
             # Store accountId at top level for efficient filtering
-            "accountId": account_context.get("accountId") if account_context else None,
+            "accountId": (account_context.get("accountId") if account_context else None),
         }
 
         # Store execution history immediately
@@ -2501,7 +2509,10 @@ def pause_execution(execution_id: str, body: Dict) -> Dict:
                 error_response(
                     ERROR_INVALID_STATE,
                     "No waves found in execution - cannot pause",
-                    details={"executionId": execution_id, "currentStatus": current_status},
+                    details={
+                        "executionId": execution_id,
+                        "currentStatus": current_status,
+                    },
                 ),
             )
 
@@ -2896,7 +2907,12 @@ def handle_poll_operation(event: Dict, context) -> Dict:
                 print(f"Step Functions status for {execution_id}: {sf_status}")
 
                 # If Step Functions shows terminal state, analyze outcome and update DynamoDB
-                if sf_status in ["FAILED", "TIMED_OUT", "ABORTED", "SUCCEEDED"]:
+                if sf_status in [
+                    "FAILED",
+                    "TIMED_OUT",
+                    "ABORTED",
+                    "SUCCEEDED",
+                ]:
                     # Get waves for outcome analysis
                     waves = execution.get("waves", [])
 
@@ -2921,7 +2937,7 @@ def handle_poll_operation(event: Dict, context) -> Dict:
                             new_status = (
                                 "FAILED"
                                 if sf_status == "FAILED"
-                                else "TIMEOUT" if sf_status == "TIMED_OUT" else "TERMINATED"
+                                else ("TIMEOUT" if sf_status == "TIMED_OUT" else "TERMINATED")
                             )
                     else:
                         # SF SUCCEEDED - use analyzed status
@@ -2951,7 +2967,13 @@ def handle_poll_operation(event: Dict, context) -> Dict:
                         wave_copy = wave.copy()
                         current_wave_status = wave_copy.get("status", "").upper()
                         # Only update non-terminal wave statuses
-                        if current_wave_status not in ["COMPLETED", "FAILED", "TERMINATED", "TIMEOUT", "CANCELLED"]:
+                        if current_wave_status not in [
+                            "COMPLETED",
+                            "FAILED",
+                            "TERMINATED",
+                            "TIMEOUT",
+                            "CANCELLED",
+                        ]:
                             # Set wave status based on execution outcome
                             if new_status == "COMPLETED":
                                 wave_copy["status"] = "COMPLETED"
@@ -3052,7 +3074,11 @@ def handle_poll_operation(event: Dict, context) -> Dict:
                 "STARTED",
             ]:
                 account_context = execution.get("accountContext")
-                updated_wave = poll_wave_with_enrichment(wave, execution.get("executionType", "DRILL"), account_context)
+                updated_wave = poll_wave_with_enrichment(
+                    wave,
+                    execution.get("executionType", "DRILL"),
+                    account_context,
+                )
                 updated_waves.append(updated_wave)
             else:
                 # PENDING or other status - don't poll yet
@@ -3496,7 +3522,9 @@ def _delegate_to_query_handler(operation: str, parameters: Dict) -> Dict:
         payload = {"operation": operation, "parameters": parameters}
 
         response = lambda_client.invoke(
-            FunctionName=query_handler_name, InvocationType="RequestResponse", Payload=json.dumps(payload, cls=DecimalEncoder)
+            FunctionName=query_handler_name,
+            InvocationType="RequestResponse",
+            Payload=json.dumps(payload, cls=DecimalEncoder),
         )
 
         result = json.loads(response["Payload"].read())
@@ -3506,7 +3534,11 @@ def _delegate_to_query_handler(operation: str, parameters: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return {"error": "DELEGATION_FAILED", "message": str(e), "operation": operation}
+        return {
+            "error": "DELEGATION_FAILED",
+            "message": str(e),
+            "operation": operation,
+        }
 
 
 def handle_direct_invocation(event: Dict, context) -> Dict:
@@ -3567,12 +3599,12 @@ def handle_direct_invocation(event: Dict, context) -> Dict:
         create_authorization_error_response,
         validate_direct_invocation_event,
     )
-    
+
     # Validate event format
     if not validate_direct_invocation_event(event):
         error_response = {
             "error": "INVALID_EVENT_FORMAT",
-            "message": "Event must contain 'operation' field"
+            "message": "Event must contain 'operation' field",
         }
         log_direct_invocation(
             principal="unknown",
@@ -3580,13 +3612,13 @@ def handle_direct_invocation(event: Dict, context) -> Dict:
             params={},
             result=error_response,
             success=False,
-            context=context
+            context=context,
         )
         return error_response
-    
+
     # Extract IAM principal from context
     principal = extract_iam_principal(context)
-    
+
     # Validate authorization
     if not validate_iam_authorization(principal):
         error_response = create_authorization_error_response()
@@ -3596,22 +3628,25 @@ def handle_direct_invocation(event: Dict, context) -> Dict:
             params=event.get("parameters", {}),
             result=error_response,
             success=False,
-            context=context
+            context=context,
         )
         return error_response
-    
+
     operation = event.get("operation")
     parameters = event.get("parameters", {})
 
     if not operation:
-        error_response = {"error": "MISSING_OPERATION", "message": "operation field is required"}
+        error_response = {
+            "error": "MISSING_OPERATION",
+            "message": "operation field is required",
+        }
         log_direct_invocation(
             principal=principal,
             operation="missing",
             params=parameters,
             result=error_response,
             success=False,
-            context=context
+            context=context,
         )
         return error_response
 
@@ -3643,7 +3678,7 @@ def handle_direct_invocation(event: Dict, context) -> Dict:
             params=parameters,
             result=error_response,
             success=False,
-            context=context
+            context=context,
         )
         return error_response
 
@@ -3652,7 +3687,12 @@ def handle_direct_invocation(event: Dict, context) -> Dict:
 
         # Extract body from API Gateway response format if present
         if isinstance(result, dict) and "statusCode" in result:
-            body = json.loads(result.get("body", "{}"))
+            body_str = result.get("body", "{}")
+            # Handle empty body
+            if not body_str or body_str.strip() == "":
+                body = {}
+            else:
+                body = json.loads(body_str)
             # Log successful invocation
             log_direct_invocation(
                 principal=principal,
@@ -3660,7 +3700,7 @@ def handle_direct_invocation(event: Dict, context) -> Dict:
                 params=parameters,
                 result=body,
                 success=True,
-                context=context
+                context=context,
             )
             return body
 
@@ -3671,7 +3711,7 @@ def handle_direct_invocation(event: Dict, context) -> Dict:
             params=parameters,
             result=result,
             success=True,
-            context=context
+            context=context,
         )
         return result
 
@@ -3680,14 +3720,18 @@ def handle_direct_invocation(event: Dict, context) -> Dict:
         import traceback
 
         traceback.print_exc()
-        error_response = {"error": "OPERATION_FAILED", "message": str(e), "operation": operation}
+        error_response = {
+            "error": "OPERATION_FAILED",
+            "message": str(e),
+            "operation": operation,
+        }
         log_direct_invocation(
             principal=principal,
             operation=operation,
             params=parameters,
             result=error_response,
             success=False,
-            context=context
+            context=context,
         )
         return error_response
 
@@ -3717,22 +3761,22 @@ def lambda_handler(event, context):
     3. Direct Lambda Invocation - Action Pattern (Step Functions)
        Action-based routing for Step Functions orchestration.
        Event: {"action": "start_wave_recovery", "state": {...}, "wave_number": 0}
-       
+
        Supported actions:
        - start_wave_recovery: Initiate DRS StartRecovery for wave
-       
+
        Triggered by: Step Functions state machine
        Routes to: start_wave_recovery()
 
     4. Direct Lambda Invocation - Standardized Operation Pattern (NEW)
        Operation-based routing with standardized event format.
        Event: {"operation": "start_execution|cancel_execution|...", "parameters": {...}}
-       
+
        Supported operations:
        - start_execution, cancel_execution, pause_execution, resume_execution
        - terminate_instances, get_recovery_instances
        - list_executions, get_execution (delegates to query-handler)
-       
+
        Triggered by: Direct Lambda invocation from CLI, SDK, or other services
        Routes to: handle_direct_invocation()
 
@@ -3749,7 +3793,7 @@ def lambda_handler(event, context):
        - EventBridge (find operation, 30s schedule)
        - Self-invocation (poll operation, from find)
        - Step Functions (finalize operation, after all waves complete)
-       
+
        Routes to: handle_operation()
        Note: Legacy pattern for backward compatibility with polling operations
 
@@ -3822,7 +3866,20 @@ def lambda_handler(event, context):
                     },
                 )
 
-        # 4. Check if this is a direct invocation with operation field (NEW standardized pattern)
+        # 4. Check if this is a legacy operation (EventBridge scheduled polling)
+        # Legacy operations: find, poll, finalize (used by EventBridge schedule)
+        elif isinstance(event, dict) and event.get("operation") in ["find", "poll", "finalize"]:
+            operation = event.get("operation")
+            print(f"Legacy operation detected: {operation}")
+
+            if operation == "find":
+                return handle_find_operation(event, context)
+            elif operation == "poll":
+                return handle_poll_operation(event, context)
+            elif operation == "finalize":
+                return handle_finalize_operation(event, context)
+
+        # 5. Check if this is a direct invocation with operation field (NEW standardized pattern)
         # Match query-handler pattern: route to direct invocation if "operation" is present
         elif isinstance(event, dict) and "operation" in event:
             print(f"Direct invocation detected: {event.get('operation')}")
@@ -3839,7 +3896,7 @@ def lambda_handler(event, context):
             return {
                 "error": "INVALID_INVOCATION",
                 "message": "Event must contain 'requestContext', 'worker', 'action', 'operation', or 'source'",
-                "receivedKeys": list(event.keys()) if isinstance(event, dict) else "not a dict",
+                "receivedKeys": (list(event.keys()) if isinstance(event, dict) else "not a dict"),
             }
 
         # API Gateway routing logic (continues from check #1)
@@ -6353,7 +6410,10 @@ def get_staging_account_job_details(
         )
 
         # Query each staging account for conversion jobs
-        for staging_account_id, server_ids in servers_by_staging_account.items():
+        for (
+            staging_account_id,
+            server_ids,
+        ) in servers_by_staging_account.items():
             try:
                 # Get staging account credentials from target account configuration
                 staging_context = get_staging_account_context(staging_account_id, target_account_id)
@@ -6454,7 +6514,9 @@ def get_staging_account_context(staging_account_id: str, target_account_id: str)
 
 
 def get_server_details_map(
-    server_ids: List[str], region: str = "us-east-1", account_context: Optional[Dict] = None
+    server_ids: List[str],
+    region: str = "us-east-1",
+    account_context: Optional[Dict] = None,
 ) -> Dict[str, Dict]:
     """
     Get DRS source server details for a list of server IDs.
@@ -6930,7 +6992,10 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
                             target_account_id = account_context.get("accountId")
 
                         staging_job_details = get_staging_account_job_details(
-                            participating_servers, region, account_context, target_account_id
+                            participating_servers,
+                            region,
+                            account_context,
+                            target_account_id,
                         )
                         if staging_job_details:
                             wave["DRSJobDetails"]["stagingJobs"] = staging_job_details
@@ -7022,7 +7087,9 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
                                     try:
                                         # Create EC2 client with cross-account credentials if provided
                                         if account_context:
-                                            from shared.cross_account import create_ec2_client
+                                            from shared.cross_account import (
+                                                create_ec2_client,
+                                            )
 
                                             # Use create_ec2_client helper which properly handles accountContext structure
                                             ec2_client = create_ec2_client(region, account_context)

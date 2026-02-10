@@ -5,10 +5,25 @@ This file sets up the Python path to allow tests to import from Lambda handlers
 and shared modules.
 """
 
+import os
 import sys
 from pathlib import Path
 import pytest
 from moto import mock_aws
+
+# CRITICAL: Set environment variables BEFORE any imports
+# This ensures global variables in shared modules are initialized correctly
+os.environ.setdefault("AWS_ACCESS_KEY_ID", "testing")
+os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "testing")
+os.environ.setdefault("AWS_SECURITY_TOKEN", "testing")
+os.environ.setdefault("AWS_SESSION_TOKEN", "testing")
+os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
+os.environ.setdefault("TARGET_ACCOUNTS_TABLE", "test-target-accounts-table")
+os.environ.setdefault("STAGING_ACCOUNTS_TABLE", "test-staging-accounts-table")
+os.environ.setdefault("PROTECTION_GROUPS_TABLE", "test-protection-groups-table")
+os.environ.setdefault("RECOVERY_PLANS_TABLE", "test-recovery-plans-table")
+os.environ.setdefault("EXECUTION_HISTORY_TABLE", "test-execution-history-table")
+os.environ.setdefault("TAG_SYNC_CONFIG_TABLE", "test-tag-sync-config-table")
 
 # Add Lambda root to sys.path so 'shared' can be imported as a module
 lambda_root = Path(__file__).parent.parent / "lambda"

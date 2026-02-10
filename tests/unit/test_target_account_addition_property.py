@@ -39,18 +39,20 @@ mock_aws_context.start()
 # Setup mock STS for account ID
 sts = boto3.client("sts", region_name="us-east-1")
 
-try:
-    # Load data-management-handler module
-    spec = importlib.util.spec_from_file_location(
-        "data_management_handler",
-        Path(__file__).parent.parent.parent / "lambda" / "data-management-handler" / "index.py"
-    )
-    data_management_handler = importlib.util.module_from_spec(spec)
-    sys.modules['data_management_handler'] = data_management_handler
-    spec.loader.exec_module(data_management_handler)
-finally:
-    # Stop the mock after module is loaded
-    mock_aws_context.stop()
+# Load data-management-handler module
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda"))
+data_management_handler = importlib.import_module("data-management-handler.index")
+
+# Stop the mock after module is loaded
+mock_aws_context.stop()
+
+
+@pytest.fixture(autouse=True)
+def reset_mocks():
+    """Reset all mocks between tests to prevent state pollution."""
+    yield
+    patch.stopall()
+
 
 # Strategy for valid AWS account IDs (12 digits)
 account_id_strategy = st.text(alphabet="0123456789", min_size=12, max_size=12)
@@ -157,8 +159,29 @@ def test_property_optional_role_arn_acceptance(
         if include_role_arn:
             body["roleArn"] = f"arn:aws:iam::{account_id}:role/CustomRole"
 
-        # Act
-        response = data_management_handler.create_target_account(body)
+        # Mock the current account ID to be different from the target account
+        # This ensures we're testing cross-account scenario
+        # Patch in shared.account_utils where get_current_account_id is called
+        with patch("shared.account_utils.get_current_account_id", return_value="123456789012"):
+            # Mock boto3 in shared.account_utils to prevent real AWS calls
+            with patch("shared.account_utils.boto3") as mock_boto3:
+                mock_sts = MagicMock()
+                mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
+                mock_iam = MagicMock()
+                mock_iam.list_account_aliases.return_value = {"AccountAliases": ["test-account"]}
+                
+                def mock_client(service_name, **kwargs):
+                    if service_name == "sts":
+                        return mock_sts
+                    elif service_name == "iam":
+                        return mock_iam
+                    return MagicMock()
+                
+                mock_boto3.client.side_effect = mock_client
+                mock_boto3.resource.return_value = dynamodb
+                
+                # Act
+                response = data_management_handler.create_target_account(body)
 
         # Assert - Both should succeed
         assert response["statusCode"] in [200, 201], (
@@ -222,7 +245,7 @@ def test_account_addition_without_role_arn():
     with mock_aws():
         # Setup DynamoDB
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        table = dynamodb.create_table(  # noqa: F841
+        table = dynamodb.create_table(
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[
@@ -236,7 +259,29 @@ def test_account_addition_without_role_arn():
             "accountName": "Test Account",
         }
 
-        response = data_management_handler.create_target_account(body)
+        # Mock the current account ID to be different from the target account
+        # This ensures we're testing cross-account scenario
+        with patch("shared.account_utils.get_current_account_id", return_value="123456789012"):
+            # Mock boto3 in shared.account_utils to prevent real AWS calls
+            with patch("shared.account_utils.boto3") as mock_boto3:
+                mock_sts = MagicMock()
+                mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
+                mock_iam = MagicMock()
+                mock_iam.list_account_aliases.return_value = {"AccountAliases": ["test-account"]}
+                
+                def mock_client(service_name, **kwargs):
+                    if service_name == "sts":
+                        return mock_sts
+                    elif service_name == "iam":
+                        return mock_iam
+                    return MagicMock()
+                
+                mock_boto3.client.side_effect = mock_client
+                mock_boto3.resource.return_value = dynamodb
+                
+                # Patch the target_accounts_table global variable in data-management-handler
+                with patch.object(data_management_handler, "target_accounts_table", table):
+                    response = data_management_handler.create_target_account(body)
 
         # Debug output
         if response["statusCode"] != 201:
@@ -257,7 +302,7 @@ def test_account_addition_with_explicit_role_arn():
     with mock_aws():
         # Setup DynamoDB
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        table = dynamodb.create_table(  # noqa: F841
+        table = dynamodb.create_table(
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[
@@ -273,7 +318,29 @@ def test_account_addition_with_explicit_role_arn():
             "roleArn": custom_arn,
         }
 
-        response = data_management_handler.create_target_account(body)
+        # Mock the current account ID to be different from the target account
+        # This ensures we're testing cross-account scenario
+        with patch("shared.account_utils.get_current_account_id", return_value="123456789012"):
+            # Mock boto3 in shared.account_utils to prevent real AWS calls
+            with patch("shared.account_utils.boto3") as mock_boto3:
+                mock_sts = MagicMock()
+                mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
+                mock_iam = MagicMock()
+                mock_iam.list_account_aliases.return_value = {"AccountAliases": ["test-account"]}
+                
+                def mock_client(service_name, **kwargs):
+                    if service_name == "sts":
+                        return mock_sts
+                    elif service_name == "iam":
+                        return mock_iam
+                    return MagicMock()
+                
+                mock_boto3.client.side_effect = mock_client
+                mock_boto3.resource.return_value = dynamodb
+                
+                # Patch the target_accounts_table global variable in data-management-handler
+                with patch.object(data_management_handler, "target_accounts_table", table):
+                    response = data_management_handler.create_target_account(body)
 
         assert response["statusCode"] == 201
         response_body = json.loads(response["body"])

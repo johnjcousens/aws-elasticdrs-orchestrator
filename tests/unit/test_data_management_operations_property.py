@@ -96,6 +96,9 @@ def setup_test_environment():
         try:
             yield
         finally:
+            # Stop all active patches to prevent pollution
+            patch.stopall()
+            
             # Restore original state
             sys.path = original_path
             if "index" in sys.modules:
@@ -377,10 +380,10 @@ def test_property_valid_operation_routing_succeeds(operation, data):
 @given(operation=invalid_operation_name())
 def test_property_invalid_operation_returns_error(operation):
     """
-    Property: For any invalid operation name, should return UNKNOWN_OPERATION error.
+    Property: For any invalid operation name, should return INVALID_OPERATION error.
 
     Universal property: Given any operation name that is NOT in the supported
-    list, the system should return an error with code "UNKNOWN_OPERATION" and
+    list, the system should return an error with code "INVALID_OPERATION" and
     include an error message.
 
     Validates: Property 13 - Data Management Handler Invalid Operation Rejection
@@ -395,8 +398,8 @@ def test_property_invalid_operation_returns_error(operation):
 
         result = index.handle_direct_invocation(event, mock_context)
 
-        # Property assertion: Invalid operations should return UNKNOWN_OPERATION error
-        assert result.get("error") == "UNKNOWN_OPERATION"
+        # Property assertion: Invalid operations should return INVALID_OPERATION error
+        assert result.get("error") == "INVALID_OPERATION"
 
         # Property assertion: Error message should be present
         assert "message" in result
@@ -404,7 +407,7 @@ def test_property_invalid_operation_returns_error(operation):
         assert len(result["message"]) > 0
 
         # Property assertion: Error message should mention the invalid operation
-        assert operation in result["message"] or "Unknown operation" in result["message"]
+        assert operation in result["message"] or "Invalid operation" in result["message"]
 
 
 # Property: Protection Group operations route correctly

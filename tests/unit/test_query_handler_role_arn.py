@@ -238,8 +238,11 @@ def test_validation_handles_missing_account():
         # Should return error response (500 for unexpected errors)
         assert result["statusCode"] == 500
         body = json.loads(result["body"])
-        assert body["valid"] is False
+        # Error response format has error code and details
         assert "error" in body
+        assert body["error"] == "INTERNAL_ERROR"
+        assert "details" in body
+        assert body["details"]["valid"] is False
 
 
 def test_capacity_query_with_explicit_role_arn():

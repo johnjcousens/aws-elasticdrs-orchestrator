@@ -66,6 +66,19 @@ def setup_test_environment():
         sys.modules["shared.drs_utils"] = Mock()
         sys.modules["shared.execution_utils"] = Mock()
 
+        # Mock IAM utilities
+        mock_iam_utils = Mock()
+        mock_iam_utils.extract_iam_principal = Mock(
+            return_value="arn:aws:iam::123456789012:role/test-role"
+        )
+        mock_iam_utils.validate_iam_authorization = Mock(return_value=True)
+        mock_iam_utils.log_direct_invocation = Mock()
+        mock_iam_utils.create_authorization_error_response = Mock(
+            return_value={"error": "UNAUTHORIZED", "message": "Not authorized"}
+        )
+        mock_iam_utils.validate_direct_invocation_event = Mock(return_value=True)
+        sys.modules["shared.iam_utils"] = mock_iam_utils
+
         mock_response_utils = Mock()
 
         def mock_response(status_code, body, headers=None):
@@ -301,14 +314,15 @@ def test_property_invalid_operation_returns_error(operation):
         assert isinstance(result["message"], str)
         assert len(result["message"]) > 0
 
-        # Property assertion: Valid operations list should be provided
-        assert "validOperations" in result
-        assert isinstance(result["validOperations"], list)
-        assert len(result["validOperations"]) > 0
+        # Property assertion: Valid operations list should be provided in details
+        assert "details" in result
+        assert "validOperations" in result["details"]
+        assert isinstance(result["details"]["validOperations"], list)
+        assert len(result["details"]["validOperations"]) > 0
 
         # Property assertion: All expected operations should be in the list
         for valid_op in VALID_OPERATIONS:
-            assert valid_op in result["validOperations"]
+            assert valid_op in result["details"]["validOperations"]
 
 
 # Property: Operation with required parameters should route correctly

@@ -38,15 +38,9 @@ os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
 os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
-# Import from data-management-handler
-import importlib.util  # noqa: F401
-spec = importlib.util.spec_from_file_location(
-    "data_management_handler",
-    Path(__file__).parent.parent.parent / "lambda" / "data-management-handler" / "index.py"
-)
-data_management_handler = importlib.util.module_from_spec(spec)
-sys.modules['data_management_handler'] = data_management_handler
-spec.loader.exec_module(data_management_handler)
+# Import from data-management-handler using importlib
+import importlib
+data_management_handler = importlib.import_module("data-management-handler.index")
 handle_add_staging_account = data_management_handler.handle_add_staging_account
 
 

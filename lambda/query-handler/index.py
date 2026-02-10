@@ -337,12 +337,9 @@ from shared.drs_utils import map_replication_state_to_display
 from shared.response_utils import (
     response,
     error_response,
-    success_response,
-    ERROR_INVALID_INVOCATION,
     ERROR_INVALID_OPERATION,
     ERROR_MISSING_PARAMETER,
     ERROR_INVALID_PARAMETER,
-    ERROR_AUTHORIZATION_FAILED,
     ERROR_NOT_FOUND,
     ERROR_DYNAMODB_ERROR,
     ERROR_DRS_ERROR,
@@ -631,26 +628,33 @@ def lambda_handler(event, context):
                 return error_response(
                     ERROR_INVALID_OPERATION,
                     f"Unknown action: {action}",
-                    details={"action": action}
+                    details={"action": action},
                 )
         elif "operation" in event:
             # Direct invocation (direct Lambda mode)
             return handle_direct_invocation(event, context)
         else:
-            return error_response(
-                ERROR_INVALID_INVOCATION,
-                "Event must contain 'requestContext' (API Gateway), 'action' (orchestration), or 'operation' (direct invocation)"
+            # Invalid invocation - return wrapped error for consistency
+            return response(
+                500,
+                error_response(
+                    ERROR_INVALID_OPERATION,
+                    "Event must contain 'requestContext' (API Gateway), 'action' (orchestration), or 'operation' (direct invocation)",
+                ),
             )
     except Exception as e:
         print(f"Error in lambda_handler: {e}")
         import traceback
 
         traceback.print_exc()
-        return response(500, error_response(
-            ERROR_INTERNAL_ERROR,
-            "Internal server error",
-            details={"error": str(e)}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_INTERNAL_ERROR,
+                "Internal server error",
+                details={"error": str(e)},
+            ),
+        )
 
 
 def handle_api_gateway_request(event, context):
@@ -742,10 +746,13 @@ def handle_api_gateway_request(event, context):
             target_account_id = path_parts[2]
             return handle_get_combined_capacity({"targetAccountId": target_account_id})
         else:
-            return response(400, error_response(
-                ERROR_INVALID_PARAMETER,
-                "Invalid path format for capacity endpoint"
-            ))
+            return response(
+                400,
+                error_response(
+                    ERROR_INVALID_PARAMETER,
+                    "Invalid path format for capacity endpoint",
+                ),
+            )
 
     # Discover staging accounts endpoint
     # Supports both:
@@ -764,17 +771,23 @@ def handle_api_gateway_request(event, context):
             target_account_id = path_parts[2]
             return handle_discover_staging_accounts({"targetAccountId": target_account_id})
         else:
-            return response(400, error_response(
-                ERROR_INVALID_PARAMETER,
-                "Invalid path format for staging accounts discovery endpoint"
-            ))
+            return response(
+                400,
+                error_response(
+                    ERROR_INVALID_PARAMETER,
+                    "Invalid path format for staging accounts discovery endpoint",
+                ),
+            )
 
     else:
-        return response(404, error_response(
-            ERROR_NOT_FOUND,
-            f"Path {path} not found",
-            details={"path": path, "method": method}
-        ))
+        return response(
+            404,
+            error_response(
+                ERROR_NOT_FOUND,
+                f"Path {path} not found",
+                details={"path": path, "method": method},
+            ),
+        )
 
 
 def handle_direct_invocation(event, context):
@@ -787,26 +800,23 @@ def handle_direct_invocation(event, context):
         create_authorization_error_response,
         validate_direct_invocation_event,
     )
-    
+
     # Validate event format
     if not validate_direct_invocation_event(event):
-        error_resp = error_response(
-            ERROR_INVALID_INVOCATION,
-            "Event must contain 'operation' field"
-        )
+        error_resp = error_response(ERROR_INVALID_OPERATION, "Event must contain 'operation' field")
         log_direct_invocation(
             principal="unknown",
             operation="invalid",
             params={},
             result=error_resp,
             success=False,
-            context=context
+            context=context,
         )
         return error_resp
-    
+
     # Extract IAM principal from context
     principal = extract_iam_principal(context)
-    
+
     # Validate authorization
     if not validate_iam_authorization(principal):
         error_resp = create_authorization_error_response()
@@ -816,10 +826,10 @@ def handle_direct_invocation(event, context):
             params=event.get("queryParams", {}),
             result=error_resp,
             success=False,
-            context=context
+            context=context,
         )
         return error_resp
-    
+
     operation = event.get("operation")
     query_params = event.get("queryParams", {})
 
@@ -867,7 +877,7 @@ def handle_direct_invocation(event, context):
                     params=query_params,
                     result=body,
                     success=True,
-                    context=context
+                    context=context,
                 )
                 return body
             # Log successful invocation
@@ -877,14 +887,14 @@ def handle_direct_invocation(event, context):
                 params=query_params,
                 result=result,
                 success=True,
-                context=context
+                context=context,
             )
             return result
         except Exception as e:
             error_resp = error_response(
                 ERROR_INTERNAL_ERROR,
                 f"Operation failed: {str(e)}",
-                details={"operation": operation}
+                details={"operation": operation},
             )
             log_direct_invocation(
                 principal=principal,
@@ -892,14 +902,14 @@ def handle_direct_invocation(event, context):
                 params=query_params,
                 result=error_resp,
                 success=False,
-                context=context
+                context=context,
             )
             return error_resp
     else:
         error_resp = error_response(
             ERROR_INVALID_OPERATION,
             f"Unknown operation: {operation}",
-            details={"operation": operation}
+            details={"operation": operation},
         )
         log_direct_invocation(
             principal=principal,
@@ -907,7 +917,7 @@ def handle_direct_invocation(event, context):
             params=query_params,
             result=error_resp,
             success=False,
-            context=context
+            context=context,
         )
         return error_resp
 
@@ -1103,11 +1113,14 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
     current_pg_id = query_params.get("currentProtectionGroupId")
 
     if not region:
-        return response(400, error_response(
-            ERROR_MISSING_PARAMETER,
-            "region parameter is required",
-            details={"parameter": "region"}
-        ))
+        return response(
+            400,
+            error_response(
+                ERROR_MISSING_PARAMETER,
+                "region parameter is required",
+                details={"parameter": "region"},
+            ),
+        )
 
     try:
         # Determine account context for cross-account queries
@@ -1312,11 +1325,14 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
 
     except Exception as e:
         print(f"Error getting DRS source servers: {e}")
-        return response(500, error_response(
-            ERROR_DRS_ERROR,
-            "Failed to retrieve DRS source servers",
-            details={"error": str(e)}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_DRS_ERROR,
+                "Failed to retrieve DRS source servers",
+                details={"error": str(e)},
+            ),
+        )
 
 
 def get_drs_regional_capacity(region: str) -> Dict:
@@ -1684,19 +1700,13 @@ def get_drs_account_capacity_all_regions(
 
     # Build status message
     if worst_status == "CRITICAL":
-        message = f"CRITICAL: {
-            len(critical_regions)} region(s) at 300-server limit: {
-            ', '.join(critical_regions)}"
+        message = f"CRITICAL: {len(critical_regions)} region(s) at 300-server limit: {', '.join(critical_regions)}"
     elif worst_status == "WARNING":
-        message = f"WARNING: {
-            len(warning_regions)} region(s) approaching limit: {
-            ', '.join(warning_regions)}"
+        message = f"WARNING: {len(warning_regions)} region(s) approaching limit: {', '.join(warning_regions)}"
     elif worst_status == "INFO":
-        message = f"INFO: Some regions above 80% capacity ({replicating_servers} total servers across {
-            len(regional_breakdown)} regions)"
+        message = f"INFO: Some regions above 80% capacity ({replicating_servers} total servers across {len(regional_breakdown)} regions)"
     else:
-        message = f"Capacity OK: {replicating_servers} total servers across {
-            len(regional_breakdown)} regions (each region has 300-server limit)"
+        message = f"Capacity OK: {replicating_servers} total servers across {len(regional_breakdown)} regions (each region has 300-server limit)"
 
     # Add warning if some regions failed
     if failed_regions:
@@ -1896,11 +1906,14 @@ def get_drs_account_capacity_all_regions_response(
         )
     except Exception as e:
         print(f"Error getting account-wide capacity: {e}")
-        return response(500, error_response(
-            ERROR_DRS_ERROR,
-            "Failed to retrieve account-wide DRS capacity",
-            details={"error": str(e)}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_DRS_ERROR,
+                "Failed to retrieve account-wide DRS capacity",
+                details={"error": str(e)},
+            ),
+        )
 
 
 def get_drs_account_capacity(region: str, account_id: Optional[str] = None) -> Dict:
@@ -2164,11 +2177,14 @@ def get_ec2_subnets(query_params: Dict) -> Dict:
     region = query_params.get("region")
 
     if not region:
-        return response(400, error_response(
-            ERROR_MISSING_PARAMETER,
-            "region parameter is required for EC2 subnets query",
-            details={"parameter": "region", "code": "MISSING_REGION"}
-        ))
+        return response(
+            400,
+            error_response(
+                ERROR_MISSING_PARAMETER,
+                "region parameter is required for EC2 subnets query",
+                details={"parameter": "region", "code": "MISSING_REGION"},
+            ),
+        )
 
     try:
         ec2 = boto3.client("ec2", region_name=region)
@@ -2199,11 +2215,14 @@ def get_ec2_subnets(query_params: Dict) -> Dict:
         return response(200, {"subnets": subnets})
     except Exception as e:
         print(f"Error getting subnets: {e}")
-        return response(500, error_response(
-            ERROR_INTERNAL_ERROR,
-            "Failed to retrieve EC2 subnets",
-            details={"error": str(e), "region": region}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_INTERNAL_ERROR,
+                "Failed to retrieve EC2 subnets",
+                details={"error": str(e), "region": region},
+            ),
+        )
 
 
 def get_ec2_security_groups(query_params: Dict) -> Dict:
@@ -2212,11 +2231,14 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
     vpc_id = query_params.get("vpcId")  # Optional filter
 
     if not region:
-        return response(400, error_response(
-            ERROR_MISSING_PARAMETER,
-            "region parameter is required for EC2 security groups query",
-            details={"parameter": "region", "code": "MISSING_REGION"}
-        ))
+        return response(
+            400,
+            error_response(
+                ERROR_MISSING_PARAMETER,
+                "region parameter is required for EC2 security groups query",
+                details={"parameter": "region", "code": "MISSING_REGION"},
+            ),
+        )
 
     try:
         ec2 = boto3.client("ec2", region_name=region)
@@ -2240,11 +2262,14 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
         return response(200, {"securityGroups": groups})
     except Exception as e:
         print(f"Error getting security groups: {e}")
-        return response(500, error_response(
-            ERROR_INTERNAL_ERROR,
-            "Failed to retrieve EC2 security groups",
-            details={"error": str(e), "region": region}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_INTERNAL_ERROR,
+                "Failed to retrieve EC2 security groups",
+                details={"error": str(e), "region": region},
+            ),
+        )
 
 
 def get_ec2_instance_profiles(query_params: Dict) -> Dict:
@@ -2252,11 +2277,14 @@ def get_ec2_instance_profiles(query_params: Dict) -> Dict:
     region = query_params.get("region")
 
     if not region:
-        return response(400, error_response(
-            ERROR_MISSING_PARAMETER,
-            "region parameter is required for EC2 instance profiles query",
-            details={"parameter": "region", "code": "MISSING_REGION"}
-        ))
+        return response(
+            400,
+            error_response(
+                ERROR_MISSING_PARAMETER,
+                "region parameter is required for EC2 instance profiles query",
+                details={"parameter": "region", "code": "MISSING_REGION"},
+            ),
+        )
 
     try:
         # IAM is global but we accept region for consistency
@@ -2278,11 +2306,14 @@ def get_ec2_instance_profiles(query_params: Dict) -> Dict:
         return response(200, {"instanceProfiles": profiles})
     except Exception as e:
         print(f"Error getting instance profiles: {e}")
-        return response(500, error_response(
-            ERROR_INTERNAL_ERROR,
-            "Failed to retrieve IAM instance profiles",
-            details={"error": str(e)}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_INTERNAL_ERROR,
+                "Failed to retrieve IAM instance profiles",
+                details={"error": str(e)},
+            ),
+        )
 
 
 def get_ec2_instance_types(query_params: Dict) -> Dict:
@@ -2290,11 +2321,14 @@ def get_ec2_instance_types(query_params: Dict) -> Dict:
     region = query_params.get("region")
 
     if not region:
-        return response(400, error_response(
-            ERROR_MISSING_PARAMETER,
-            "region parameter is required for EC2 instance types query",
-            details={"parameter": "region", "code": "MISSING_REGION"}
-        ))
+        return response(
+            400,
+            error_response(
+                ERROR_MISSING_PARAMETER,
+                "region parameter is required for EC2 instance types query",
+                details={"parameter": "region", "code": "MISSING_REGION"},
+            ),
+        )
 
     try:
         ec2 = boto3.client("ec2", region_name=region)
@@ -2331,11 +2365,14 @@ def get_ec2_instance_types(query_params: Dict) -> Dict:
 
     except Exception as e:
         print(f"Error getting instance types for region {region}: {e}")
-        return response(500, error_response(
-            ERROR_INTERNAL_ERROR,
-            "Failed to retrieve EC2 instance types",
-            details={"error": str(e), "region": region}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_INTERNAL_ERROR,
+                "Failed to retrieve EC2 instance types",
+                details={"error": str(e), "region": region},
+            ),
+        )
 
 
 # ============================================================================
@@ -2780,11 +2817,14 @@ def get_current_account_info() -> Dict:
 
     except Exception as e:
         print(f"Error getting current account info: {e}")
-        return response(500, error_response(
-            ERROR_INTERNAL_ERROR,
-            "Failed to retrieve current account information",
-            details={"error": str(e)}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_INTERNAL_ERROR,
+                "Failed to retrieve current account information",
+                details={"error": str(e)},
+            ),
+        )
 
 
 def export_configuration(query_params: Dict) -> Dict:
@@ -2796,14 +2836,19 @@ def export_configuration(query_params: Dict) -> Dict:
     """
     try:
         if not protection_groups_table or not recovery_plans_table:
-            return response(500, error_response(
-                ERROR_DYNAMODB_ERROR,
-                "DynamoDB tables not configured",
-                details={"tables": {
-                    "protectionGroups": bool(protection_groups_table),
-                    "recoveryPlans": bool(recovery_plans_table)
-                }}
-            ))
+            return response(
+                500,
+                error_response(
+                    ERROR_DYNAMODB_ERROR,
+                    "DynamoDB tables not configured",
+                    details={
+                        "tables": {
+                            "protectionGroups": bool(protection_groups_table),
+                            "recoveryPlans": bool(recovery_plans_table),
+                        }
+                    },
+                ),
+            )
 
         # Get source region from environment or default
         source_region = os.environ.get("AWS_REGION", "us-east-1")
@@ -2907,10 +2952,7 @@ def export_configuration(query_params: Dict) -> Dict:
             exported_rps.append(exported_rp)
 
         if orphaned_pg_ids:
-            print(
-                f"Export contains {
-                    len(orphaned_pg_ids)} orphaned PG references"
-            )
+            print(f"Export contains {len(orphaned_pg_ids)} orphaned PG references")
 
         # Build export payload with schema v1.1 metadata
         export_data = {
@@ -2936,11 +2978,14 @@ def export_configuration(query_params: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, error_response(
-            ERROR_DYNAMODB_ERROR,
-            "Failed to export configuration",
-            details={"error": str(e)}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_DYNAMODB_ERROR,
+                "Failed to export configuration",
+                details={"error": str(e)},
+            ),
+        )
 
 
 def handle_user_permissions(event: Dict) -> Dict:
@@ -3444,9 +3489,7 @@ def get_server_config_history_direct(event: Dict) -> Dict:
         servers = protection_group.get("servers", [])
         source_server_ids = protection_group.get("sourceServerIds", [])
 
-        server_exists = any(
-            s.get("sourceServerId") == server_id for s in servers
-        ) or server_id in source_server_ids
+        server_exists = any(s.get("sourceServerId") == server_id for s in servers) or server_id in source_server_ids
 
         if not server_exists:
             return {
@@ -3786,9 +3829,7 @@ def get_drs_capacity_conflicts_direct(event: Dict) -> Dict:
 
         # Handle pagination
         while "LastEvaluatedKey" in accounts_response:
-            accounts_response = target_accounts_table.scan(
-                ExclusiveStartKey=accounts_response["LastEvaluatedKey"]
-            )
+            accounts_response = target_accounts_table.scan(ExclusiveStartKey=accounts_response["LastEvaluatedKey"])
             accounts.extend(accounts_response.get("Items", []))
 
         # Analyze capacity for each account
@@ -3802,9 +3843,7 @@ def get_drs_capacity_conflicts_direct(event: Dict) -> Dict:
                 # Get account capacity across all regions
                 account_context = {
                     "accountId": account_id,
-                    "assumeRoleName": (
-                        account.get("roleArn", "").split("/")[-1] if account.get("roleArn") else None
-                    ),
+                    "assumeRoleName": (account.get("roleArn", "").split("/")[-1] if account.get("roleArn") else None),
                     "externalId": account.get("externalId"),
                     "isCurrentAccount": False,
                 }
@@ -3954,11 +3993,14 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
 
         # Validate required fields
         if not account_id:
-            return response(400, error_response(
-                ERROR_MISSING_PARAMETER,
-                "accountId parameter is required",
-                details={"parameter": "accountId", "valid": False}
-            ))
+            return response(
+                400,
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "accountId parameter is required",
+                    details={"parameter": "accountId", "valid": False},
+                ),
+            )
 
         # Construct roleArn if not provided
         if not role_arn:
@@ -3968,26 +4010,39 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
             print(f"Using provided role ARN for validation: {role_arn}")
 
         if not external_id:
-            return response(400, error_response(
-                ERROR_MISSING_PARAMETER,
-                "externalId parameter is required",
-                details={"parameter": "externalId", "valid": False}
-            ))
+            return response(
+                400,
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "externalId parameter is required",
+                    details={"parameter": "externalId", "valid": False},
+                ),
+            )
 
         if not region:
-            return response(400, error_response(
-                ERROR_MISSING_PARAMETER,
-                "region parameter is required",
-                details={"parameter": "region", "valid": False}
-            ))
+            return response(
+                400,
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "region parameter is required",
+                    details={"parameter": "region", "valid": False},
+                ),
+            )
 
         # Validate account ID format (12 digits)
         if not account_id.isdigit() or len(account_id) != 12:
-            return response(400, error_response(
-                ERROR_INVALID_PARAMETER,
-                f"Invalid account ID format: {account_id}. Must be 12-digit string.",
-                details={"parameter": "accountId", "value": account_id, "valid": False}
-            ))
+            return response(
+                400,
+                error_response(
+                    ERROR_INVALID_PARAMETER,
+                    f"Invalid account ID format: {account_id}. Must be 12-digit string.",
+                    details={
+                        "parameter": "accountId",
+                        "value": account_id,
+                        "valid": False,
+                    },
+                ),
+            )
 
         # Step 1: Attempt to assume role in staging account
         print(f"Validating staging account {account_id} in region {region}")
@@ -4112,11 +4167,14 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
 
         traceback.print_exc()
 
-        return response(500, error_response(
-            ERROR_INTERNAL_ERROR,
-            "Internal error during staging account validation",
-            details={"error": str(e), "valid": False}
-        ))
+        return response(
+            500,
+            error_response(
+                ERROR_INTERNAL_ERROR,
+                "Internal error during staging account validation",
+                details={"error": str(e), "valid": False},
+            ),
+        )
 
 
 # ============================================================================
@@ -4564,11 +4622,7 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    print(
-        f"Querying capacity for {
-            len(staging_accounts) +
-            1} accounts in parallel"
-    )
+    print(f"Querying capacity for {len(staging_accounts) + 1} accounts in parallel")
 
     # Step 1: Query target account
     target_config = {
@@ -5582,10 +5636,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         # as empty list
         staging_accounts = target_account.get("stagingAccounts", [])
 
-        print(
-            f"Found {
-                len(staging_accounts)} staging accounts for target {target_account_id}"
-        )
+        print(f"Found {len(staging_accounts)} staging accounts for target {target_account_id}")
 
         # Step 4: Query all accounts in parallel (target + staging)
         account_results = query_all_accounts_parallel(target_account, staging_accounts)
@@ -5748,7 +5799,12 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
             # CRITICAL: Always check common DRS regions where jobs might be running
             # Jobs can exist even in regions with 0 current servers (e.g., after recovery)
-            common_drs_regions = {"us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"}
+            common_drs_regions = {
+                "us-east-1",
+                "us-west-2",
+                "eu-west-1",
+                "ap-southeast-1",
+            }
             regions_to_check = list(regions_with_servers.union(common_drs_regions))
 
             print(f"Checking jobs in regions: {regions_to_check} (servers in: {regions_with_servers})")
@@ -5846,7 +5902,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                 "maxAllowed": 100,
                 "availableSlots": 100 - max_servers_in_single_job,
                 "jobId": max_job_id,
-                "status": "OK" if max_servers_in_single_job < 90 else "WARNING",
+                "status": ("OK" if max_servers_in_single_job < 90 else "WARNING"),
                 "message": (
                     f"Largest active job has {max_servers_in_single_job} servers"
                     if max_servers_in_single_job > 0
@@ -6046,10 +6102,13 @@ def handle_get_all_accounts_capacity() -> Dict:
 
         # Step 1: Get all target accounts from DynamoDB
         if not target_accounts_table:
-            return response(500, error_response(
-                ERROR_DYNAMODB_ERROR,
-                "Target accounts table not configured"
-            ))
+            return response(
+                500,
+                error_response(
+                    ERROR_DYNAMODB_ERROR,
+                    "Target accounts table not configured",
+                ),
+            )
 
         try:
             scan_result = target_accounts_table.scan()
@@ -6089,11 +6148,14 @@ def handle_get_all_accounts_capacity() -> Dict:
             error_message = e.response["Error"]["Message"]
             print(f"DynamoDB error: {error_code} - {error_message}")
 
-            return response(500, error_response(
-                ERROR_DYNAMODB_ERROR,
-                "Failed to retrieve target accounts",
-                details={"awsError": error_code, "message": error_message}
-            ))
+            return response(
+                500,
+                error_response(
+                    ERROR_DYNAMODB_ERROR,
+                    "Failed to retrieve target accounts",
+                    details={"awsError": error_code, "message": error_message},
+                ),
+            )
 
         # Step 2: Query capacity for each target account
         all_accounts = []

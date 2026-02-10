@@ -161,8 +161,9 @@ class TestValidateStagingAccountEdgeCases:
 
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
-        assert body["valid"] is False
-        assert "accountId" in body["error"]
+        assert body["error"] == "MISSING_PARAMETER"
+        assert body["details"]["valid"] is False
+        assert "accountId" in body["message"]
 
     @mock_aws
     def test_validate_with_missing_role_arn(self):  # noqa: F811
@@ -197,8 +198,9 @@ class TestValidateStagingAccountEdgeCases:
 
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
-        assert body["valid"] is False
-        assert "externalId" in body["error"]
+        assert body["error"] == "MISSING_PARAMETER"
+        assert body["details"]["valid"] is False
+        assert "externalId" in body["message"]
 
     def test_validate_with_missing_region(self):  # noqa: F811
         """Test validation with missing region."""
@@ -213,8 +215,9 @@ class TestValidateStagingAccountEdgeCases:
 
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
-        assert body["valid"] is False
-        assert "region" in body["error"]
+        assert body["error"] == "MISSING_PARAMETER"
+        assert body["details"]["valid"] is False
+        assert "region" in body["message"]
 
     def test_validate_with_invalid_account_id_format(self):  # noqa: F811
         """Test validation with invalid account ID format."""
@@ -229,9 +232,10 @@ class TestValidateStagingAccountEdgeCases:
 
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
-        assert body["valid"] is False
-        assert "Invalid account ID format" in body["error"]
-        assert "12-digit" in body["error"]
+        assert body["error"] == "INVALID_PARAMETER"
+        assert body["details"]["valid"] is False
+        assert "Invalid account ID format" in body["message"]
+        assert "12-digit" in body["message"]
 
     def test_validate_with_non_numeric_account_id(self):  # noqa: F811
         """Test validation with non-numeric account ID."""
@@ -246,8 +250,9 @@ class TestValidateStagingAccountEdgeCases:
 
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
-        assert body["valid"] is False
-        assert "Invalid account ID format" in body["error"]
+        assert body["error"] == "INVALID_PARAMETER"
+        assert body["details"]["valid"] is False
+        assert "Invalid account ID format" in body["message"]
 
     @patch("index.boto3.client")
     def test_validate_with_access_denied(self, mock_boto3_client):  # noqa: F811
@@ -387,7 +392,8 @@ class TestValidateStagingAccountEdgeCases:
         # Should return 500 for unexpected errors
         assert result["statusCode"] == 500
         body = json.loads(result["body"])
-        assert body["valid"] is False
+        assert body["error"] == "INTERNAL_ERROR"
+        assert body["details"]["valid"] is False
         assert "error" in body
 
     @patch("index.boto3.client")

@@ -16,6 +16,7 @@ Test Coverage:
 - Edge case: Server in servers array with custom config
 """
 
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -32,18 +33,20 @@ os.environ["EXECUTION_HANDLER_ARN"] = (
     "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 )
 
-# Clear any existing index module to avoid conflicts
-if "index" in sys.modules:
-    del sys.modules["index"]
+# Import query-handler module
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda"))
+import importlib
+query_handler_index = importlib.import_module("query-handler.index")
 
-# Add lambda paths for imports - query-handler FIRST
-query_handler_dir = (
-    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
-)
-shared_dir = Path(__file__).parent.parent.parent / "lambda" / "shared"
 
-sys.path.insert(0, str(query_handler_dir))
-sys.path.insert(1, str(shared_dir))
+def get_lambda_handler():
+    """
+    Import and return the lambda_handler function from query-handler.
+    
+    This function uses importlib to dynamically load the handler module,
+    which is necessary because the module name contains hyphens.
+    """
+    return query_handler_index.lambda_handler
 
 
 @pytest.fixture
@@ -58,10 +61,9 @@ def lambda_context():
 
 
 @pytest.fixture
-def mock_dynamodb_table():
-    """Mock DynamoDB table"""
-    with patch("index.protection_groups_table") as mock_table:
-        yield mock_table
+def mock_protection_groups_table():
+    """Mock protection groups table"""
+    return MagicMock()
 
 
 @pytest.fixture
@@ -95,283 +97,332 @@ def sample_protection_group():
 
 
 def test_get_server_config_history_success(
-    lambda_context, mock_dynamodb_table, sample_protection_group
+    lambda_context, mock_protection_groups_table, sample_protection_group
 ):
     """Test successful retrieval of server config history"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        # Mock DynamoDB to return protection group
+        mock_protection_groups_table.get_item.return_value = {"Item": sample_protection_group}
 
-    # Mock DynamoDB to return protection group
-    mock_dynamodb_table.get_item.return_value = {"Item": sample_protection_group}
+        event = {
+            "operation": "get_server_config_history",
+            "groupId": "pg-abc123",
+            "serverId": "s-1234567890abcdef0",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "groupId": "pg-abc123",
-        "serverId": "s-1234567890abcdef0",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
+        # Assert
+        assert "error" not in result
+        assert result["serverId"] == "s-1234567890abcdef0"
+        assert result["groupId"] == "pg-abc123"
+        assert "history" in result
+        assert isinstance(result["history"], list)
+        assert len(result["history"]) == 0  # Empty until feature implemented
+        assert "note" in result
+        assert "not yet implemented" in result["note"]
 
-    # Assert
-    assert "error" not in result
-    assert result["serverId"] == "s-1234567890abcdef0"
-    assert result["groupId"] == "pg-abc123"
-    assert "history" in result
-    assert isinstance(result["history"], list)
-    assert len(result["history"]) == 0  # Empty until feature implemented
-    assert "note" in result
-    assert "not yet implemented" in result["note"]
-
-    # Verify DynamoDB was called correctly
-    mock_dynamodb_table.get_item.assert_called_once_with(
-        Key={"groupId": "pg-abc123"}
-    )
+        # Verify DynamoDB was called correctly
+        mock_protection_groups_table.get_item.assert_called_once_with(
+            Key={"groupId": "pg-abc123"}
+        )
 
 
 def test_get_server_config_history_missing_group_id(
-    lambda_context, mock_dynamodb_table
+    lambda_context, mock_protection_groups_table
 ):
     """Test error when groupId is missing"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        
+        event = {
+            "operation": "get_server_config_history",
+            "serverId": "s-1234567890abcdef0",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "serverId": "s-1234567890abcdef0",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
+        # Assert
+        assert result["error"] == "MISSING_PARAMETER"
+        assert "groupId and serverId are required" in result["message"]
 
-    # Assert
-    assert result["error"] == "MISSING_PARAMETER"
-    assert "groupId and serverId are required" in result["message"]
-
-    # Verify DynamoDB was not called
-    mock_dynamodb_table.get_item.assert_not_called()
+        # Verify DynamoDB was not called
+        mock_protection_groups_table.get_item.assert_not_called()
 
 
 def test_get_server_config_history_missing_server_id(
-    lambda_context, mock_dynamodb_table
+    lambda_context, mock_protection_groups_table
 ):
     """Test error when serverId is missing"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        
+        event = {
+            "operation": "get_server_config_history",
+            "groupId": "pg-abc123",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "groupId": "pg-abc123",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
+        # Assert
+        assert result["error"] == "MISSING_PARAMETER"
+        assert "groupId and serverId are required" in result["message"]
 
-    # Assert
-    assert result["error"] == "MISSING_PARAMETER"
-    assert "groupId and serverId are required" in result["message"]
-
-    # Verify DynamoDB was not called
-    mock_dynamodb_table.get_item.assert_not_called()
+        # Verify DynamoDB was not called
+        mock_protection_groups_table.get_item.assert_not_called()
 
 
 def test_get_server_config_history_missing_both_parameters(
-    lambda_context, mock_dynamodb_table
+    lambda_context, mock_protection_groups_table
 ):
     """Test error when both parameters are missing"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        
+        event = {
+            "operation": "get_server_config_history",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
+        # Assert
+        assert result["error"] == "MISSING_PARAMETER"
+        assert "groupId and serverId are required" in result["message"]
 
-    # Assert
-    assert result["error"] == "MISSING_PARAMETER"
-    assert "groupId and serverId are required" in result["message"]
-
-    # Verify DynamoDB was not called
-    mock_dynamodb_table.get_item.assert_not_called()
+        # Verify DynamoDB was not called
+        mock_protection_groups_table.get_item.assert_not_called()
 
 
 def test_get_server_config_history_group_not_found(
-    lambda_context, mock_dynamodb_table
+    lambda_context, mock_protection_groups_table
 ):
     """Test error when protection group is not found"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        # Mock DynamoDB to return no item
+        mock_protection_groups_table.get_item.return_value = {}
 
-    # Mock DynamoDB to return no item
-    mock_dynamodb_table.get_item.return_value = {}
+        event = {
+            "operation": "get_server_config_history",
+            "groupId": "pg-nonexistent",
+            "serverId": "s-1234567890abcdef0",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "groupId": "pg-nonexistent",
-        "serverId": "s-1234567890abcdef0",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
+        # Assert
+        assert result["error"] == "NOT_FOUND"
+        assert "Protection group pg-nonexistent not found" in result["message"]
 
-    # Assert
-    assert result["error"] == "NOT_FOUND"
-    assert "Protection group pg-nonexistent not found" in result["message"]
-
-    # Verify DynamoDB was called
-    mock_dynamodb_table.get_item.assert_called_once_with(
-        Key={"groupId": "pg-nonexistent"}
-    )
+        # Verify DynamoDB was called
+        mock_protection_groups_table.get_item.assert_called_once_with(
+            Key={"groupId": "pg-nonexistent"}
+        )
 
 
 def test_get_server_config_history_server_not_found(
-    lambda_context, mock_dynamodb_table, sample_protection_group
+    lambda_context, mock_protection_groups_table, sample_protection_group
 ):
     """Test error when server is not found in protection group"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        # Mock DynamoDB to return protection group
+        mock_protection_groups_table.get_item.return_value = {"Item": sample_protection_group}
 
-    # Mock DynamoDB to return protection group
-    mock_dynamodb_table.get_item.return_value = {"Item": sample_protection_group}
+        event = {
+            "operation": "get_server_config_history",
+            "groupId": "pg-abc123",
+            "serverId": "s-nonexistent",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "groupId": "pg-abc123",
-        "serverId": "s-nonexistent",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
-
-    # Assert
-    assert result["error"] == "NOT_FOUND"
-    assert (
-        "Server s-nonexistent not found in protection group pg-abc123"
-        in result["message"]
-    )
+        # Assert
+        assert result["error"] == "NOT_FOUND"
+        assert (
+            "Server s-nonexistent not found in protection group pg-abc123"
+            in result["message"]
+        )
 
 
 def test_get_server_config_history_server_in_source_server_ids_only(
-    lambda_context, mock_dynamodb_table
+    lambda_context, mock_protection_groups_table
 ):
     """Test success when server is in sourceServerIds but not in servers array"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        # Protection group with server in sourceServerIds only
+        protection_group = {
+            "groupId": "pg-abc123",
+            "name": "Test Protection Group",
+            "sourceServerIds": [
+                "s-1234567890abcdef0",
+                "s-1234567890abcdef1",
+            ],
+            "servers": [],  # Empty servers array
+            "launchConfig": {
+                "instanceType": "t3.small",
+            },
+        }
 
-    # Protection group with server in sourceServerIds only
-    protection_group = {
-        "groupId": "pg-abc123",
-        "name": "Test Protection Group",
-        "sourceServerIds": [
-            "s-1234567890abcdef0",
-            "s-1234567890abcdef1",
-        ],
-        "servers": [],  # Empty servers array
-        "launchConfig": {
-            "instanceType": "t3.small",
-        },
-    }
+        mock_protection_groups_table.get_item.return_value = {"Item": protection_group}
 
-    mock_dynamodb_table.get_item.return_value = {"Item": protection_group}
+        event = {
+            "operation": "get_server_config_history",
+            "groupId": "pg-abc123",
+            "serverId": "s-1234567890abcdef1",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "groupId": "pg-abc123",
-        "serverId": "s-1234567890abcdef1",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
-
-    # Assert
-    assert "error" not in result
-    assert result["serverId"] == "s-1234567890abcdef1"
-    assert result["groupId"] == "pg-abc123"
-    assert "history" in result
-    assert isinstance(result["history"], list)
+        # Assert
+        assert "error" not in result
+        assert result["serverId"] == "s-1234567890abcdef1"
+        assert result["groupId"] == "pg-abc123"
+        assert "history" in result
+        assert isinstance(result["history"], list)
 
 
 def test_get_server_config_history_server_with_custom_config(
-    lambda_context, mock_dynamodb_table, sample_protection_group
+    lambda_context, mock_protection_groups_table, sample_protection_group
 ):
     """Test success when server has custom configuration"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        # Mock DynamoDB to return protection group
+        mock_protection_groups_table.get_item.return_value = {"Item": sample_protection_group}
 
-    # Mock DynamoDB to return protection group
-    mock_dynamodb_table.get_item.return_value = {"Item": sample_protection_group}
+        event = {
+            "operation": "get_server_config_history",
+            "groupId": "pg-abc123",
+            "serverId": "s-1234567890abcdef0",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "groupId": "pg-abc123",
-        "serverId": "s-1234567890abcdef0",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
-
-    # Assert
-    assert "error" not in result
-    assert result["serverId"] == "s-1234567890abcdef0"
-    assert result["groupId"] == "pg-abc123"
-    assert "history" in result
+        # Assert
+        assert "error" not in result
+        assert result["serverId"] == "s-1234567890abcdef0"
+        assert result["groupId"] == "pg-abc123"
+        assert "history" in result
 
 
 def test_get_server_config_history_empty_group_id(
-    lambda_context, mock_dynamodb_table
+    lambda_context, mock_protection_groups_table
 ):
     """Test error when groupId is empty string"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        
+        event = {
+            "operation": "get_server_config_history",
+            "groupId": "",
+            "serverId": "s-1234567890abcdef0",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "groupId": "",
-        "serverId": "s-1234567890abcdef0",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
-
-    # Assert
-    assert result["error"] == "MISSING_PARAMETER"
-    assert "groupId and serverId are required" in result["message"]
+        # Assert
+        assert result["error"] == "MISSING_PARAMETER"
+        assert "groupId and serverId are required" in result["message"]
 
 
 def test_get_server_config_history_empty_server_id(
-    lambda_context, mock_dynamodb_table
+    lambda_context, mock_protection_groups_table
 ):
     """Test error when serverId is empty string"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        
+        event = {
+            "operation": "get_server_config_history",
+            "groupId": "pg-abc123",
+            "serverId": "",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "groupId": "pg-abc123",
-        "serverId": "",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
-
-    # Assert
-    assert result["error"] == "MISSING_PARAMETER"
-    assert "groupId and serverId are required" in result["message"]
+        # Assert
+        assert result["error"] == "MISSING_PARAMETER"
+        assert "groupId and serverId are required" in result["message"]
 
 
 def test_get_server_config_history_dynamodb_exception(
-    lambda_context, mock_dynamodb_table
+    lambda_context, mock_protection_groups_table
 ):
     """Test error handling when DynamoDB raises exception"""
-    from index import lambda_handler
+    lambda_handler = get_lambda_handler()
+    
+    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
+         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+        
+        mock_validate.return_value = True
+        # Mock DynamoDB to raise exception
+        mock_protection_groups_table.get_item.side_effect = Exception(
+            "DynamoDB connection error"
+        )
 
-    # Mock DynamoDB to raise exception
-    mock_dynamodb_table.get_item.side_effect = Exception(
-        "DynamoDB connection error"
-    )
+        event = {
+            "operation": "get_server_config_history",
+            "groupId": "pg-abc123",
+            "serverId": "s-1234567890abcdef0",
+        }
 
-    event = {
-        "operation": "get_server_config_history",
-        "groupId": "pg-abc123",
-        "serverId": "s-1234567890abcdef0",
-    }
+        # Act
+        result = lambda_handler(event, lambda_context)
 
-    # Act
-    result = lambda_handler(event, lambda_context)
-
-    # Assert
-    assert result["error"] == "INTERNAL_ERROR"
-    assert "Failed to get server configuration history" in result["message"]
-    assert "DynamoDB connection error" in result["message"]
+        # Assert
+        assert result["error"] == "INTERNAL_ERROR"
+        assert "Failed to get server configuration history" in result["message"]
+        assert "DynamoDB connection error" in result["message"]
