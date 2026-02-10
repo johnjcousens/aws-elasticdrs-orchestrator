@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.0.0] - 2026-02-10 - Direct Lambda Invocation Mode
+
+### Added
+
+**BREAKING CHANGE**: Lambda handlers now support direct invocation without API Gateway
+
+This major release enables direct Lambda invocation for AWS-native automation while maintaining backward compatibility with API Gateway. All three Lambda handlers now support dual invocation modes.
+
+#### Core Lambda Handler Enhancements
+- **Query Handler**: Direct invocation support for 18 read-only operations
+- **Data Management Handler**: Direct invocation support for 18 CRUD operations
+- **Execution Handler**: Direct invocation support for 8 execution control operations
+- **Dual Invocation Mode**: All handlers support both API Gateway and direct Lambda invocation
+- **Enhanced Response Formatting**: Unified response_utils.py with mode detection
+
+#### Comprehensive API Documentation (Phase 10)
+- **Query Handler API Reference**: Complete documentation for 18 operations (`docs/api-reference/QUERY_HANDLER_API.md`)
+- **Data Management Handler API Reference**: Complete documentation for 18 operations (`docs/api-reference/DATA_MANAGEMENT_HANDLER_API.md`)
+- **Execution Handler API Reference**: Complete documentation for 8 operations (`docs/api-reference/EXECUTION_HANDLER_API.md`)
+- **IAM Policy Documentation**: Orchestration role specification (`docs/iam/ORCHESTRATION_ROLE_POLICY.md`)
+- **Error Codes Reference**: 13 error codes with troubleshooting (`docs/troubleshooting/ERROR_CODES.md`)
+- **Migration Guide**: Comprehensive guide with cost analysis (`docs/guides/MIGRATION_GUIDE.md`)
+
+#### Integration Examples (Phase 14)
+- **Python Example**: Complete DR workflow automation script (`examples/python/complete_dr_workflow.py`)
+- **Bash Example**: CI/CD pipeline integration script (`examples/bash/dr_ci_pipeline.sh`)
+- **AWS CDK Example**: Complete CDK stack with TypeScript (`examples/cdk/`)
+  - DynamoDB integration patterns (`examples/cdk/docs/DYNAMODB_INTEGRATION.md`)
+  - Step Functions integration patterns (`examples/cdk/docs/STEPFUNCTIONS_INTEGRATION.md`)
+  - IAM role integration guide - 1600+ lines (`examples/cdk/docs/IAM_ROLE_INTEGRATION.md`)
+- **Step Functions Example**: Lambda invocation patterns (`examples/stepfunctions/`)
+  - Complete state machine definition (`lambda-invocation-example.json`)
+  - Comprehensive documentation (`README.md`)
+- **EventBridge Example**: Event-driven Lambda invocation (`examples/eventbridge/`)
+  - 8 EventBridge rule definitions (`lambda-invocation-example.json`)
+  - 15-section comprehensive documentation (`README.md`)
+
+#### Comprehensive Test Coverage (Phases 11-13)
+- **Unit Tests**: Response formatting, error handling, property-based tests
+  - `test_response_utils.py` - Response formatting tests
+  - `test_*_response_format.py` - Handler-specific format tests
+  - `test_error_handling_*.py` - Error handling tests
+  - `test_*_operations_property.py` - Property-based tests
+- **Integration Tests**: End-to-end handler testing
+  - `test_query_handler_integration.py`
+  - `test_data_management_handler_integration.py`
+  - `test_execution_handler_integration.py`
+  - `test_step_functions_integration.py`
+  - `test_eventbridge_integration.py`
+  - `test_api_gateway_compatibility.py`
+  - `test_cross_account_operations.py`
+  - `test_iam_authorization.py`
+  - `test_audit_logging.py`
+  - `test_error_handling.py`
+
+### Changed
+- **CloudFormation Templates**: Enhanced IAM permissions for direct invocation
+- **Lambda Stack**: Updated with deployment flexibility parameters
+- **Master Template**: Added support for external IAM role integration
+
+### Benefits
+
+#### Cost Reduction
+- **60% Lower Operational Cost**: $8-30/month (API-Only) vs $12-40/month (Full Stack)
+- **No API Gateway Charges**: Eliminates request charges for automation workloads
+- **Pay-Per-Use**: Only Lambda invocation costs for direct invocation
+
+#### Simplified Architecture
+- **Direct Lambda Invocation**: AWS-native automation without API Gateway
+- **Native AWS Authentication**: IAM roles instead of Cognito tokens
+- **Ideal for Automation**: CLI/SDK, Step Functions, EventBridge integration
+
+#### Backward Compatibility
+- **Existing Endpoints Work**: All API Gateway endpoints continue to function
+- **No Breaking Changes**: Frontend and existing integrations unaffected
+- **Dual Mode Support**: Choose invocation method per use case
+
+### Documentation
+- Complete API reference for all 44 operations across 3 handlers
+- Migration guide with cost analysis and step-by-step procedures
+- Integration examples for 5 AWS service patterns
+- IAM policy documentation with complete role specification
+- Error codes reference with troubleshooting guidance
+
+---
+
 ## [Unreleased] - 2026-02-06 - Security Enhancements & Deployment Improvements
 
 ### Added
