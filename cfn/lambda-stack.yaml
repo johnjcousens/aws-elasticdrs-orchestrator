@@ -262,6 +262,44 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # ===========================================================================
+  # LAMBDA RESOURCE-BASED POLICIES FOR DIRECT INVOCATION
+  # ===========================================================================
+  # Grant OrchestrationRole permission to invoke Lambda functions directly
+  # Enables direct invocation mode without API Gateway
+  # Required for: Requirements 7.6, 11.1, 11.2, 11.3
+  
+  # Permission for OrchestrationRole to invoke Query Handler
+  QueryHandlerDirectInvocationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref QueryHandlerFunction
+      Action: lambda:InvokeFunction
+      Principal: !Ref AWS::AccountId
+      SourceArn: !Ref OrchestrationRoleArn
+
+  # Permission for OrchestrationRole to invoke Execution Handler
+  ExecutionHandlerDirectInvocationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ExecutionHandlerFunction
+      Action: lambda:InvokeFunction
+      Principal: !Ref AWS::AccountId
+      SourceArn: !Ref OrchestrationRoleArn
+
+  # Permission for OrchestrationRole to invoke Data Management Handler
+  DataManagementHandlerDirectInvocationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DataManagementHandlerFunction
+      Action: lambda:InvokeFunction
+      Principal: !Ref AWS::AccountId
+      SourceArn: !Ref OrchestrationRoleArn
+
+  # ===========================================================================
+  # EVENTBRIDGE SCHEDULED INVOCATIONS
+  # ===========================================================================
+  
   # EventBridge schedule for execution polling
   # Triggers execution-handler to find and poll active executions every 1 minute
   ExecutionFinderScheduleRule:

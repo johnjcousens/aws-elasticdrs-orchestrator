@@ -1,0 +1,34 @@
+{
+  "name": "aws-drs-orchestration-cdk-example",
+  "version": "1.0.0",
+  "description": "AWS CDK example for deploying AWS DRS Orchestration Platform in headless mode",
+  "main": "lib/dr-orchestration-stack.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy",
+    "synth": "cdk synth",
+    "diff": "cdk diff"
+  },
+  "keywords": [
+    "aws",
+    "cdk",
+    "disaster-recovery",
+    "drs",
+    "orchestration",
+    "infrastructure-as-code"
+  ],
+  "author": "AWS DRS Orchestration Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "aws-cdk": "^2.100.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.100.0",
+    "constructs": "^10.0.0"
+  }
+}

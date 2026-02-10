@@ -24,6 +24,12 @@ Metadata:
           - Environment
           - SourceBucket
       - Label:
+          default: 'Deployment Configuration'
+        Parameters:
+          - DeployApiGateway
+          - DeployFrontend
+          - EnableTagSync
+      - Label:
           default: 'Authentication Configuration'
         Parameters:
           - AdminEmail
@@ -101,9 +107,23 @@ Parameters:
       - 'false'
     Description: 'Enable scheduled DRS tag synchronization every 1 hour'
 
+  DeployApiGateway:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: >-
+      Set to 'false' to skip API Gateway, Cognito, and frontend deployment.
+      Use 'false' for headless mode with direct Lambda invocation via AWS SDK/CLI.
+      Use 'true' for full deployment with web UI and API Gateway.
+
 Conditions:
   CreateOrchestrationRole: !Equals [!Ref OrchestrationRoleArn, '']
-  DeployFrontendCondition: !Equals [!Ref DeployFrontend, 'true']
+  DeployApiGatewayCondition: !Equals [!Ref DeployApiGateway, 'true']
+  DeployFrontendAndApiGatewayCondition: !And
+    - !Equals [!Ref DeployApiGateway, 'true']
+    - !Equals [!Ref DeployFrontend, 'true']
   EnableNotificationsCondition: !Equals [!Ref EnableNotifications, 'true']
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
 
@@ -398,6 +418,7 @@ Resources:
                 Resource: "*"
         
         # Policy 12: Lambda Invoke Access (from ApiHandler, ExecutionFinder)
+        # Supports direct Lambda invocation mode for headless operation
         - PolicyName: LambdaInvokeAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -406,7 +427,12 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource:
-                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-*"
+                  - !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
+                  - !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
+                  - !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
+                  - !GetAtt LambdaStack.Outputs.DrOrchestrationStepFunctionArn
+                  - !GetAtt LambdaStack.Outputs.FrontendDeployerFunctionArn
+                  - !GetAtt LambdaStack.Outputs.NotificationFormatterFunctionArn
         
         # Policy 13: EventBridge Access (from ApiHandler)
         - PolicyName: EventBridgeAccess
@@ -619,6 +645,7 @@ Resources:
   # Cognito user pool and authorizer for API Gateway authentication
   ApiAuthStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployApiGatewayCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
@@ -660,6 +687,7 @@ Resources:
   # Provides base API Gateway infrastructure for all endpoint methods
   ApiGatewayCoreStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployApiGatewayCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
@@ -685,6 +713,7 @@ Resources:
   # Creates URL structure for health, users, protection groups, recovery plans, executions, DRS operations, and infrastructure endpoints
   ApiGatewayResourcesStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployApiGatewayCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
@@ -707,6 +736,7 @@ Resources:
   # Connects API Gateway resources to Lambda handler with Cognito authorization and request validation
   ApiGatewayCoreMethodsStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployApiGatewayCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
@@ -746,6 +776,7 @@ Resources:
   # Provides DRS-specific failover and failback endpoints for recovery instance management
   ApiGatewayOperationsMethodsStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployApiGatewayCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
@@ -797,6 +828,7 @@ Resources:
   # Provides comprehensive DRS infrastructure endpoints for replication, launch configuration, source networks, and recovery snapshots
   ApiGatewayInfrastructureMethodsStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployApiGatewayCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
@@ -876,6 +908,7 @@ Resources:
   # Depends on all method stacks to ensure complete API definition before deployment
   ApiGatewayDeploymentStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployApiGatewayCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
@@ -933,7 +966,7 @@ Resources:
   # Must be deployed in us-east-1 for CloudFront association
   WAFStack:
     Type: AWS::CloudFormation::Stack
-    Condition: DeployFrontendCondition
+    Condition: DeployFrontendAndApiGatewayCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
@@ -953,7 +986,7 @@ Resources:
   # 60-minute timeout accommodates frontend build, S3 sync, and CloudFront invalidation
   FrontendStack:
     Type: AWS::CloudFormation::Stack
-    Condition: DeployFrontendCondition
+    Condition: DeployFrontendAndApiGatewayCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
@@ -1057,30 +1090,35 @@ Outputs:
 
   # API Stack Outputs
   UserPoolId:
+    Condition: DeployApiGatewayCondition
     Description: 'Cognito User Pool ID'
     Value: !GetAtt ApiAuthStack.Outputs.UserPoolId
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolId'
 
   UserPoolClientId:
+    Condition: DeployApiGatewayCondition
     Description: 'Cognito User Pool Client ID'
     Value: !GetAtt ApiAuthStack.Outputs.UserPoolClientId
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolClientId'
 
   IdentityPoolId:
+    Condition: DeployApiGatewayCondition
     Description: 'Cognito Identity Pool ID'
     Value: !GetAtt ApiAuthStack.Outputs.IdentityPoolId
     Export:
       Name: !Sub '${AWS::StackName}-IdentityPoolId'
 
   ApiEndpoint:
+    Condition: DeployApiGatewayCondition
     Description: 'API Gateway endpoint URL'
     Value: !GetAtt ApiGatewayDeploymentStack.Outputs.ApiEndpoint
     Export:
       Name: !Sub '${AWS::StackName}-ApiEndpoint'
 
   ApiId:
+    Condition: DeployApiGatewayCondition
     Description: 'API Gateway ID'
     Value: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
     Export:
@@ -1116,21 +1154,21 @@ Outputs:
 
   # Frontend Stack Outputs
   CloudFrontUrl:
-    Condition: DeployFrontendCondition
+    Condition: DeployFrontendAndApiGatewayCondition
     Description: 'CloudFront Distribution URL'
     Value: !GetAtt FrontendStack.Outputs.CloudFrontUrl
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontUrl'
 
   CloudFrontDistributionId:
-    Condition: DeployFrontendCondition
+    Condition: DeployFrontendAndApiGatewayCondition
     Description: 'CloudFront Distribution ID'
     Value: !GetAtt FrontendStack.Outputs.CloudFrontDistributionId
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
 
   FrontendBucketName:
-    Condition: DeployFrontendCondition
+    Condition: DeployFrontendAndApiGatewayCondition
     Description: 'S3 bucket for frontend hosting'
     Value: !GetAtt FrontendStack.Outputs.FrontendBucketName
     Export:

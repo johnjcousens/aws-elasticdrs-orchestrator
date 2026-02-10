@@ -1,0 +1,134 @@
+{
+  "Comment": "EventBridge rules for invoking DR Orchestration Lambda functions",
+  "Rules": [
+    {
+      "Name": "DROrchestration-DailyTagSync",
+      "Description": "Daily DRS tag synchronization at 2 AM UTC",
+      "ScheduleExpression": "cron(0 2 * * ? *)",
+      "State": "ENABLED",
+      "Targets": [
+        {
+          "Id": "DataManagementHandler",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test",
+          "Input": "{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}"
+        }
+      ]
+    },
+    {
+      "Name": "DROrchestration-HourlyExecutionPolling",
+      "Description": "Hourly execution status polling",
+      "ScheduleExpression": "cron(0 * * * ? *)",
+      "State": "ENABLED",
+      "Targets": [
+        {
+          "Id": "ExecutionHandler",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+          "Input": "{\"source\":\"aws.events\",\"operation\":\"poll_executions\"}"
+        }
+      ]
+    },
+    {
+      "Name": "DROrchestration-WeeklyComplianceCheck",
+      "Description": "Weekly compliance check every Sunday at 3 AM UTC",
+      "ScheduleExpression": "cron(0 3 ? * SUN *)",
+      "State": "ENABLED",
+      "Targets": [
+        {
+          "Id": "QueryHandler",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-query-handler-test",
+          "Input": "{\"source\":\"aws.events\",\"operation\":\"get_drs_capacity_conflicts\"}"
+        }
+      ]
+    },
+    {
+      "Name": "DROrchestration-Every5MinutesExecutionMonitoring",
+      "Description": "Monitor execution status every 5 minutes",
+      "ScheduleExpression": "rate(5 minutes)",
+      "State": "ENABLED",
+      "Targets": [
+        {
+          "Id": "ExecutionHandler",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+          "Input": "{\"source\":\"aws.events\",\"operation\":\"check_execution_status\"}"
+        }
+      ]
+    },
+    {
+      "Name": "DROrchestration-HourlyTagSyncRate",
+      "Description": "Tag synchronization every 1 hour using rate expression",
+      "ScheduleExpression": "rate(1 hour)",
+      "State": "ENABLED",
+      "Targets": [
+        {
+          "Id": "DataManagementHandler",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test",
+          "Input": "{\"source\":\"aws.events\",\"operation\":\"trigger_tag_sync\"}"
+        }
+      ]
+    },
+    {
+      "Name": "DROrchestration-DRSSourceServerStateChange",
+      "Description": "Trigger on DRS source server state changes",
+      "EventPattern": {
+        "source": ["aws.drs"],
+        "detail-type": ["DRS Source Server State Change"],
+        "detail": {
+          "state": ["DISCONNECTED", "STOPPED"]
+        }
+      },
+      "State": "ENABLED",
+      "Targets": [
+        {
+          "Id": "DataManagementHandler",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test",
+          "Input": "{\"source\":\"aws.events\",\"operation\":\"log_event\",\"eventType\":\"DRS_SERVER_STATE_CHANGE\"}"
+        }
+      ]
+    },
+    {
+      "Name": "DROrchestration-EC2InstanceStateChange",
+      "Description": "Trigger on EC2 instance state changes for recovery instances",
+      "EventPattern": {
+        "source": ["aws.ec2"],
+        "detail-type": ["EC2 Instance State-change Notification"],
+        "detail": {
+          "state": ["running", "stopped", "terminated"]
+        }
+      },
+      "State": "ENABLED",
+      "Targets": [
+        {
+          "Id": "ExecutionHandler",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+          "Input": "{\"source\":\"aws.events\",\"operation\":\"handle_instance_state_change\"}"
+        }
+      ]
+    },
+    {
+      "Name": "DROrchestration-CustomApplicationEvent",
+      "Description": "Trigger on custom application events",
+      "EventPattern": {
+        "source": ["custom.dr-orchestration"],
+        "detail-type": ["Recovery Plan Execution Requested"],
+        "detail": {
+          "executionType": ["DRILL", "RECOVERY"]
+        }
+      },
+      "State": "ENABLED",
+      "Targets": [
+        {
+          "Id": "ExecutionHandler",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+          "InputTransformer": {
+            "InputPathsMap": {
+              "planId": "$.detail.planId",
+              "executionType": "$.detail.executionType",
+              "dryRun": "$.detail.dryRun"
+            },
+            "InputTemplate": "{\"source\":\"aws.events\",\"operation\":\"start_execution\",\"planId\":<planId>,\"executionType\":<executionType>,\"dryRun\":<dryRun>}"
+          }
+        }
+      ]
+    }
+  ]
+}
