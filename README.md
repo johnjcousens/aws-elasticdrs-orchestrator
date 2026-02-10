@@ -3,7 +3,7 @@
 Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, dependency management, and automated health checks.
 
 [![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
-[![Version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.0.0-blue)](CHANGELOG.md)
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019.1.1-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
@@ -646,6 +646,112 @@ The CloudFormation templates include automatic safety checks:
 - **Encryption**: All data encrypted at rest and in transit
 - **IAM Policies**: Least-privilege access controls
 - **Resource Tagging**: Consistent tagging for cost allocation and governance
+
+## Documentation
+
+### API Reference
+
+Complete API documentation for all Lambda handlers with direct invocation support:
+
+- **[Query Handler API](docs/api-reference/QUERY_HANDLER_API.md)** - 18 read-only operations
+  - List protection groups, recovery plans, executions
+  - Get DRS source servers, jobs, recovery instances
+  - Discover staging accounts and extended source servers
+  - Query execution history and audit logs
+
+- **[Data Management Handler API](docs/api-reference/DATA_MANAGEMENT_HANDLER_API.md)** - 18 CRUD operations
+  - Create, update, delete protection groups
+  - Create, update, delete recovery plans
+  - Manage target accounts and staging accounts
+  - Configure launch templates and per-server settings
+
+- **[Execution Handler API](docs/api-reference/EXECUTION_HANDLER_API.md)** - 8 execution control operations
+  - Start recovery executions
+  - Resume, cancel, terminate executions
+  - Get execution status and details
+  - Manage execution lifecycle
+
+### IAM & Security
+
+- **[Orchestration Role Policy](docs/iam/ORCHESTRATION_ROLE_POLICY.md)** - Complete IAM policy specification
+  - 16 policy statements with detailed permissions
+  - DRS, EC2, Step Functions, DynamoDB, SNS, CloudWatch access
+  - Cross-account role assumption patterns
+  - External role integration guidance
+
+### Migration & Troubleshooting
+
+- **[Migration Guide](docs/guides/MIGRATION_GUIDE.md)** - Comprehensive migration procedures
+  - API Gateway to Direct Lambda invocation migration
+  - Cost analysis and comparison ($12-40/month vs $8-30/month)
+  - Step-by-step migration procedures
+  - Rollback procedures and testing strategies
+
+- **[Error Codes Reference](docs/troubleshooting/ERROR_CODES.md)** - 13 error codes with troubleshooting
+  - VALIDATION_ERROR, RESOURCE_NOT_FOUND, CONFLICT_ERROR
+  - DRS_SERVICE_ERROR, EXECUTION_ERROR, AUTHORIZATION_ERROR
+  - Detailed troubleshooting steps for each error type
+
+### Integration Examples
+
+Complete working examples for AWS service integration:
+
+#### Python & Bash Scripts
+- **[Python Example](examples/python/complete_dr_workflow.py)** - Complete DR workflow automation
+  - Create protection groups and recovery plans
+  - Start recovery execution with monitoring
+  - Error handling and retry logic
+  - IAM policy included
+
+- **[Bash Example](examples/bash/dr_ci_pipeline.sh)** - CI/CD pipeline integration
+  - Automated DR testing in CI/CD pipelines
+  - Pre-deployment validation
+  - Post-deployment verification
+  - Exit code handling for pipeline integration
+
+#### AWS CDK Examples
+- **[CDK Stack](examples/cdk/)** - Complete TypeScript CDK stack
+  - Lambda function definitions with direct invocation
+  - DynamoDB table integration
+  - Step Functions state machine
+  - IAM role configuration
+
+- **[DynamoDB Integration](examples/cdk/docs/DYNAMODB_INTEGRATION.md)** - DynamoDB patterns
+  - Table schema and GSI configuration
+  - Query and scan patterns
+  - Batch operations and transactions
+  - Error handling and retries
+
+- **[Step Functions Integration](examples/cdk/docs/STEPFUNCTIONS_INTEGRATION.md)** - State machine patterns
+  - Lambda invocation from Step Functions
+  - Error handling and retries
+  - Parallel execution patterns
+  - Wait states and callbacks
+
+- **[IAM Role Integration](examples/cdk/docs/IAM_ROLE_INTEGRATION.md)** - IAM configuration (1600+ lines)
+  - Complete role and policy definitions
+  - Cross-account access patterns
+  - Service-specific permissions
+  - Security best practices
+
+#### AWS Service Integration
+- **[Step Functions Example](examples/stepfunctions/)** - Lambda invocation patterns
+  - Complete state machine definition
+  - Task states with Lambda invocation
+  - Error handling and retries
+  - Parallel and sequential execution
+
+- **[EventBridge Example](examples/eventbridge/)** - Event-driven invocation
+  - 8 EventBridge rule definitions
+  - Scheduled invocation (cron, rate)
+  - Event pattern matching
+  - Target configuration with input transformation
+
+### Additional Guides
+
+- **[Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md)** - Deployment modes and configuration
+- **[Developer Guide](docs/guides/DEVELOPER_GUIDE.md)** - Local development setup and workflows
+- **[DRS Cross-Account Setup](docs/guides/DRS_CROSS_ACCOUNT_SETUP_VERIFICATION.md)** - Multi-account configuration
 
 ## Contributing
 
