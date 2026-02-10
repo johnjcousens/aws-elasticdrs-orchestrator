@@ -1,0 +1,330 @@
+{
+  "Comment": "DR Orchestration - Direct Lambda Invocation Example",
+  "StartAt": "InitializeExecution",
+  "States": {
+    "InitializeExecution": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Initialize recovery execution using Data Management Handler",
+      "Parameters": {
+        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "Payload": {
+          "operation": "initialize_execution",
+          "executionId.$": "$.executionId",
+          "planId.$": "$.planId",
+          "executionType.$": "$.executionType"
+        }
+      },
+      "ResultPath": "$.initResult",
+      "ResultSelector": {
+        "statusCode.$": "$.Payload.statusCode",
+        "body.$": "$.Payload.body"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleInitializationError"
+        }
+      ],
+      "Next": "GetRecoveryPlan"
+    },
+    "GetRecoveryPlan": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Retrieve recovery plan details using Query Handler",
+      "Parameters": {
+        "FunctionName": "aws-drs-orchestration-query-handler-test",
+        "Payload": {
+          "operation": "get_recovery_plan",
+          "planId.$": "$.planId"
+        }
+      },
+      "ResultPath": "$.planDetails",
+      "ResultSelector": {
+        "plan.$": "$.Payload"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandlePlanRetrievalError"
+        }
+      ],
+      "Next": "ProcessWaves"
+    },
+    "ProcessWaves": {
+      "Type": "Map",
+      "Comment": "Process each wave in the recovery plan sequentially",
+      "ItemsPath": "$.planDetails.plan.waves",
+      "MaxConcurrency": 1,
+      "ResultPath": "$.waveResults",
+      "Iterator": {
+        "StartAt": "StartWaveRecovery",
+        "States": {
+          "StartWaveRecovery": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Comment": "Start recovery for a specific wave using Execution Handler",
+            "Parameters": {
+              "FunctionName": "aws-drs-orchestration-execution-handler-test",
+              "Payload": {
+                "operation": "start_wave_recovery",
+                "executionId.$": "$.executionId",
+                "waveNumber.$": "$.waveNumber",
+                "servers.$": "$.servers"
+              }
+            },
+            "ResultPath": "$.waveStartResult",
+            "ResultSelector": {
+              "jobId.$": "$.Payload.jobId",
+              "status.$": "$.Payload.status"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 3,
+                "BackoffRate": 2
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "ResultPath": "$.error",
+                "Next": "WaveFailed"
+              }
+            ],
+            "Next": "WaitForWaveCompletion"
+          },
+          "WaitForWaveCompletion": {
+            "Type": "Wait",
+            "Comment": "Wait 30 seconds before checking wave status",
+            "Seconds": 30,
+            "Next": "CheckWaveStatus"
+          },
+          "CheckWaveStatus": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Comment": "Check wave recovery status using Query Handler",
+            "Parameters": {
+              "FunctionName": "aws-drs-orchestration-query-handler-test",
+              "Payload": {
+                "operation": "get_wave_status",
+                "executionId.$": "$.executionId",
+                "waveNumber.$": "$.waveNumber"
+              }
+            },
+            "ResultPath": "$.statusCheck",
+            "ResultSelector": {
+              "status.$": "$.Payload.status",
+              "progress.$": "$.Payload.progress",
+              "completedServers.$": "$.Payload.completedServers",
+              "failedServers.$": "$.Payload.failedServers"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 3,
+                "BackoffRate": 2
+              }
+            ],
+            "Next": "IsWaveComplete"
+          },
+          "IsWaveComplete": {
+            "Type": "Choice",
+            "Comment": "Check if wave recovery is complete",
+            "Choices": [
+              {
+                "Variable": "$.statusCheck.status",
+                "StringEquals": "COMPLETED",
+                "Next": "WaveSuccess"
+              },
+              {
+                "Variable": "$.statusCheck.status",
+                "StringEquals": "FAILED",
+                "Next": "WaveFailed"
+              }
+            ],
+            "Default": "WaitForWaveCompletion"
+          },
+          "WaveSuccess": {
+            "Type": "Pass",
+            "Comment": "Wave completed successfully",
+            "Result": {
+              "status": "SUCCESS"
+            },
+            "End": true
+          },
+          "WaveFailed": {
+            "Type": "Fail",
+            "Comment": "Wave recovery failed",
+            "Error": "WaveRecoveryFailed",
+            "Cause": "Wave recovery failed - check logs for details"
+          }
+        }
+      },
+      "Next": "GetRecoveryInstances"
+    },
+    "GetRecoveryInstances": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Retrieve recovery instance details using Execution Handler",
+      "Parameters": {
+        "FunctionName": "aws-drs-orchestration-execution-handler-test",
+        "Payload": {
+          "operation": "get_recovery_instances",
+          "executionId.$": "$.executionId"
+        }
+      },
+      "ResultPath": "$.recoveryInstances",
+      "ResultSelector": {
+        "instances.$": "$.Payload.instances",
+        "count.$": "$.Payload.count"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "FinalizeExecution"
+    },
+    "FinalizeExecution": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Finalize execution and update status using Data Management Handler",
+      "Parameters": {
+        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "Payload": {
+          "operation": "finalize_execution",
+          "executionId.$": "$.executionId",
+          "status": "COMPLETED",
+          "recoveryInstances.$": "$.recoveryInstances.instances"
+        }
+      },
+      "ResultPath": "$.finalizeResult",
+      "ResultSelector": {
+        "status.$": "$.Payload.status",
+        "completionTime.$": "$.Payload.completionTime"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleFinalizationError"
+        }
+      ],
+      "Next": "ExecutionSuccess"
+    },
+    "ExecutionSuccess": {
+      "Type": "Succeed",
+      "Comment": "Execution completed successfully"
+    },
+    "HandleInitializationError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Handle initialization error",
+      "Parameters": {
+        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "Payload": {
+          "operation": "log_error",
+          "executionId.$": "$.executionId",
+          "error.$": "$.error",
+          "stage": "INITIALIZATION"
+        }
+      },
+      "ResultPath": null,
+      "Next": "ExecutionFailed"
+    },
+    "HandlePlanRetrievalError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Handle plan retrieval error",
+      "Parameters": {
+        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "Payload": {
+          "operation": "log_error",
+          "executionId.$": "$.executionId",
+          "error.$": "$.error",
+          "stage": "PLAN_RETRIEVAL"
+        }
+      },
+      "ResultPath": null,
+      "Next": "ExecutionFailed"
+    },
+    "HandleFinalizationError": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Comment": "Handle finalization error",
+      "Parameters": {
+        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "Payload": {
+          "operation": "log_error",
+          "executionId.$": "$.executionId",
+          "error.$": "$.error",
+          "stage": "FINALIZATION"
+        }
+      },
+      "ResultPath": null,
+      "Next": "ExecutionFailed"
+    },
+    "ExecutionFailed": {
+      "Type": "Fail",
+      "Comment": "Execution failed",
+      "Error": "ExecutionFailed",
+      "Cause": "DR execution failed - check error logs for details"
+    }
+  }
+}

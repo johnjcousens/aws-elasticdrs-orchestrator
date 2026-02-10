@@ -135,7 +135,25 @@ from shared.drs_limits import (
     validate_wave_sizes,
 )
 from shared.execution_utils import can_terminate_execution
-from shared.response_utils import DecimalEncoder, response
+from shared.response_utils import (
+    DecimalEncoder,
+    response,
+    error_response,
+    success_response,
+    ERROR_INVALID_INVOCATION,
+    ERROR_INVALID_OPERATION,
+    ERROR_MISSING_PARAMETER,
+    ERROR_INVALID_PARAMETER,
+    ERROR_AUTHORIZATION_FAILED,
+    ERROR_NOT_FOUND,
+    ERROR_ALREADY_EXISTS,
+    ERROR_INVALID_STATE,
+    ERROR_DYNAMODB_ERROR,
+    ERROR_DRS_ERROR,
+    ERROR_STEP_FUNCTIONS_ERROR,
+    ERROR_STS_ERROR,
+    ERROR_INTERNAL_ERROR,
+)
 
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
@@ -403,32 +421,31 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         if "planId" not in body:
             return response(
                 400,
-                {
-                    "error": "MISSING_FIELD",
-                    "message": "planId is required - specify which Recovery Plan to execute",
-                    "field": "planId",
-                },
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "planId is required - specify which Recovery Plan to execute",
+                    details={"parameter": "planId"},
+                ),
             )
 
         if "executionType" not in body:
             return response(
                 400,
-                {
-                    "error": "MISSING_FIELD",
-                    "message": "executionType is required - must be DRILL or RECOVERY",
-                    "field": "executionType",
-                    "allowedValues": ["DRILL", "RECOVERY"],
-                },
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "executionType is required - must be DRILL or RECOVERY",
+                    details={"parameter": "executionType", "allowedValues": ["DRILL", "RECOVERY"]},
+                ),
             )
 
         if "initiatedBy" not in body:
             return response(
                 400,
-                {
-                    "error": "MISSING_FIELD",
-                    "message": "initiatedBy is required - identify who/what started this execution",
-                    "field": "initiatedBy",
-                },
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "initiatedBy is required - identify who/what started this execution",
+                    details={"parameter": "initiatedBy"},
+                ),
             )
 
         plan_id = body["planId"]
@@ -438,13 +455,15 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         if execution_type not in ["DRILL", "RECOVERY"]:
             return response(
                 400,
-                {
-                    "error": "INVALID_EXECUTION_TYPE",
-                    "message": f'executionType must be DRILL or RECOVERY, got: {body["executionType"]}',
-                    "field": "executionType",
-                    "providedValue": body["executionType"],
-                    "allowedValues": ["DRILL", "RECOVERY"],
-                },
+                error_response(
+                    ERROR_INVALID_PARAMETER,
+                    f'executionType must be DRILL or RECOVERY, got: {body["executionType"]}',
+                    details={
+                        "parameter": "executionType",
+                        "providedValue": body["executionType"],
+                        "allowedValues": ["DRILL", "RECOVERY"],
+                    },
+                ),
             )
 
         # Get Recovery Plan
@@ -452,11 +471,11 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         if "Item" not in plan_result:
             return response(
                 404,
-                {
-                    "error": "RECOVERY_PLAN_NOT_FOUND",
-                    "message": f"Recovery Plan with ID {plan_id} not found",
-                    "planId": plan_id,
-                },
+                error_response(
+                    ERROR_NOT_FOUND,
+                    f"Recovery Plan with ID {plan_id} not found",
+                    details={"planId": plan_id},
+                ),
             )
 
         plan = plan_result["Item"]
@@ -465,12 +484,11 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         if not plan.get("waves"):
             return response(
                 400,
-                {
-                    "error": "PLAN_HAS_NO_WAVES",
-                    "message": f'Recovery Plan "{plan.get("planName", plan_id)}" has no waves configured - add at least one wave before executing',  # noqa: E501
-                    "planId": plan_id,
-                    "planName": plan.get("planName"),
-                },
+                error_response(
+                    ERROR_INVALID_STATE,
+                    f'Recovery Plan "{plan.get("planName", plan_id)}" has no waves configured - add at least one wave before executing',  # noqa: E501
+                    details={"planId": plan_id, "planName": plan.get("planName")},
+                ),
             )
 
         # Check for server conflicts with other running executions OR active DRS jobs
@@ -517,13 +535,15 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
 
             return response(
                 409,
-                {
-                    "error": "SERVER_CONFLICT",
-                    "message": message,
-                    "conflicts": server_conflicts,
-                    "conflictingExecutions": list(conflict_executions.values()),
-                    "conflictingDrsJobs": list(conflict_drs_jobs.values()),
-                },
+                error_response(
+                    ERROR_ALREADY_EXISTS,
+                    message,
+                    details={
+                        "conflicts": server_conflicts,
+                        "conflictingExecutions": list(conflict_executions.values()),
+                        "conflictingDrsJobs": list(conflict_drs_jobs.values()),
+                    },
+                ),
             )
 
         # Cannot execute plan that already has an active execution (excluding CANCELLING)
@@ -534,12 +554,11 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             exec_ids = [e.get("executionId") for e in truly_active_executions]
             return response(
                 409,
-                {
-                    "error": "PLAN_ALREADY_EXECUTING",
-                    "message": "This Recovery Plan already has an execution in progress",
-                    "activeExecutions": exec_ids,
-                    "planId": plan_id,
-                },
+                error_response(
+                    ERROR_ALREADY_EXISTS,
+                    "This Recovery Plan already has an execution in progress",
+                    details={"activeExecutions": exec_ids, "planId": plan_id},
+                ),
             )
 
         # CRITICAL: Add execution lock to prevent race conditions
@@ -567,11 +586,11 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             print(f"❌ Failed to acquire lock - another execution is starting for plan {plan_id}")
             return response(
                 409,
-                {
-                    "error": "PLAN_EXECUTION_CONFLICT",
-                    "message": "Another execution of this Recovery Plan is in progress. Please wait and try again.",  # noqa: E501
-                    "planId": plan_id,
-                },
+                error_response(
+                    ERROR_ALREADY_EXISTS,
+                    "Another execution of this Recovery Plan is in progress. Please wait and try again.",  # noqa: E501
+                    details={"planId": plan_id},
+                ),
             )
 
         # DRS SERVICE LIMITS VALIDATION
@@ -596,12 +615,11 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         if wave_size_errors:
             return response(
                 400,
-                {
-                    "error": "WAVE_SIZE_LIMIT_EXCEEDED",
-                    "message": f'{len(wave_size_errors)} wave(s) exceed the DRS limit of {DRS_LIMITS["MAX_SERVERS_PER_JOB"]} servers per job',  # noqa: E501
-                    "errors": wave_size_errors,
-                    "limit": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
-                },
+                error_response(
+                    ERROR_INVALID_PARAMETER,
+                    f'{len(wave_size_errors)} wave(s) exceed the DRS limit of {DRS_LIMITS["MAX_SERVERS_PER_JOB"]} servers per job',  # noqa: E501
+                    details={"errors": wave_size_errors, "limit": DRS_LIMITS["MAX_SERVERS_PER_JOB"]},
+                ),
             )
 
         # 2. Validate concurrent jobs (max 20)
@@ -609,13 +627,17 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         if not concurrent_jobs_result.get("valid"):
             return response(
                 429,
-                {
-                    "error": "CONCURRENT_JOBS_LIMIT_EXCEEDED",
-                    "message": concurrent_jobs_result.get("message"),
-                    "currentJobs": concurrent_jobs_result.get("currentJobs"),
-                    "maxJobs": concurrent_jobs_result.get("maxJobs"),
-                    "activeJobs": concurrent_jobs_result.get("activeJobs", []),
-                },
+                error_response(
+                    ERROR_DRS_ERROR,
+                    concurrent_jobs_result.get("message"),
+                    details={
+                        "currentJobs": concurrent_jobs_result.get("currentJobs"),
+                        "maxJobs": concurrent_jobs_result.get("maxJobs"),
+                        "activeJobs": concurrent_jobs_result.get("activeJobs", []),
+                    },
+                    retryable=True,
+                    retry_after=60,
+                ),
             )
 
         # 3. Validate servers in all jobs (max 500)
@@ -623,14 +645,18 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         if not servers_in_jobs_result.get("valid"):
             return response(
                 429,
-                {
-                    "error": "SERVERS_IN_JOBS_LIMIT_EXCEEDED",
-                    "message": servers_in_jobs_result.get("message"),
-                    "currentServersInJobs": servers_in_jobs_result.get("currentServersInJobs"),
-                    "newServerCount": servers_in_jobs_result.get("newServerCount"),
-                    "totalAfterNew": servers_in_jobs_result.get("totalAfterNew"),
-                    "maxServers": servers_in_jobs_result.get("maxServers"),
-                },
+                error_response(
+                    ERROR_DRS_ERROR,
+                    servers_in_jobs_result.get("message"),
+                    details={
+                        "currentServersInJobs": servers_in_jobs_result.get("currentServersInJobs"),
+                        "newServerCount": servers_in_jobs_result.get("newServerCount"),
+                        "totalAfterNew": servers_in_jobs_result.get("totalAfterNew"),
+                        "maxServers": servers_in_jobs_result.get("maxServers"),
+                    },
+                    retryable=True,
+                    retry_after=60,
+                ),
             )
 
         # 4. Validate server replication states
@@ -638,13 +664,15 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         if not replication_result.get("valid"):
             return response(
                 400,
-                {
-                    "error": "UNHEALTHY_SERVER_REPLICATION",
-                    "message": replication_result.get("message"),
-                    "unhealthyServers": replication_result.get("unhealthyServers"),
-                    "healthyCount": replication_result.get("healthyCount"),
-                    "unhealthyCount": replication_result.get("unhealthyCount"),
-                },
+                error_response(
+                    ERROR_INVALID_STATE,
+                    replication_result.get("message"),
+                    details={
+                        "unhealthyServers": replication_result.get("unhealthyServers"),
+                        "healthyCount": replication_result.get("healthyCount"),
+                        "unhealthyCount": replication_result.get("unhealthyCount"),
+                    },
+                ),
             )
 
         print(f"✅ DRS service limits validation passed for plan {plan_id}")
@@ -731,10 +759,11 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             )
             return response(
                 500,
-                {
-                    "error": f"Failed to start execution worker: {str(invoke_error)}",
-                    "executionId": execution_id,
-                },
+                error_response(
+                    ERROR_INTERNAL_ERROR,
+                    f"Failed to start execution worker: {str(invoke_error)}",
+                    details={"executionId": execution_id},
+                ),
             )
 
         # Return immediately with 202 Accepted
@@ -753,7 +782,10 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def execute_with_step_functions(
@@ -855,11 +887,11 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         if "Item" not in plan_result:
             return response(
                 404,
-                {
-                    "error": "RECOVERY_PLAN_NOT_FOUND",
-                    "message": f"Recovery Plan with ID {plan_id} not found",
-                    "planId": plan_id,
-                },
+                error_response(
+                    ERROR_NOT_FOUND,
+                    f"Recovery Plan with ID {plan_id} not found",
+                    details={"planId": plan_id},
+                ),
             )
 
         plan = plan_result["Item"]
@@ -962,10 +994,13 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 print(f"Error assuming role for DRS query: {e}")
                 return response(
                     500,
-                    {
-                        "error": "CROSS_ACCOUNT_ACCESS_FAILED",
-                        "message": f"Failed to access target account {account_id}: {str(e)}",
-                    },
+                    error_response(
+                        ERROR_STS_ERROR,
+                        f"Failed to access target account {account_id}: {str(e)}",
+                        details={"accountId": account_id},
+                        retryable=True,
+                        retry_after=30,
+                    ),
                 )
         else:
             # Current account: use default credentials
@@ -1120,11 +1155,11 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         traceback.print_exc()
         return response(
             500,
-            {
-                "error": "CHECK_FAILED",
-                "message": f"Failed to check existing recovery instances: {str(e)}",
-                "planId": plan_id,
-            },
+            error_response(
+                ERROR_INTERNAL_ERROR,
+                f"Failed to check existing recovery instances: {str(e)}",
+                details={"planId": plan_id},
+            ),
         )
 
 
@@ -2114,7 +2149,10 @@ def list_executions(query_params: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
@@ -2133,11 +2171,11 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
         if "Items" not in result or len(result["Items"]) == 0:
             return response(
                 404,
-                {
-                    "error": "EXECUTION_NOT_FOUND",
-                    "message": f"Execution with ID {execution_id} not found",
-                    "executionId": execution_id,
-                },
+                error_response(
+                    ERROR_NOT_FOUND,
+                    f"Execution with ID {execution_id} not found",
+                    details={"executionId": execution_id},
+                ),
             )
 
         execution = result["Items"][0]
@@ -2229,11 +2267,11 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
         print(f"Error getting execution details: {str(e)}")
         return response(
             500,
-            {
-                "error": "INTERNAL_ERROR",
-                "message": f"Error retrieving execution details: {str(e)}",
-                "executionId": execution_id,
-            },
+            error_response(
+                ERROR_INTERNAL_ERROR,
+                f"Error retrieving execution details: {str(e)}",
+                details={"executionId": execution_id},
+            ),
         )
 
 
@@ -2255,11 +2293,11 @@ def cancel_execution(execution_id: str, body: Dict) -> Dict:
         if not result.get("Items"):
             return response(
                 404,
-                {
-                    "error": "EXECUTION_NOT_FOUND",
-                    "message": f"Execution with ID {execution_id} not found",
-                    "executionId": execution_id,
-                },
+                error_response(
+                    ERROR_NOT_FOUND,
+                    f"Execution with ID {execution_id} not found",
+                    details={"executionId": execution_id},
+                ),
             )
 
         execution = result["Items"][0]
@@ -2280,13 +2318,15 @@ def cancel_execution(execution_id: str, body: Dict) -> Dict:
         if current_status not in cancellable_statuses:
             return response(
                 400,
-                {
-                    "error": "EXECUTION_NOT_CANCELLABLE",
-                    "message": f"Execution cannot be cancelled - status is {current_status}",
-                    "currentStatus": current_status,
-                    "cancellableStatuses": cancellable_statuses,
-                    "reason": "Execution must be running, paused, or pending to cancel",
-                },
+                error_response(
+                    ERROR_INVALID_STATE,
+                    f"Execution cannot be cancelled - status is {current_status}",
+                    details={
+                        "currentStatus": current_status,
+                        "cancellableStatuses": cancellable_statuses,
+                        "reason": "Execution must be running, paused, or pending to cancel",
+                    },
+                ),
             )
 
         # Get waves from execution and plan
@@ -2404,7 +2444,10 @@ def cancel_execution(execution_id: str, body: Dict) -> Dict:
 
     except Exception as e:
         print(f"Error cancelling execution: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def pause_execution(execution_id: str, body: Dict) -> Dict:
@@ -2423,11 +2466,11 @@ def pause_execution(execution_id: str, body: Dict) -> Dict:
         if not result.get("Items"):
             return response(
                 404,
-                {
-                    "error": "EXECUTION_NOT_FOUND",
-                    "message": f"Execution with ID {execution_id} not found",
-                    "executionId": execution_id,
-                },
+                error_response(
+                    ERROR_NOT_FOUND,
+                    f"Execution with ID {execution_id} not found",
+                    details={"executionId": execution_id},
+                ),
             )
 
         execution = result["Items"][0]
@@ -2439,13 +2482,15 @@ def pause_execution(execution_id: str, body: Dict) -> Dict:
         if current_status not in pausable_statuses:
             return response(
                 400,
-                {
-                    "error": "EXECUTION_NOT_PAUSABLE",
-                    "message": f"Execution cannot be paused - status is {current_status}",
-                    "currentStatus": current_status,
-                    "pausableStatuses": pausable_statuses,
-                    "reason": "Execution must be running to pause",
-                },
+                error_response(
+                    ERROR_INVALID_STATE,
+                    f"Execution cannot be paused - status is {current_status}",
+                    details={
+                        "currentStatus": current_status,
+                        "pausableStatuses": pausable_statuses,
+                        "reason": "Execution must be running to pause",
+                    },
+                ),
             )
 
         # Check wave states
@@ -2453,25 +2498,26 @@ def pause_execution(execution_id: str, body: Dict) -> Dict:
         if not waves:
             return response(
                 400,
-                {
-                    "error": "EXECUTION_NO_WAVES",
-                    "message": "No waves found in execution - cannot pause",
-                    "executionId": execution_id,
-                    "currentStatus": current_status,
-                },
+                error_response(
+                    ERROR_INVALID_STATE,
+                    "No waves found in execution - cannot pause",
+                    details={"executionId": execution_id, "currentStatus": current_status},
+                ),
             )
 
         # Single wave executions cannot be paused
         if len(waves) == 1:
             return response(
                 400,
-                {
-                    "error": "SINGLE_WAVE_NOT_PAUSABLE",
-                    "message": "Cannot pause single-wave execution - pause is only available for multi-wave recovery plans",  # noqa: E501
-                    "executionId": execution_id,
-                    "waveCount": 1,
-                    "reason": "Pause is only available for multi-wave recovery plans",
-                },
+                error_response(
+                    ERROR_INVALID_STATE,
+                    "Cannot pause single-wave execution - pause is only available for multi-wave recovery plans",  # noqa: E501
+                    details={
+                        "executionId": execution_id,
+                        "waveCount": 1,
+                        "reason": "Pause is only available for multi-wave recovery plans",
+                    },
+                ),
             )
 
         # Find current wave state
@@ -2505,13 +2551,15 @@ def pause_execution(execution_id: str, body: Dict) -> Dict:
         if not has_pending_wave:
             return response(
                 400,
-                {
-                    "error": "NO_PENDING_WAVES",
-                    "message": "Cannot pause - no pending waves remaining",
-                    "executionId": execution_id,
-                    "lastCompletedWave": last_completed_wave,
-                    "reason": "All waves have already completed or failed",
-                },
+                error_response(
+                    ERROR_INVALID_STATE,
+                    "Cannot pause - no pending waves remaining",
+                    details={
+                        "executionId": execution_id,
+                        "lastCompletedWave": last_completed_wave,
+                        "reason": "All waves have already completed or failed",
+                    },
+                ),
             )
 
         # Determine pause type
@@ -2542,7 +2590,10 @@ def pause_execution(execution_id: str, body: Dict) -> Dict:
 
     except Exception as e:
         print(f"Error pausing execution: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 # ============================================================================
@@ -2619,7 +2670,14 @@ def handle_operation(event: Dict, context) -> Dict:
         execution_id = event.get("executionId")
         query_params = event.get("queryParams", {})
         if not execution_id:
-            return response(400, {"error": "Missing executionId"})
+            return response(
+                400,
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "executionId parameter is required",
+                    details={"parameter": "executionId"},
+                ),
+            )
         return get_execution_details(execution_id, query_params)
     elif operation == "start_execution":
         # Support direct Lambda invocation for starting recovery executions
@@ -2634,19 +2692,22 @@ def handle_operation(event: Dict, context) -> Dict:
     else:
         return response(
             400,
-            {
-                "error": "UNKNOWN_OPERATION",
-                "message": f"Unknown operation: {operation}",
-                "supportedOperations": [
-                    "find",
-                    "poll",
-                    "finalize",
-                    "pause",
-                    "resume",
-                    "get_execution_details",
-                    "start_execution",
-                ],
-            },
+            error_response(
+                ERROR_INVALID_OPERATION,
+                f"Unknown operation: {operation}",
+                details={
+                    "operation": operation,
+                    "supportedOperations": [
+                        "find",
+                        "poll",
+                        "finalize",
+                        "pause",
+                        "resume",
+                        "get_execution_details",
+                        "start_execution",
+                    ],
+                },
+            ),
         )
 
 
@@ -2736,7 +2797,10 @@ def handle_find_operation(event: Dict, context) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def handle_poll_operation(event: Dict, context) -> Dict:
@@ -2781,10 +2845,11 @@ def handle_poll_operation(event: Dict, context) -> Dict:
         if not execution_id or not plan_id:
             return response(
                 400,
-                {
-                    "error": "MISSING_PARAMETERS",
-                    "message": "executionId and planId required",
-                },
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "executionId and planId required",
+                    details={"requiredParameters": ["executionId", "planId"]},
+                ),
             )
 
         print(f"Polling execution {execution_id}")
@@ -2795,7 +2860,11 @@ def handle_poll_operation(event: Dict, context) -> Dict:
         if "Item" not in exec_result:
             return response(
                 404,
-                {"error": "EXECUTION_NOT_FOUND", "executionId": execution_id},
+                error_response(
+                    ERROR_NOT_FOUND,
+                    "Execution not found",
+                    details={"executionId": execution_id},
+                ),
             )
 
         execution = exec_result["Item"]
@@ -3057,7 +3126,10 @@ def handle_poll_operation(event: Dict, context) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def poll_wave_with_enrichment(wave: Dict, execution_type: str, account_context: Dict = None) -> Dict:
@@ -3169,10 +3241,11 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
         if not execution_id or not plan_id:
             return response(
                 400,
-                {
-                    "error": "MISSING_PARAMETERS",
-                    "message": "executionId and planId required",
-                },
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "executionId and planId required",
+                    details={"requiredParameters": ["executionId", "planId"]},
+                ),
             )
 
         print(f"Finalizing execution {execution_id}")
@@ -3183,7 +3256,11 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
         if "Item" not in exec_result:
             return response(
                 404,
-                {"error": "EXECUTION_NOT_FOUND", "executionId": execution_id},
+                error_response(
+                    ERROR_NOT_FOUND,
+                    "Execution not found",
+                    details={"executionId": execution_id},
+                ),
             )
 
         execution = exec_result["Item"]
@@ -3209,11 +3286,11 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
         if not all_complete:
             return response(
                 400,
-                {
-                    "error": "WAVES_NOT_COMPLETE",
-                    "message": "Cannot finalize - not all waves complete",
-                    "executionId": execution_id,
-                },
+                error_response(
+                    ERROR_INVALID_STATE,
+                    "Cannot finalize - not all waves complete",
+                    details={"executionId": execution_id},
+                ),
             )
 
         # Analyze actual wave/server outcomes to determine final status
@@ -3279,7 +3356,10 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def handle_pause_operation(event: Dict, context) -> Dict:
@@ -3312,10 +3392,11 @@ def handle_pause_operation(event: Dict, context) -> Dict:
         if not execution_id:
             return response(
                 400,
-                {
-                    "error": "MISSING_PARAMETERS",
-                    "message": "executionId required",
-                },
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "executionId required",
+                    details={"parameter": "executionId"},
+                ),
             )
 
         print(f"Pausing execution {execution_id}: {reason}")
@@ -3329,7 +3410,10 @@ def handle_pause_operation(event: Dict, context) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def handle_resume_operation(event: Dict, context) -> Dict:
@@ -3378,7 +3462,10 @@ def handle_resume_operation(event: Dict, context) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def _delegate_to_query_handler(operation: str, parameters: Dict) -> Dict:
@@ -3545,7 +3632,10 @@ def handle_direct_invocation(event: Dict, context) -> Dict:
         error_response = {
             "error": "INVALID_OPERATION",
             "message": f"Unknown operation: {operation}",
-            "validOperations": list(operations.keys()),
+            "details": {
+                "operation": operation,
+                "validOperations": list(operations.keys()),
+            },
         }
         log_direct_invocation(
             principal=principal,
@@ -3732,16 +3822,11 @@ def lambda_handler(event, context):
                     },
                 )
 
-        # 4. Check if this is a direct invocation with operation and parameters (NEW standardized pattern)
-        elif isinstance(event, dict) and event.get("operation") and event.get("parameters") is not None:
+        # 4. Check if this is a direct invocation with operation field (NEW standardized pattern)
+        # Match query-handler pattern: route to direct invocation if "operation" is present
+        elif isinstance(event, dict) and "operation" in event:
             print(f"Direct invocation detected: {event.get('operation')}")
             return handle_direct_invocation(event, context)
-
-        # 5. Check if this is an operation-based invocation (find, poll, finalize) - LEGACY
-        elif isinstance(event, dict) and event.get("operation"):
-            operation = event.get("operation")
-            print(f"Legacy operation-based invocation detected: {operation}")
-            return handle_operation(event, context)
 
         # 6. Check if this is an EventBridge scheduled invocation (polling trigger)
         elif isinstance(event, dict) and event.get("source") == "aws.events":
@@ -4213,7 +4298,10 @@ def resume_execution(execution_id: str) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def get_recovery_instances(execution_id: str) -> Dict:
@@ -4418,7 +4506,10 @@ def get_recovery_instances(execution_id: str) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def terminate_recovery_instances(execution_id: str) -> Dict:
@@ -5020,7 +5111,10 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def get_termination_job_status(execution_id: str, job_ids_str: str, region: str) -> Dict:
@@ -5194,7 +5288,10 @@ def get_termination_job_status(execution_id: str, job_ids_str: str, region: str)
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
@@ -5297,7 +5394,10 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
 
     except Exception as e:
         print(f"Error getting job log items: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def apply_launch_config_to_servers(
@@ -5999,7 +6099,10 @@ def get_execution_status(execution_id: str) -> Dict:
 
     except Exception as e:
         print(f"Error getting execution status: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def get_execution_history(plan_id: str) -> Dict:
@@ -6163,7 +6266,10 @@ def get_execution_history(plan_id: str) -> Dict:
 
     except Exception as e:
         print(f"Error getting execution history: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 def get_staging_account_job_details(

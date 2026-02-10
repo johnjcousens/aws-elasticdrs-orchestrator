@@ -208,7 +208,19 @@ from shared.cross_account import (
     create_drs_client,
     create_ec2_client,
 )
-from shared.response_utils import response
+from shared.response_utils import (
+    response,
+    error_response,
+    ERROR_INVALID_OPERATION,
+    ERROR_MISSING_PARAMETER,
+    ERROR_INVALID_PARAMETER,
+    ERROR_NOT_FOUND,
+    ERROR_ALREADY_EXISTS,
+    ERROR_INVALID_STATE,
+    ERROR_DYNAMODB_ERROR,
+    ERROR_DRS_ERROR,
+    ERROR_INTERNAL_ERROR,
+)
 
 from shared.drs_regions import DRS_REGIONS
 
@@ -278,10 +290,10 @@ def lambda_handler(event, context):
         else:
             return response(
                 400,
-                {
-                    "error": "INVALID_INVOCATION",
-                    "message": "Event must contain either 'requestContext' (API Gateway) or 'operation' (direct invocation)",  # noqa: E501
-                },
+                error_response(
+                    "INVALID_INVOCATION",
+                    "Event must contain either 'requestContext' (API Gateway) or 'operation' (direct invocation)",
+                ),
             )
 
     except Exception as e:
@@ -289,7 +301,7 @@ def lambda_handler(event, context):
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": f"Internal server error: {str(e)}"})
+        return response(500, error_response("INTERNAL_ERROR", str(e)))
 
 
 def handle_api_gateway_request(event, context):
@@ -306,7 +318,7 @@ def handle_api_gateway_request(event, context):
             try:
                 body = json.loads(body) if body else {}
             except json.JSONDecodeError:
-                return response(400, {"error": "Invalid JSON in request body"})
+                return response(400, create_invalid_parameter_error("body", body, "valid JSON"))
 
         # Protection Groups endpoints (6)
         if path == "/protection-groups":
@@ -326,7 +338,7 @@ def handle_api_gateway_request(event, context):
         elif "/protection-groups/" in path:
             group_id = path_parameters.get("id")
             if not group_id:
-                return response(400, {"error": "Missing protection group ID"})
+                return response(400, create_missing_parameter_error("id"))
 
             # Bulk server configuration endpoint
             if "/servers/bulk-launch-config" in path:
@@ -337,7 +349,7 @@ def handle_api_gateway_request(event, context):
             elif "/servers/" in path and "/launch-config" in path:
                 server_id = path_parameters.get("serverId")
                 if not server_id:
-                    return response(400, {"error": "Missing server ID"})
+                    return response(400, create_missing_parameter_error("serverId"))
 
                 if http_method == "GET":
                     return get_server_launch_config(group_id, server_id)
@@ -350,7 +362,7 @@ def handle_api_gateway_request(event, context):
             elif "/servers/" in path and "/validate-ip" in path:
                 server_id = path_parameters.get("serverId")
                 if not server_id:
-                    return response(400, {"error": "Missing server ID"})
+                    return response(400, create_missing_parameter_error("serverId"))
 
                 if http_method == "POST":
                     return validate_server_static_ip(group_id, server_id, body)
@@ -373,14 +385,14 @@ def handle_api_gateway_request(event, context):
         elif "/recovery-plans/" in path and "/check-existing-instances" in path:
             plan_id = path_parameters.get("id")
             if not plan_id:
-                return response(400, {"error": "Missing recovery plan ID"})
+                return response(400, create_missing_parameter_error("id"))
             if http_method == "GET":
                 return check_existing_recovery_instances(plan_id)
 
         elif "/recovery-plans/" in path:
             plan_id = path_parameters.get("id")
             if not plan_id:
-                return response(400, {"error": "Missing recovery plan ID"})
+                return response(400, create_missing_parameter_error("id"))
 
             if http_method == "GET":
                 return get_recovery_plan(plan_id)
@@ -424,7 +436,7 @@ def handle_api_gateway_request(event, context):
         elif "/accounts/targets/" in path:
             account_id = path_parameters.get("id")
             if not account_id:
-                return response(400, {"error": "Missing account ID"})
+                return response(400, create_missing_parameter_error("id"))
 
             # Staging accounts endpoints
             if "/staging-accounts" in path:
@@ -443,7 +455,7 @@ def handle_api_gateway_request(event, context):
                     # DELETE /accounts/{id}/staging-accounts/{stagingId}
                     staging_id = path_parameters.get("stagingId")
                     if not staging_id:
-                        return response(400, {"error": "Missing staging account ID"})
+                        return response(400, create_missing_parameter_error("stagingId"))
                     if http_method == "DELETE":
                         return handle_remove_staging_account(
                             {
@@ -467,10 +479,10 @@ def handle_api_gateway_request(event, context):
         else:
             return response(
                 404,
-                {
-                    "error": "NOT_FOUND",
-                    "message": f"No handler for {http_method} {path}",
-                },
+                error_response(
+                    "NOT_FOUND",
+                    f"No handler for {http_method} {path}",
+                ),
             )
 
     except Exception as e:
@@ -478,11 +490,17 @@ def handle_api_gateway_request(event, context):
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": f"Internal server error: {str(e)}"})
+        return response(500, error_response("INTERNAL_ERROR", str(e)))
 
 
 def handle_direct_invocation(event, context):
-    """Handle direct Lambda invocation (CLI/SDK mode)"""
+    """
+    Handle direct Lambda invocation (CLI/SDK mode).
+    
+    Returns raw data (not API Gateway wrapped) for direct invocations.
+    Operation functions return response(statusCode, body) format, which
+    we unwrap to return just the body data.
+    """
     # Import IAM utilities
     from shared.iam_utils import (
         extract_iam_principal,
@@ -576,16 +594,40 @@ def handle_direct_invocation(event, context):
     if operation in operations:
         try:
             result = operations[operation]()
-            # Log successful invocation
-            log_direct_invocation(
-                principal=principal,
-                operation=operation,
-                params={"body": body, "queryParams": query_params},
-                result=result,
-                success=True,
-                context=context
-            )
-            return result
+            
+            # Unwrap API Gateway response format for direct invocations
+            # Operation functions return response(statusCode, body) which wraps
+            # the data in API Gateway format. For direct invocations, we need
+            # to extract just the body data.
+            if isinstance(result, dict) and "statusCode" in result:
+                # Extract body from API Gateway response format
+                body_data = result.get("body")
+                if isinstance(body_data, str):
+                    # Body is JSON string, parse it
+                    body_data = json.loads(body_data)
+                
+                # Log successful invocation with unwrapped data
+                log_direct_invocation(
+                    principal=principal,
+                    operation=operation,
+                    params={"body": body, "queryParams": query_params},
+                    result=body_data,
+                    success=True,
+                    context=context
+                )
+                return body_data
+            else:
+                # Result is already in raw format (shouldn't happen with current code)
+                log_direct_invocation(
+                    principal=principal,
+                    operation=operation,
+                    params={"body": body, "queryParams": query_params},
+                    result=result,
+                    success=True,
+                    context=context
+                )
+                return result
+                
         except Exception as e:
             error_response = {
                 "error": "OPERATION_FAILED",
@@ -603,8 +645,11 @@ def handle_direct_invocation(event, context):
             return error_response
     else:
         error_response = {
-            "error": "UNKNOWN_OPERATION",
+            "error": "INVALID_OPERATION",
             "message": f"Unknown operation: {operation}",
+            "details": {
+                "operation": operation,
+            },
         }
         log_direct_invocation(
             principal=principal,
@@ -1108,12 +1153,16 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
         tags = body.get("serverSelectionTags") or body.get("tags", {})
 
         if not region:
-            return response(400, {"error": "region is required"})
+            return response(400, create_missing_parameter_error("region"))
 
         if not tags or not isinstance(tags, dict):
             return response(
                 400,
-                {"error": "ServerSelectionTags must be a non-empty object"},
+                create_invalid_parameter_error(
+                    "serverSelectionTags",
+                    tags,
+                    "non-empty object"
+                ),
             )
 
         # Extract account context from request body
@@ -1150,7 +1199,7 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def create_protection_group(body: Dict) -> Dict:
@@ -1252,7 +1301,11 @@ def create_protection_group(body: Dict) -> Dict:
         if not has_tags and not has_servers:
             return response(
                 400,
-                {"error": "Either serverSelectionTags or sourceServerIds is required"},
+                create_invalid_parameter_error(
+                    "serverSelectionTags or sourceServerIds",
+                    None,
+                    "at least one selection method required"
+                ),
             )
 
         # Validate unique name (case-insensitive, global across all users)
@@ -1304,7 +1357,14 @@ def create_protection_group(body: Dict) -> Dict:
                 found_ids = {s["sourceServerID"] for s in drs_response.get("items", [])}
                 missing = set(source_server_ids) - found_ids
                 if missing:
-                    return response(400, {"error": f"Invalid server IDs: {list(missing)}"})
+                    return response(
+                        400,
+                        create_invalid_parameter_error(
+                            "sourceServerIds",
+                            list(missing),
+                            "valid DRS source server IDs"
+                        ),
+                    )
             except Exception as e:
                 print(f"Error validating servers: {e}")
                 # Continue anyway - servers might be valid
@@ -1507,7 +1567,7 @@ def create_protection_group(body: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def get_protection_groups(query_params: Dict = None) -> Dict:
@@ -1543,7 +1603,7 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
 
     except Exception as e:
         print(f"Error listing Protection Groups: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def get_protection_group(group_id: str) -> Dict:
@@ -1552,7 +1612,7 @@ def get_protection_group(group_id: str) -> Dict:
         result = protection_groups_table.get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
-            return response(404, {"error": "Protection Group not found"})
+            return response(404, create_not_found_error("Protection Group", group_id))
 
         group = result["Item"]
 
@@ -1563,7 +1623,7 @@ def get_protection_group(group_id: str) -> Dict:
 
     except Exception as e:
         print(f"Error getting Protection Group: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def update_protection_group(group_id: str, body: Dict) -> Dict:
@@ -1572,7 +1632,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         # Check if group exists
         result = protection_groups_table.get_item(Key={"groupId": group_id})
         if "Item" not in result:
-            return response(404, {"error": "Protection Group not found"})
+            return response(404, create_not_found_error("Protection Group", group_id))
 
         existing_group = result["Item"]
         current_version = existing_group.get("version", 1)  # FIXED: camelCase - Default to 1 for legacy items
@@ -1623,7 +1683,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         # Prevent region changes
         if "region" in body and body["region"] != existing_group.get("region"):
-            return response(400, {"error": "Cannot change region after creation"})
+            return response(400, create_invalid_parameter_error("region", body.get("region"), "cannot be changed after creation"))
 
         # Validate name if provided
         if "groupName" in body:
@@ -1967,7 +2027,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def delete_protection_group(group_id: str) -> Dict:
@@ -2018,7 +2078,7 @@ def delete_protection_group(group_id: str) -> Dict:
 
     except Exception as e:
         print(f"Error deleting Protection Group: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def get_server_launch_config(group_id: str, server_id: str) -> Dict:
@@ -2059,7 +2119,7 @@ def get_server_launch_config(group_id: str, server_id: str) -> Dict:
         result = protection_groups_table.get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
-            return response(404, {"error": "Protection Group not found"})
+            return response(404, create_not_found_error("Protection Group", group_id))
 
         protection_group = result["Item"]
 
@@ -2117,7 +2177,7 @@ def get_server_launch_config(group_id: str, server_id: str) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def update_server_launch_config(group_id: str, server_id: str, body: Dict) -> Dict:
@@ -2176,7 +2236,7 @@ def update_server_launch_config(group_id: str, server_id: str, body: Dict) -> Di
         result = protection_groups_table.get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
-            return response(404, {"error": "Protection Group not found"})
+            return response(404, create_not_found_error("Protection Group", group_id))
 
         protection_group = result["Item"]
         region = protection_group.get("region")
@@ -2399,13 +2459,13 @@ def update_server_launch_config(group_id: str, server_id: str, body: Dict) -> Di
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": f"Database error: {str(e)}"})
+        return response(500, create_dynamodb_error("update", str(e)))
     except Exception as e:
         print(f"Error updating server launch config: {str(e)}")
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def delete_server_launch_config(group_id: str, server_id: str) -> Dict:
@@ -2445,7 +2505,7 @@ def delete_server_launch_config(group_id: str, server_id: str) -> Dict:
         result = protection_groups_table.get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
-            return response(404, {"error": "Protection Group not found"})
+            return response(404, create_not_found_error("Protection Group", group_id))
 
         protection_group = result["Item"]
         region = protection_group.get("region")
@@ -2525,13 +2585,13 @@ def delete_server_launch_config(group_id: str, server_id: str) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": f"Database error: {str(e)}"})
+        return response(500, create_dynamodb_error("update", str(e)))
     except Exception as e:
         print(f"Error deleting server launch config: {str(e)}")
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def validate_server_static_ip(group_id: str, server_id: str, body: Dict) -> Dict:
@@ -2591,7 +2651,7 @@ def validate_server_static_ip(group_id: str, server_id: str, body: Dict) -> Dict
         result = protection_groups_table.get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
-            return response(404, {"error": "Protection Group not found"})
+            return response(404, create_not_found_error("Protection Group", group_id))
 
         protection_group = result["Item"]
         region = protection_group.get("region")
@@ -2683,7 +2743,7 @@ def validate_server_static_ip(group_id: str, server_id: str, body: Dict) -> Dict
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
@@ -2759,7 +2819,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
         result = protection_groups_table.get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
-            return response(404, {"error": "Protection Group not found"})
+            return response(404, create_not_found_error("Protection Group", group_id))
 
         protection_group = result["Item"]
         region = protection_group.get("region")
@@ -3107,13 +3167,13 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": f"Database error: {str(e)}"})
+        return response(500, create_dynamodb_error("update", str(e)))
     except Exception as e:
         print(f"Error in bulk update: {str(e)}")
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 # ============================================================================
@@ -3231,7 +3291,7 @@ def create_recovery_plan(body: Dict) -> Dict:
 
             validation_error = validate_waves(camelcase_waves)
             if validation_error:
-                return response(400, {"error": validation_error})
+                return response(400, create_invalid_parameter_error("waves", None, validation_error))
 
             # QUOTA VALIDATION: Check total servers across all waves doesn't
             # exceed 500
@@ -3357,7 +3417,7 @@ def create_recovery_plan(body: Dict) -> Dict:
 
     except Exception as e:
         print(f"Error creating Recovery Plan: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def get_recovery_plans(query_params: Dict = None) -> Dict:
@@ -3557,7 +3617,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 
     except Exception as e:
         print(f"Error listing Recovery Plans: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def get_recovery_plan(plan_id: str) -> Dict:
@@ -3566,7 +3626,7 @@ def get_recovery_plan(plan_id: str) -> Dict:
         result = recovery_plans_table.get_item(Key={"planId": plan_id})
 
         if "Item" not in result:
-            return response(404, {"error": "Recovery Plan not found"})
+            return response(404, create_not_found_error("Recovery Plan", plan_id))
 
         plan = result["Item"]
         plan["waveCount"] = len(plan.get("waves", []))
@@ -3576,7 +3636,7 @@ def get_recovery_plan(plan_id: str) -> Dict:
 
     except Exception as e:
         print(f"Error getting Recovery Plan: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def check_existing_recovery_instances(plan_id: str) -> Dict:
@@ -3870,7 +3930,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         # Check if plan exists
         result = recovery_plans_table.get_item(Key={"planId": plan_id})
         if "Item" not in result:
-            return response(404, {"error": "Recovery Plan not found"})
+            return response(404, create_not_found_error("Recovery Plan", plan_id))
 
         existing_plan = result["Item"]
         current_version = existing_plan.get("version", 1)  # FIXED: camelCase - Default to 1 for legacy items
@@ -3998,7 +4058,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
 
             validation_error = validate_waves(body["waves"])
             if validation_error:
-                return response(400, {"error": validation_error})
+                return response(400, create_invalid_parameter_error("waves", None, validation_error))
 
         # Build update expression with version increment (optimistic locking)
         # FIXED: Use camelCase field names consistently
@@ -4062,7 +4122,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
 
     except Exception as e:
         print(f"Error updating Recovery Plan: {str(e)}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def delete_recovery_plan(plan_id: str) -> Dict:
@@ -4396,7 +4456,7 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 # Lock timeout in seconds (15 minutes max for tag sync)
@@ -4529,7 +4589,7 @@ def get_last_tag_sync_status() -> Dict:
         )
     except Exception as e:
         print(f"Error getting last tag sync status: {e}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def _sync_tags_for_account(target_account_id: str, region: str = None, assume_role_name: str = None) -> Dict:
@@ -4562,7 +4622,7 @@ def _sync_tags_for_account(target_account_id: str, region: str = None, assume_ro
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def _get_target_account_role(account_id: str) -> str:
@@ -4595,7 +4655,7 @@ def _sync_tags_all_target_accounts(region: str = None, source: str = "manual") -
 
     try:
         if not target_accounts_table:
-            return response(500, {"error": "Target accounts table not configured"})
+            return response(500, create_internal_error("Target accounts table not configured"))
 
         # Get all target accounts
         scan_result = target_accounts_table.scan()
@@ -4642,7 +4702,7 @@ def _sync_tags_all_target_accounts(region: str = None, source: str = "manual") -
 
     except Exception as e:
         print(f"Error scanning target accounts: {e}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
     summary = {
         "message": "Tag sync complete for all target accounts",
@@ -5204,7 +5264,7 @@ def get_tag_sync_settings() -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": f"Failed to get tag sync settings: {str(e)}"})
+        return response(500, create_internal_error(f"Failed to get tag sync settings: {str(e)}"))
 
 
 def update_tag_sync_settings(body: Dict) -> Dict:
@@ -5388,16 +5448,16 @@ def update_tag_sync_settings(body: Dict) -> Dict:
 
         # Validate input
         if not isinstance(body, dict):
-            return response(400, {"error": "Request body must be a JSON object"})
+            return response(400, create_invalid_parameter_error("body", body, "JSON object"))
 
         enabled = body.get("enabled")
         interval_hours = body.get("intervalHours")
 
         if enabled is None:
-            return response(400, {"error": "enabled field is required"})
+            return response(400, create_missing_parameter_error("enabled"))
 
         if not isinstance(enabled, bool):
-            return response(400, {"error": "enabled must be a boolean"})
+            return response(400, create_invalid_parameter_error("enabled", enabled, "boolean"))
 
         if interval_hours is not None:
             if not isinstance(interval_hours, (int, float)) or interval_hours < 1 or interval_hours > 24:
@@ -5538,7 +5598,7 @@ def update_tag_sync_settings(body: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": f"Failed to update tag sync settings: {str(e)}"})
+        return response(500, create_internal_error(f"Failed to update tag sync settings: {str(e)}"))
 
 
 def parse_schedule_expression(schedule_expression: str) -> int:
@@ -5835,7 +5895,7 @@ def get_target_account(account_id: str) -> Dict:
     """Get a specific target account by ID"""
     try:
         if not target_accounts_table:
-            return response(500, {"error": "Target accounts table not configured"})
+            return response(500, create_internal_error("Target accounts table not configured"))
 
         result = target_accounts_table.get_item(Key={"accountId": account_id})
         if "Item" not in result:
@@ -5851,14 +5911,14 @@ def get_target_account(account_id: str) -> Dict:
 
     except Exception as e:
         print(f"Error getting target account: {e}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def create_target_account(body: Dict) -> Dict:
     """Create a new target account configuration"""
     try:
         if not target_accounts_table:
-            return response(500, {"error": "Target accounts table not configured"})
+            return response(500, create_internal_error("Target accounts table not configured"))
 
         if not body:
             return response(
@@ -5995,14 +6055,14 @@ def create_target_account(body: Dict) -> Dict:
 
     except Exception as e:
         print(f"Error creating target account: {e}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def update_target_account(account_id: str, body: Dict) -> Dict:
     """Update target account configuration"""
     try:
         if not target_accounts_table:
-            return response(500, {"error": "Target accounts table not configured"})
+            return response(500, create_internal_error("Target accounts table not configured"))
 
         if not body:
             return response(
@@ -6078,14 +6138,14 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
 
     except Exception as e:
         print(f"Error updating target account: {e}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def delete_target_account(account_id: str) -> Dict:
     """Delete target account configuration"""
     try:
         if not target_accounts_table:
-            return response(500, {"error": "Target accounts table not configured"})
+            return response(500, create_internal_error("Target accounts table not configured"))
 
         # Check if account exists
         result = target_accounts_table.get_item(Key={"accountId": account_id})
@@ -6113,7 +6173,7 @@ def delete_target_account(account_id: str) -> Dict:
 
     except Exception as e:
         print(f"Error deleting target account: {e}")
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 # ============================================================================
@@ -6233,7 +6293,7 @@ def handle_add_staging_account(body: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def handle_remove_staging_account(body: Dict) -> Dict:
@@ -6341,7 +6401,7 @@ def handle_remove_staging_account(body: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 def handle_sync_single_account(target_account_id: str) -> Dict:
@@ -6421,7 +6481,7 @@ def handle_sync_single_account(target_account_id: str) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": str(e)})
+        return response(500, create_internal_error(str(e)))
 
 
 # ============================================================================
@@ -6801,7 +6861,7 @@ def export_configuration(query_params: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": "Failed to export configuration", "details": str(e)})
+        return response(500, create_internal_error(f"Failed to export configuration: {str(e)}"))
 
 
 def import_configuration(body: Dict) -> Dict:
@@ -7282,7 +7342,7 @@ def import_configuration(body: Dict) -> Dict:
         import traceback
 
         traceback.print_exc()
-        return response(500, {"error": "Failed to import configuration", "details": str(e)})
+        return response(500, create_internal_error(f"Failed to import configuration: {str(e)}"))
 
 
 def _get_existing_protection_groups() -> Dict[str, Dict]:
