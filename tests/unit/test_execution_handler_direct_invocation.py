@@ -78,6 +78,18 @@ def mock_shared_modules():
     sys.modules["shared.drs_utils"] = Mock()
     sys.modules["shared.execution_utils"] = Mock()
 
+    # Mock IAM utilities
+    mock_iam_utils = Mock()
+    mock_iam_utils.extract_iam_principal = Mock(return_value="arn:aws:iam::123456789012:role/TestRole")
+    mock_iam_utils.validate_iam_authorization = Mock(return_value=True)
+    mock_iam_utils.log_direct_invocation = Mock()
+    mock_iam_utils.create_authorization_error_response = Mock(return_value={
+        "error": "AUTHORIZATION_FAILED",
+        "message": "Insufficient permissions"
+    })
+    mock_iam_utils.validate_direct_invocation_event = Mock(return_value=True)
+    sys.modules["shared.iam_utils"] = mock_iam_utils
+
     # Mock response_utils with proper response function
     mock_response_utils = Mock()
 
@@ -151,9 +163,10 @@ def test_handle_direct_invocation_invalid_operation(
 
     assert result["error"] == "INVALID_OPERATION"
     assert "Unknown operation" in result["message"]
-    assert "validOperations" in result
-    assert isinstance(result["validOperations"], list)
-    assert len(result["validOperations"]) > 0
+    assert "details" in result
+    assert "validOperations" in result["details"]
+    assert isinstance(result["details"]["validOperations"], list)
+    assert len(result["details"]["validOperations"]) > 0
     # Verify expected operations are in the list
     expected_operations = [
         "start_execution",
@@ -164,7 +177,7 @@ def test_handle_direct_invocation_invalid_operation(
         "get_recovery_instances",
     ]
     for op in expected_operations:
-        assert op in result["validOperations"]
+        assert op in result["details"]["validOperations"]
 
 
 # Test: start_execution operation
@@ -565,7 +578,7 @@ def test_handle_direct_invocation_all_operations_supported(
     event = {"operation": "invalid_op", "parameters": {}}
     result = index.handle_direct_invocation(event, mock_lambda_context)
 
-    valid_operations = result.get("validOperations", [])
+    valid_operations = result.get("details", {}).get("validOperations", [])
 
     # Verify all required operations are present
     required_operations = [

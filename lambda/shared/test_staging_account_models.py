@@ -277,16 +277,12 @@ class TestDynamoDBOperations:
         }
         mock_get_table.return_value = mock_table
 
-        result = check_duplicate_staging_account(
-            TARGET_ACCOUNT_ID, "444455556666"
-        )
+        result = check_duplicate_staging_account(TARGET_ACCOUNT_ID, "444455556666")
 
         assert result is True
 
     @patch("staging_account_models._get_target_accounts_table")
-    def test_check_duplicate_staging_account_not_exists(
-        self, mock_get_table
-    ):
+    def test_check_duplicate_staging_account_not_exists(self, mock_get_table):
         """Test checking for duplicate staging account (not exists)."""
         mock_table = MagicMock()
         mock_table.get_item.return_value = {
@@ -297,9 +293,7 @@ class TestDynamoDBOperations:
         }
         mock_get_table.return_value = mock_table
 
-        result = check_duplicate_staging_account(
-            TARGET_ACCOUNT_ID, "444455556666"
-        )
+        result = check_duplicate_staging_account(TARGET_ACCOUNT_ID, "444455556666")
 
         assert result is False
 
@@ -351,9 +345,7 @@ class TestDynamoDBOperations:
     @patch("staging_account_models._get_target_accounts_table")
     @patch("staging_account_models.get_staging_accounts")
     @patch("staging_account_models.check_duplicate_staging_account")
-    def test_add_staging_account_success(
-        self, mock_check_dup, mock_get_staging, mock_get_table
-    ):
+    def test_add_staging_account_success(self, mock_check_dup, mock_get_staging, mock_get_table):
         """Test adding staging account successfully."""
         mock_table = MagicMock()
         mock_table.update_item.return_value = {
@@ -366,9 +358,7 @@ class TestDynamoDBOperations:
         mock_check_dup.return_value = False
         mock_get_staging.return_value = []
 
-        result = add_staging_account(
-            TARGET_ACCOUNT_ID, VALID_STAGING_ACCOUNT
-        )
+        result = add_staging_account(TARGET_ACCOUNT_ID, VALID_STAGING_ACCOUNT)
 
         assert result["success"] is True
         assert "STAGING_01" in result["message"]
@@ -376,9 +366,7 @@ class TestDynamoDBOperations:
 
     @patch("staging_account_models._get_target_accounts_table")
     @patch("staging_account_models.check_duplicate_staging_account")
-    def test_add_staging_account_duplicate(
-        self, mock_check_dup, mock_get_table
-    ):
+    def test_add_staging_account_duplicate(self, mock_check_dup, mock_get_table):
         """Test adding duplicate staging account raises error."""
         mock_get_table.return_value = MagicMock()
         mock_check_dup.return_value = True
@@ -403,9 +391,7 @@ class TestDynamoDBOperations:
 
     @patch("staging_account_models._get_target_accounts_table")
     @patch("staging_account_models.get_staging_accounts")
-    def test_remove_staging_account_success(
-        self, mock_get_staging, mock_get_table
-    ):
+    def test_remove_staging_account_success(self, mock_get_staging, mock_get_table):
         """Test removing staging account successfully."""
         staging1 = StagingAccount(
             accountId="444455556666",
@@ -439,9 +425,7 @@ class TestDynamoDBOperations:
 
     @patch("staging_account_models._get_target_accounts_table")
     @patch("staging_account_models.get_staging_accounts")
-    def test_remove_staging_account_not_found(
-        self, mock_get_staging, mock_get_table
-    ):
+    def test_remove_staging_account_not_found(self, mock_get_staging, mock_get_table):
         """Test removing non-existent staging account raises error."""
         mock_get_staging.return_value = []
         mock_get_table.return_value = MagicMock()
@@ -461,9 +445,7 @@ class TestDynamoDBOperations:
         }
         mock_get_table.return_value = mock_table
 
-        result = update_staging_accounts(
-            TARGET_ACCOUNT_ID, [VALID_STAGING_ACCOUNT]
-        )
+        result = update_staging_accounts(TARGET_ACCOUNT_ID, [VALID_STAGING_ACCOUNT])
 
         assert result["success"] is True
         assert "1 staging accounts" in result["message"]
@@ -505,9 +487,7 @@ class TestEdgeCases:
     @patch("staging_account_models._get_target_accounts_table")
     @patch("staging_account_models.get_staging_accounts")
     @patch("staging_account_models.check_duplicate_staging_account")
-    def test_add_staging_account_target_not_found(
-        self, mock_check_dup, mock_get_staging, mock_get_table
-    ):
+    def test_add_staging_account_target_not_found(self, mock_check_dup, mock_get_staging, mock_get_table):
         """Test adding staging account when target account not found."""
         mock_table = MagicMock()
         mock_table.update_item.side_effect = ClientError(
@@ -528,9 +508,7 @@ class TestEdgeCases:
 
     @patch("staging_account_models._get_target_accounts_table")
     @patch("staging_account_models.get_staging_accounts")
-    def test_remove_staging_account_target_not_found(
-        self, mock_get_staging, mock_get_table
-    ):
+    def test_remove_staging_account_target_not_found(self, mock_get_staging, mock_get_table):
         """Test removing staging account when target account not found."""
         staging = StagingAccount(
             accountId="444455556666",

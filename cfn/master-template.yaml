@@ -419,6 +419,7 @@ Resources:
         
         # Policy 12: Lambda Invoke Access (from ApiHandler, ExecutionFinder)
         # Supports direct Lambda invocation mode for headless operation
+        # Uses wildcard pattern to avoid circular dependency with LambdaStack
         - PolicyName: LambdaInvokeAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -427,12 +428,7 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource:
-                  - !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
-                  - !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
-                  - !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
-                  - !GetAtt LambdaStack.Outputs.DrOrchestrationStepFunctionArn
-                  - !GetAtt LambdaStack.Outputs.FrontendDeployerFunctionArn
-                  - !GetAtt LambdaStack.Outputs.NotificationFormatterFunctionArn
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-*"
         
         # Policy 13: EventBridge Access (from ApiHandler)
         - PolicyName: EventBridgeAccess

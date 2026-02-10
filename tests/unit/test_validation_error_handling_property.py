@@ -343,7 +343,7 @@ def test_property_validation_error_handling_invalid_account_id(
     Property 7: Validation Error Handling (Invalid Account ID)
     
     For invalid account ID format, the validation result must:
-    1. Have valid=False
+    1. Have valid=False in details
     2. Include a descriptive error message
     3. Explain the account ID format requirement
     """
@@ -361,19 +361,21 @@ def test_property_validation_error_handling_invalid_account_id(
     assert result["statusCode"] == 400
     body = json.loads(result["body"])
 
-    # Property 7: valid must be False for invalid input
-    assert body["valid"] is False, "valid must be False for invalid account ID"
+    # Property 7: valid must be False for invalid input (in details)
+    assert "details" in body, "details field must be present"
+    assert body["details"]["valid"] is False, "valid must be False for invalid account ID"
 
-    # Property 7: error message must be present and descriptive
-    assert "error" in body, "error field must be present for invalid input"
+    # Property 7: error code must be present
+    assert "error" in body, "error code must be present for invalid input"
     assert isinstance(body["error"], str), "error must be a string"
-    assert len(body["error"]) > 0, "error message must not be empty"
+    assert body["error"] in ["MISSING_PARAMETER", "INVALID_PARAMETER"], "error code must be valid"
 
-    # Error should explain the format requirement
-    error_lower = body["error"].lower()
+    # Error message should explain the format requirement
+    assert "message" in body, "message field must be present"
+    message_lower = body["message"].lower()
     assert (
-        "account" in error_lower or "invalid" in error_lower
-    ), "error should mention account ID issue"
+        "account" in message_lower or "invalid" in message_lower or "required" in message_lower
+    ), "message should mention account ID issue"
 
 
 @settings(max_examples=50)
@@ -391,7 +393,7 @@ def test_property_validation_error_handling_missing_required_fields(
     Property 7: Validation Error Handling (Missing Required Fields)
     
     For missing required fields, the validation result must:
-    1. Have valid=False
+    1. Have valid=False in details
     2. Include a descriptive error message
     3. Specify which field is missing
     """
@@ -410,12 +412,13 @@ def test_property_validation_error_handling_missing_required_fields(
     assert result["statusCode"] == 400
     body = json.loads(result["body"])
 
-    # Property 7: valid must be False for missing fields
+    # Property 7: valid must be False for missing fields (in details)
+    assert "details" in body, "details field must be present"
     assert (
-        body["valid"] is False
+        body["details"]["valid"] is False
     ), "valid must be False for missing required field"
 
-    # Property 7: error message must be present and descriptive
+    # Property 7: error code must be present
     assert (
         "error" in body
     ), "error field must be present for missing required field"
@@ -423,11 +426,11 @@ def test_property_validation_error_handling_missing_required_fields(
     assert len(body["error"]) > 0, "error message must not be empty"
 
     # Error should specify which field is missing
-    error_lower = body["error"].lower()
+    message_lower = body["message"].lower()
     assert (
-        "missing" in error_lower or "required" in error_lower
-    ), "error should mention missing field"
-    assert "region" in error_lower, "error should specify region is missing"
+        "missing" in message_lower or "required" in message_lower
+    ), "message should mention missing field"
+    assert "region" in message_lower, "message should specify region is missing"
 
 
 if __name__ == "__main__":

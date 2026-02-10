@@ -37,14 +37,14 @@ from shared.response_utils import (
 
 def handle_direct_invocation(event, context):
     operation = event.get("operation")
-    
+
     if not operation:
         return error_response(
             ERROR_MISSING_PARAMETER,
             "operation parameter is required",
             details={"parameter": "operation"}
         )
-    
+
     if operation == "get_item":
         item_id = event.get("itemId")
         if not item_id:
@@ -53,7 +53,7 @@ def handle_direct_invocation(event, context):
                 "itemId parameter is required",
                 details={"parameter": "itemId"}
             )
-        
+
         item = get_item_from_db(item_id)
         if not item:
             return error_response(
@@ -61,7 +61,7 @@ def handle_direct_invocation(event, context):
                 f"Item {item_id} not found",
                 details={"itemId": item_id}
             )
-        
+
         return success_response({"item": item})
 ```
 
@@ -452,9 +452,7 @@ def success_response(data: Dict[str, Any]) -> Dict[str, Any]:
     return json.loads(json.dumps(data, cls=DecimalEncoder))
 
 
-def format_api_gateway_response(
-    data: Dict[str, Any], status_code: int = 200
-) -> Dict[str, Any]:
+def format_api_gateway_response(data: Dict[str, Any], status_code: int = 200) -> Dict[str, Any]:
     """
     Wrap response data in API Gateway format.
 

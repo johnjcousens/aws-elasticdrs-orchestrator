@@ -163,14 +163,20 @@ class TestOperationRouting:
 
         event = {"operation": "find"}
         context = Mock()
+        context.invoked_function_arn = (
+            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
+        )
 
-        with patch("index.handle_find_operation") as mock_find:
-            mock_find.return_value = {"statusCode": 200, "executionsFound": 0}
+        with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
+            mock_validate.return_value = True
+            
+            with patch("index.handle_find_operation") as mock_find:
+                mock_find.return_value = {"statusCode": 200, "executionsFound": 0}
 
-            result = lambda_handler(event, context)  # noqa: F841
+                result = lambda_handler(event, context)  # noqa: F841
 
-            mock_find.assert_called_once_with(event, context)
-            assert result["statusCode"] == 200
+                mock_find.assert_called_once_with(event, context)
+                assert result["statusCode"] == 200
 
     def test_operation_poll_routes_correctly(self, mock_env_vars):  # noqa: F811
         """Test that operation='poll' routes to handle_poll_operation"""
@@ -182,14 +188,20 @@ class TestOperationRouting:
             "planId": "plan-456"
         }
         context = Mock()
+        context.invoked_function_arn = (
+            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
+        )
 
-        with patch("index.handle_poll_operation") as mock_poll:
-            mock_poll.return_value = {"statusCode": 200, "executionId": "test-123"}
+        with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
+            mock_validate.return_value = True
+            
+            with patch("index.handle_poll_operation") as mock_poll:
+                mock_poll.return_value = {"statusCode": 200, "executionId": "test-123"}
 
-            result = lambda_handler(event, context)  # noqa: F841
+                result = lambda_handler(event, context)  # noqa: F841
 
-            mock_poll.assert_called_once_with(event, context)
-            assert result["statusCode"] == 200
+                mock_poll.assert_called_once_with(event, context)
+                assert result["statusCode"] == 200
 
     def test_operation_finalize_routes_correctly(self, mock_env_vars):  # noqa: F811
         """Test that operation='finalize' routes to handle_finalize_operation"""
@@ -201,27 +213,41 @@ class TestOperationRouting:
             "planId": "plan-456"
         }
         context = Mock()
+        context.invoked_function_arn = (
+            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
+        )
 
-        with patch("index.handle_finalize_operation") as mock_finalize:
-            mock_finalize.return_value = {"statusCode": 200, "status": "COMPLETED"}
+        with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
+            mock_validate.return_value = True
+            
+            with patch("index.handle_finalize_operation") as mock_finalize:
+                mock_finalize.return_value = {"statusCode": 200, "status": "COMPLETED"}
 
-            result = lambda_handler(event, context)  # noqa: F841
+                result = lambda_handler(event, context)  # noqa: F841
 
-            mock_finalize.assert_called_once_with(event, context)
-            assert result["statusCode"] == 200
+                mock_finalize.assert_called_once_with(event, context)
+                assert result["statusCode"] == 200
 
     def test_unknown_operation_returns_error(self, mock_env_vars):  # noqa: F811
-        """Test that unknown operation returns 400 error"""
+        """Test that unknown operation returns error (raw dict format for direct invocation)"""
         from index import lambda_handler  # noqa: F401
 
         event = {"operation": "invalid_operation"}
         context = Mock()
+        context.invoked_function_arn = (
+            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
+        )
 
-        result = lambda_handler(event, context)  # noqa: F841
+        with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
+            mock_validate.return_value = True
+            
+            result = lambda_handler(event, context)  # noqa: F841
 
-        assert result["statusCode"] == 400
-        body = json.loads(result["body"])
-        assert "UNKNOWN_OPERATION" in body["error"]
+            # Direct invocation returns raw dict, not API Gateway format
+            assert "error" in result
+            assert result["error"] == "INVALID_OPERATION"
+            assert "invalid_operation" in result["message"]
+            assert "validOperations" in result["details"]
 
     def test_eventbridge_invocation_routes_to_find(self, mock_env_vars):  # noqa: F811
         """Test that EventBridge scheduled invocation routes to find operation"""
@@ -229,6 +255,9 @@ class TestOperationRouting:
 
         event = {"source": "aws.events"}
         context = Mock()
+        context.invoked_function_arn = (
+            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
+        )
 
         with patch("index.handle_find_operation") as mock_find:
             mock_find.return_value = {"statusCode": 200, "executionsFound": 0}
@@ -241,9 +270,12 @@ class TestOperationRouting:
 class TestHandleFindOperation:
     """Test handle_find_operation function"""
 
-    def test_finds_polling_executions(self, mock_env_vars, mock_dynamodb_table):  # noqa: F811
+    @patch("shared.iam_utils.validate_iam_authorization")
+    def test_finds_polling_executions(self, mock_validate, mock_env_vars, mock_dynamodb_table):  # noqa: F811
         """Test finding executions in POLLING status"""
         from index import handle_find_operation  # noqa: F401
+
+        mock_validate.return_value = True
 
         # Mock DynamoDB responses
         mock_dynamodb_table.query.side_effect = [
@@ -256,6 +288,9 @@ class TestHandleFindOperation:
 
         event = {"operation": "find"}
         context = Mock()
+        context.invoked_function_arn = (
+            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
+        )
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.handle_poll_operation") as mock_poll:
@@ -267,9 +302,12 @@ class TestHandleFindOperation:
                 assert result["executionsPolled"] == 2
                 assert mock_poll.call_count == 2
 
-    def test_finds_cancelling_executions(self, mock_env_vars, mock_dynamodb_table):  # noqa: F811
+    @patch("shared.iam_utils.validate_iam_authorization")
+    def test_finds_cancelling_executions(self, mock_validate, mock_env_vars, mock_dynamodb_table):  # noqa: F811
         """Test finding executions in CANCELLING status"""
         from index import handle_find_operation  # noqa: F401
+
+        mock_validate.return_value = True
 
         mock_dynamodb_table.query.side_effect = [
             {"Items": []},  # No POLLING executions
@@ -280,6 +318,9 @@ class TestHandleFindOperation:
 
         event = {"operation": "find"}
         context = Mock()
+        context.invoked_function_arn = (
+            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
+        )
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.handle_poll_operation") as mock_poll:
@@ -290,9 +331,12 @@ class TestHandleFindOperation:
                 assert result["executionsFound"] == 1
                 assert mock_poll.call_count == 1
 
-    def test_skips_executions_with_missing_ids(self, mock_env_vars, mock_dynamodb_table):  # noqa: F811
+    @patch("shared.iam_utils.validate_iam_authorization")
+    def test_skips_executions_with_missing_ids(self, mock_validate, mock_env_vars, mock_dynamodb_table):  # noqa: F811
         """Test that executions with missing IDs are skipped"""
         from index import handle_find_operation  # noqa: F401
+
+        mock_validate.return_value = True
 
         mock_dynamodb_table.query.side_effect = [
             {"Items": [
@@ -305,6 +349,9 @@ class TestHandleFindOperation:
 
         event = {"operation": "find"}
         context = Mock()
+        context.invoked_function_arn = (
+            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
+        )
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.handle_poll_operation") as mock_poll:
@@ -479,7 +526,8 @@ class TestHandleFinalizeOperation:
 
             assert result["statusCode"] == 400
             body = json.loads(result["body"])
-            assert "WAVES_NOT_COMPLETE" in body["error"]
+            assert body["error"] == "INVALID_STATE"
+            assert "not all waves complete" in body["message"]
 
     def test_finalize_is_idempotent(self, mock_env_vars, mock_dynamodb_table):  # noqa: F811
         """Test finalization is idempotent - safe to call multiple times"""

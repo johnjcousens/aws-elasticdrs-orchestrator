@@ -37,19 +37,14 @@ sys.path.insert(
 )
 
 # Import data management handler
-import importlib.util  # noqa: F401
-data_mgmt_path = Path(__file__).parent.parent.parent / "lambda" / "data-management-handler" / "index.py"
-spec_data = importlib.util.spec_from_file_location("data_mgmt_handler", data_mgmt_path)
-data_mgmt_handler = importlib.util.module_from_spec(spec_data)
-spec_data.loader.exec_module(data_mgmt_handler)
+import importlib  # noqa: F401
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda"))
+data_mgmt_handler = importlib.import_module("data-management-handler.index")
 data_mgmt_add_staging_account = data_mgmt_handler.handle_add_staging_account
 data_mgmt_remove_staging_account = data_mgmt_handler.handle_remove_staging_account
 
 # Import query handler
-query_handler_path = Path(__file__).parent.parent.parent / "lambda" / "query-handler" / "index.py"
-spec_query = importlib.util.spec_from_file_location("query_handler", query_handler_path)
-query_handler = importlib.util.module_from_spec(spec_query)
-spec_query.loader.exec_module(query_handler)
+query_handler = importlib.import_module("query-handler.index")
 handle_validate_staging_account = query_handler.handle_validate_staging_account
 
 
