@@ -912,10 +912,72 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                       return timeB - timeA;
                     });
                     
+                    // Group events that occur at the same time with the same event type
+                    // This matches DRS Console behavior where events for multiple servers are combined
+                    interface GroupedEvent {
+                      event: string;
+                      logDateTime: string;
+                      jobId: string;
+                      accountId: string;
+                      jobType: string;
+                      servers: Array<{
+                        sourceServerId?: string;
+                        conversionServerId?: string;
+                        eventData?: any;
+                        error?: string;
+                      }>;
+                      count: number;
+                    }
+                    
+                    const groupedEvents: GroupedEvent[] = [];
+                    const TIME_THRESHOLD_MS = 5000; // Group events within 5 seconds
+                    
+                    for (const event of allEvents) {
+                      // Try to find an existing group for this event
+                      const existingGroup = groupedEvents.find(g => {
+                        const timeDiff = Math.abs(
+                          new Date(g.logDateTime).getTime() - new Date(event.logDateTime).getTime()
+                        );
+                        return (
+                          g.event === event.event &&
+                          g.jobId === event.jobId &&
+                          g.accountId === event.accountId &&
+                          timeDiff <= TIME_THRESHOLD_MS
+                        );
+                      });
+                      
+                      if (existingGroup) {
+                        // Add to existing group
+                        existingGroup.servers.push({
+                          sourceServerId: event.sourceServerId,
+                          conversionServerId: event.conversionServerId,
+                          eventData: event.eventData,
+                          error: event.error,
+                        });
+                        existingGroup.count++;
+                      } else {
+                        // Create new group
+                        groupedEvents.push({
+                          event: event.event,
+                          logDateTime: event.logDateTime,
+                          jobId: event.jobId,
+                          accountId: event.accountId,
+                          jobType: event.jobType,
+                          servers: [{
+                            sourceServerId: event.sourceServerId,
+                            conversionServerId: event.conversionServerId,
+                            eventData: event.eventData,
+                            error: event.error,
+                          }],
+                          count: 1,
+                        });
+                      }
+                    }
+                    
                     const anyLoading = hasStagingJobs && stagingJobs.some(sj => loadingStagingJobs.has(sj.jobId));
                     const totalJobs = 1 + (stagingJobs?.length || 0);
                     
-                    if (allEvents.length === 0 && !anyLoading) {
+                    if (groupedEvents.length === 0 && !anyLoading) {
                       return (
                         <Box textAlign="center" color="inherit" padding="m">
                           <div style={{ color: '#5f6b7a' }}>
@@ -938,7 +1000,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                               DRS Job Timeline
                             </div>
                             <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
-                              {totalJobs} job{totalJobs !== 1 ? 's' : ''} • {allEvents.length} events
+                              {totalJobs} job{totalJobs !== 1 ? 's' : ''} • {groupedEvents.length} events
                               {hasStagingJobs && (
                                 <span>
                                   {' • '}
@@ -957,28 +1019,54 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                           </Box>
                         ) : (
                           <SpaceBetween size="s">
-                            {allEvents.map((event, eventIdx) => (
-                              <Box key={eventIdx} padding="s">
+                            {groupedEvents.map((group, groupIdx) => (
+                              <Box key={groupIdx} padding="s">
                                 <div style={{ fontWeight: 500 }}>
-                                  {formatJobLogEvent(event)}
+                                  {formatJobLogEvent({ 
+                                    event: group.event,
+                                    logDateTime: group.logDateTime,
+                                    eventData: group.servers[0].eventData || {},
+                                  } as JobLogEvent)}
                                 </div>
                                 <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
-                                  {formatTimestamp(event.logDateTime)}
-                                  <span> • Account: <code style={{ fontSize: '11px' }}>{event.accountId}</code></span>
-                                  <span> • Job: <code style={{ fontSize: '11px' }}>{event.jobId}</code></span>
-                                  {event.sourceServerId && (
-                                    <span> • Server: <code style={{ fontSize: '11px' }}>{event.sourceServerId}</code></span>
+                                  {formatTimestamp(group.logDateTime)}
+                                  <span> • Account: <code style={{ fontSize: '11px' }}>{group.accountId}</code></span>
+                                  <span> • Job: <code style={{ fontSize: '11px' }}>{group.jobId}</code></span>
+                                  {group.count > 1 && (
+                                    <span> • <strong>Servers: {group.count}</strong></span>
                                   )}
-                                  {event.conversionServerId && (
-                                    <span> • Conversion: <code style={{ fontSize: '11px' }}>{event.conversionServerId}</code></span>
+                                  {group.count === 1 && group.servers[0].sourceServerId && (
+                                    <span> • Server: <code style={{ fontSize: '11px' }}>{group.servers[0].sourceServerId}</code></span>
+                                  )}
+                                  {group.count === 1 && group.servers[0].conversionServerId && (
+                                    <span> • Conversion: <code style={{ fontSize: '11px' }}>{group.servers[0].conversionServerId}</code></span>
                                   )}
                                 </div>
-                                {event.error && (
+                                {group.servers.some(s => s.error) && (
                                   <Alert type="error" header="Event Error" dismissible={false}>
-                                    {event.error}
+                                    {group.servers.find(s => s.error)?.error}
                                   </Alert>
                                 )}
-                                {event.eventData && Object.keys(event.eventData).length > 0 && (
+                                {group.count > 1 && (
+                                  <details style={{ marginTop: '8px' }}>
+                                    <summary style={{ fontSize: '12px', color: '#5f6b7a', cursor: 'pointer' }}>
+                                      Server Details
+                                    </summary>
+                                    <div style={{ marginTop: '4px', paddingLeft: '12px' }}>
+                                      {group.servers.map((server, serverIdx) => (
+                                        <div key={serverIdx} style={{ fontSize: '11px', color: '#5f6b7a', marginTop: '2px' }}>
+                                          {server.sourceServerId && (
+                                            <span>Server: <code>{server.sourceServerId}</code></span>
+                                          )}
+                                          {server.conversionServerId && (
+                                            <span> • Conversion: <code>{server.conversionServerId}</code></span>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </details>
+                                )}
+                                {group.count === 1 && group.servers[0].eventData && Object.keys(group.servers[0].eventData).length > 0 && (
                                   <details style={{ marginTop: '8px' }}>
                                     <summary style={{ fontSize: '12px', color: '#5f6b7a', cursor: 'pointer' }}>
                                       Event Details
@@ -990,7 +1078,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                                       whiteSpace: 'pre-wrap',
                                       wordBreak: 'break-word'
                                     }}>
-                                      {JSON.stringify(event.eventData, null, 2)}
+                                      {JSON.stringify(group.servers[0].eventData, null, 2)}
                                     </pre>
                                   </details>
                                 )}
