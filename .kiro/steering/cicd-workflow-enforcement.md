@@ -1,3 +1,7 @@
+---
+inclusion: always
+---
+
 # CI/CD Workflow Enforcement
 
 ## ⛔ CRITICAL RULE #1 - READ THIS FIRST ⛔
