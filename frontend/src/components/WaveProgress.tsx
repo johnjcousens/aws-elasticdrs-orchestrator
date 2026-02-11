@@ -54,12 +54,37 @@ interface StagingJobLogs {
 const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse | null): string => {
   const waveStatus = (wave.status || 'pending').toLowerCase();
   
-  // If wave already shows completed/failed, use that
+  // 1. Check explicit wave status first
   if (['completed', 'failed', 'cancelled'].includes(waveStatus)) {
+    console.log(`[WaveProgress] Wave ${wave.waveNumber} has explicit status: ${wave.status}`);
     return waveStatus;
   }
   
-  // Check server statuses to determine if wave is actually complete
+  // 2. NEW: Check if wave has endTime (authoritative completion signal)
+  if (wave.endTime) {
+    console.log(`[WaveProgress] Wave ${wave.waveNumber} has endTime: ${new Date(wave.endTime).toISOString()}`);
+    
+    // Verify all servers are in terminal state
+    const servers = wave.serverExecutions || [];
+    const allServersTerminal = servers.every(s => {
+      const status = (s.launchStatus || s.status || '').toUpperCase();
+      return ['LAUNCHED', 'FAILED', 'TERMINATED'].includes(status);
+    });
+    
+    if (allServersTerminal) {
+      // Check if any failed
+      const anyFailed = servers.some(s => {
+        const status = (s.launchStatus || s.status || '').toUpperCase();
+        return status === 'FAILED';
+      });
+      
+      const status = anyFailed ? 'failed' : 'completed';
+      console.log(`[WaveProgress] Wave ${wave.waveNumber} completed with status: ${status}`);
+      return status;
+    }
+  }
+  
+  // 3. Check if all servers launched successfully
   const servers = wave.serverExecutions || [];
   if (servers.length > 0) {
     const allLaunched = servers.every(s => {
@@ -67,6 +92,12 @@ const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse |
       return status === 'LAUNCHED';
     });
     
+    if (allLaunched) {
+      console.log(`[WaveProgress] Wave ${wave.waveNumber} - all ${servers.length} servers launched`);
+      return 'completed';
+    }
+    
+    // 4. Check for failures
     // Only check for failures if servers have actually started launching
     // During early phases (cleanup, snapshot, conversion), servers won't have launch status yet
     const serversWithStatus = servers.filter(s => s.launchStatus || s.status);
@@ -75,43 +106,62 @@ const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse |
       return status === 'FAILED';
     });
     
-    const anyInProgress = servers.some(s => {
-      const status = (s.launchStatus || s.status || '').toUpperCase();
-      return ['IN_PROGRESS', 'LAUNCHING', 'PENDING_LAUNCH'].includes(status);
-    });
+    if (anyFailed) {
+      console.log(`[WaveProgress] Wave ${wave.waveNumber} has failed servers`);
+      return 'failed';
+    }
     
-    if (allLaunched) return 'completed';
-    if (anyFailed) return 'failed';
-    
-    // Check job logs for authoritative completion signal
+    // 5. Check job logs for completion (if available)
     if (jobLogs && wave.jobId) {
       const waveLog = jobLogs.jobLogs?.find(log => log.jobId === wave.jobId);
       if (waveLog) {
-        const hasJobEnd = waveLog.events.some(e => e.event === 'JOB_END');
+        const jobEndEvents = waveLog.events.filter(e => e.event === 'JOB_END');
         const launchEndEvents = waveLog.events.filter(e => e.event === 'LAUNCH_END');
         
-        // If job ended and we have LAUNCH_END for all servers, wave is complete
-        if (hasJobEnd && launchEndEvents.length === servers.length) {
+        // JOB_END is authoritative completion signal
+        if (jobEndEvents.length > 0) {
+          console.log(`[WaveProgress] Wave ${wave.waveNumber} has JOB_END event in logs`);
+          return 'completed';
+        }
+        
+        // LAUNCH_END for all servers also indicates completion
+        if (launchEndEvents.length === servers.length && servers.length > 0) {
+          console.log(`[WaveProgress] Wave ${wave.waveNumber} has LAUNCH_END for all ${servers.length} servers`);
           return 'completed';
         }
       }
     }
     
-    if (anyInProgress) return 'in_progress';
+    // 6. Check for in-progress
+    const anyInProgress = servers.some(s => {
+      const status = (s.launchStatus || s.status || '').toUpperCase();
+      return ['IN_PROGRESS', 'LAUNCHING', 'PENDING_LAUNCH', 'PENDING'].includes(status);
+    });
+    
+    if (anyInProgress) {
+      return 'in_progress';
+    }
   }
   
-  // Map DRS job statuses to appropriate display statuses
+  // 7. Map wave status as fallback
+  let mappedStatus: string;
   switch (waveStatus) {
     case 'started':
-      return 'in_progress'; // DRS job is active, show as in progress
+      mappedStatus = 'in_progress'; // DRS job is active, show as in progress
+      break;
     case 'launching':
     case 'initiated':
-      return 'in_progress';
+      mappedStatus = 'in_progress';
+      break;
     case 'polling':
-      return 'in_progress';
+      mappedStatus = 'in_progress';
+      break;
     default:
-      return waveStatus;
+      mappedStatus = waveStatus;
   }
+  
+  console.log(`[WaveProgress] Wave ${wave.waveNumber} mapped status: ${mappedStatus} (from ${wave.status})`);
+  return mappedStatus;
 };
 
 /**
@@ -229,14 +279,18 @@ const formatTimestamp = (timestamp: string | number | undefined): string => {
 
 /**
  * Calculate wave duration
+ * For completed waves, uses endTime. For in-progress waves, uses current time.
  */
-const calculateWaveDuration = (wave: WaveExecution): string => {
+const calculateWaveDuration = (wave: WaveExecution, effectiveStatus?: string): string => {
   if (!wave.startTime) return '-';
   
   const start = parseTimestamp(wave.startTime);
   if (!start) return '-';
   
-  const end = wave.endTime ? parseTimestamp(wave.endTime) : new Date();
+  // For completed waves, MUST use endTime to freeze the duration
+  // For in-progress waves, use current time for live updates
+  const isCompleted = effectiveStatus === 'completed' || effectiveStatus === 'launched';
+  const end = (isCompleted && wave.endTime) ? parseTimestamp(wave.endTime) : new Date();
   if (!end) return '-';
   
   const durationMs = end.getTime() - start.getTime();
@@ -279,20 +333,82 @@ const getConsoleLink = (instanceId: string, region: string): string => {
 };
 
 /**
- * Calculate overall progress with granular server-level tracking
+ * Get server progress from DRS job log events
+ * Maps DRS recovery phases to progress percentages:
+ * - SNAPSHOT phase: 0-25%
+ * - CONVERSION phase: 25-50%
+ * - LAUNCH phase: 50-100%
+ */
+const getServerProgressFromJobLogs = (
+  serverId: string,
+  waveNumber: number,
+  jobLogs?: JobLogsResponse | null
+): number => {
+  if (!jobLogs || !jobLogs.jobLogs) return 0;
+  
+  const waveLog = jobLogs.jobLogs.find(log => log.waveNumber === waveNumber);
+  if (!waveLog) return 0;
+  
+  // Find all events for this server, sorted by time (most recent first)
+  const serverEvents = waveLog.events
+    .filter(e => {
+      const eventData = e.eventData as { sourceServerID?: string } | undefined;
+      return eventData?.sourceServerID === serverId;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.logDateTime).getTime();
+      const timeB = new Date(b.logDateTime).getTime();
+      return timeB - timeA; // Most recent first
+    });
+  
+  if (serverEvents.length === 0) return 0;
+  
+  // Map most recent event to progress percentage
+  const latestEvent = serverEvents[0].event;
+  switch (latestEvent) {
+    case 'LAUNCH_END':
+      return 1.0; // 100% - server fully launched
+    case 'LAUNCH_START':
+      return 0.75; // 75% - launching
+    case 'CONVERSION_END':
+      return 0.5; // 50% - conversion complete
+    case 'CONVERSION_START':
+      return 0.375; // 37.5% - converting
+    case 'SNAPSHOT_END':
+      return 0.25; // 25% - snapshot complete
+    case 'SNAPSHOT_START':
+    case 'USING_PREVIOUS_SNAPSHOT':
+      return 0.125; // 12.5% - snapshotting
+    case 'CLEANUP_START':
+    case 'CLEANUP_END':
+      return 0.05; // 5% - cleanup phase
+    default:
+      return 0;
+  }
+};
+
+/**
+ * Calculate overall progress with granular server-level tracking using DRS job events
  * 
  * Progress calculation:
  * - Completed waves: 1.0 each
- * - In-progress waves: base 0.1 + (launched servers / total servers * 0.9)
- *   This ensures in-progress waves show some progress even before servers launch
+ * - In-progress waves: average of all server progress (from job log events)
  * - Pending waves: 0
  * 
+ * Server progress from DRS events:
+ * - SNAPSHOT phase: 0-25%
+ * - CONVERSION phase: 25-50%
+ * - LAUNCH phase: 50-100%
+ * 
  * Example with 3 waves, wave 1 has 4 servers:
- * - Wave started, 0 servers launched: 0.1/3 = 3%
- * - 1 server launched: (0.1 + 0.225)/3 = 11%
- * - 2 servers launched: (0.1 + 0.45)/3 = 18%
- * - 3 servers launched: (0.1 + 0.675)/3 = 26%
- * - 4 servers launched (wave complete): 1/3 = 33%
+ * - Wave started, cleanup: 1-2%
+ * - Server 1 SNAPSHOT_START: 4%
+ * - Server 1 SNAPSHOT_END: 8%
+ * - Server 1 CONVERSION_START: 12%
+ * - Server 1 CONVERSION_END: 17%
+ * - Server 1 LAUNCH_START: 25%
+ * - Server 1 LAUNCH_END: 33%
+ * - All 4 servers LAUNCH_END: 100% (wave complete)
  */
 const calculateProgress = (
   waves: WaveExecution[], 
@@ -320,21 +436,38 @@ const calculateProgress = (
       totalProgress += 1.0;
     } else if (effectiveStatus === 'in_progress' || effectiveStatus === 'started' || 
                effectiveStatus === 'launching' || effectiveStatus === 'polling') {
-      // In-progress wave: base progress (0.1) + server launch progress (0.9)
+      // In-progress wave: calculate based on server progress from job logs
       const servers = w.serverExecutions || [];
-      const baseProgress = 0.1; // Wave started = 10% of wave progress
+      const waveNum = w.waveNumber ?? 0;
       
       if (servers.length > 0) {
-        const launchedServers = servers.filter(s => {
-          const status = (s.launchStatus || s.status || '').toUpperCase();
-          return status === 'LAUNCHED';
-        }).length;
-        // Server progress contributes remaining 90% of wave progress
-        const serverProgress = (launchedServers / servers.length) * 0.9;
-        totalProgress += baseProgress + serverProgress;
+        let waveProgress = 0;
+        
+        servers.forEach(server => {
+          // Try to get progress from job logs first
+          const jobLogProgress = getServerProgressFromJobLogs(server.serverId, waveNum, jobLogs);
+          
+          if (jobLogProgress > 0) {
+            // Use job log event progress (0.0 to 1.0)
+            waveProgress += jobLogProgress;
+          } else {
+            // Fallback to launchStatus if no job log events
+            const status = (server.launchStatus || server.status || '').toUpperCase();
+            if (status === 'LAUNCHED') {
+              waveProgress += 1.0;
+            } else if (['IN_PROGRESS', 'LAUNCHING', 'PENDING_LAUNCH'].includes(status)) {
+              // Server is actively launching but not complete yet - count as 50% progress
+              waveProgress += 0.5;
+            }
+            // PENDING servers contribute 0
+          }
+        });
+        
+        // Average server progress for this wave
+        totalProgress += waveProgress / servers.length;
       } else {
-        // No servers yet, count as base progress
-        totalProgress += baseProgress;
+        // No servers yet, but wave started - count as minimal progress
+        totalProgress += 0.1;
       }
     }
     // Pending waves contribute 0
@@ -420,7 +553,7 @@ const mapEventToStatus = (event: string): { status: string; icon: string; color:
 const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsResponse | null) => [
   {
     id: 'serverId',
-    header: 'Server ID',
+    header: 'Server Name',
     cell: (server: ServerExecution) => (
       <Box>
         <div style={{ 
@@ -531,10 +664,37 @@ const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsRes
         );
       }
       
+      // Check server status to provide appropriate feedback
       const status = (server.launchStatus || server.status || '').toUpperCase();
+      
+      // Check if server is still launching
+      if (status === 'PENDING' || status === 'IN_PROGRESS' || status === 'LAUNCHING') {
+        return (
+          <span style={{ color: '#5f6b7a', fontSize: '13px' }}>
+            Launching...
+          </span>
+        );
+      }
+      
+      // Check if server failed
+      if (status === 'FAILED' || status === 'ERROR') {
+        return (
+          <span style={{ color: '#d13212', fontSize: '13px' }}>
+            Launch failed
+          </span>
+        );
+      }
+      
+      // Data should be available but isn't - log warning
+      if (status === 'LAUNCHED' || status === 'COMPLETED') {
+        console.warn(
+          `[WaveProgress] Server ${server.serverId} (${server.serverName}) launched but missing instance ID`
+        );
+      }
+      
       return (
-        <span style={{ color: '#5f6b7a', fontSize: '13px' }}>
-          {status === 'LAUNCHING' ? 'Launching...' : '—'}
+        <span style={{ color: '#5f6b7a', fontSize: '13px' }} title="Instance ID not available">
+          —
         </span>
       );
     },
@@ -594,6 +754,39 @@ const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsRes
     minWidth: 180,
   },
 ];
+
+/**
+ * Log EC2 data availability for debugging
+ */
+const logEC2DataAvailability = (wave: WaveExecution) => {
+  const serversWithEC2Data = wave.serverExecutions.filter(
+    s => s.recoveredInstanceId && s.instanceType && s.privateIp
+  );
+  const serversWithoutEC2Data = wave.serverExecutions.filter(
+    s => !s.recoveredInstanceId || !s.instanceType || !s.privateIp
+  );
+  
+  if (serversWithoutEC2Data.length > 0) {
+    console.log(
+      `[WaveProgress] Wave ${wave.waveNumber} - ${serversWithoutEC2Data.length}/${wave.serverExecutions.length} servers missing EC2 data`
+    );
+    console.log('[WaveProgress] Servers missing EC2 data:', 
+      serversWithoutEC2Data.map(s => ({
+        serverId: s.serverId,
+        serverName: s.serverName,
+        launchStatus: s.launchStatus,
+        hasInstanceId: !!s.recoveredInstanceId,
+        hasInstanceType: !!s.instanceType,
+        hasPrivateIp: !!s.privateIp,
+        hasLaunchTime: !!(s.launchTime || s.startTime),
+      }))
+    );
+  } else if (wave.serverExecutions.length > 0) {
+    console.log(
+      `[WaveProgress] Wave ${wave.waveNumber} - all ${wave.serverExecutions.length} servers have EC2 data`
+    );
+  }
+};
 
 /**
  * Wave Progress Component
@@ -698,7 +891,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const effectiveStatus = getEffectiveWaveStatus(wave, jobLogs);
         const statusIndicator = getWaveStatusIndicator(effectiveStatus);
         const statusColor = getStatusColor(effectiveStatus);
-        const duration = calculateWaveDuration(wave);
+        const duration = calculateWaveDuration(wave, effectiveStatus);
         
         return (
           <Container key={waveNum}>
@@ -747,7 +940,9 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                   }}>
                     {wave.startTime ? (
                       <>
-                        Started {formatRelativeTime(wave.startTime)}
+                        Started {effectiveStatus === 'completed' || effectiveStatus === 'launched' 
+                          ? formatTimestamp(wave.startTime)
+                          : formatRelativeTime(wave.startTime)}
                         <span style={{ margin: '0 8px', color: '#d5dbdb' }}>•</span>
                         Duration: {duration}
                         {wave.jobId && (
@@ -812,6 +1007,11 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     }
                   }}
                 >
+                  {/* Log EC2 data availability for debugging */}
+                  {(() => {
+                    logEC2DataAvailability(wave);
+                    return null;
+                  })()}
                   <Table
                     columnDefinitions={createServerColumnDefinitions(wave, jobLogs)}
                     items={wave.serverExecutions}
@@ -877,15 +1077,17 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     const hasStagingJobs = stagingJobs && stagingJobs.length > 0;
                     
                     // Combine all events from all jobs (staging + target) into unified timeline
-                    const allEvents: Array<JobLogEvent & { jobId: string; accountId: string; jobType: string }> = [];
+                    const allEvents: Array<JobLogEvent & { jobId: string; accountId: string; accountName?: string; jobType: string }> = [];
                     
                     // Add target account job events
-                    const targetAccountId = (wave as any).DRSJobDetails?.targetAccountId || 'Target Account';
+                    const targetAccountId = (wave as any).DRSJobDetails?.targetAccountId;
+                    const targetAccountName = (wave as any).DRSJobDetails?.targetAccountName;
                     waveJobLogs.forEach(event => {
                       allEvents.push({
                         ...event,
                         jobId: wave.jobId!,
-                        accountId: targetAccountId,
+                        accountId: targetAccountId || 'unknown',
+                        accountName: targetAccountName,  // undefined if not provided - display logic will handle
                         jobType: 'LAUNCH'
                       });
                     });
@@ -919,6 +1121,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                       logDateTime: string;
                       jobId: string;
                       accountId: string;
+                      accountName?: string;
                       jobType: string;
                       servers: Array<{
                         sourceServerId?: string;
@@ -962,6 +1165,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                           logDateTime: event.logDateTime,
                           jobId: event.jobId,
                           accountId: event.accountId,
+                          accountName: event.accountName,
                           jobType: event.jobType,
                           servers: [{
                             sourceServerId: event.sourceServerId,
@@ -1030,7 +1234,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                                 </div>
                                 <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
                                   {formatTimestamp(group.logDateTime)}
-                                  <span> • Account: <code style={{ fontSize: '11px' }}>{group.accountId}</code></span>
+                                  <span> • Account: {group.accountName ? `${group.accountName} (${group.accountId})` : <code style={{ fontSize: '11px' }}>{group.accountId}</code>}</span>
                                   <span> • Job: <code style={{ fontSize: '11px' }}>{group.jobId}</code></span>
                                   {group.count > 1 && (
                                     <span> • <strong>Servers: {group.count}</strong></span>
@@ -1053,16 +1257,43 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                                       Server Details
                                     </summary>
                                     <div style={{ marginTop: '4px', paddingLeft: '12px' }}>
-                                      {group.servers.map((server, serverIdx) => (
-                                        <div key={serverIdx} style={{ fontSize: '11px', color: '#5f6b7a', marginTop: '2px' }}>
-                                          {server.sourceServerId && (
-                                            <span>Server: <code>{server.sourceServerId}</code></span>
-                                          )}
-                                          {server.conversionServerId && (
-                                            <span> • Conversion: <code>{server.conversionServerId}</code></span>
-                                          )}
-                                        </div>
-                                      ))}
+                                      {group.servers.map((server, serverIdx) => {
+                                        // Find matching server execution to get name, hostname, region
+                                        const serverExecution = wave.serverExecutions?.find(
+                                          s => s.serverId === server.sourceServerId
+                                        );
+                                        
+                                        return (
+                                          <div key={serverIdx} style={{ fontSize: '11px', color: '#232f3e', marginTop: '4px', paddingBottom: '4px', borderBottom: serverIdx < group.servers.length - 1 ? '1px solid #e9ebed' : 'none' }}>
+                                            {serverExecution ? (
+                                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                                                {serverExecution.serverName && (
+                                                  <span><strong>Name:</strong> {serverExecution.serverName}</span>
+                                                )}
+                                                <span><strong>Server ID:</strong> <code style={{ fontSize: '10px' }}>{server.sourceServerId}</code></span>
+                                                {serverExecution.region && (
+                                                  <span><strong>Region:</strong> {serverExecution.region}</span>
+                                                )}
+                                                {serverExecution.hostname && serverExecution.serverName && serverExecution.hostname !== serverExecution.serverName && (
+                                                  <span><strong>Hostname:</strong> {serverExecution.hostname}</span>
+                                                )}
+                                                {server.conversionServerId && (
+                                                  <span><strong>Conversion:</strong> <code style={{ fontSize: '10px' }}>{server.conversionServerId}</code></span>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                                                {server.sourceServerId && (
+                                                  <span><strong>Server:</strong> <code>{server.sourceServerId}</code></span>
+                                                )}
+                                                {server.conversionServerId && (
+                                                  <span><strong>Conversion:</strong> <code>{server.conversionServerId}</code></span>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </details>
                                 )}
