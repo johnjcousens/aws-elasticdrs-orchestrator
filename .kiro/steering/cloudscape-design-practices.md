@@ -1,3 +1,7 @@
+---
+inclusion: always
+---
+
 # CloudScape Design Practices for AWS DRS Orchestration
 
 ## Purpose
@@ -419,7 +423,64 @@ According to CloudScape documentation, **custom CSS classes on CloudScape compon
 </div>
 
 // Option 2: Use CloudScape's built-in variant props
-<Button variant="primary">Primary Action</Button>
+<Button variant="primary">Click</Button>
+<Button variant="normal">Click</Button>
+<Button variant="link">Click</Button>
+```
+
+## CSS Module File Organization
+
+### Directory Structure
+```
+frontend/src/
+├── styles/
+│   ├── z-index.css           # Centralized z-index scale
+│   ├── utilities.css         # Shared utility classes
+│   └── design-tokens.md      # Token reference
+├── components/
+│   ├── MyComponent.tsx
+│   └── MyComponent.module.css
+└── pages/
+    ├── Dashboard.tsx
+    └── Dashboard.module.css
+```
+
+### Utility Classes (styles/utilities.css)
+```css
+/* Flexbox utilities */
+.flexRow { display: flex; flex-direction: row; align-items: center; }
+.flexColumn { display: flex; flex-direction: column; }
+.flexBetween { display: flex; justify-content: space-between; }
+
+/* Spacing utilities */
+.gapXs { gap: var(--awsui-space-scaled-xs); }
+.gapS { gap: var(--awsui-space-scaled-s); }
+.gapM { gap: var(--awsui-space-scaled-m); }
+
+/* Text utilities */
+.textSecondary { color: var(--awsui-color-text-body-secondary); }
+.textMuted { 
+  color: var(--awsui-color-text-body-secondary);
+  font-size: var(--awsui-font-size-body-s);
+}
+```
+
+## Summary
+
+### Key Principles
+1. **Zero inline styles** - Use CSS modules with design tokens
+2. **100% CloudScape tokens** - No hardcoded values
+3. **Never override CloudScape** - Wrap components, don't modify
+4. **Centralized z-index** - Use shared scale
+5. **camelCase naming** - Consistent class names
+6. **Thin borders** - 1px for containers
+7. **Strategic shadows** - Only for interactive elements
+8. **AWS Console compliance** - Follow official design standards
+
+### Resources
+- CloudScape Design System: https://cloudscape.design/
+- Design Tokens: https://cloudscape.design/foundation/visual-foundation/design-tokens/
+- AWS Visual Update: https://aws.amazon.com/blogs/aws/new-aws-management-console-visual-refresh/ary">Primary Action</Button>
 <Button variant="normal">Secondary Action</Button>
 <Button variant="link">Link Action</Button>
 

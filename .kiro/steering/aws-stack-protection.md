@@ -1,3 +1,7 @@
+---
+inclusion: always
+---
+
 # AWS Stack Protection Rules
 
 ## Stack Naming Convention
