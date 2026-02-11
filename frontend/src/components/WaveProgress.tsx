@@ -905,11 +905,11 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                       }
                     }
                     
-                    // Sort all events by timestamp
+                    // Sort all events by timestamp (newest first)
                     allEvents.sort((a, b) => {
                       const timeA = new Date(a.logDateTime).getTime();
                       const timeB = new Date(b.logDateTime).getTime();
-                      return timeA - timeB;
+                      return timeB - timeA;
                     });
                     
                     const anyLoading = hasStagingJobs && stagingJobs.some(sj => loadingStagingJobs.has(sj.jobId));
