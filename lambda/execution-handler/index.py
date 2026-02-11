@@ -117,6 +117,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 # Import shared utilities
+from shared.account_utils import get_account_name
 from shared.config_merge import get_effective_launch_config
 from shared.conflict_detection import (
     check_server_conflicts,
@@ -159,11 +160,36 @@ stepfunctions = boto3.client("stepfunctions")
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
 RECOVERY_PLANS_TABLE = os.environ.get("RECOVERY_PLANS_TABLE")
 EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
+TARGET_ACCOUNTS_TABLE = os.environ.get("TARGET_ACCOUNTS_TABLE")
 
 # DynamoDB tables (conditional initialization)
 protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
 recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
 execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE) if EXECUTION_HISTORY_TABLE else None
+target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
+
+
+def get_target_account_name(account_id: str) -> Optional[str]:
+    """
+    Get account name from target accounts table.
+
+    Args:
+        account_id: AWS account ID
+
+    Returns:
+        Account name from target accounts table, or None if not found
+    """
+    if not target_accounts_table or not account_id:
+        return None
+
+    try:
+        result = target_accounts_table.get_item(Key={"accountId": account_id})
+        if "Item" in result:
+            return result["Item"].get("accountName")
+        return None
+    except Exception as e:
+        print(f"Error getting account name from target accounts table: {e}")
+        return None
 
 
 def analyze_execution_outcome(waves: List[Dict]) -> Dict:
@@ -2755,7 +2781,15 @@ def handle_find_operation(event: Dict, context) -> Dict:
             KeyConditionExpression=Key("status").eq("CANCELLING"),
         )
 
-        executions = polling_result.get("Items", []) + cancelling_result.get("Items", [])
+        # Query for COMPLETED executions (to update wave statuses)
+        completed_result = execution_history_table.query(
+            IndexName="StatusIndex",
+            KeyConditionExpression=Key("status").eq("COMPLETED"),
+        )
+
+        executions = (
+            polling_result.get("Items", []) + cancelling_result.get("Items", []) + completed_result.get("Items", [])
+        )
 
         print(f"Found {len(executions)} executions needing polling")
 
@@ -2881,7 +2915,7 @@ def handle_poll_operation(event: Dict, context) -> Dict:
         execution = exec_result["Item"]
         execution_status = execution.get("status", "POLLING")
 
-        # Skip if already completed
+        # Skip if already completed - BUT check if waves need status updates first
         if execution_status in [
             "COMPLETED",
             "FAILED",
@@ -2889,18 +2923,37 @@ def handle_poll_operation(event: Dict, context) -> Dict:
             "TIMEOUT",
             "PARTIAL",
         ]:
-            print(f"Execution {execution_id} already {execution_status} - skipping poll")
-            return {
-                "statusCode": 200,
-                "executionId": execution_id,
-                "status": execution_status,
-                "allWavesComplete": True,
-            }
+            # Check if any waves are still in active status (need terminal state update)
+            waves = execution.get("waves", [])
+            has_active_waves = any(
+                wave.get("status", "").upper()
+                not in [
+                    "COMPLETED",
+                    "FAILED",
+                    "TERMINATED",
+                    "TIMEOUT",
+                    "CANCELLED",
+                ]
+                for wave in waves
+            )
+
+            if not has_active_waves:
+                print(f"Execution {execution_id} already {execution_status} with all waves terminal - skipping poll")
+                return {
+                    "statusCode": 200,
+                    "executionId": execution_id,
+                    "status": execution_status,
+                    "allWavesComplete": True,
+                }
+            else:
+                print(
+                    f"Execution {execution_id} is {execution_status} but has active waves - continuing to update wave statuses"
+                )
 
         # CRITICAL: Check Step Functions status to detect failures
         # Step Functions is the source of truth for execution lifecycle
         state_machine_arn = execution.get("stateMachineArn")
-        if state_machine_arn and execution_status in ["POLLING", "RUNNING"]:
+        if state_machine_arn and execution_status in ["POLLING", "RUNNING", "COMPLETED"]:
             try:
                 sf_response = stepfunctions.describe_execution(executionArn=state_machine_arn)
                 sf_status = sf_response.get("status")
@@ -6974,6 +7027,18 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
                                 )
                                 wave["status"] = "IN_PROGRESS"
 
+                        # Get target account ID and name for display
+                        target_account_id = None
+                        target_account_name = None
+                        if account_context:
+                            target_account_id = account_context.get("accountId")
+                            if target_account_id:
+                                # Try to get account name from target accounts table first
+                                target_account_name = get_target_account_name(target_account_id)
+                                # Fallback to IAM/Organizations lookup if not in table
+                                if not target_account_name:
+                                    target_account_name = get_account_name(target_account_id)
+
                         # Add real-time job details for frontend display
                         wave["DRSJobDetails"] = {
                             "status": drs_status,
@@ -6981,6 +7046,8 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
                             "creationDateTime": job.get("creationDateTime", ""),
                             "endDateTime": job.get("endDateTime", ""),
                             "participatingServers": len(participating_servers),
+                            "targetAccountId": target_account_id,
+                            "targetAccountName": target_account_name,
                             "launchedServers": len(
                                 [s for s in participating_servers if s.get("launchStatus") == "LAUNCHED"]
                             ),
