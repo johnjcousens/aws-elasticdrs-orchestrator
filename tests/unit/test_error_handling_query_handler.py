@@ -45,7 +45,45 @@ query_handler_index = importlib.import_module("query-handler.index")
 @pytest.fixture(autouse=True)
 def reset_all_mocks():
     """Reset all mocks between tests to prevent state pollution."""
-    yield
+    # Reset module-level variables in account_utils
+    import shared.account_utils
+    shared.account_utils._dynamodb = None
+    shared.account_utils._target_accounts_table = None
+    
+    # Reset module-level variables in conflict_detection
+    import shared.conflict_detection
+    shared.conflict_detection.dynamodb = None
+    shared.conflict_detection._protection_groups_table = None
+    shared.conflict_detection._recovery_plans_table = None
+    shared.conflict_detection._execution_history_table = None
+    
+    # Reset module-level variables in query-handler
+    query_handler_index.dynamodb = None
+    query_handler_index.protection_groups_table = None
+    query_handler_index.recovery_plans_table = None
+    query_handler_index.target_accounts_table = None
+    query_handler_index._execution_history_table = None
+    
+    # Create mock DynamoDB resource to prevent real AWS calls
+    mock_dynamodb_resource = MagicMock()
+    mock_table = MagicMock()
+    mock_table.scan.return_value = {"Items": []}
+    mock_table.get_item.return_value = {}
+    
+    def get_table(table_name):
+        return mock_table
+    mock_dynamodb_resource.Table.side_effect = get_table
+    
+    # Patch boto3 in conflict_detection and account_utils
+    with patch("shared.conflict_detection.boto3") as mock_conflict_boto3:
+        mock_conflict_boto3.resource.return_value = mock_dynamodb_resource
+        shared.conflict_detection.dynamodb = mock_dynamodb_resource
+        
+        with patch("shared.account_utils.boto3") as mock_account_boto3:
+            mock_account_boto3.resource.return_value = mock_dynamodb_resource
+            
+            yield
+    
     patch.stopall()
 
 
@@ -124,21 +162,28 @@ def mock_aws_services():
             return mock_dynamodb_resource
         return MagicMock()
     
-    with patch.object(query_handler_index, "boto3") as mock_boto3:
-        mock_boto3.client.side_effect = mock_client
-        mock_boto3.resource.side_effect = mock_resource
+    # CRITICAL: Patch boto3 in account_utils FIRST before it can make any real AWS calls
+    with patch("shared.account_utils.boto3") as mock_account_utils_boto3:
+        mock_account_utils_boto3.client.side_effect = mock_client
+        mock_account_utils_boto3.resource.side_effect = mock_resource
         
-        # Mock account_utils functions that make AWS calls or get tables
-        with patch("shared.account_utils.get_current_account_id", return_value="123456789012"):
-            with patch("shared.account_utils.get_account_name", return_value="test-account"):
-                with patch("shared.account_utils._get_target_accounts_table", return_value=mock_target_accounts_table):
-                    # Also patch boto3 in shared.account_utils to prevent real AWS calls
-                    with patch("shared.account_utils.boto3") as mock_account_utils_boto3:
-                        mock_account_utils_boto3.client.side_effect = mock_client
-                        mock_account_utils_boto3.resource.side_effect = mock_resource
-                        with patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
-                            with patch.object(query_handler_index, "target_accounts_table", mock_target_accounts_table):
-                                with patch.object(query_handler_index, "recovery_plans_table", mock_recovery_plans_table):
+        # Reset module-level variables in account_utils to force re-initialization with mocks
+        import shared.account_utils
+        shared.account_utils._dynamodb = None
+        shared.account_utils._target_accounts_table = None
+        
+        # Patch boto3 in query_handler
+        with patch.object(query_handler_index, "boto3") as mock_boto3:
+            mock_boto3.client.side_effect = mock_client
+            mock_boto3.resource.side_effect = mock_resource
+            
+            # Mock account_utils functions that make AWS calls or get tables
+            with patch("shared.account_utils.get_current_account_id", return_value="123456789012"):
+                with patch("shared.account_utils.get_account_name", return_value="test-account"):
+                    with patch("shared.account_utils._get_target_accounts_table", return_value=mock_target_accounts_table):
+                        with patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
+                            with patch.object(query_handler_index, "get_target_accounts_table", return_value=mock_target_accounts_table):
+                                with patch.object(query_handler_index, "get_recovery_plans_table", return_value=mock_recovery_plans_table):
                                     yield {
                                         "boto3": mock_boto3,
                                         "sts": mock_sts,
@@ -320,14 +365,16 @@ class TestDynamoDBErrors:
     @patch("shared.iam_utils.validate_iam_authorization")
     @patch("shared.account_utils.get_current_account_id")
     @patch("shared.account_utils.get_account_name")
-    def test_dynamodb_throttling_error(self, mock_get_name, mock_get_id, mock_validate, mock_aws_services):
+    def test_dynamodb_throttling_error(
+        self, mock_get_name, mock_get_id, mock_validate, mock_aws_services
+    ):
         """Test error when DynamoDB throttles requests."""
         lambda_handler = get_lambda_handler()
         mock_validate.return_value = True
         mock_get_id.return_value = "123456789012"
         mock_get_name.return_value = "TestAccount"
 
-        # Create a fresh mock table for this test to avoid state pollution
+        # Create a fresh mock table for this test
         mock_table = MagicMock()
         mock_table.scan.side_effect = ClientError(
             {
@@ -339,37 +386,63 @@ class TestDynamoDBErrors:
             "Scan",
         )
         
-        # Patch the table used by account_utils
+        # Import conflict_detection to patch its getter functions
+        import shared.conflict_detection
+        
+        # Patch getter functions in both account_utils and conflict_detection
         with patch("shared.account_utils._get_target_accounts_table", return_value=mock_table):
+            with patch.object(
+                shared.conflict_detection,
+                "get_protection_groups_table",
+                return_value=mock_table
+            ):
+                with patch.object(
+                    shared.conflict_detection,
+                    "get_recovery_plans_table",
+                    return_value=mock_table
+                ):
+                    with patch.object(
+                        shared.conflict_detection,
+                        "get_execution_history_table",
+                        return_value=mock_table
+                    ):
+                        event = {"operation": "get_target_accounts"}
+                        context = MagicMock()
+                        context.invoked_function_arn = (
+                            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
+                        )
+                        context.aws_request_id = "test-request-id"
+                        context.function_name = "query-handler"
+                        context.function_version = "$LATEST"
 
-            event = {"operation": "get_target_accounts"}
-            context = MagicMock()
-            context.invoked_function_arn = (
-                "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-            )
-            context.aws_request_id = "test-request-id"
-            context.function_name = "query-handler"
-            context.function_version = "$LATEST"
+                        result = parse_response(lambda_handler(event, context))
 
-            result = parse_response(lambda_handler(event, context))
-
-            # Should return error response (account_utils returns exception as string)
-            assert "error" in result
-            assert "ProvisionedThroughputExceededException" in result["error"] or "Rate exceeded" in result["error"]
-            # The error is retryable (throttling errors should be retried)
-            assert "retryable" in result or "throttl" in result["error"].lower() or "rate" in result["error"].lower()
+                        # Should return error response
+                        assert "error" in result
+                        assert (
+                            "ProvisionedThroughputExceededException" in result["error"]
+                            or "Rate exceeded" in result["error"]
+                        )
+                        # The error is retryable (throttling errors should be retried)
+                        assert (
+                            "retryable" in result
+                            or "throttl" in result["error"].lower()
+                            or "rate" in result["error"].lower()
+                        )
 
     @patch("shared.iam_utils.validate_iam_authorization")
     @patch("shared.account_utils.get_current_account_id")
     @patch("shared.account_utils.get_account_name")
-    def test_dynamodb_resource_not_found(self, mock_get_name, mock_get_id, mock_validate, mock_aws_services):
+    def test_dynamodb_resource_not_found(
+        self, mock_get_name, mock_get_id, mock_validate, mock_aws_services
+    ):
         """Test error when DynamoDB table doesn't exist."""
         lambda_handler = get_lambda_handler()
         mock_validate.return_value = True
         mock_get_id.return_value = "123456789012"
         mock_get_name.return_value = "TestAccount"
 
-        # Create a fresh mock table for this test to avoid state pollution
+        # Create a fresh mock table for this test
         mock_table = MagicMock()
         mock_table.scan.side_effect = ClientError(
             {
@@ -381,22 +454,43 @@ class TestDynamoDBErrors:
             "Scan",
         )
         
-        # Patch the table used by account_utils
+        # Import conflict_detection to patch its getter functions
+        import shared.conflict_detection
+        
+        # Patch getter functions in both account_utils and conflict_detection
         with patch("shared.account_utils._get_target_accounts_table", return_value=mock_table):
-            event = {"operation": "get_target_accounts"}
-            context = MagicMock()
-            context.invoked_function_arn = (
-                "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-            )
-            context.aws_request_id = "test-request-id"
-            context.function_name = "query-handler"
-            context.function_version = "$LATEST"
+            with patch.object(
+                shared.conflict_detection,
+                "get_protection_groups_table",
+                return_value=mock_table
+            ):
+                with patch.object(
+                    shared.conflict_detection,
+                    "get_recovery_plans_table",
+                    return_value=mock_table
+                ):
+                    with patch.object(
+                        shared.conflict_detection,
+                        "get_execution_history_table",
+                        return_value=mock_table
+                    ):
+                        event = {"operation": "get_target_accounts"}
+                        context = MagicMock()
+                        context.invoked_function_arn = (
+                            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
+                        )
+                        context.aws_request_id = "test-request-id"
+                        context.function_name = "query-handler"
+                        context.function_version = "$LATEST"
 
-            result = parse_response(lambda_handler(event, context))
+                        result = parse_response(lambda_handler(event, context))
 
-            # Should return error response (account_utils returns exception as string)
-            assert "error" in result
-            assert "ResourceNotFoundException" in result["error"] or "Table not found" in result["error"]
+                        # Should return error response
+                        assert "error" in result
+                        assert (
+                            "ResourceNotFoundException" in result["error"]
+                            or "Table not found" in result["error"]
+                        )
 
 
 class TestDRSAPIErrors:
@@ -607,14 +701,16 @@ class TestErrorResponseStructure:
     @patch("shared.iam_utils.validate_iam_authorization")
     @patch("shared.account_utils.get_current_account_id")
     @patch("shared.account_utils.get_account_name")
-    def test_retryable_errors_include_retry_guidance(self, mock_get_name, mock_get_id, mock_validate, mock_aws_services):
+    def test_retryable_errors_include_retry_guidance(
+        self, mock_get_name, mock_get_id, mock_validate, mock_aws_services
+    ):
         """Test retryable errors include retry guidance."""
         lambda_handler = get_lambda_handler()
         mock_validate.return_value = True
         mock_get_id.return_value = "123456789012"
         mock_get_name.return_value = "TestAccount"
 
-        # Create a fresh mock table for this test to avoid state pollution
+        # Create a fresh mock table for this test
         mock_table = MagicMock()
         mock_table.scan.side_effect = ClientError(
             {
@@ -626,25 +722,49 @@ class TestErrorResponseStructure:
             "Scan",
         )
         
-        # Patch the table used by account_utils
+        # Import conflict_detection to patch its getter functions
+        import shared.conflict_detection
+        
+        # Patch getter functions in both account_utils and conflict_detection
         with patch("shared.account_utils._get_target_accounts_table", return_value=mock_table):
-            # Use query-handler operation that scans DynamoDB
-            event = {"operation": "get_target_accounts"}
-            context = MagicMock()
-            context.invoked_function_arn = (
-                "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-            )
-            context.aws_request_id = "test-request-id"
-            context.function_name = "query-handler"
-            context.function_version = "$LATEST"
+            with patch.object(
+                shared.conflict_detection,
+                "get_protection_groups_table",
+                return_value=mock_table
+            ):
+                with patch.object(
+                    shared.conflict_detection,
+                    "get_recovery_plans_table",
+                    return_value=mock_table
+                ):
+                    with patch.object(
+                        shared.conflict_detection,
+                        "get_execution_history_table",
+                        return_value=mock_table
+                    ):
+                        event = {"operation": "get_target_accounts"}
+                        context = MagicMock()
+                        context.invoked_function_arn = (
+                            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
+                        )
+                        context.aws_request_id = "test-request-id"
+                        context.function_name = "query-handler"
+                        context.function_version = "$LATEST"
 
-            result = parse_response(lambda_handler(event, context))
+                        result = parse_response(lambda_handler(event, context))
 
-            # Should return error response indicating throttling (retryable)
-            assert "error" in result
-            assert "ProvisionedThroughputExceededException" in result["error"] or "Rate exceeded" in result["error"]
-            # Throttling errors are implicitly retryable
-            assert "retryable" in result or "throttl" in result["error"].lower() or "rate" in result["error"].lower()
+                        # Should return error response indicating throttling (retryable)
+                        assert "error" in result
+                        assert (
+                            "ProvisionedThroughputExceededException" in result["error"]
+                            or "Rate exceeded" in result["error"]
+                        )
+                        # Throttling errors are implicitly retryable
+                        assert (
+                            "retryable" in result
+                            or "throttl" in result["error"].lower()
+                            or "rate" in result["error"].lower()
+                        )
 
 
 class TestErrorConsistencyAcrossOperations:

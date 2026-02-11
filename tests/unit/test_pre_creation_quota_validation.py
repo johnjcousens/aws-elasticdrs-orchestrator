@@ -48,16 +48,21 @@ validate_waves = index.validate_waves
 @pytest.fixture
 def mock_dynamodb_tables():
     """Mock DynamoDB tables"""
-    with patch.object(index, "protection_groups_table") as pg_table, patch.object(
-        index, "recovery_plans_table"
-    ) as rp_table:
-        # Mock scan to return empty results (no existing PGs/RPs)
-        pg_table.scan.return_value = {"Items": []}
-        rp_table.scan.return_value = {"Items": []}
-
-        # Also patch the shared module's table reference
-        with patch("shared.conflict_detection.protection_groups_table", pg_table):
-            yield {"protection_groups": pg_table, "recovery_plans": rp_table}
+    # Create mock tables
+    pg_table = MagicMock()
+    rp_table = MagicMock()
+    
+    # Mock scan to return empty results (no existing PGs/RPs)
+    pg_table.scan.return_value = {"Items": []}
+    rp_table.scan.return_value = {"Items": []}
+    
+    # Patch the getter functions to return our mocks
+    with patch.object(index, "get_protection_groups_table", return_value=pg_table), \
+         patch.object(index, "get_recovery_plans_table", return_value=rp_table), \
+         patch("shared.conflict_detection.get_protection_groups_table", return_value=pg_table), \
+         patch("shared.conflict_detection.get_recovery_plans_table", return_value=rp_table), \
+         patch("shared.conflict_detection.get_execution_history_table", return_value=MagicMock()):
+        yield {"protection_groups": pg_table, "recovery_plans": rp_table}
 
 
 @pytest.fixture

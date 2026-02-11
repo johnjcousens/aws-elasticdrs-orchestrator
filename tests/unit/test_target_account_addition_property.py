@@ -280,7 +280,7 @@ def test_account_addition_without_role_arn():
                 mock_boto3.resource.return_value = dynamodb
                 
                 # Patch the target_accounts_table global variable in data-management-handler
-                with patch.object(data_management_handler, "target_accounts_table", table):
+                with patch.object(data_management_handler, "get_target_accounts_table", return_value=table):
                     response = data_management_handler.create_target_account(body)
 
         # Debug output
@@ -339,7 +339,7 @@ def test_account_addition_with_explicit_role_arn():
                 mock_boto3.resource.return_value = dynamodb
                 
                 # Patch the target_accounts_table global variable in data-management-handler
-                with patch.object(data_management_handler, "target_accounts_table", table):
+                with patch.object(data_management_handler, "get_target_accounts_table", return_value=table):
                     response = data_management_handler.create_target_account(body)
 
         assert response["statusCode"] == 201

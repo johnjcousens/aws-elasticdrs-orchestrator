@@ -367,11 +367,11 @@ EXECUTION_HANDLER_ARN = os.environ.get("EXECUTION_HANDLER_ARN")
 
 # Initialize DynamoDB resources
 dynamodb = boto3.resource("dynamodb")
-protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
-recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
-target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
 
-# Lazy-loaded table for execution history (used by poll_wave_status)
+# Private module-level variables for lazy initialization
+_protection_groups_table = None
+_recovery_plans_table = None
+_target_accounts_table = None
 _execution_history_table = None
 
 # ============================================================================
@@ -384,6 +384,43 @@ _response_cache = {}
 
 # Cache TTL in seconds (30 seconds for capacity data)
 CACHE_TTL_CAPACITY = 30
+
+
+# ============================================================================
+# Lazy Initialization Getters for DynamoDB Tables
+# ============================================================================
+
+
+def get_protection_groups_table():
+    """Get or initialize protection groups table."""
+    global _protection_groups_table
+    if _protection_groups_table is None:
+        _protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
+    return _protection_groups_table
+
+
+def get_recovery_plans_table():
+    """Get or initialize recovery plans table."""
+    global _recovery_plans_table
+    if _recovery_plans_table is None:
+        _recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
+    return _recovery_plans_table
+
+
+def get_target_accounts_table():
+    """Get or initialize target accounts table."""
+    global _target_accounts_table
+    if _target_accounts_table is None:
+        _target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
+    return _target_accounts_table
+
+
+def get_execution_history_table():
+    """Get or initialize execution history table."""
+    global _execution_history_table
+    if _execution_history_table is None:
+        _execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE) if EXECUTION_HISTORY_TABLE else None
+    return _execution_history_table
 
 
 def get_cached_response(cache_key: str, ttl: int = CACHE_TTL_CAPACITY) -> Optional[Dict]:
@@ -446,19 +483,6 @@ def clear_cache(pattern: Optional[str] = None) -> None:
 # ============================================================================
 # Helper Functions
 # ============================================================================
-
-
-def get_execution_history_table():
-    """
-    Lazy-load Execution History table to optimize Lambda cold starts.
-
-    Returns:
-        DynamoDB Table resource for execution history
-    """
-    global _execution_history_table
-    if _execution_history_table is None:
-        _execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
-    return _execution_history_table
 
 
 def get_account_context(state: Dict) -> Dict:
@@ -1127,9 +1151,9 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
         account_context = None
         if account_id:
             # Look up target account details to get assumeRoleName
-            if target_accounts_table:
+            if get_target_accounts_table():
                 try:
-                    account_result = target_accounts_table.get_item(Key={"accountId": account_id})
+                    account_result = get_target_accounts_table().get_item(Key={"accountId": account_id})
                     if "Item" in account_result:
                         account = account_result["Item"]
 
@@ -1221,13 +1245,13 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
         # Transform servers to frontend format
         servers = [_transform_drs_server(s) for s in raw_servers]
 
-        print(f"DEBUG: About to check PG assignments, protection_groups_table={protection_groups_table}")
+        print(f"DEBUG: About to check PG assignments, get_protection_groups_table()={get_protection_groups_table()}")
 
         # Check Protection Group assignments for all servers
-        if protection_groups_table:
+        if get_protection_groups_table():
             try:
                 # Scan all Protection Groups to build server assignment map
-                pg_scan = protection_groups_table.scan()
+                pg_scan = get_protection_groups_table().scan()
                 server_assignments = {}
 
                 print(f"DEBUG: Checking PG assignments - found {len(pg_scan.get('Items', []))} PGs")
@@ -2835,7 +2859,7 @@ def export_configuration(query_params: Dict) -> Dict:
     Schema v1.1: Includes per-server launch template configurations.
     """
     try:
-        if not protection_groups_table or not recovery_plans_table:
+        if not get_protection_groups_table() or not get_recovery_plans_table():
             return response(
                 500,
                 error_response(
@@ -2843,8 +2867,8 @@ def export_configuration(query_params: Dict) -> Dict:
                     "DynamoDB tables not configured",
                     details={
                         "tables": {
-                            "protectionGroups": bool(protection_groups_table),
-                            "recoveryPlans": bool(recovery_plans_table),
+                            "protectionGroups": bool(get_protection_groups_table()),
+                            "recoveryPlans": bool(get_recovery_plans_table()),
                         }
                     },
                 ),
@@ -2854,17 +2878,17 @@ def export_configuration(query_params: Dict) -> Dict:
         source_region = os.environ.get("AWS_REGION", "us-east-1")
 
         # Scan all Protection Groups
-        pg_result = protection_groups_table.scan()
+        pg_result = get_protection_groups_table().scan()
         protection_groups = pg_result.get("Items", [])
         while "LastEvaluatedKey" in pg_result:
-            pg_result = protection_groups_table.scan(ExclusiveStartKey=pg_result["LastEvaluatedKey"])
+            pg_result = get_protection_groups_table().scan(ExclusiveStartKey=pg_result["LastEvaluatedKey"])
             protection_groups.extend(pg_result.get("Items", []))
 
         # Scan all Recovery Plans
-        rp_result = recovery_plans_table.scan()
+        rp_result = get_recovery_plans_table().scan()
         recovery_plans = rp_result.get("Items", [])
         while "LastEvaluatedKey" in rp_result:
-            rp_result = recovery_plans_table.scan(ExclusiveStartKey=rp_result["LastEvaluatedKey"])
+            rp_result = get_recovery_plans_table().scan(ExclusiveStartKey=rp_result["LastEvaluatedKey"])
             recovery_plans.extend(rp_result.get("Items", []))
 
         # Build PG ID -> Name mapping for wave export
@@ -3184,7 +3208,7 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
 
     try:
         # 1. Get the Protection Group
-        result = protection_groups_table.get_item(Key={"groupId": pg_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
 
         if "Item" not in result:
             return response(
@@ -3351,7 +3375,7 @@ def get_server_launch_config_direct(event: Dict) -> Dict:
             }
 
         # Get protection group from DynamoDB
-        result = protection_groups_table.get_item(Key={"groupId": group_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
             return {
@@ -3475,7 +3499,7 @@ def get_server_config_history_direct(event: Dict) -> Dict:
             }
 
         # Get protection group from DynamoDB to verify it exists
-        result = protection_groups_table.get_item(Key={"groupId": group_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
             return {
@@ -3596,13 +3620,13 @@ def get_staging_accounts_direct(event: Dict) -> Dict:
             }
 
         # Get target account from DynamoDB
-        if not target_accounts_table:
+        if not get_target_accounts_table():
             return {
                 "error": "INTERNAL_ERROR",
                 "message": "Target accounts table not configured",
             }
 
-        result = target_accounts_table.get_item(Key={"accountId": target_account_id})
+        result = get_target_accounts_table().get_item(Key={"accountId": target_account_id})
 
         if "Item" not in result:
             return {
@@ -3818,18 +3842,20 @@ def get_drs_capacity_conflicts_direct(event: Dict) -> Dict:
     """
     try:
         # Get all target accounts
-        if not target_accounts_table:
+        if not get_target_accounts_table():
             return {
                 "error": "INTERNAL_ERROR",
                 "message": "Target accounts table not configured",
             }
 
-        accounts_response = target_accounts_table.scan()
+        accounts_response = get_target_accounts_table().scan()
         accounts = accounts_response.get("Items", [])
 
         # Handle pagination
         while "LastEvaluatedKey" in accounts_response:
-            accounts_response = target_accounts_table.scan(ExclusiveStartKey=accounts_response["LastEvaluatedKey"])
+            accounts_response = get_target_accounts_table().scan(
+                ExclusiveStartKey=accounts_response["LastEvaluatedKey"]
+            )
             accounts.extend(accounts_response.get("Items", []))
 
         # Analyze capacity for each account
@@ -5086,13 +5112,13 @@ def handle_discover_staging_accounts(query_params: Dict) -> Dict:
         print(f"Discovering staging accounts for target account {target_account_id}")
 
         # Step 2: Get target account configuration for credentials
-        if not target_accounts_table:
+        if not get_target_accounts_table():
             return response(
                 500,
                 {"error": "Target accounts table not configured"},
             )
 
-        account_result = target_accounts_table.get_item(Key={"accountId": target_account_id})
+        account_result = get_target_accounts_table().get_item(Key={"accountId": target_account_id})
 
         if "Item" not in account_result:
             return response(
@@ -5219,12 +5245,12 @@ def handle_sync_staging_accounts() -> Dict:
 
     try:
         # Get all target accounts
-        target_accounts_response = target_accounts_table.scan()
+        target_accounts_response = get_target_accounts_table().scan()
         target_accounts = target_accounts_response.get("Items", [])
 
         # Handle pagination
         while "LastEvaluatedKey" in target_accounts_response:
-            target_accounts_response = target_accounts_table.scan(
+            target_accounts_response = get_target_accounts_table().scan(
                 ExclusiveStartKey=target_accounts_response["LastEvaluatedKey"]
             )
             target_accounts.extend(target_accounts_response.get("Items", []))
@@ -5597,14 +5623,14 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         print(f"Querying combined capacity for target account {target_account_id} (cache miss)")
 
         # Step 2: Retrieve target account configuration from DynamoDB
-        if not target_accounts_table:
+        if not get_target_accounts_table():
             return response(
                 500,
                 {"error": "Target accounts table not configured"},
             )
 
         try:
-            account_result = target_accounts_table.get_item(Key={"accountId": target_account_id})
+            account_result = get_target_accounts_table().get_item(Key={"accountId": target_account_id})
 
             if "Item" not in account_result:
                 return response(
@@ -6101,7 +6127,7 @@ def handle_get_all_accounts_capacity() -> Dict:
         print("Querying capacity for ALL target accounts (cache miss)")
 
         # Step 1: Get all target accounts from DynamoDB
-        if not target_accounts_table:
+        if not get_target_accounts_table():
             return response(
                 500,
                 error_response(
@@ -6111,7 +6137,7 @@ def handle_get_all_accounts_capacity() -> Dict:
             )
 
         try:
-            scan_result = target_accounts_table.scan()
+            scan_result = get_target_accounts_table().scan()
             all_target_accounts = scan_result.get("Items", [])
 
             print(f"Found {len(all_target_accounts)} target accounts")

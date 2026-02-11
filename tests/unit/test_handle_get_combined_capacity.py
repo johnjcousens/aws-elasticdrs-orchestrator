@@ -105,7 +105,7 @@ def test_combined_capacity_no_staging_accounts():
             }
         ]
 
-    with patch.object(index, "target_accounts_table", table), \
+    with patch.object(index, "get_target_accounts_table", return_value=table), \
          patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts):
         result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
@@ -272,7 +272,7 @@ def test_combined_capacity_multiple_staging_accounts():
         ]
 
     with (
-        patch.object(index, "target_accounts_table", table),
+        patch.object(index, "get_target_accounts_table", return_value=table),
         patch.object(index, "query_all_accounts_parallel",
                      side_effect=mock_query_all_accounts,
                      ),
@@ -431,7 +431,7 @@ def test_combined_capacity_one_staging_account_inaccessible():
         ]
 
     with (
-        patch.object(index, "target_accounts_table", table),
+        patch.object(index, "get_target_accounts_table", return_value=table),
         patch.object(index, "query_all_accounts_parallel",
                      side_effect=mock_query_all_accounts,
                      ),
@@ -568,7 +568,7 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
         ]
 
     with (
-        patch.object(index, "target_accounts_table", table),
+        patch.object(index, "get_target_accounts_table", return_value=table),
         patch.object(index, "query_all_accounts_parallel",
                      side_effect=mock_query_all_accounts,
                      ),
@@ -660,7 +660,7 @@ def test_combined_capacity_target_account_not_found():
 
     # Don't put any item in the table - simulating account not found
 
-    with patch.object(index, "target_accounts_table", table):
+    with patch.object(index, "get_target_accounts_table", return_value=table):
         result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
         )

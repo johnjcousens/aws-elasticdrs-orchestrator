@@ -58,8 +58,22 @@ def lambda_context():
 
 @pytest.fixture
 def mock_target_accounts_table():
-    """Mock target accounts DynamoDB table"""
-    with patch("index.target_accounts_table") as mock_table:
+    """
+    Mock target accounts DynamoDB table.
+    
+    IMPORTANT: This mocks the get_target_accounts_table() FUNCTION, not a module attribute.
+    The Lambda handler uses lazy initialization via getter functions to avoid AWS API calls
+    during module import. This pattern was changed from:
+    
+    OLD (incorrect): patch("index.target_accounts_table")
+    NEW (correct):   patch("index.get_target_accounts_table")
+    
+    This fix resolved 21 AttributeError failures where tests tried to patch a non-existent
+    module attribute.
+    """
+    with patch("index.get_target_accounts_table") as mock_func:
+        mock_table = MagicMock()
+        mock_func.return_value = mock_table
         yield mock_table
 
 

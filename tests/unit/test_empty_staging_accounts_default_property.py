@@ -135,7 +135,7 @@ def test_property_13_empty_staging_accounts_default(
 
     # Patch the query function and table to use mocked versions
     with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
-         patch.object(index, "target_accounts_table", table):
+         patch.object(index, "get_target_accounts_table", return_value=table):
         # Call handle_get_combined_capacity
         result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
@@ -284,7 +284,7 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
         }]
 
     with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
-         patch.object(index, "target_accounts_table", table):
+         patch.object(index, "get_target_accounts_table", return_value=table):
         # Call handle_get_combined_capacity
         result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
