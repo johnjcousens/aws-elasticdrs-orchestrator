@@ -215,11 +215,11 @@ if [ -z "$AWS_PROFILE" ]; then
 fi
 
 # Verify AWS credentials
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1)
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
 if [[ "$ACCOUNT_ID" == *"SSO session"* ]] || [[ "$ACCOUNT_ID" == *"expired"* ]]; then
     echo -e "${YELLOW}⚠ SSO session expired - logging in...${NC}"
     aws sso login --profile ${AWS_PROFILE:-210987654321_AdministratorAccess}
-    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1)
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
 fi
 
 if [[ ! "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
