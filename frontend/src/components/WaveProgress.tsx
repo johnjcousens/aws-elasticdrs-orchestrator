@@ -290,7 +290,19 @@ const calculateWaveDuration = (wave: WaveExecution, effectiveStatus?: string): s
   // For completed waves, MUST use endTime to freeze the duration
   // For in-progress waves, use current time for live updates
   const isCompleted = effectiveStatus === 'completed' || effectiveStatus === 'launched';
-  const end = (isCompleted && wave.endTime) ? parseTimestamp(wave.endTime) : new Date();
+  
+  // CRITICAL: Always use endTime if available for completed waves
+  let end: Date;
+  if (isCompleted && wave.endTime) {
+    end = parseTimestamp(wave.endTime)!;
+    console.log(`[WaveProgress] Wave ${wave.waveNumber} completed - using endTime: ${end.toISOString()}`);
+  } else {
+    end = new Date();
+    if (isCompleted) {
+      console.warn(`[WaveProgress] Wave ${wave.waveNumber} marked completed but missing endTime!`);
+    }
+  }
+  
   if (!end) return '-';
   
   const durationMs = end.getTime() - start.getTime();
