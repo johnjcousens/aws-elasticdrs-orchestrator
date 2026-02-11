@@ -352,6 +352,69 @@ const calculateProgress = (
 };
 
 /**
+ * Get server's current status from job log events
+ * Returns the most recent event type for the server to show actual progress
+ */
+const getServerStatusFromJobLogs = (
+  serverId: string,
+  waveNumber: number,
+  jobLogs?: JobLogsResponse | null
+): string | null => {
+  if (!jobLogs || !jobLogs.jobLogs) return null;
+  
+  const waveLog = jobLogs.jobLogs.find(log => log.waveNumber === waveNumber);
+  if (!waveLog) return null;
+  
+  // Find all events for this server, sorted by time (most recent first)
+  const serverEvents = waveLog.events
+    .filter(e => {
+      const eventData = e.eventData as { sourceServerID?: string } | undefined;
+      return eventData?.sourceServerID === serverId;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.logDateTime).getTime();
+      const timeB = new Date(b.logDateTime).getTime();
+      return timeB - timeA; // Most recent first
+    });
+  
+  if (serverEvents.length === 0) return null;
+  
+  // Return the most recent event type
+  const latestEvent = serverEvents[0];
+  return latestEvent.event;
+};
+
+/**
+ * Map DRS job event to display status
+ */
+const mapEventToStatus = (event: string): { status: string; icon: string; color: 'blue' | 'green' | 'red' | 'grey' } => {
+  switch (event) {
+    case 'LAUNCH_END':
+      return { status: 'Launched', icon: '✓', color: 'green' };
+    case 'LAUNCH_START':
+      return { status: 'Launching', icon: '🚀', color: 'blue' };
+    case 'CONVERSION_END':
+      return { status: 'Converted', icon: '✓', color: 'green' };
+    case 'CONVERSION_START':
+      return { status: 'Converting', icon: '🔄', color: 'blue' };
+    case 'SNAPSHOT_END':
+      return { status: 'Snapshot Done', icon: '✓', color: 'green' };
+    case 'SNAPSHOT_START':
+      return { status: 'Snapshotting', icon: '📸', color: 'blue' };
+    case 'CLEANUP_END':
+      return { status: 'Cleanup Done', icon: '✓', color: 'green' };
+    case 'CLEANUP_START':
+      return { status: 'Cleaning', icon: '🧹', color: 'blue' };
+    case 'USING_PREVIOUS_SNAPSHOT':
+      return { status: 'Using Snapshot', icon: '📋', color: 'blue' };
+    case 'JOB_START':
+      return { status: 'Started', icon: '▶️', color: 'blue' };
+    default:
+      return { status: 'Pending', icon: '⏳', color: 'grey' };
+  }
+};
+
+/**
  * Create server table column definitions with wave context for consistent status display
  */
 const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsResponse | null) => [
@@ -387,10 +450,11 @@ const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsRes
     header: 'Status',
     cell: (server: ServerExecution) => {
       const waveEffectiveStatus = getEffectiveWaveStatus(wave, jobLogs);
-      const serverStatus = server.launchStatus || server.status || 'pending';
+      const waveNum = wave.waveNumber ?? 0;
       
-      // CRITICAL FIX: If wave is completed, ALL servers should show completed status
-      // This ensures consistent UI when wave is done, regardless of individual server status data inconsistencies
+      // CRITICAL FIX: Check job log events FIRST for actual current status
+      const latestEvent = getServerStatusFromJobLogs(server.serverId, waveNum, jobLogs);
+      
       let displayStatus = '';
       let badgeColor: 'blue' | 'green' | 'red' | 'grey' = 'grey';
       
@@ -399,34 +463,65 @@ const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsRes
         displayStatus = '✓';
         badgeColor = 'green';
       } else {
-        // Wave not completed - use individual server status
-        switch (serverStatus.toUpperCase()) {
-          case 'COMPLETED':
-          case 'LAUNCHED':
+        // Use backend-derived status field (derived from job log events)
+        const serverStatus = server.status || server.launchStatus || 'pending';
+        switch (serverStatus.toLowerCase()) {
+          case 'completed':
+          case 'launched':
             displayStatus = '✓';
             badgeColor = 'green';
             break;
-          case 'FAILED':
-          case 'ERROR':
+          case 'failed':
+          case 'error':
             displayStatus = '✗';
             badgeColor = 'red';
             break;
-          case 'IN_PROGRESS':
-          case 'LAUNCHING':
-          case 'POLLING':
+          case 'converting':
+            displayStatus = '🔄';
+            badgeColor = 'blue';
+            break;
+          case 'converted':
+            displayStatus = '✓';
+            badgeColor = 'green';
+            break;
+          case 'snapshotting':
+            displayStatus = '📸';
+            badgeColor = 'blue';
+            break;
+          case 'snapshotted':
+            displayStatus = '✓';
+            badgeColor = 'green';
+            break;
+          case 'cleaning':
+            displayStatus = '🧹';
+            badgeColor = 'blue';
+            break;
+          case 'cleaned':
+            displayStatus = '✓';
+            badgeColor = 'green';
+            break;
+          case 'launching':
+            displayStatus = '🚀';
+            badgeColor = 'blue';
+            break;
+          case 'in_progress':
+          case 'polling':
             displayStatus = '⟳';
             badgeColor = 'blue';
             break;
-          case 'PENDING':
+          case 'pending':
             displayStatus = '⏳';
             badgeColor = 'grey';
             break;
-          case 'STARTED':
+          case 'started':
             displayStatus = 'Started';
             badgeColor = 'blue';
             break;
+          case 'skipped':
+            displayStatus = '⊘';
+            badgeColor = 'grey';
+            break;
           default:
-            // Show full status for unknown cases instead of truncating
             displayStatus = serverStatus.charAt(0).toUpperCase() + serverStatus.slice(1).toLowerCase();
             badgeColor = 'grey';
         }
