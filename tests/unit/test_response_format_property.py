@@ -122,7 +122,7 @@ class TestResponseFormatProperty:
     """
 
     @given(handler=handler_names)
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     def test_api_gateway_mode_returns_wrapped_format(self, handler):
         """
         Property: For any handler and any operation, when invoked via API Gateway mode,

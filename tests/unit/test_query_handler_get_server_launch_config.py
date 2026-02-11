@@ -62,7 +62,7 @@ def test_get_server_launch_config_missing_group_id(
     lambda_handler = get_lambda_handler()
 
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
 
@@ -85,7 +85,7 @@ def test_get_server_launch_config_missing_server_id(
     lambda_handler = get_lambda_handler()
 
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
 
@@ -108,7 +108,7 @@ def test_get_server_launch_config_protection_group_not_found(
     lambda_handler = get_lambda_handler()
 
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
 
@@ -138,7 +138,7 @@ def test_get_server_launch_config_server_not_found(
     lambda_handler = get_lambda_handler()
 
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
 
@@ -175,7 +175,7 @@ def test_get_server_launch_config_server_uses_group_defaults(
     lambda_handler = get_lambda_handler()
 
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
 
@@ -219,7 +219,7 @@ def test_get_server_launch_config_server_with_custom_config(
     lambda_handler = get_lambda_handler()
 
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
 
@@ -281,7 +281,7 @@ def test_get_server_launch_config_minimal_custom_config(
     lambda_handler = get_lambda_handler()
 
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
 
@@ -325,7 +325,7 @@ def test_get_server_launch_config_dynamodb_error(
     lambda_handler = get_lambda_handler()
 
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
 

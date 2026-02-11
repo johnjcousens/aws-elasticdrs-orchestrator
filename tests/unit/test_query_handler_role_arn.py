@@ -149,7 +149,7 @@ def test_combined_capacity_constructs_arn_when_not_in_db(
     with patch("boto3.client") as mock_boto_client:
         mock_boto_client.return_value = mock_sts_client
 
-        with patch.object(index, "target_accounts_table", mock_dynamodb_table):
+        with patch.object(index, "get_target_accounts_table", return_value=mock_dynamodb_table):
             with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs_client
 
@@ -200,7 +200,7 @@ def test_combined_capacity_uses_explicit_arn_from_db(
     with patch("boto3.client") as mock_boto_client:
         mock_boto_client.return_value = mock_sts_client
 
-        with patch.object(index, "target_accounts_table", mock_dynamodb_table):
+        with patch.object(index, "get_target_accounts_table", return_value=mock_dynamodb_table):
             with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs_client
 
@@ -289,7 +289,7 @@ def test_capacity_query_with_explicit_role_arn():
         {"items": []}
     ]
 
-    with patch.object(index, "target_accounts_table", mock_table):
+    with patch.object(index, "get_target_accounts_table", return_value=mock_table):
         with patch("boto3.client") as mock_boto_client:
             mock_boto_client.return_value = mock_sts
 
@@ -352,7 +352,7 @@ def test_capacity_query_with_constructed_role_arn():
         {"items": []}
     ]
 
-    with patch.object(index, "target_accounts_table", mock_table):
+    with patch.object(index, "get_target_accounts_table", return_value=mock_table):
         with patch("boto3.client") as mock_boto_client:
             mock_boto_client.return_value = mock_sts
 
@@ -395,7 +395,7 @@ def test_capacity_query_missing_account():
     mock_table = MagicMock()  # noqa: F841
     mock_table.get_item.return_value = {}  # No Item key
 
-    with patch.object(index, "target_accounts_table", mock_table):
+    with patch.object(index, "get_target_accounts_table", return_value=mock_table):
         result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": "999999999999"}
         )
@@ -519,7 +519,7 @@ def test_capacity_query_drs_api_mocked():
     ]
     mock_drs.get_paginator.return_value = mock_paginator
 
-    with patch.object(index, "target_accounts_table", mock_table):
+    with patch.object(index, "get_target_accounts_table", return_value=mock_table):
         with patch("boto3.client") as mock_boto_client:
             mock_boto_client.return_value = mock_sts
 

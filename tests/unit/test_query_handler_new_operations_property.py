@@ -172,7 +172,9 @@ def test_property_get_staging_accounts_valid_account_returns_list(
         # Set account ID in the data
         account_data["accountId"] = account_id
 
-        with patch("index.target_accounts_table") as mock_table:
+        with patch("index.get_target_accounts_table") as mock_func:
+            mock_table = MagicMock()
+            mock_func.return_value = mock_table
             mock_table.get_item.return_value = {"Item": account_data}
 
             event = {"targetAccountId": account_id}
@@ -280,7 +282,9 @@ def test_property_get_staging_accounts_not_found_returns_error(account_id):
     with setup_test_environment():
         from index import get_staging_accounts_direct
 
-        with patch("index.target_accounts_table") as mock_table:
+        with patch("index.get_target_accounts_table") as mock_func:
+            mock_table = MagicMock()
+            mock_func.return_value = mock_table
             # Mock table returns no item
             mock_table.get_item.return_value = {}
 
@@ -487,10 +491,12 @@ def test_property_get_drs_capacity_conflicts_returns_structure(num_accounts, dat
                 }
             )
 
-        with patch("index.target_accounts_table") as mock_table, patch(
+        with patch("index.get_target_accounts_table") as mock_func, patch(
             "index.get_drs_account_capacity_all_regions"
         ) as mock_capacity:
 
+            mock_table = MagicMock()
+            mock_func.return_value = mock_table
             mock_table.scan.return_value = {"Items": accounts}
 
             # Mock capacity to return no conflicts
@@ -547,10 +553,12 @@ def test_property_get_drs_capacity_conflicts_detects_high_usage(
             "roleArn": f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole",
         }
 
-        with patch("index.target_accounts_table") as mock_table, patch(
+        with patch("index.get_target_accounts_table") as mock_func, patch(
             "index.get_drs_account_capacity_all_regions"
         ) as mock_capacity:
 
+            mock_table = MagicMock()
+            mock_func.return_value = mock_table
             mock_table.scan.return_value = {"Items": [account]}
 
             # Mock capacity with high replicating servers
@@ -606,10 +614,12 @@ def test_property_get_drs_capacity_conflicts_no_conflict_for_low_usage(
             "roleArn": f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole",
         }
 
-        with patch("index.target_accounts_table") as mock_table, patch(
+        with patch("index.get_target_accounts_table") as mock_func, patch(
             "index.get_drs_account_capacity_all_regions"
         ) as mock_capacity:
 
+            mock_table = MagicMock()
+            mock_func.return_value = mock_table
             mock_table.scan.return_value = {"Items": [account]}
 
             # Mock capacity with low replicating servers
@@ -646,7 +656,9 @@ def test_property_get_drs_capacity_conflicts_no_error_for_any_input(event_data):
     with setup_test_environment():
         from index import get_drs_capacity_conflicts_direct
 
-        with patch("index.target_accounts_table") as mock_table:
+        with patch("index.get_target_accounts_table") as mock_func:
+            mock_table = MagicMock()
+            mock_func.return_value = mock_table
             mock_table.scan.return_value = {"Items": []}
 
             result = get_drs_capacity_conflicts_direct(event_data)
@@ -693,10 +705,12 @@ def test_property_conflict_severity_critical_for_90_percent(
             "roleArn": f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole",
         }
 
-        with patch("index.target_accounts_table") as mock_table, patch(
+        with patch("index.get_target_accounts_table") as mock_func, patch(
             "index.get_drs_account_capacity_all_regions"
         ) as mock_capacity:
 
+            mock_table = MagicMock()
+            mock_func.return_value = mock_table
             mock_table.scan.return_value = {"Items": [account]}
 
             mock_capacity.return_value = {
@@ -742,10 +756,12 @@ def test_property_conflict_severity_warning_for_80_percent(
             "roleArn": f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole",
         }
 
-        with patch("index.target_accounts_table") as mock_table, patch(
+        with patch("index.get_target_accounts_table") as mock_func, patch(
             "index.get_drs_account_capacity_all_regions"
         ) as mock_capacity:
 
+            mock_table = MagicMock()
+            mock_func.return_value = mock_table
             mock_table.scan.return_value = {"Items": [account]}
 
             mock_capacity.return_value = {

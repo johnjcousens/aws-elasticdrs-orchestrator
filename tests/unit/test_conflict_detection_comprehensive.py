@@ -45,14 +45,30 @@ def mock_drs_client():
     return client
 
 
+@pytest.fixture(autouse=True)
+def reset_global_clients():
+    """Reset global cached clients before each test"""
+    import conflict_detection
+    conflict_detection._protection_groups_table = None
+    conflict_detection._recovery_plans_table = None
+    conflict_detection._execution_history_table = None
+    yield
+    # Clean up after test
+    conflict_detection._protection_groups_table = None
+    conflict_detection._recovery_plans_table = None
+    conflict_detection._execution_history_table = None
+
+
 @pytest.fixture
 def mock_dynamodb_tables():
     """Mock DynamoDB tables"""
-    with patch("conflict_detection.protection_groups_table") as pg_table, patch(
-        "conflict_detection.recovery_plans_table"
-    ) as rp_table, patch(
-        "conflict_detection.execution_history_table"
-    ) as eh_table:
+    pg_table = MagicMock()
+    rp_table = MagicMock()
+    eh_table = MagicMock()
+    
+    with patch("conflict_detection.get_protection_groups_table", return_value=pg_table), \
+         patch("conflict_detection.get_recovery_plans_table", return_value=rp_table), \
+         patch("conflict_detection.get_execution_history_table", return_value=eh_table):
         yield {
             "protection_groups": pg_table,
             "recovery_plans": rp_table,

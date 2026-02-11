@@ -227,16 +227,57 @@ EXECUTIONS_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 TARGET_ACCOUNTS_TABLE = os.environ.get("TARGET_ACCOUNTS_TABLE")
 TAG_SYNC_CONFIG_TABLE = os.environ.get("TAG_SYNC_CONFIG_TABLE")
 
-# Initialize DynamoDB resources
+# Initialize DynamoDB resources - lazy initialization for test mocking
 dynamodb = boto3.resource("dynamodb")
 stepfunctions = boto3.client("stepfunctions")
-protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
-recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
-executions_table = dynamodb.Table(EXECUTIONS_TABLE) if EXECUTIONS_TABLE else None
-target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
-# Only use dedicated tag sync config table if configured
-# DO NOT fall back to target_accounts_table to avoid data corruption
-tag_sync_config_table = dynamodb.Table(TAG_SYNC_CONFIG_TABLE) if TAG_SYNC_CONFIG_TABLE else None
+
+# Module-level table variables - lazy initialization
+_protection_groups_table = None
+_recovery_plans_table = None
+_executions_table = None
+_target_accounts_table = None
+_tag_sync_config_table = None
+
+
+def get_protection_groups_table():
+    """Lazy-load Protection Groups table for test mocking"""
+    global _protection_groups_table
+    if _protection_groups_table is None and PROTECTION_GROUPS_TABLE:
+        _protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE)
+    return _protection_groups_table
+
+
+def get_recovery_plans_table():
+    """Lazy-load Recovery Plans table for test mocking"""
+    global _recovery_plans_table
+    if _recovery_plans_table is None and RECOVERY_PLANS_TABLE:
+        _recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE)
+    return _recovery_plans_table
+
+
+def get_executions_table():
+    """Lazy-load Executions table for test mocking"""
+    global _executions_table
+    if _executions_table is None and EXECUTIONS_TABLE:
+        _executions_table = dynamodb.Table(EXECUTIONS_TABLE)
+    return _executions_table
+
+
+def get_target_accounts_table():
+    """Lazy-load Target Accounts table for test mocking"""
+    global _target_accounts_table
+    if _target_accounts_table is None and TARGET_ACCOUNTS_TABLE:
+        _target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE)
+    return _target_accounts_table
+
+
+def get_tag_sync_config_table():
+    """Lazy-load Tag Sync Config table for test mocking"""
+    global _tag_sync_config_table
+    if _tag_sync_config_table is None and TAG_SYNC_CONFIG_TABLE:
+        _tag_sync_config_table = dynamodb.Table(TAG_SYNC_CONFIG_TABLE)
+    return _tag_sync_config_table
+
 
 # Invalid replication states that block DR operations
 INVALID_REPLICATION_STATES = [
@@ -741,12 +782,12 @@ def get_active_execution_for_protection_group(
     """
     try:
         # Find all recovery plans that use this protection group
-        plans_result = recovery_plans_table.scan()
+        plans_result = get_recovery_plans_table().scan()
         all_plans = plans_result.get("Items", [])
 
         # Handle pagination
         while "LastEvaluatedKey" in plans_result:
-            plans_result = recovery_plans_table.scan(ExclusiveStartKey=plans_result["LastEvaluatedKey"])
+            plans_result = get_recovery_plans_table().scan(ExclusiveStartKey=plans_result["LastEvaluatedKey"])
             all_plans.extend(plans_result.get("Items", []))
 
         # Find plan IDs that reference this protection group
@@ -792,7 +833,7 @@ def validate_unique_pg_name(name: str, current_pg_id: Optional[str] = None) -> b
     Returns:
     - True if unique, False if duplicate exists
     """
-    pg_response = protection_groups_table.scan()
+    pg_response = get_protection_groups_table().scan()
 
     name_lower = name.lower()
     for pg in pg_response.get("Items", []):
@@ -820,7 +861,7 @@ def validate_unique_rp_name(name: str, current_rp_id: Optional[str] = None) -> b
     Returns:
     - True if unique, False if duplicate exists
     """
-    rp_response = recovery_plans_table.scan()
+    rp_response = get_recovery_plans_table().scan()
 
     name_lower = name.lower()
     for rp in rp_response.get("Items", []):
@@ -914,7 +955,7 @@ def validate_server_assignments(server_ids: List[str], current_pg_id: Optional[s
     Returns:
     - conflicts: List of {serverId, protectionGroupId, protectionGroupName}
     """
-    pg_response = protection_groups_table.scan()
+    pg_response = get_protection_groups_table().scan()
 
     conflicts = []
     for pg in pg_response.get("Items", []):
@@ -1011,11 +1052,11 @@ def check_tag_conflicts_for_create(tags: Dict[str, str], region: str) -> List[Di
     conflicts = []
 
     # Scan all PGs
-    pg_response = protection_groups_table.scan()
+    pg_response = get_protection_groups_table().scan()
     all_pgs = pg_response.get("Items", [])
 
     while "LastEvaluatedKey" in pg_response:
-        pg_response = protection_groups_table.scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
+        pg_response = get_protection_groups_table().scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
         all_pgs.extend(pg_response.get("Items", []))
 
     for pg in all_pgs:
@@ -1047,11 +1088,11 @@ def check_tag_conflicts_for_update(tags: Dict[str, str], region: str, current_pg
     conflicts = []
 
     # Scan all PGs
-    pg_response = protection_groups_table.scan()
+    pg_response = get_protection_groups_table().scan()
     all_pgs = pg_response.get("Items", [])
 
     while "LastEvaluatedKey" in pg_response:
-        pg_response = protection_groups_table.scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
+        pg_response = get_protection_groups_table().scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
         all_pgs.extend(pg_response.get("Items", []))
 
     for pg in all_pgs:
@@ -1614,7 +1655,7 @@ def create_protection_group(body: Dict) -> Dict:
         print(f"Creating Protection Group: {group_id}")
 
         # Store in DynamoDB
-        protection_groups_table.put_item(Item=item)
+        get_protection_groups_table().put_item(Item=item)
 
         # Return raw camelCase database fields directly - no transformation
         # needed
@@ -1642,12 +1683,12 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
         query_params = query_params or {}
         account_id = query_params.get("accountId")
 
-        result = protection_groups_table.scan()
+        result = get_protection_groups_table().scan()
         groups = result.get("Items", [])
 
         # Handle pagination
         while "LastEvaluatedKey" in result:
-            result = protection_groups_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
+            result = get_protection_groups_table().scan(ExclusiveStartKey=result["LastEvaluatedKey"])
             groups.extend(result.get("Items", []))
 
         # Filter by account if specified
@@ -1682,7 +1723,7 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
 def get_protection_group(group_id: str) -> Dict:
     """Get a single Protection Group by ID"""
     try:
-        result = protection_groups_table.get_item(Key={"groupId": group_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
             return response(
@@ -1717,7 +1758,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
     """Update an existing Protection Group with validation and optimistic locking"""
     try:
         # Check if group exists
-        result = protection_groups_table.get_item(Key={"groupId": group_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": group_id})
         if "Item" not in result:
             return response(
                 404,
@@ -2100,7 +2141,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             update_args["ExpressionAttributeNames"] = expression_names
 
         try:
-            result = protection_groups_table.update_item(**update_args)
+            result = get_protection_groups_table().update_item(**update_args)
         except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
             # Another process updated the item between our read and write
             return response(
@@ -2146,12 +2187,12 @@ def delete_protection_group(group_id: str) -> Dict:
     try:
         # Check if group is referenced in ANY Recovery Plans (not just active ones)
         # Scan all plans and check if any wave references this PG
-        plans_result = recovery_plans_table.scan()
+        plans_result = get_recovery_plans_table().scan()
         all_plans = plans_result.get("Items", [])
 
         # Handle pagination
         while "LastEvaluatedKey" in plans_result:
-            plans_result = recovery_plans_table.scan(ExclusiveStartKey=plans_result["LastEvaluatedKey"])
+            plans_result = get_recovery_plans_table().scan(ExclusiveStartKey=plans_result["LastEvaluatedKey"])
             all_plans.extend(plans_result.get("Items", []))
 
         # Find plans that reference this protection group
@@ -2181,7 +2222,7 @@ def delete_protection_group(group_id: str) -> Dict:
             )
 
         # Delete the group
-        protection_groups_table.delete_item(Key={"groupId": group_id})
+        get_protection_groups_table().delete_item(Key={"groupId": group_id})
 
         print(f"Deleted Protection Group: {group_id}")
         return response(200, {"message": "Protection Group deleted successfully"})
@@ -2233,7 +2274,7 @@ def get_server_launch_config(group_id: str, server_id: str) -> Dict:
     """
     try:
         # Get protection group
-        result = protection_groups_table.get_item(Key={"groupId": group_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
             return response(
@@ -2364,7 +2405,7 @@ def update_server_launch_config(group_id: str, server_id: str, body: Dict) -> Di
         )
 
         # Get protection group
-        result = protection_groups_table.get_item(Key={"groupId": group_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
             return response(
@@ -2544,7 +2585,7 @@ def update_server_launch_config(group_id: str, server_id: str, body: Dict) -> Di
 
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        protection_groups_table.update_item(
+        get_protection_groups_table().update_item(
             Key={"groupId": group_id},
             UpdateExpression="SET servers = :servers, updatedAt = :updated",
             ExpressionAttributeValues={
@@ -2654,7 +2695,7 @@ def delete_server_launch_config(group_id: str, server_id: str) -> Dict:
     """
     try:
         # Get protection group
-        result = protection_groups_table.get_item(Key={"groupId": group_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
             return response(
@@ -2694,7 +2735,7 @@ def delete_server_launch_config(group_id: str, server_id: str) -> Dict:
 
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        protection_groups_table.update_item(
+        get_protection_groups_table().update_item(
             Key={"groupId": group_id},
             UpdateExpression="SET servers = :servers, updatedAt = :updated",
             ExpressionAttributeValues={
@@ -2821,7 +2862,7 @@ def validate_server_static_ip(group_id: str, server_id: str, body: Dict) -> Dict
         from shared.launch_config_validation import validate_static_ip
 
         # Get protection group
-        result = protection_groups_table.get_item(Key={"groupId": group_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
             return response(
@@ -3003,7 +3044,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
         )
 
         # Get protection group
-        result = protection_groups_table.get_item(Key={"groupId": group_id})
+        result = get_protection_groups_table().get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
             return response(
@@ -3304,7 +3345,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
         timestamp = datetime.now(timezone.utc).isoformat()
 
         try:
-            protection_groups_table.update_item(
+            get_protection_groups_table().update_item(
                 Key={"groupId": group_id},
                 UpdateExpression="SET servers = :servers, " "updatedAt = :updated",
                 ExpressionAttributeValues={
@@ -3557,7 +3598,7 @@ def create_recovery_plan(body: Dict) -> Dict:
 
             if pg_id:
                 try:
-                    pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
+                    pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
                     pg = pg_result.get("Item", {})
                     region = pg.get("region", "us-east-1")
 
@@ -3622,7 +3663,7 @@ def create_recovery_plan(body: Dict) -> Dict:
                 item["warnings"] = warnings
 
         # Store in DynamoDB
-        recovery_plans_table.put_item(Item=item)
+        get_recovery_plans_table().put_item(Item=item)
 
         print(f"Created Recovery Plan: {plan_id}")
 
@@ -3655,7 +3696,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
     try:
         query_params = query_params or {}
 
-        result = recovery_plans_table.scan()
+        result = get_recovery_plans_table().scan()
         plans = result.get("Items", [])
 
         # Apply filters
@@ -3675,7 +3716,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
         pg_tags_map = {}
         if tag_key:
             try:
-                pg_result = protection_groups_table.scan()
+                pg_result = get_protection_groups_table().scan()
                 for pg in pg_result.get("Items", []):
                     pg_id = pg.get("groupId")
                     pg_tags = pg.get("serverSelectionTags", {})
@@ -3722,7 +3763,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
             # Query ExecutionHistoryTable for latest execution
             # Note: planIdIndex has no sort key, so we query all and sort by startTime
             try:
-                execution_result = executions_table.query(
+                execution_result = get_executions_table().query(
                     IndexName="planIdIndex",
                     KeyConditionExpression=Key("planId").eq(plan_id),
                 )
@@ -3769,7 +3810,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
                     pg_id = wave.get("protectionGroupId")
                     if pg_id:
                         try:
-                            pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
+                            pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
                             if "Item" in pg_result:
                                 pg = pg_result["Item"]
                                 pg_account = pg.get("accountId")
@@ -3848,7 +3889,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 def get_recovery_plan(plan_id: str) -> Dict:
     """Get a single Recovery Plan by ID"""
     try:
-        result = recovery_plans_table.get_item(Key={"planId": plan_id})
+        result = get_recovery_plans_table().get_item(Key={"planId": plan_id})
 
         if "Item" not in result:
             return response(
@@ -3887,7 +3928,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
     print(f"XDEBUG: check_existing_recovery_instances called for plan {plan_id}")
     try:
         # Get the recovery plan
-        plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
+        plan_result = get_recovery_plans_table().get_item(Key={"planId": plan_id})
         print(f"XDEBUG: Retrieved plan, has Item: {'Item' in plan_result}")
         if "Item" not in plan_result:
             return response(
@@ -3913,7 +3954,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 print("DEBUG: No PG ID in wave, skipping")
                 continue
 
-            pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
+            pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
             pg = pg_result.get("Item", {})
             print(f"DEBUG: Retrieved PG: {pg_id}, has Item: {'Item' in pg_result}")
             if not pg:
@@ -3945,7 +3986,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                     external_id = None
 
                     try:
-                        account_result = target_accounts_table.get_item(Key={"accountId": pg_account_id})
+                        account_result = get_target_accounts_table().get_item(Key={"accountId": pg_account_id})
                         if "Item" in account_result:
                             account_config = account_result["Item"]
                             external_id = account_config.get("externalId")
@@ -4033,7 +4074,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
 
                         # Search execution history for this recovery instance
                         try:
-                            exec_scan = executions_table.scan(
+                            exec_scan = get_executions_table().scan(
                                 FilterExpression="attribute_exists(waves)",
                                 Limit=100,
                             )
@@ -4053,7 +4094,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                                             source_execution = exec_item.get("executionId")
                                             exec_plan_id = exec_item.get("planId")
                                             if exec_plan_id:
-                                                plan_lookup = recovery_plans_table.get_item(
+                                                plan_lookup = get_recovery_plans_table().get_item(
                                                     Key={"planId": exec_plan_id}
                                                 )
                                                 source_plan_name = plan_lookup.get("Item", {}).get(
@@ -4168,7 +4209,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
     """Update an existing Recovery Plan - blocked if execution in progress, with optimistic locking"""
     try:
         # Check if plan exists
-        result = recovery_plans_table.get_item(Key={"planId": plan_id})
+        result = get_recovery_plans_table().get_item(Key={"planId": plan_id})
         if "Item" not in result:
             return response(
                 404,
@@ -4352,7 +4393,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
             update_args["ExpressionAttributeNames"] = expression_names
 
         try:
-            result = recovery_plans_table.update_item(**update_args)
+            result = get_recovery_plans_table().update_item(**update_args)
         except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
             # Another process updated the item between our read and write
             return response(
@@ -4406,7 +4447,7 @@ def delete_recovery_plan(plan_id: str) -> Dict:
 
         # No active executions, safe to delete
         print(f"Deleting Recovery Plan: {plan_id}")
-        recovery_plans_table.delete_item(Key={"planId": plan_id})
+        get_recovery_plans_table().delete_item(Key={"planId": plan_id})
 
         print(f"Successfully deleted Recovery Plan: {plan_id}")
         return response(
@@ -4727,9 +4768,11 @@ TAG_SYNC_LOCK_TTL = 900
 def _is_tag_sync_running() -> bool:
     """Check if a tag sync is currently running."""
     try:
+        tag_sync_config_table = get_tag_sync_config_table()
+
         if not tag_sync_config_table:
             return False
-        result = tag_sync_config_table.get_item(Key={"accountId": "_tag_sync_lock"})
+        result = get_tag_sync_config_table().get_item(Key={"accountId": "_tag_sync_lock"})
         if "Item" not in result:
             return False
         lock = result["Item"]
@@ -4746,9 +4789,11 @@ def _is_tag_sync_running() -> bool:
 def _set_tag_sync_lock() -> None:
     """Set the tag sync lock."""
     try:
+        tag_sync_config_table = get_tag_sync_config_table()
+
         if not tag_sync_config_table:
             return
-        tag_sync_config_table.put_item(
+        get_tag_sync_config_table().put_item(
             Item={
                 "accountId": "_tag_sync_lock",
                 "status": "IN_PROGRESS",
@@ -4762,9 +4807,11 @@ def _set_tag_sync_lock() -> None:
 def _clear_tag_sync_lock() -> None:
     """Clear the tag sync lock."""
     try:
+        tag_sync_config_table = get_tag_sync_config_table()
+
         if not tag_sync_config_table:
             return
-        tag_sync_config_table.put_item(
+        get_tag_sync_config_table().put_item(
             Item={
                 "accountId": "_tag_sync_lock",
                 "status": "COMPLETED",
@@ -4778,9 +4825,11 @@ def _clear_tag_sync_lock() -> None:
 def _save_tag_sync_result(result: Dict, source: str = "manual") -> None:
     """Save tag sync result for dashboard display."""
     try:
+        tag_sync_config_table = get_tag_sync_config_table()
+
         if not tag_sync_config_table:
             return
-        tag_sync_config_table.put_item(
+        get_tag_sync_config_table().put_item(
             Item={
                 "accountId": "_last_tag_sync",
                 "timestamp": int(time.time()),
@@ -4799,6 +4848,8 @@ def _save_tag_sync_result(result: Dict, source: str = "manual") -> None:
 def get_last_tag_sync_status() -> Dict:
     """Get the last tag sync status for dashboard display."""
     try:
+        tag_sync_config_table = get_tag_sync_config_table()
+
         if not tag_sync_config_table:
             return response(200, {"message": "No sync history available"})
 
@@ -4807,7 +4858,7 @@ def get_last_tag_sync_status() -> Dict:
         # First check if a sync is currently running
         if _is_tag_sync_running():
             # Get the lock to show when it started
-            lock_result = tag_sync_config_table.get_item(Key={"accountId": "_tag_sync_lock"})
+            lock_result = get_tag_sync_config_table().get_item(Key={"accountId": "_tag_sync_lock"})
             started_at = 0
             if "Item" in lock_result:
                 started_at = lock_result["Item"].get("startedAt", 0)
@@ -4827,7 +4878,7 @@ def get_last_tag_sync_status() -> Dict:
             )
 
         # No sync running, return last completed sync
-        result = tag_sync_config_table.get_item(Key={"accountId": "_last_tag_sync"})
+        result = get_tag_sync_config_table().get_item(Key={"accountId": "_last_tag_sync"})
         if "Item" not in result:
             return response(200, {"message": "No sync history available"})
 
@@ -4903,6 +4954,7 @@ def _sync_tags_for_account(target_account_id: str, region: str = None, assume_ro
 def _get_target_account_role(account_id: str) -> str:
     """Get the cross-account role name for a target account."""
     try:
+        target_accounts_table = get_target_accounts_table()
         if not target_accounts_table:
             return None
         result = target_accounts_table.get_item(Key={"accountId": account_id})
@@ -4929,6 +4981,7 @@ def _sync_tags_all_target_accounts(region: str = None, source: str = "manual") -
     total_failed = 0
 
     try:
+        target_accounts_table = get_target_accounts_table()
         if not target_accounts_table:
             return response(
                 500,
@@ -6218,6 +6271,7 @@ def apply_launch_config_to_servers(
 def get_target_account(account_id: str) -> Dict:
     """Get a specific target account by ID"""
     try:
+        target_accounts_table = get_target_accounts_table()
         if not target_accounts_table:
             return response(
                 500,
@@ -6255,6 +6309,7 @@ def get_target_account(account_id: str) -> Dict:
 def create_target_account(body: Dict) -> Dict:
     """Create a new target account configuration"""
     try:
+        target_accounts_table = get_target_accounts_table()
         if not target_accounts_table:
             return response(
                 500,
@@ -6355,7 +6410,7 @@ def create_target_account(body: Dict) -> Dict:
         # Check if this is the first account (for default setting)
         is_first_account = False
         try:
-            scan_result = target_accounts_table.scan(Select="COUNT")
+            scan_result = get_target_accounts_table().scan(Select="COUNT")
             total_accounts = scan_result.get("Count", 0)
             is_first_account = total_accounts == 0
         except Exception as e:
@@ -6377,7 +6432,7 @@ def create_target_account(body: Dict) -> Dict:
             account_item["roleArn"] = role_arn
 
         # Store in DynamoDB
-        target_accounts_table.put_item(Item=account_item)
+        get_target_accounts_table().put_item(Item=account_item)
 
         success_message = f"Target account {account_id} added successfully"
         if is_current_account:
@@ -6413,6 +6468,7 @@ def create_target_account(body: Dict) -> Dict:
 def update_target_account(account_id: str, body: Dict) -> Dict:
     """Update target account configuration"""
     try:
+        target_accounts_table = get_target_accounts_table()
         if not target_accounts_table:
             return response(
                 500,
@@ -6489,7 +6545,7 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
         if expression_names:
             update_args["ExpressionAttributeNames"] = expression_names
 
-        result = target_accounts_table.update_item(**update_args)
+        result = get_target_accounts_table().update_item(**update_args)
         updated_account = result["Attributes"]
 
         print(f"Updated target account: {account_id}")
@@ -6510,6 +6566,7 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
 def delete_target_account(account_id: str) -> Dict:
     """Delete target account configuration"""
     try:
+        target_accounts_table = get_target_accounts_table()
         if not target_accounts_table:
             return response(
                 500,
@@ -6532,7 +6589,7 @@ def delete_target_account(account_id: str) -> Dict:
             )
 
         # Delete the account
-        target_accounts_table.delete_item(Key={"accountId": account_id})
+        get_target_accounts_table().delete_item(Key={"accountId": account_id})
 
         current_account_id = get_current_account_id()
         is_current = account_id == current_account_id
@@ -6844,7 +6901,7 @@ def handle_sync_single_account(target_account_id: str) -> Dict:
             )
 
         # Get target account from DynamoDB
-        account_response = target_accounts_table.get_item(Key={"accountId": target_account_id})
+        account_response = get_target_accounts_table().get_item(Key={"accountId": target_account_id})
 
         if "Item" not in account_response:
             return response(
@@ -7135,17 +7192,17 @@ def export_configuration(query_params: Dict) -> Dict:
         source_region = os.environ.get("AWS_REGION", "us-east-1")
 
         # Scan all Protection Groups
-        pg_result = protection_groups_table.scan()
+        pg_result = get_protection_groups_table().scan()
         protection_groups = pg_result.get("Items", [])
         while "LastEvaluatedKey" in pg_result:
-            pg_result = protection_groups_table.scan(ExclusiveStartKey=pg_result["LastEvaluatedKey"])
+            pg_result = get_protection_groups_table().scan(ExclusiveStartKey=pg_result["LastEvaluatedKey"])
             protection_groups.extend(pg_result.get("Items", []))
 
         # Scan all Recovery Plans
-        rp_result = recovery_plans_table.scan()
+        rp_result = get_recovery_plans_table().scan()
         recovery_plans = rp_result.get("Items", [])
         while "LastEvaluatedKey" in rp_result:
-            rp_result = recovery_plans_table.scan(ExclusiveStartKey=rp_result["LastEvaluatedKey"])
+            rp_result = get_recovery_plans_table().scan(ExclusiveStartKey=rp_result["LastEvaluatedKey"])
             recovery_plans.extend(rp_result.get("Items", []))
 
         # Build PG ID -> Name mapping for wave export
@@ -7759,20 +7816,20 @@ def import_configuration(body: Dict) -> Dict:
 
 def _get_existing_protection_groups() -> Dict[str, Dict]:
     """Get all existing Protection Groups indexed by name (case-insensitive)"""
-    result = protection_groups_table.scan()
+    result = get_protection_groups_table().scan()
     pgs = result.get("Items", [])
     while "LastEvaluatedKey" in result:
-        result = protection_groups_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
+        result = get_protection_groups_table().scan(ExclusiveStartKey=result["LastEvaluatedKey"])
         pgs.extend(result.get("Items", []))
     return {pg.get("groupName", "").lower(): pg for pg in pgs}
 
 
 def _get_existing_recovery_plans() -> Dict[str, Dict]:
     """Get all existing Recovery Plans indexed by name (case-insensitive)"""
-    result = recovery_plans_table.scan()
+    result = get_recovery_plans_table().scan()
     rps = result.get("Items", [])
     while "LastEvaluatedKey" in result:
-        result = recovery_plans_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
+        result = get_recovery_plans_table().scan(ExclusiveStartKey=result["LastEvaluatedKey"])
         rps.extend(result.get("Items", []))
     return {rp.get("planName", "").lower(): rp for rp in rps}
 
@@ -7794,7 +7851,7 @@ def _get_active_execution_servers() -> Dict[str, Dict]:
     servers = {}
     for status in active_statuses:
         try:
-            result = executions_table.query(
+            result = get_executions_table().query(
                 IndexName="StatusIndex",
                 KeyConditionExpression="#s = :status",
                 ExpressionAttributeNames={"#s": "status"},
@@ -7822,10 +7879,10 @@ def _get_active_execution_servers() -> Dict[str, Dict]:
 
 def _get_all_assigned_servers() -> Dict[str, str]:
     """Get all servers assigned to any Protection Group"""
-    result = protection_groups_table.scan()
+    result = get_protection_groups_table().scan()
     pgs = result.get("Items", [])
     while "LastEvaluatedKey" in result:
-        result = protection_groups_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
+        result = get_protection_groups_table().scan(ExclusiveStartKey=result["LastEvaluatedKey"])
         pgs.extend(result.get("Items", []))
 
     assigned = {}
@@ -8758,7 +8815,7 @@ def _process_protection_group_import(
             if servers_config:
                 item["servers"] = servers_config
 
-            protection_groups_table.put_item(Item=item)
+            get_protection_groups_table().put_item(Item=item)
             result["details"] = {"groupId": group_id}
             print(f"[{correlation_id}] Created PG '{pg_name}' with ID {group_id}")
 
@@ -8974,7 +9031,7 @@ def _process_recovery_plan_import(
                 "version": 1,  # FIXED: camelCase
             }
 
-            recovery_plans_table.put_item(Item=item)
+            get_recovery_plans_table().put_item(Item=item)
             result["details"] = {"planId": plan_id}
             print(f"[{correlation_id}] Created RP '{plan_name}' with ID {plan_id}")
         except Exception as e:

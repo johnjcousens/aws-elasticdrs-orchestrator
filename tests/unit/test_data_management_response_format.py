@@ -32,28 +32,31 @@ data_management_handler = importlib.import_module("data-management-handler.index
 
 @pytest.fixture(autouse=True)
 def reset_mocks():
-    """Reset all mocks between tests to prevent state pollution."""
-    # Also reset any module-level boto3 resources that may have been created
-    import importlib
-    import sys
+    """
+    Reset all mocks between tests to prevent state pollution.
     
-    # Store modules to reload
-    modules_to_reload = [
-        "shared.conflict_detection",
-    ]
+    This fixture runs automatically before each test to ensure clean state.
+    It resets module-level variables in both account_utils and conflict_detection
+    modules to prevent boto3 client caching issues.
+    """
+    # Import modules that need resetting
+    import shared.account_utils
+    import shared.conflict_detection
+    
+    # Reset account_utils module-level variables
+    shared.account_utils._dynamodb = None
+    shared.account_utils._target_accounts_table = None
+    
+    # Reset conflict_detection module-level variables
+    shared.conflict_detection._protection_groups_table = None
+    shared.conflict_detection._recovery_plans_table = None
+    shared.conflict_detection._execution_history_table = None
+    shared.conflict_detection.dynamodb = None
     
     yield
     
-    # Clean up patches
+    # Clean up after test
     patch.stopall()
-    
-    # Reload modules to reset any module-level boto3 resources
-    for module_name in modules_to_reload:
-        if module_name in sys.modules:
-            try:
-                importlib.reload(sys.modules[module_name])
-            except Exception:
-                pass  # Ignore reload errors
 
 
 @pytest.fixture
@@ -123,8 +126,8 @@ class TestAPIGatewayResponseFormat:
         """API Gateway invocation should return wrapped response"""
         mock_pg_table, mock_rp_table = mock_dynamodb
         
-        with patch.object(data_management_handler, "protection_groups_table", mock_pg_table):
-            with patch.object(data_management_handler, "recovery_plans_table", mock_rp_table):
+        with patch.object(data_management_handler, "get_protection_groups_table", return_value=mock_pg_table):
+            with patch.object(data_management_handler, "get_recovery_plans_table", return_value=mock_rp_table):
                 event = {
                     "requestContext": {"authorizer": {"claims": {}}},
                     "httpMethod": "GET",
@@ -151,8 +154,8 @@ class TestAPIGatewayResponseFormat:
         """API Gateway GET should return wrapped response"""
         mock_pg_table, mock_rp_table = mock_dynamodb
         
-        with patch.object(data_management_handler, "protection_groups_table", mock_pg_table):
-            with patch.object(data_management_handler, "recovery_plans_table", mock_rp_table):
+        with patch.object(data_management_handler, "get_protection_groups_table", return_value=mock_pg_table):
+            with patch.object(data_management_handler, "get_recovery_plans_table", return_value=mock_rp_table):
                 event = {
                     "requestContext": {"authorizer": {"claims": {}}},
                     "httpMethod": "GET",
@@ -181,8 +184,8 @@ class TestDirectInvocationResponseFormat:
         """Direct invocation should return raw data without API Gateway wrapping"""
         mock_pg_table, mock_rp_table = mock_dynamodb
         
-        with patch.object(data_management_handler, "protection_groups_table", mock_pg_table):
-            with patch.object(data_management_handler, "recovery_plans_table", mock_rp_table):
+        with patch.object(data_management_handler, "get_protection_groups_table", return_value=mock_pg_table):
+            with patch.object(data_management_handler, "get_recovery_plans_table", return_value=mock_rp_table):
                 event = {
                     "operation": "list_protection_groups",
                     "queryParams": {},
@@ -202,8 +205,8 @@ class TestDirectInvocationResponseFormat:
         """Direct invocation GET should return raw protection group data"""
         mock_pg_table, mock_rp_table = mock_dynamodb
         
-        with patch.object(data_management_handler, "protection_groups_table", mock_pg_table):
-            with patch.object(data_management_handler, "recovery_plans_table", mock_rp_table):
+        with patch.object(data_management_handler, "get_protection_groups_table", return_value=mock_pg_table):
+            with patch.object(data_management_handler, "get_recovery_plans_table", return_value=mock_rp_table):
                 event = {
                     "operation": "get_protection_group",
                     "body": {"groupId": "pg-123"},
@@ -218,13 +221,15 @@ class TestDirectInvocationResponseFormat:
                 assert result["groupName"] == "Test Group"
                 assert "region" in result
     
-    def test_create_protection_group_direct_format(self, mock_dynamodb, mock_iam_utils, lambda_context):
+    def test_create_protection_group_direct_format(
+        self, mock_dynamodb, mock_iam_utils, lambda_context
+    ):
         """Direct invocation CREATE should return raw created item"""
         mock_pg_table, mock_rp_table = mock_dynamodb
         
         # Mock successful creation
         mock_pg_table.put_item.return_value = {}
-        mock_pg_table.scan.return_value = {"Items": []}  # For name uniqueness check
+        mock_pg_table.scan.return_value = {"Items": []}
         
         # Mock DRS client
         mock_drs = MagicMock()
@@ -232,66 +237,71 @@ class TestDirectInvocationResponseFormat:
             "items": [{"sourceServerID": "s-456"}]
         }
         
-        # Create mock boto3 resource that returns our mock tables
-        mock_dynamodb_resource = MagicMock()
-        def get_table(table_name):
-            if "protection-groups" in table_name:
-                return mock_pg_table
-            elif "recovery-plans" in table_name:
-                return mock_rp_table
-            return MagicMock()
-        mock_dynamodb_resource.Table.side_effect = get_table
+        # Mock execution history table
+        mock_exec_table = MagicMock()
+        mock_exec_table.scan.return_value = {"Items": []}
         
-        # Mock boto3 in shared.account_utils to prevent real AWS calls
-        with patch("shared.account_utils.boto3") as mock_account_utils_boto3:
-            mock_sts = MagicMock()
-            mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
-            mock_iam = MagicMock()
-            mock_iam.list_account_aliases.return_value = {"AccountAliases": ["test-account"]}
-            
-            def mock_client(service_name, **kwargs):
-                if service_name == "sts":
-                    return mock_sts
-                elif service_name == "iam":
-                    return mock_iam
-                return MagicMock()
-            
-            def mock_resource(service_name, **kwargs):
-                if service_name == "dynamodb":
-                    return mock_dynamodb_resource
-                return MagicMock()
-            
-            mock_account_utils_boto3.client.side_effect = mock_client
-            mock_account_utils_boto3.resource.side_effect = mock_resource
-            
-            # Patch the module-level dynamodb resource in conflict_detection
-            with patch("shared.conflict_detection.dynamodb", mock_dynamodb_resource):
-                # Also patch boto3 in conflict_detection to prevent real AWS calls
-                with patch("shared.conflict_detection.boto3") as mock_conflict_boto3:
-                    mock_conflict_boto3.resource.side_effect = mock_resource
-                    
-                    # Patch tables in both data-management-handler and conflict_detection
-                    with patch.object(data_management_handler, "protection_groups_table", mock_pg_table):
-                        with patch.object(data_management_handler, "recovery_plans_table", mock_rp_table):
-                            with patch("shared.conflict_detection.protection_groups_table", mock_pg_table):
-                                with patch("shared.conflict_detection.recovery_plans_table", mock_rp_table):
-                                    with patch.object(data_management_handler, "create_drs_client", return_value=mock_drs):
-                                        event = {
-                                            "operation": "create_protection_group",
-                                            "body": {
-                                                "groupName": "New Group",
-                                                "region": "us-east-1",
-                                                "sourceServerIds": ["s-456"],
-                                            },
-                                        }
-                                        
-                                        result = data_management_handler.lambda_handler(event, lambda_context)
-                                        
-                                        # Verify raw response format
-                                        assert isinstance(result, dict)
-                                        assert "statusCode" not in result  # Should NOT have API Gateway wrapper
-                                        assert "groupId" in result
-                                        assert result["groupName"] == "New Group"
+        # Import conflict_detection to patch its getter functions
+        import shared.conflict_detection
+        
+        # Patch getter functions on BOTH modules
+        with patch.object(
+            data_management_handler,
+            "get_protection_groups_table",
+            return_value=mock_pg_table
+        ):
+            with patch.object(
+                data_management_handler,
+                "get_recovery_plans_table",
+                return_value=mock_rp_table
+            ):
+                with patch.object(
+                    data_management_handler,
+                    "get_executions_table",
+                    return_value=mock_exec_table
+                ):
+                    # CRITICAL: Also patch conflict_detection getter functions
+                    with patch.object(
+                        shared.conflict_detection,
+                        "get_protection_groups_table",
+                        return_value=mock_pg_table
+                    ):
+                        with patch.object(
+                            shared.conflict_detection,
+                            "get_recovery_plans_table",
+                            return_value=mock_rp_table
+                        ):
+                            with patch.object(
+                                shared.conflict_detection,
+                                "get_execution_history_table",
+                                return_value=mock_exec_table
+                            ):
+                                with patch.object(
+                                    data_management_handler,
+                                    "create_drs_client",
+                                    return_value=mock_drs
+                                ):
+                                    event = {
+                                        "operation": "create_protection_group",
+                                        "body": {
+                                            "groupName": "New Group",
+                                            "region": "us-east-1",
+                                            "sourceServerIds": ["s-456"],
+                                        },
+                                    }
+                                    
+                                    result = (
+                                        data_management_handler.lambda_handler(
+                                            event, lambda_context
+                                        )
+                                    )
+                                    
+                                    # Verify raw response format
+                                    assert isinstance(result, dict)
+                                    # Should NOT have API Gateway wrapper
+                                    assert "statusCode" not in result
+                                    assert "groupId" in result
+                                    assert result["groupName"] == "New Group"
 
 
 class TestErrorResponseFormat:
@@ -369,8 +379,8 @@ class TestResponseUnwrapping:
         """Test unwrapping when body is JSON string"""
         mock_pg_table, mock_rp_table = mock_dynamodb
         
-        with patch.object(data_management_handler, "protection_groups_table", mock_pg_table):
-            with patch.object(data_management_handler, "recovery_plans_table", mock_rp_table):
+        with patch.object(data_management_handler, "get_protection_groups_table", return_value=mock_pg_table):
+            with patch.object(data_management_handler, "get_recovery_plans_table", return_value=mock_rp_table):
                 event = {
                     "operation": "list_protection_groups",
                     "queryParams": {},
@@ -387,8 +397,8 @@ class TestResponseUnwrapping:
         """Test unwrapping when body is already a dict"""
         mock_pg_table, mock_rp_table = mock_dynamodb
         
-        with patch.object(data_management_handler, "protection_groups_table", mock_pg_table):
-            with patch.object(data_management_handler, "recovery_plans_table", mock_rp_table):
+        with patch.object(data_management_handler, "get_protection_groups_table", return_value=mock_pg_table):
+            with patch.object(data_management_handler, "get_recovery_plans_table", return_value=mock_rp_table):
                 event = {
                     "operation": "get_protection_group",
                     "body": {"groupId": "pg-123"},

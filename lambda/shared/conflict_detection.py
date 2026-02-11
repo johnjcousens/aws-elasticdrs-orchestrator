@@ -51,10 +51,35 @@ PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
 RECOVERY_PLANS_TABLE = os.environ.get("RECOVERY_PLANS_TABLE")
 EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 
-# DynamoDB tables
-protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
-recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
-execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE) if EXECUTION_HISTORY_TABLE else None
+# DynamoDB tables - lazy initialization for Lambda cold start optimization and test mocking
+_protection_groups_table = None
+_recovery_plans_table = None
+_execution_history_table = None
+
+
+def get_protection_groups_table():
+    """Lazy-load Protection Groups table to optimize Lambda cold starts and enable test mocking"""
+    global _protection_groups_table
+    if _protection_groups_table is None:
+        _protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE)
+    return _protection_groups_table
+
+
+def get_recovery_plans_table():
+    """Lazy-load Recovery Plans table to optimize Lambda cold starts and enable test mocking"""
+    global _recovery_plans_table
+    if _recovery_plans_table is None:
+        _recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE)
+    return _recovery_plans_table
+
+
+def get_execution_history_table():
+    """Lazy-load Execution History table to optimize Lambda cold starts and enable test mocking"""
+    global _execution_history_table
+    if _execution_history_table is None:
+        _execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
+    return _execution_history_table
+
 
 # Execution statuses indicating active DR operations in progress
 ACTIVE_EXECUTION_STATUSES = [
@@ -80,7 +105,7 @@ def get_all_active_executions() -> List[Dict]:
         active_executions = []
         for status in ACTIVE_EXECUTION_STATUSES:
             try:
-                result = execution_history_table.query(
+                result = get_execution_history_table().query(
                     IndexName="StatusIndex",
                     KeyConditionExpression=Key("status").eq(status),
                 )
@@ -99,7 +124,7 @@ def get_all_active_executions() -> List[Dict]:
 
         # If no results from GSI, fallback to scan
         if not active_executions:
-            result = execution_history_table.scan()
+            result = get_execution_history_table().scan()
             all_executions = result.get("Items", [])
             active_executions = [e for e in all_executions if e.get("status", "").upper() in ACTIVE_EXECUTION_STATUSES]
 
@@ -134,13 +159,13 @@ def get_active_executions_for_plan(plan_id: str) -> List[Dict]:
         'IN_PROGRESS'
     """
     try:
-        if not execution_history_table:
+        if not get_execution_history_table():
             print("EXECUTION_HISTORY_TABLE not configured")
             return []
 
         # Try PlanIdIndex GSI first
         try:
-            result = execution_history_table.query(
+            result = get_execution_history_table().query(
                 IndexName="PlanIdIndex",
                 KeyConditionExpression=Key("planId").eq(plan_id),
             )
@@ -159,7 +184,7 @@ def get_active_executions_for_plan(plan_id: str) -> List[Dict]:
             ]:
                 print(f"PlanIdIndex GSI not available: {error_code}, falling back to scan")
                 # Fallback to scan
-                result = execution_history_table.scan()
+                result = get_execution_history_table().scan()
                 all_executions = result.get("Items", [])
 
                 # Filter by plan ID and active status
@@ -269,7 +294,7 @@ def resolve_pg_servers_for_conflict_check(
         return pg_cache[pg_id]
 
     try:
-        pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
+        pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
         pg = pg_result.get("Item", {})
 
         if not pg:
@@ -419,7 +444,7 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
         # For ALL active executions, resolve servers from the recovery plan's protection groups
         if plan_id not in plan_cache:
             try:
-                plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
+                plan_result = get_recovery_plans_table().get_item(Key={"planId": plan_id})
                 plan_cache[plan_id] = plan_result.get("Item", {})
             except Exception as e:
                 print(f"Error fetching plan {plan_id}: {e}")
@@ -705,7 +730,7 @@ def check_server_conflicts(plan: Dict, account_context: Optional[Dict] = None) -
             # Get PG to find region
             pg_metadata = {}
             try:
-                pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
+                pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
                 pg_metadata = pg_result.get("Item", {})
             except Exception as e:
                 print(f"[Conflict Check] Error fetching PG {pg_id}: {e}")
@@ -820,11 +845,11 @@ def check_server_conflicts_for_create(server_ids: List[str]) -> List[Dict]:
     conflicts = []
 
     # Scan all PGs
-    pg_response = protection_groups_table.scan()
+    pg_response = get_protection_groups_table().scan()
     all_pgs = pg_response.get("Items", [])
 
     while "LastEvaluatedKey" in pg_response:
-        pg_response = protection_groups_table.scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
+        pg_response = get_protection_groups_table().scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
         all_pgs.extend(pg_response.get("Items", []))
 
     for pg in all_pgs:
@@ -850,11 +875,11 @@ def check_server_conflicts_for_update(server_ids: List[str], current_pg_id: str)
     conflicts = []
 
     # Scan all PGs
-    pg_response = protection_groups_table.scan()
+    pg_response = get_protection_groups_table().scan()
     all_pgs = pg_response.get("Items", [])
 
     while "LastEvaluatedKey" in pg_response:
-        pg_response = protection_groups_table.scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
+        pg_response = get_protection_groups_table().scan(ExclusiveStartKey=pg_response["LastEvaluatedKey"])
         all_pgs.extend(pg_response.get("Items", []))
 
     for pg in all_pgs:
@@ -902,12 +927,12 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
 
     # Get all recovery plans
     try:
-        result = recovery_plans_table.scan()
+        result = get_recovery_plans_table().scan()
         all_plans = result.get("Items", [])
 
         # Handle pagination
         while "LastEvaluatedKey" in result:
-            result = recovery_plans_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
+            result = get_recovery_plans_table().scan(ExclusiveStartKey=result["LastEvaluatedKey"])
             all_plans.extend(result.get("Items", []))
     except Exception as e:
         print(f"Error fetching plans for conflict check: {e}")
@@ -955,7 +980,7 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
                 # Get PG metadata (region) - use separate cache since pg_cache stores server IDs
                 if pg_id not in pg_metadata_cache:
                     try:
-                        pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
+                        pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
                         pg_metadata_cache[pg_id] = pg_result.get("Item", {})
                     except Exception:
                         pg_metadata_cache[pg_id] = {}
@@ -1046,11 +1071,11 @@ def get_shared_protection_groups() -> Dict[str, Dict]:
     """
     # Get all recovery plans
     try:
-        result = recovery_plans_table.scan()
+        result = get_recovery_plans_table().scan()
         all_plans = result.get("Items", [])
 
         while "LastEvaluatedKey" in result:
-            result = recovery_plans_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
+            result = get_recovery_plans_table().scan(ExclusiveStartKey=result["LastEvaluatedKey"])
             all_plans.extend(result.get("Items", []))
     except Exception as e:
         print(f"Error fetching plans for shared PG check: {e}")
@@ -1081,7 +1106,7 @@ def get_shared_protection_groups() -> Dict[str, Dict]:
         if len(plans) > 1:
             # Get PG details
             try:
-                pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
+                pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
                 pg = pg_result.get("Item", {})
                 pg_name = pg.get("groupName", "Unknown")
                 server_count = len(pg.get("sourceServerIds", []))

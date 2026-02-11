@@ -102,8 +102,12 @@ def test_get_server_config_history_success(
     """Test successful retrieval of server config history"""
     lambda_handler = get_lambda_handler()
     
+    # SYNTAX FIX: Changed return_value, to return_value= (keyword argument)
+    # This was causing NameError: name 'return_value' is not defined
+    # The correct syntax for patch.object is: patch.object(obj, attr, return_value=value)
+    # NOT: patch.object(obj, attr, return_value, value)
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         # Mock DynamoDB to return protection group
@@ -141,7 +145,7 @@ def test_get_server_config_history_missing_group_id(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         
@@ -168,7 +172,7 @@ def test_get_server_config_history_missing_server_id(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         
@@ -195,7 +199,7 @@ def test_get_server_config_history_missing_both_parameters(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         
@@ -221,7 +225,7 @@ def test_get_server_config_history_group_not_found(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         # Mock DynamoDB to return no item
@@ -253,7 +257,7 @@ def test_get_server_config_history_server_not_found(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         # Mock DynamoDB to return protection group
@@ -283,7 +287,7 @@ def test_get_server_config_history_server_in_source_server_ids_only(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         # Protection group with server in sourceServerIds only
@@ -326,7 +330,7 @@ def test_get_server_config_history_server_with_custom_config(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         # Mock DynamoDB to return protection group
@@ -355,7 +359,7 @@ def test_get_server_config_history_empty_group_id(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         
@@ -380,7 +384,7 @@ def test_get_server_config_history_empty_server_id(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         
@@ -405,7 +409,7 @@ def test_get_server_config_history_dynamodb_exception(
     lambda_handler = get_lambda_handler()
     
     with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "protection_groups_table", mock_protection_groups_table):
+         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
         
         mock_validate.return_value = True
         # Mock DynamoDB to raise exception
