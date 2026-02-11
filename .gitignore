@@ -74,6 +74,7 @@ frontend/test-results/
 frontend/*.test.ts
 frontend/*.spec.ts
 frontend/.vite/
+frontend/coverage/
 
 # -------------------------
 # BUILD ARTIFACTS
