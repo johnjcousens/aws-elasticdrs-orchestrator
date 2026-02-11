@@ -7060,10 +7060,62 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
                             )
                             wave["servers"].append(server_data)
 
-                        # Pass through launchStatus from DRS API directly
-                        # DRS API provides accurate status values: PENDING, IN_PROGRESS, LAUNCHING, LAUNCHED, FAILED
-                        # Frontend knows how to display these standard DRS status values
-                        print(f"DEBUG: Using launchStatus from DRS API for {len(wave['servers'])} servers")
+                        # Derive server status from job log events
+                        # DRS participatingServers.launchStatus stays "PENDING" during intermediate phases
+                        # Job log events show actual current phase (CLEANUP, SNAPSHOT, CONVERSION, LAUNCH)
+                        try:
+                            print(f"DEBUG: Querying job log events for job {job_id} to derive server status")
+                            log_response = drs_client.describe_job_log_items(jobID=job_id)
+                            log_items = log_response.get("items", [])
+                            
+                            # Build map of sourceServerID -> most recent event
+                            server_event_map = {}
+                            for log_item in log_items:
+                                event_type = log_item.get("event", "")
+                                event_data = log_item.get("eventData", {})
+                                source_server_id = event_data.get("sourceServerID", "")
+                                
+                                if source_server_id and event_type:
+                                    # Keep most recent event per server (log items are chronological)
+                                    server_event_map[source_server_id] = event_type
+                            
+                            print(f"DEBUG: Found events for {len(server_event_map)} servers")
+                            
+                            # Map events to DRS-compatible status values that frontend understands
+                            event_to_status = {
+                                "CLEANUP_START": "IN_PROGRESS",
+                                "CLEANUP_END": "IN_PROGRESS",
+                                "SNAPSHOT_START": "IN_PROGRESS",
+                                "SNAPSHOT_END": "IN_PROGRESS",
+                                "USING_PREVIOUS_SNAPSHOT": "IN_PROGRESS",
+                                "CONVERSION_START": "IN_PROGRESS",
+                                "CONVERSION_END": "IN_PROGRESS",
+                                "LAUNCH_START": "LAUNCHING",
+                                "LAUNCH_FAILED": "FAILED",
+                                "SERVER_SKIPPED": "FAILED",
+                            }
+                            
+                            # Update server status based on job log events
+                            for server in wave["servers"]:
+                                source_server_id = server["sourceServerId"]
+                                most_recent_event = server_event_map.get(source_server_id, "")
+                                
+                                if most_recent_event:
+                                    derived_status = event_to_status.get(most_recent_event, "PENDING")
+                                    
+                                    # Only override if launchStatus is still PENDING
+                                    # Once launched, keep the LAUNCHED status
+                                    if server["launchStatus"].upper() == "PENDING":
+                                        server["status"] = derived_status
+                                        print(
+                                            f"DEBUG: Updated {source_server_id} status from 'PENDING' to '{derived_status}' based on event {most_recent_event}"  # noqa: E501
+                                        )
+                                    else:
+                                        print(
+                                            f"DEBUG: Keeping {source_server_id} status as '{server['launchStatus']}' (already launched)"  # noqa: E501
+                                        )
+                        except Exception as log_error:
+                            print(f"WARNING: Could not query job log events for status derivation: {log_error}")
 
                         # CRITICAL FIX: Query recovery instances separately
                         # DRS clears recoveryInstanceID from participatingServers after job completes
