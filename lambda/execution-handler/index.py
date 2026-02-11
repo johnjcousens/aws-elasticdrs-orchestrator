@@ -3868,7 +3868,11 @@ def lambda_handler(event, context):
 
         # 4. Check if this is a legacy operation (EventBridge scheduled polling)
         # Legacy operations: find, poll, finalize (used by EventBridge schedule)
-        elif isinstance(event, dict) and event.get("operation") in ["find", "poll", "finalize"]:
+        elif isinstance(event, dict) and event.get("operation") in [
+            "find",
+            "poll",
+            "finalize",
+        ]:
             operation = event.get("operation")
             print(f"Legacy operation detected: {operation}")
 
@@ -7067,20 +7071,20 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
                             print(f"DEBUG: Querying job log events for job {job_id} to derive server status")
                             log_response = drs_client.describe_job_log_items(jobID=job_id)
                             log_items = log_response.get("items", [])
-                            
+
                             # Build map of sourceServerID -> most recent event
                             server_event_map = {}
                             for log_item in log_items:
                                 event_type = log_item.get("event", "")
                                 event_data = log_item.get("eventData", {})
                                 source_server_id = event_data.get("sourceServerID", "")
-                                
+
                                 if source_server_id and event_type:
                                     # Keep most recent event per server (log items are chronological)
                                     server_event_map[source_server_id] = event_type
-                            
+
                             print(f"DEBUG: Found events for {len(server_event_map)} servers")
-                            
+
                             # Map events to DRS-compatible status values that frontend understands
                             event_to_status = {
                                 "CLEANUP_START": "IN_PROGRESS",
@@ -7094,15 +7098,15 @@ def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Di
                                 "LAUNCH_FAILED": "FAILED",
                                 "SERVER_SKIPPED": "FAILED",
                             }
-                            
+
                             # Update server status based on job log events
                             for server in wave["servers"]:
                                 source_server_id = server["sourceServerId"]
                                 most_recent_event = server_event_map.get(source_server_id, "")
-                                
+
                                 if most_recent_event:
                                     derived_status = event_to_status.get(most_recent_event, "PENDING")
-                                    
+
                                     # Only override if launchStatus is still PENDING
                                     # Once launched, keep the LAUNCHED status
                                     if server["launchStatus"].upper() == "PENDING":
