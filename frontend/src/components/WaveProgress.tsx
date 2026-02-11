@@ -463,65 +463,35 @@ const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsRes
         displayStatus = '✓';
         badgeColor = 'green';
       } else {
-        // Use backend-derived status field (derived from job log events)
+        // Use launchStatus from DRS API (standard DRS status values)
         const serverStatus = server.status || server.launchStatus || 'pending';
-        switch (serverStatus.toLowerCase()) {
-          case 'completed':
-          case 'launched':
+        switch (serverStatus.toUpperCase()) {
+          case 'COMPLETED':
+          case 'LAUNCHED':
             displayStatus = '✓';
             badgeColor = 'green';
             break;
-          case 'failed':
-          case 'error':
+          case 'FAILED':
+          case 'ERROR':
             displayStatus = '✗';
             badgeColor = 'red';
             break;
-          case 'converting':
-            displayStatus = '🔄';
-            badgeColor = 'blue';
-            break;
-          case 'converted':
-            displayStatus = '✓';
-            badgeColor = 'green';
-            break;
-          case 'snapshotting':
-            displayStatus = '📸';
-            badgeColor = 'blue';
-            break;
-          case 'snapshotted':
-            displayStatus = '✓';
-            badgeColor = 'green';
-            break;
-          case 'cleaning':
-            displayStatus = '🧹';
-            badgeColor = 'blue';
-            break;
-          case 'cleaned':
-            displayStatus = '✓';
-            badgeColor = 'green';
-            break;
-          case 'launching':
-            displayStatus = '🚀';
-            badgeColor = 'blue';
-            break;
-          case 'in_progress':
-          case 'polling':
+          case 'IN_PROGRESS':
+          case 'LAUNCHING':
+          case 'POLLING':
             displayStatus = '⟳';
             badgeColor = 'blue';
             break;
-          case 'pending':
+          case 'PENDING':
             displayStatus = '⏳';
             badgeColor = 'grey';
             break;
-          case 'started':
+          case 'STARTED':
             displayStatus = 'Started';
             badgeColor = 'blue';
             break;
-          case 'skipped':
-            displayStatus = '⊘';
-            badgeColor = 'grey';
-            break;
           default:
+            // Show full status for unknown cases
             displayStatus = serverStatus.charAt(0).toUpperCase() + serverStatus.slice(1).toLowerCase();
             badgeColor = 'grey';
         }
