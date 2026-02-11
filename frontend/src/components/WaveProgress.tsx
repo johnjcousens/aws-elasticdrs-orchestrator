@@ -280,6 +280,9 @@ const formatTimestamp = (timestamp: string | number | undefined): string => {
 /**
  * Calculate wave duration
  * For completed waves, uses endTime. For in-progress waves, uses current time.
+ * 
+ * CRITICAL: This function is called on every render due to parent timer.
+ * We MUST return a stable value for completed waves to prevent continuous updates.
  */
 const calculateWaveDuration = (wave: WaveExecution, effectiveStatus?: string): string => {
   if (!wave.startTime) return '-';
@@ -295,12 +298,8 @@ const calculateWaveDuration = (wave: WaveExecution, effectiveStatus?: string): s
   let end: Date;
   if (isCompleted && wave.endTime) {
     end = parseTimestamp(wave.endTime)!;
-    console.log(`[WaveProgress] Wave ${wave.waveNumber} completed - using endTime: ${end.toISOString()}`);
   } else {
     end = new Date();
-    if (isCompleted) {
-      console.warn(`[WaveProgress] Wave ${wave.waveNumber} marked completed but missing endTime!`);
-    }
   }
   
   if (!end) return '-';
@@ -822,6 +821,10 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
   // State for staging job logs
   const [stagingJobLogs, setStagingJobLogs] = useState<StagingJobLogs>({});
   const [loadingStagingJobs, setLoadingStagingJobs] = useState<Set<string>>(new Set());
+  
+  // Cache completed wave durations to prevent recalculation on every render
+  // Key: waveNumber, Value: frozen duration string
+  const [completedWaveDurations, setCompletedWaveDurations] = useState<Map<number, string>>(new Map());
 
   // Fetch staging job logs when waves with staging jobs are detected
   useEffect(() => {
@@ -876,6 +879,29 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
 
   const progress = calculateProgress(waves, totalWaves, jobLogs);
   
+  // Update completed wave durations cache when waves complete
+  React.useEffect(() => {
+    const newCompletedDurations = new Map(completedWaveDurations);
+    let hasChanges = false;
+    
+    for (const wave of waves) {
+      const waveNum = wave.waveNumber ?? 0;
+      const effectiveStatus = getEffectiveWaveStatus(wave, jobLogs);
+      const isCompleted = effectiveStatus === 'completed' || effectiveStatus === 'launched';
+      
+      // If wave is completed and we don't have a cached duration, calculate and cache it
+      if (isCompleted && wave.endTime && !newCompletedDurations.has(waveNum)) {
+        const duration = calculateWaveDuration(wave, effectiveStatus);
+        newCompletedDurations.set(waveNum, duration);
+        hasChanges = true;
+      }
+    }
+    
+    if (hasChanges) {
+      setCompletedWaveDurations(newCompletedDurations);
+    }
+  }, [waves, jobLogs, completedWaveDurations]);
+  
   return (
     <SpaceBetween size="m">
       {/* Overall Progress Bar */}
@@ -903,7 +929,12 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const effectiveStatus = getEffectiveWaveStatus(wave, jobLogs);
         const statusIndicator = getWaveStatusIndicator(effectiveStatus);
         const statusColor = getStatusColor(effectiveStatus);
-        const duration = calculateWaveDuration(wave, effectiveStatus);
+        
+        // Use cached duration for completed waves, calculate live for in-progress
+        const isCompleted = effectiveStatus === 'completed' || effectiveStatus === 'launched';
+        const duration = isCompleted && completedWaveDurations.has(waveNum)
+          ? completedWaveDurations.get(waveNum)!
+          : calculateWaveDuration(wave, effectiveStatus);
         
         return (
           <Container key={waveNum}>
