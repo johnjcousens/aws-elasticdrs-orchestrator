@@ -7472,14 +7472,9 @@ def _validate_task_token(token: str) -> None:
             or shorter than 100 characters.
     """
     if not token or not token.strip():
-        raise ValueError(
-            "taskToken is required and cannot be empty."
-        )
+        raise ValueError("taskToken is required and cannot be empty.")
     if len(token) < 100:
-        raise ValueError(
-            "taskToken is invalid or expired "
-            f"(length {len(token)} < 100)."
-        )
+        raise ValueError("taskToken is invalid or expired " f"(length {len(token)} < 100).")
 
 
 def handle_execution_callback(event: Dict) -> Dict:
@@ -7496,9 +7491,7 @@ def handle_execution_callback(event: Dict) -> Dict:
             )
 
         if not task_token:
-            return _callback_error_response(
-                400, "Missing task token."
-            )
+            return _callback_error_response(400, "Missing task token.")
 
         _validate_task_token(task_token)
 
@@ -7509,10 +7502,7 @@ def handle_execution_callback(event: Dict) -> Dict:
             _cancel_via_task_token(task_token)
             message = "Execution has been cancelled."
 
-        print(
-            f"[CALLBACK] action={action} success=True "
-            f"token_prefix={task_token[:20]}..."
-        )
+        print(f"[CALLBACK] action={action} success=True " f"token_prefix={task_token[:20]}...")
         return _callback_success_response(message, action)
 
     except ValueError as e:
@@ -7520,9 +7510,7 @@ def handle_execution_callback(event: Dict) -> Dict:
         return _callback_error_response(400, str(e))
     except Exception as e:
         print(f"Error handling callback: {e}")
-        return _callback_error_response(
-            500, f"Internal error: {str(e)}"
-        )
+        return _callback_error_response(500, f"Internal error: {str(e)}")
 
 
 def _resume_via_task_token(task_token: str) -> Dict:
@@ -7530,20 +7518,20 @@ def _resume_via_task_token(task_token: str) -> Dict:
     try:
         return stepfunctions.send_task_success(
             taskToken=task_token,
-            output=json.dumps({
-                "action": "resume",
-                "timestamp": datetime.utcnow().isoformat(),
-                "resumedBy": "email_callback",
-            }),
+            output=json.dumps(
+                {
+                    "action": "resume",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "resumedBy": "email_callback",
+                }
+            ),
         )
     except stepfunctions.exceptions.InvalidToken:
         raise ValueError("Task token is invalid or expired")
     except stepfunctions.exceptions.TaskTimedOut:
         raise ValueError("Task has timed out")
     except stepfunctions.exceptions.TaskDoesNotExist:
-        raise ValueError(
-            "Task no longer exists or has already completed"
-        )
+        raise ValueError("Task no longer exists or has already completed")
 
 
 def _cancel_via_task_token(task_token: str) -> Dict:
@@ -7559,9 +7547,7 @@ def _cancel_via_task_token(task_token: str) -> Dict:
     except stepfunctions.exceptions.TaskTimedOut:
         raise ValueError("Task has timed out")
     except stepfunctions.exceptions.TaskDoesNotExist:
-        raise ValueError(
-            "Task no longer exists or has already completed"
-        )
+        raise ValueError("Task no longer exists or has already completed")
 
 
 def _callback_success_response(message: str, action: str) -> Dict:
