@@ -1,0 +1,15 @@
+{
+  "name": "Commit Before Deploy",
+  "version": "1.0.0",
+  "description": "Reminds to commit and push changes before running deploy.sh to prevent deploying uncommitted code that can't be rolled back",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      "shell"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "If the command being executed contains 'deploy.sh', check if there are uncommitted changes by running 'git status --porcelain'. If there are uncommitted changes, STOP and warn the user that they must commit and push before deploying. Do NOT proceed with the deploy command. If there are no uncommitted changes, proceed normally."
+  }
+}

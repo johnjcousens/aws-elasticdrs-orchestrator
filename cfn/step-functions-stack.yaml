@@ -75,7 +75,7 @@ Resources:
                 isDrill.$: '$.isDrill'
                 accountContext.$: '$.accountContext'
             OutputPath: '$.Payload'
-            Next: 'DetermineWavePlanState'
+            Next: 'CheckPauseRequired'
             Retry:
               - ErrorEquals:
                   - 'Lambda.ServiceException'
@@ -84,6 +84,47 @@ Resources:
                 IntervalSeconds: 2
                 MaxAttempts: 6
                 BackoffRate: 2
+          
+          # Check if pre-execution pause is required
+          # CRITICAL SAFETY: Uses IsPresent before BooleanEquals to prevent
+          # Invalid path crashes when pauseBeforeExecution is not in state.
+          # The begin_wave_plan() Lambda returns pauseBeforeExecution: false
+          # by default, but we guard against missing field defensively.
+          CheckPauseRequired:
+            Type: Choice
+            Choices:
+              - And:
+                  - Variable: '$.pauseBeforeExecution'
+                    IsPresent: true
+                  - Variable: '$.pauseBeforeExecution'
+                    BooleanEquals: true
+                Next: 'PauseForApproval'
+            Default: 'DetermineWavePlanState'
+          
+          # Pause execution and wait for human approval via email callback
+          # Uses waitForTaskToken: Step Functions pauses until SendTaskSuccess
+          # or SendTaskFailure is called with the task token.
+          # The orchestration Lambda stores the token and sends a notification
+          # email with Resume/Cancel action links.
+          PauseForApproval:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke.waitForTaskToken'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'pause'
+                application.$: '$'
+                taskToken.$: '$$.Task.Token'
+                accountContext.$: '$.accountContext'
+            TimeoutSeconds: 86400
+            Next: 'DetermineWavePlanState'
+            Catch:
+              - ErrorEquals:
+                  - 'States.Timeout'
+                Next: 'HandleTimeout'
+              - ErrorEquals:
+                  - 'States.TaskFailed'
+                Next: 'HandleCancellation'
           
           # Check overall plan state
           # Choice state logic order matters: check status='paused' before wave_completed
@@ -234,6 +275,18 @@ Resources:
             Type: Fail
             Error: 'PlanExecutionTimeout'
             Cause: 'DRS recovery plan execution timed out'
+          
+          # Fail state for pause approval timeout (24 hours)
+          HandleTimeout:
+            Type: Fail
+            Error: 'PauseApprovalTimeout'
+            Cause: 'Execution paused for approval but no response received within 24 hours'
+          
+          # Fail state for explicit cancellation via email callback
+          HandleCancellation:
+            Type: Fail
+            Error: 'ExecutionCancelled'
+            Cause: 'Execution was cancelled by operator via email callback'
 
 Outputs:
   StateMachineArn:

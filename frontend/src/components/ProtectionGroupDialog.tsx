@@ -58,7 +58,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   onClose,
   onSave,
 }) => {
-  const { getCurrentAccountId, selectedAccount, availableAccounts } = useAccount();
+  const { getCurrentAccountId, selectedAccount, availableAccounts, getAccountContext } = useAccount();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [region, setRegion] = useState('');
@@ -74,6 +74,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
     region?: string;
     tags?: string;
     servers?: string;
+    accountId?: string;
   }>({});
   
   // Preview state for tag-based selection
@@ -306,7 +307,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   }, [serverConfigs]);
 
   const validateForm = (): boolean => {
-    const errors: { name?: string; region?: string; tags?: string; servers?: string } = {};
+    const errors: { name?: string; region?: string; tags?: string; servers?: string; accountId?: string } = {};
 
     if (!name.trim()) {
       errors.name = 'Name is required';
@@ -314,6 +315,14 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
 
     if (!region) {
       errors.region = 'Region is required';
+    }
+
+    // Validate 12-digit account ID from current context
+    const currentAccountId = getCurrentAccountId();
+    if (!currentAccountId) {
+      errors.accountId = 'No account selected. Please select a target account.';
+    } else if (!/^\d{12}$/.test(currentAccountId)) {
+      errors.accountId = 'Account ID must be exactly 12 digits';
     }
 
     if (selectionMode === 'tags') {
@@ -546,6 +555,19 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
             onChange={setRegion}
             disabled={loading || isEditMode}
             error={Boolean(validationErrors.region)}
+          />
+        </FormField>
+
+        <FormField
+          label="Target Account"
+          description="Auto-populated from current account selection"
+          errorText={validationErrors.accountId}
+        >
+          <Input
+            value={getCurrentAccountId() || ''}
+            disabled
+            readOnly
+            placeholder="No account selected"
           />
         </FormField>
 

@@ -18,6 +18,7 @@ import {
   Alert,
   Header,
   Container,
+  StatusIndicator,
 } from '@cloudscape-design/components';
 import { LoadingState } from './LoadingState';
 import { WaveConfigEditor } from './WaveConfigEditor';
@@ -45,15 +46,29 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
   onClose,
   onSave,
 }) => {
-  const { getCurrentAccountId } = useAccount();
+  const { getCurrentAccountId, getAccountContext, availableAccounts } = useAccount();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [notificationEmail, setNotificationEmail] = useState('');
   const [waves, setWaves] = useState<Wave[]>([]);
   const [protectionGroups, setProtectionGroups] = useState<ProtectionGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [accountMismatchWarning, setAccountMismatchWarning] = useState<string | null>(null);
+
+  /**
+   * Derive SNS subscription status from the plan's snsSubscriptionArn.
+   */
+  const getSubscriptionStatus = (): { type: 'success' | 'pending' | 'stopped'; label: string } | null => {
+    if (!plan) return null;
+    const arn = plan.snsSubscriptionArn;
+    if (!arn) return { type: 'stopped', label: 'None' };
+    if (arn === 'PendingConfirmation') return { type: 'pending', label: 'Pending confirmation' };
+    if (arn.startsWith('arn:')) return { type: 'success', label: 'Active' };
+    return { type: 'stopped', label: 'None' };
+  };
 
   // Load protection groups on mount
   useEffect(() => {
@@ -70,6 +85,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       // Edit mode - populate from existing plan (only on initial load)
       setName(plan.planName || '');
       setDescription(plan.description || '');
+      setNotificationEmail(plan.notificationEmail || '');
       
       // Populate waves with BOTH protectionGroupId and protectionGroupIds array
       // Use first PG as default if wave doesn't have one
@@ -115,11 +131,64 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
     }
   };
 
+  // Validate Protection Group account consistency when waves change
+  useEffect(() => {
+    if (waves.length === 0 || protectionGroups.length === 0) {
+      setAccountMismatchWarning(null);
+      return;
+    }
+
+    const currentAccountId = getCurrentAccountId();
+    if (!currentAccountId) {
+      setAccountMismatchWarning(null);
+      return;
+    }
+
+    const mismatchedGroups: string[] = [];
+    for (const wave of waves) {
+      const wavePgIds = wave.protectionGroupIds && wave.protectionGroupIds.length > 0
+        ? wave.protectionGroupIds
+        : (wave.protectionGroupId ? [wave.protectionGroupId] : []);
+
+      for (const pgId of wavePgIds) {
+        const pg = protectionGroups.find(g => g.protectionGroupId === pgId);
+        if (pg && pg.accountId && pg.accountId !== currentAccountId) {
+          mismatchedGroups.push(pg.groupName || pgId);
+        }
+      }
+    }
+
+    if (mismatchedGroups.length > 0) {
+      const uniqueNames = [...new Set(mismatchedGroups)];
+      setAccountMismatchWarning(
+        `The following Protection Groups belong to a different account than the current context (${currentAccountId}): ${uniqueNames.join(", ")}`
+      );
+    } else {
+      setAccountMismatchWarning(null);
+    }
+  }, [waves, protectionGroups, getCurrentAccountId]);
+
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!name.trim()) {
       newErrors.name = 'Plan name is required';
+    }
+
+    // Validate account context
+    const currentAccountId = getCurrentAccountId();
+    if (!currentAccountId) {
+      newErrors.accountId = 'No account selected. Please select a target account.';
+    } else if (!/^\d{12}$/.test(currentAccountId)) {
+      newErrors.accountId = 'Account ID must be exactly 12 digits';
+    }
+
+    // Validate notification email format if provided
+    if (notificationEmail.trim()) {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(notificationEmail.trim())) {
+        newErrors.notificationEmail = 'Please enter a valid email address';
+      }
     }
 
     if (waves.length === 0) {
@@ -128,6 +197,24 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
     if (waves.some(w => !w.protectionGroupId && (!w.protectionGroupIds || w.protectionGroupIds.length === 0))) {
       newErrors.waves = 'All waves must have a Protection Group selected';
+    }
+
+    // Validate Protection Group account consistency
+    if (currentAccountId && waves.length > 0) {
+      for (const wave of waves) {
+        const wavePgIds = wave.protectionGroupIds && wave.protectionGroupIds.length > 0
+          ? wave.protectionGroupIds
+          : (wave.protectionGroupId ? [wave.protectionGroupId] : []);
+
+        for (const pgId of wavePgIds) {
+          const pg = protectionGroups.find(g => g.protectionGroupId === pgId);
+          if (pg && pg.accountId && pg.accountId !== currentAccountId) {
+            newErrors.waves = `Protection Group "${pg.groupName || pgId}" belongs to account ${pg.accountId}, but current context is ${currentAccountId}. All Protection Groups must belong to the same account.`;
+            break;
+          }
+        }
+        if (newErrors.waves) break;
+      }
     }
 
     // Check serverIds only for non-tag-based Protection Groups
@@ -179,6 +266,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         const updateData: UpdateRecoveryPlanRequest = {
           name: name,
           description: description,
+          notificationEmail: notificationEmail.trim() || undefined,
           waves: waves.map((wave, index) => ({
             waveNumber: index,
             waveName: wave.waveName,
@@ -198,10 +286,24 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         onSave(updatedPlan);
       } else {
         // Create new plan - waves specify their own Protection Groups
+        const currentAccountId = getCurrentAccountId();
+        const currentAccount = availableAccounts.find(acc => acc.accountId === currentAccountId);
+        const roleArn = currentAccount?.roleArn ?? currentAccount?.crossAccountRoleArn ?? "";
+        let assumeRoleName = currentAccount?.assumeRoleName || "";
+        if (!assumeRoleName && roleArn) {
+          const parts = roleArn.split("/");
+          if (parts.length > 1) {
+            assumeRoleName = parts.slice(1).join("/");
+          }
+        }
+
         const createData: CreateRecoveryPlanRequest = {
           name: name,
           description: description,
           protectionGroupId: waves[0]?.protectionGroupId || '',  // Use first wave's PG as default
+          accountId: currentAccountId || undefined,
+          assumeRoleName: assumeRoleName || undefined,
+          notificationEmail: notificationEmail.trim() || undefined,
           waves: waves.map((wave, index) => ({
             waveNumber: index,
             waveName: wave.waveName,
@@ -234,9 +336,11 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
   const handleClose = () => {
     setName('');
     setDescription('');
+    setNotificationEmail('');
     setWaves([]);
     setErrors({});
     setError(null);
+    setAccountMismatchWarning(null);
     onClose();
   };
 
@@ -313,12 +417,53 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                     disabled={loading}
                   />
                 </FormField>
+
+                <FormField
+                  label="Target Account"
+                  description="Auto-populated from current account selection"
+                  errorText={errors.accountId}
+                >
+                  <Input
+                    value={getCurrentAccountId() || ''}
+                    disabled
+                    readOnly
+                    placeholder="No account selected"
+                  />
+                </FormField>
+
+                <FormField
+                  label="Notification Email"
+                  description="Optional — receive email alerts for executions of this Recovery Plan"
+                  errorText={errors.notificationEmail}
+                >
+                  <Input
+                    value={notificationEmail}
+                    onChange={({ detail }: { detail: { value: string } }) => setNotificationEmail(detail.value)}
+                    placeholder="team@example.com"
+                    type="email"
+                    disabled={loading}
+                  />
+                </FormField>
+
+                {plan && (() => {
+                  const status = getSubscriptionStatus();
+                  return status ? (
+                    <FormField label="Subscription Status">
+                      <StatusIndicator type={status.type}>{status.label}</StatusIndicator>
+                    </FormField>
+                  ) : null;
+                })()}
               </SpaceBetween>
             </Container>
 
             {/* Wave Configuration */}
             <Container header={<Header variant="h2">Wave Configuration</Header>}>
               <SpaceBetween size="l">
+                {accountMismatchWarning && (
+                  <Alert type="warning">
+                    {accountMismatchWarning}
+                  </Alert>
+                )}
                 <WaveConfigEditor
                   waves={waves}
                   protectionGroupId=""

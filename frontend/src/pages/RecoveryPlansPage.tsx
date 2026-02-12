@@ -543,6 +543,18 @@ export const RecoveryPlansPage: React.FC = () => {
       },
     },
     {
+      id: 'notificationEmail',
+      header: 'Notification',
+      minWidth: 160,
+      cell: (item: RecoveryPlan) => {
+        const email = item.notificationEmail;
+        if (!email) {
+          return <span style={{ color: '#5f6b7a' }}>None</span>;
+        }
+        return email;
+      },
+    },
+    {
       id: 'created',
       header: 'Created',
       minWidth: 180,

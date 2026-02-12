@@ -59,6 +59,7 @@ def setup_test_environment():
     ):
         # Mock shared modules
         sys.modules["shared"] = Mock()
+        sys.modules["shared.account_utils"] = Mock()
         sys.modules["shared.config_merge"] = Mock()
         sys.modules["shared.conflict_detection"] = Mock()
         sys.modules["shared.cross_account"] = Mock()

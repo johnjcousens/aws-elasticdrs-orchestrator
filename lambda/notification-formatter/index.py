@@ -411,7 +411,7 @@ def format_pause_message(
     pause_data: Dict[str, Any],
 ) -> tuple[str, str]:
     """
-    Format execution pause notification message.
+    Format execution pause notification message (plain text).
 
     Args:
         execution_id: Execution identifier
@@ -428,13 +428,12 @@ def format_pause_message(
     total_waves = pause_data.get("totalWaves", "Unknown")
     resume_instructions = pause_data.get(
         "resumeInstructions",
-        "Use the DRS Orchestration console or API to resume this execution.",
+        "Use the DRS Orchestration console or API " "to resume this execution.",
     )
 
     subject = f"⏸️ Execution Paused: {protection_group_name}"
 
-    # Build console URL
-    console_url = f"https://{AWS_REGION}.console.aws.amazon.com/cloudformation/home" f"?region={AWS_REGION}#/stacks"
+    console_url = f"https://{AWS_REGION}.console.aws.amazon.com" f"/cloudformation/home?region={AWS_REGION}#/stacks"
 
     message = f"""
 ⏸️ AWS DRS Orchestration - Execution Paused
@@ -463,3 +462,408 @@ Environment: {ENVIRONMENT}
 """
 
     return subject, message
+
+
+def _get_base_email_styles() -> str:
+    """
+    Return shared inline CSS for HTML email templates.
+
+    Uses inline styles for maximum email client compatibility.
+    Includes responsive breakpoints for mobile devices.
+
+    Returns:
+        CSS style block as a string
+    """
+    return """
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont,
+                    'Segoe UI', Roboto, Arial, sans-serif;
+                line-height: 1.6;
+                color: #16191f;
+                margin: 0;
+                padding: 0;
+                background-color: #f2f3f3;
+            }
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 16px;
+            }
+            .header {
+                background-color: #232f3e;
+                color: #ffffff;
+                padding: 20px;
+                text-align: center;
+                border-radius: 4px 4px 0 0;
+            }
+            .header h1 {
+                margin: 0;
+                font-size: 20px;
+                font-weight: 700;
+            }
+            .content {
+                background-color: #ffffff;
+                padding: 24px;
+                border: 1px solid #d5dbdb;
+                border-top: none;
+                border-radius: 0 0 4px 4px;
+            }
+            .info-box {
+                background-color: #f2f3f3;
+                padding: 16px;
+                margin: 16px 0;
+                border-left: 4px solid #0972d3;
+                border-radius: 0 4px 4px 0;
+            }
+            .info-box p {
+                margin: 4px 0;
+                font-size: 14px;
+            }
+            .actions {
+                text-align: center;
+                margin: 24px 0;
+            }
+            .button {
+                display: inline-block;
+                padding: 10px 24px;
+                margin: 0 8px;
+                text-decoration: none;
+                border-radius: 4px;
+                font-weight: 700;
+                font-size: 14px;
+            }
+            .button-resume {
+                background-color: #037f0c;
+                color: #ffffff;
+            }
+            .button-cancel {
+                background-color: #d13212;
+                color: #ffffff;
+            }
+            .footer {
+                text-align: center;
+                color: #5f6b7a;
+                font-size: 12px;
+                margin-top: 16px;
+                padding: 8px;
+            }
+            .console-link {
+                text-align: center;
+                margin-top: 20px;
+            }
+            .console-link a {
+                color: #0972d3;
+                text-decoration: none;
+            }
+            @media only screen and (max-width: 620px) {
+                .container { padding: 8px; }
+                .content { padding: 16px; }
+                .button {
+                    display: block;
+                    margin: 8px auto;
+                    width: 80%;
+                    text-align: center;
+                }
+            }
+        </style>
+    """
+
+
+def _build_info_box(details: Dict[str, Any]) -> str:
+    """
+    Build the common info box HTML with execution details.
+
+    All email templates share this block showing Recovery Plan
+    name, execution ID, account ID, and timestamp.
+
+    Args:
+        details: Event details dictionary
+
+    Returns:
+        HTML string for the info box section
+    """
+    execution_id = details.get("executionId", "Unknown")
+    plan_name = details.get("planName", "Unknown")
+    account_id = details.get("accountId", "")
+    timestamp = details.get(
+        "timestamp",
+        datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+    )
+
+    lines = [
+        f"<p><strong>Recovery Plan:</strong> {plan_name}</p>",
+        f"<p><strong>Execution ID:</strong>" f" {execution_id}</p>",
+    ]
+    if account_id:
+        lines.append(f"<p><strong>Account ID:</strong>" f" {account_id}</p>")
+    lines.append(f"<p><strong>Timestamp:</strong> {timestamp}</p>")
+
+    return '<div class="info-box">' + "\n".join(lines) + "</div>"
+
+
+def _build_console_link(details: Dict[str, Any]) -> str:
+    """
+    Build the console link HTML section.
+
+    Args:
+        details: Event details dictionary
+
+    Returns:
+        HTML string for the console link
+    """
+    console_link = details.get("consoleLink", "")
+    if not console_link:
+        region = details.get("region", AWS_REGION)
+        console_link = f"https://{region}.console.aws.amazon.com" f"/cloudformation/home?region={region}" "#/stacks"
+    return '<div class="console-link">' f'<a href="{console_link}">' "View in AWS Console</a>" "</div>"
+
+
+def _wrap_html_email(
+    title: str,
+    body_content: str,
+    details: Dict[str, Any],
+) -> str:
+    """
+    Wrap body content in the standard HTML email template.
+
+    Produces a complete HTML document with header, info box,
+    console link, and footer. Mobile-friendly via responsive
+    CSS media queries.
+
+    Args:
+        title: Header title text
+        body_content: Inner HTML content for the email body
+        details: Event details for info box and console link
+
+    Returns:
+        Complete HTML email string
+    """
+    styles = _get_base_email_styles()
+    info_box = _build_info_box(details)
+    console_link = _build_console_link(details)
+
+    return (
+        "<!DOCTYPE html>\n"
+        "<html>\n"
+        "<head>\n"
+        '    <meta charset="utf-8">\n'
+        '    <meta name="viewport"'
+        ' content="width=device-width, initial-scale=1.0">\n'
+        f"    {styles}\n"
+        "</head>\n"
+        "<body>\n"
+        '    <div class="container">\n'
+        '        <div class="header">\n'
+        f"            <h1>{title}</h1>\n"
+        "        </div>\n"
+        '        <div class="content">\n'
+        f"            {body_content}\n"
+        f"            {info_box}\n"
+        f"            {console_link}\n"
+        "        </div>\n"
+        '        <div class="footer">\n'
+        "            <p>AWS DRS Orchestration Platform"
+        f" &middot; {PROJECT_NAME}"
+        f" &middot; {ENVIRONMENT}</p>\n"
+        "        </div>\n"
+        "    </div>\n"
+        "</body>\n"
+        "</html>"
+    )
+
+
+def format_start_notification(
+    details: Dict[str, Any],
+) -> str:
+    """
+    Format HTML email for execution start events.
+
+    Args:
+        details: Event details including planName, executionId,
+            accountId, timestamp, consoleLink, waveCount,
+            executionType
+
+    Returns:
+        HTML email body string
+    """
+    wave_count = details.get("waveCount", "N/A")
+    execution_type = details.get("executionType", "RECOVERY")
+
+    body = (
+        "<p>A disaster recovery execution has been "
+        "<strong>started</strong>.</p>"
+        "<p>"
+        f"<strong>Execution Type:</strong> {execution_type}"
+        "<br>"
+        f"<strong>Total Waves:</strong> {wave_count}"
+        "</p>"
+        "<p>You will receive updates as the execution "
+        "progresses through each wave.</p>"
+    )
+
+    return _wrap_html_email("\U0001f680 DR Execution Started", body, details)
+
+
+def format_complete_notification(
+    details: Dict[str, Any],
+) -> str:
+    """
+    Format HTML email for execution completion events.
+
+    Args:
+        details: Event details including planName, executionId,
+            accountId, timestamp, consoleLink, duration,
+            wavesCompleted
+
+    Returns:
+        HTML email body string
+    """
+    duration = details.get("duration", "N/A")
+    waves_completed = details.get("wavesCompleted", "N/A")
+
+    body = (
+        "<p>The disaster recovery execution has "
+        "<strong>completed successfully</strong>.</p>"
+        "<p>"
+        f"<strong>Duration:</strong> {duration}"
+        "<br>"
+        f"<strong>Waves Completed:</strong>"
+        f" {waves_completed}"
+        "</p>"
+        "<p>Please verify the recovered infrastructure "
+        "in the target account.</p>"
+    )
+
+    return _wrap_html_email("\u2705 DR Execution Completed", body, details)
+
+
+def format_failure_notification(
+    details: Dict[str, Any],
+) -> str:
+    """
+    Format HTML email for execution failure events.
+
+    Args:
+        details: Event details including planName, executionId,
+            accountId, timestamp, consoleLink, errorMessage,
+            failedWave
+
+    Returns:
+        HTML email body string
+    """
+    error_message = details.get("errorMessage", "Unknown error")
+    failed_wave = details.get("failedWave", "N/A")
+
+    body = (
+        "<p>The disaster recovery execution has "
+        "<strong>failed</strong>.</p>"
+        "<p>"
+        f"<strong>Failed Wave:</strong> {failed_wave}"
+        "<br>"
+        f"<strong>Error:</strong> {error_message}"
+        "</p>"
+        "<p>Please review the execution logs and take "
+        "appropriate action to resolve the issue.</p>"
+    )
+
+    return _wrap_html_email("\u274c DR Execution Failed", body, details)
+
+
+def format_pause_notification(
+    details: Dict[str, Any],
+) -> str:
+    """
+    Format HTML email for pause events with action buttons.
+
+    The email includes Resume and Cancel buttons that link
+    to the API Gateway callback endpoint using the embedded
+    task token. Resume continues execution from the pause
+    point; Cancel stops it permanently.
+
+    Args:
+        details: Event details including planName, executionId,
+            accountId, timestamp, consoleLink, resumeUrl,
+            cancelUrl, pauseReason
+
+    Returns:
+        HTML email body with interactive action buttons
+    """
+    pause_reason = details.get("pauseReason", "Manual pause requested")
+    resume_url = details.get("resumeUrl", "")
+    cancel_url = details.get("cancelUrl", "")
+
+    body = (
+        "<p>The disaster recovery execution has been "
+        "<strong>paused</strong> and requires your action."
+        "</p>"
+        f"<p><strong>Reason:</strong> {pause_reason}</p>"
+    )
+
+    if resume_url and cancel_url:
+        body += (
+            '<div class="actions">'
+            f'<a href="{resume_url}" class="button '
+            'button-resume">'
+            "\u25b6 Resume Execution</a>"
+            f'<a href="{cancel_url}" class="button '
+            'button-cancel">'
+            "\u2715 Cancel Execution</a>"
+            "</div>"
+            '<p style="text-align:center;color:#5f6b7a;'
+            'font-size:12px;">'
+            "<strong>Resume</strong> continues the "
+            "execution from where it paused.<br>"
+            "<strong>Cancel</strong> stops the execution "
+            "permanently.</p>"
+        )
+
+    return _wrap_html_email("\U0001f6d1 DR Execution Paused", body, details)
+
+
+def format_notification_message(
+    event_type: str,
+    details: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Route to the appropriate HTML email formatter by event type.
+
+    Args:
+        event_type: One of "start", "complete", "fail", "pause"
+        details: Event details dictionary
+
+    Returns:
+        Dict with "default" (plain text) and "email" (HTML)
+    """
+    plan_name = details.get("planName", "Unknown")
+
+    formatters = {
+        "start": (
+            f"DR Execution Started: {plan_name}",
+            format_start_notification,
+        ),
+        "complete": (
+            f"DR Execution Completed: {plan_name}",
+            format_complete_notification,
+        ),
+        "fail": (
+            f"DR Execution Failed: {plan_name}",
+            format_failure_notification,
+        ),
+        "pause": (
+            f"DR Execution Paused: {plan_name}",
+            format_pause_notification,
+        ),
+    }
+
+    if event_type in formatters:
+        default_msg, formatter_fn = formatters[event_type]
+        return {
+            "default": default_msg,
+            "email": formatter_fn(details),
+        }
+
+    return {
+        "default": f"DR Event: {event_type}",
+        "email": (f"Event: {event_type}\n" f"Details: {json.dumps(details, indent=2)}"),
+    }

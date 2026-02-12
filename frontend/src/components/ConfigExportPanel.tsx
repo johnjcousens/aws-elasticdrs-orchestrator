@@ -87,13 +87,11 @@ export const ConfigExportPanel: React.FC<ConfigExportPanelProps> = ({
         <ul>
           <li>All Protection Groups with server selection settings</li>
           <li>All Recovery Plans with wave configurations</li>
+          <li>Account context (account ID, assume role name)</li>
           <li>Launch configuration settings (group defaults)</li>
           <li>Per-server launch configurations (custom overrides)</li>
           <li>Static private IP assignments</li>
         </ul>
-        <Alert type="info">
-          Export format: Schema version 1.1 (includes per-server configurations)
-        </Alert>
       </TextContent>
 
       {error && (

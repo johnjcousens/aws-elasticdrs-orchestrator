@@ -235,6 +235,12 @@ export interface RecoveryPlan {
   };
   // Optimistic locking version - incremented on each update
   version?: number;
+  // Notification fields
+  notificationEmail?: string;
+  snsSubscriptionArn?: string;
+  // Account context
+  accountId?: string;
+  assumeRoleName?: string;
 }
 
 export interface Wave {
@@ -287,6 +293,9 @@ export interface CreateRecoveryPlanRequest {
   description?: string;
   protectionGroupId: string;
   waves: Wave[];
+  accountId?: string;
+  assumeRoleName?: string;
+  notificationEmail?: string;
 }
 
 export interface UpdateRecoveryPlanRequest {
@@ -295,6 +304,7 @@ export interface UpdateRecoveryPlanRequest {
   waves?: Wave[];
   status?: 'draft' | 'active' | 'archived';
   version?: number;  // Optimistic locking - must match current version
+  notificationEmail?: string;
 }
 
 // ============================================================================

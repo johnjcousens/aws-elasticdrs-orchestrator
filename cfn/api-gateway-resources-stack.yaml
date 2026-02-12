@@ -179,6 +179,18 @@ Resources:
       PathPart: check-existing-instances
 
   # ===========================================================================
+  # EXECUTION CALLBACK (UNAUTHENTICATED)
+  # ===========================================================================
+  # /execution-callback - GET callback endpoint for pause/resume via email
+  # Uses task token as credential instead of Cognito auth
+  ExecutionCallbackResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: execution-callback
+
+  # ===========================================================================
   # EXECUTIONS
   # ===========================================================================
   # /executions                         - GET list executions
@@ -911,6 +923,13 @@ Outputs:
     Value: !Ref RecoveryPlanCheckExistingInstancesResource
     Export:
       Name: !Sub '${AWS::StackName}-RecoveryPlanCheckExistingInstancesResourceId'
+
+  # Execution Callback Resource
+  ExecutionCallbackResourceId:
+    Description: 'Execution Callback Resource ID'
+    Value: !Ref ExecutionCallbackResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionCallbackResourceId'
 
   # Execution Resources
   ExecutionsResourceId:

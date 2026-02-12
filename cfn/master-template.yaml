@@ -99,6 +99,11 @@ Parameters:
     Default: 'v1'
     Description: 'Frontend build version - auto-generated timestamp to trigger rebuilds'
 
+  LambdaCodeVersion:
+    Type: String
+    Default: 'v1'
+    Description: 'Lambda code version - auto-generated timestamp to force code updates on deploy'
+
   EnableTagSync:
     Type: String
     Default: 'true'
@@ -467,7 +472,8 @@ Resources:
                   - ssm:CreateOpsItem
                 Resource: "*"
         
-        # SNS publish for execution notifications and DRS alerts
+        # SNS access for execution notifications, DRS alerts, and subscription management
+        # Supports per-Recovery-Plan email subscriptions with filter policies
         # Scoped to project-specific topics only
         - PolicyName: SNSAccess
           PolicyDocument:
@@ -476,6 +482,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - sns:Publish
+                  - sns:Subscribe
+                  - sns:Unsubscribe
+                  - sns:ListSubscriptionsByTopic
+                  - sns:GetSubscriptionAttributes
+                  - sns:SetSubscriptionAttributes
+                  - sns:GetTopicAttributes
+                  - sns:ListTopics
                 Resource:
                   - !Sub "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-*"
         
@@ -604,6 +617,11 @@ Resources:
           - EnableNotificationsCondition
           - !GetAtt NotificationStack.Outputs.ExecutionPauseTopicArn
           - !Ref AWS::NoValue
+        LambdaCodeVersion: !Ref LambdaCodeVersion
+        # API Gateway URL cannot be passed here due to circular dependency:
+        # ApiGateway stacks depend on LambdaStack for Lambda ARNs.
+        # Lambda handlers construct the callback URL at runtime using
+        # the ApiEndpoint from master stack outputs or SSM parameters.
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -788,6 +806,8 @@ Resources:
         ApiAuthorizerId: !GetAtt ApiGatewayCoreStack.Outputs.ApiAuthorizerId
         ApiRequestValidatorId: !GetAtt ApiGatewayCoreStack.Outputs.ApiRequestValidatorId
         ExecutionHandlerArn: !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
+        # Execution Callback Resource ID from Resources Stack
+        ExecutionCallbackResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionCallbackResourceId
         # Execution Resource IDs from Resources Stack
         ExecutionsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionsResourceId
         ExecutionsDeleteResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionsDeleteResourceId

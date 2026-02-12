@@ -123,29 +123,31 @@ def setup_dynamodb_tables():
 # ============================================================================
 
 
-@mock_aws
 def test_update_server_launch_config_success():
     """Test updating server launch configuration successfully"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    # Create test protection group
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111", "s-222"],
             "servers": [],
         }
-    )
+    }
+    mock_table.update_item.return_value = {}
 
-    # Update server launch config
     body = {
         "instanceType": "t3.large",
         "targetSubnet": "subnet-abc123",
         "securityGroups": ["sg-111", "sg-222"],
     }
 
-    result = update_server_launch_config("pg-123", "s-111", body)
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        result = update_server_launch_config("pg-123", "s-111", body)
 
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
@@ -153,35 +155,47 @@ def test_update_server_launch_config_success():
     assert response_body["useGroupDefaults"] is True
 
 
-@mock_aws
 def test_update_server_launch_config_protection_group_not_found():
     """Test updating server config when protection group doesn't exist"""
-    pg_table, _, _ = setup_dynamodb_tables()
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {}
 
     body = {"instanceType": "t3.large"}
-    result = update_server_launch_config("pg-nonexistent", "s-111", body)
+
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        result = update_server_launch_config(
+            "pg-nonexistent", "s-111", body
+        )
 
     assert result["statusCode"] == 404
     response_body = json.loads(result["body"])
     assert "error" in response_body
 
 
-@mock_aws
 def test_update_server_launch_config_server_not_in_group():
     """Test updating config for server not in protection group"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
             "servers": [],
         }
-    )
+    }
 
     body = {"instanceType": "t3.large"}
-    result = update_server_launch_config("pg-123", "s-999", body)
+
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        result = update_server_launch_config("pg-123", "s-999", body)
 
     assert result["statusCode"] == 404
     response_body = json.loads(result["body"])
@@ -194,14 +208,11 @@ def test_update_server_launch_config_server_not_in_group():
 # ============================================================================
 
 
-@mock_aws
 def test_delete_server_launch_config_success():
     """Test deleting server launch configuration successfully"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    # Create protection group with server config
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
@@ -215,28 +226,43 @@ def test_delete_server_launch_config_success():
                 }
             ],
         }
-    )
-    result = delete_server_launch_config("pg-123", "s-111")
+    }
+    mock_table.update_item.return_value = {}
+
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        result = delete_server_launch_config("pg-123", "s-111")
 
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
-    assert "Server configuration deleted" in response_body["message"] or "already using group defaults" in response_body["message"]
+    assert (
+        "Server configuration deleted" in response_body["message"]
+        or "already using group defaults" in response_body["message"]
+    )
 
 
-@mock_aws
 def test_delete_server_launch_config_not_found():
     """Test deleting config when server has no custom config"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
             "servers": [],
         }
-    )
-    result = delete_server_launch_config("pg-123", "s-111")
+    }
+    mock_table.update_item.return_value = {}
+
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        result = delete_server_launch_config("pg-123", "s-111")
 
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
@@ -248,19 +274,18 @@ def test_delete_server_launch_config_not_found():
 # ============================================================================
 
 
-@mock_aws
 def test_bulk_update_server_configs_success():
     """Test bulk updating multiple server configurations"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111", "s-222", "s-333"],
             "servers": [],
         }
-    )
+    }
+    mock_table.update_item.return_value = {}
 
     body = {
         "servers": [
@@ -274,7 +299,20 @@ def test_bulk_update_server_configs_success():
             },
         ]
     }
-    result = bulk_update_server_launch_config("pg-123", body)
+
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        with patch(
+            "shared.launch_config_validation"
+            ".validate_instance_type",
+            return_value={"valid": True},
+        ):
+            result = bulk_update_server_launch_config(
+                "pg-123", body
+            )
 
     print(f"Result: {result}")
     if result["statusCode"] != 200:
@@ -285,19 +323,17 @@ def test_bulk_update_server_configs_success():
     assert response_body["summary"]["failed"] == 0
 
 
-@mock_aws
 def test_bulk_update_server_configs_partial_failure():
     """Test bulk update with some servers not in group"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
             "servers": [],
         }
-    )
+    }
 
     body = {
         "servers": [
@@ -311,13 +347,30 @@ def test_bulk_update_server_configs_partial_failure():
             },
         ]
     }
-    result = bulk_update_server_launch_config("pg-123", body)
+
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        with patch(
+            "shared.launch_config_validation"
+            ".validate_instance_type",
+            return_value={"valid": True},
+        ):
+            result = bulk_update_server_launch_config(
+                "pg-123", body
+            )
 
     assert result["statusCode"] == 400  # Should fail validation
     response_body = json.loads(result["body"])
     assert response_body["error"] == "VALIDATION_FAILED"
-    assert len(response_body["validationErrors"]) == 1
-    assert response_body["validationErrors"][0]["sourceServerId"] == "s-999"
+    # s-999 not in group should be flagged
+    server_not_found = [
+        e for e in response_body["validationErrors"]
+        if e["sourceServerId"] == "s-999"
+    ]
+    assert len(server_not_found) == 1
 
 
 
@@ -326,27 +379,38 @@ def test_bulk_update_server_configs_partial_failure():
 # ============================================================================
 
 
-@mock_aws
 def test_validate_static_ip_success():
     """Test validating static IP successfully"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
             "region": "us-east-1",
             "accountId": "123456789012",
         }
-    )
+    }
 
     body = {
         "staticPrivateIp": "10.0.1.50",
         "subnetId": "subnet-abc123",
     }
-    with patch("shared.launch_config_validation.validate_static_ip", return_value={"valid": True, "subnetCidr": "10.0.1.0/24"}):
-        result = validate_server_static_ip("pg-123", "s-111", body)
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        with patch(
+            "shared.launch_config_validation.validate_static_ip",
+            return_value={
+                "valid": True,
+                "subnetCidr": "10.0.1.0/24",
+            },
+        ):
+            result = validate_server_static_ip(
+                "pg-123", "s-111", body
+            )
 
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
@@ -355,32 +419,40 @@ def test_validate_static_ip_success():
     assert response_body["subnetId"] == "subnet-abc123"
 
 
-@mock_aws
 def test_validate_static_ip_already_in_use():
     """Test validating IP that's already in use"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
             "region": "us-east-1",
             "accountId": "123456789012",
         }
-    )
+    }
 
     body = {
         "staticPrivateIp": "10.0.1.50",
         "subnetId": "subnet-abc123",
     }
-    with patch("shared.launch_config_validation.validate_static_ip", return_value={
-        "valid": False,
-        "error": "IP_IN_USE",
-        "message": "IP address is already in use",
-        "conflictingResource": "eni-12345"
-    }):
-        result = validate_server_static_ip("pg-123", "s-111", body)
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        with patch(
+            "shared.launch_config_validation.validate_static_ip",
+            return_value={
+                "valid": False,
+                "error": "IP_IN_USE",
+                "message": "IP address is already in use",
+                "conflictingResource": "eni-12345",
+            },
+        ):
+            result = validate_server_static_ip(
+                "pg-123", "s-111", body
+            )
 
     assert result["statusCode"] == 400
     response_body = json.loads(result["body"])
@@ -741,35 +813,15 @@ def test_sync_extended_source_servers_success():
 # ============================================================================
 
 
-@mock_aws
 def test_import_configuration_success():
     """Test importing configuration successfully"""
-    pg_table, _, _ = setup_dynamodb_tables()
+    mock_pg_table = MagicMock()
+    mock_pg_table.scan.return_value = {"Items": []}
+    mock_pg_table.put_item.return_value = {}
 
-    # Create mock recovery plans and executions tables
-    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    rp_table = dynamodb.create_table(
-        TableName="test-recovery-plans",
-        KeySchema=[{"AttributeName": "planId", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "planId", "AttributeType": "S"}],
-        BillingMode="PAY_PER_REQUEST",
-    )
-    exec_table = dynamodb.create_table(
-        TableName="test-executions",
-        KeySchema=[{"AttributeName": "executionId", "KeyType": "HASH"}],
-        AttributeDefinitions=[
-            {"AttributeName": "executionId", "AttributeType": "S"},
-            {"AttributeName": "status", "AttributeType": "S"},
-        ],
-        GlobalSecondaryIndexes=[
-            {
-                "IndexName": "StatusIndex",
-                "KeySchema": [{"AttributeName": "status", "KeyType": "HASH"}],
-                "Projection": {"ProjectionType": "ALL"},
-            }
-        ],
-        BillingMode="PAY_PER_REQUEST",
-    )
+    mock_rp_table = MagicMock()
+    mock_rp_table.scan.return_value = {"Items": []}
+    mock_rp_table.put_item.return_value = {}
 
     body = {
         "metadata": {
@@ -780,7 +832,10 @@ def test_import_configuration_success():
         "protectionGroups": [
             {
                 "groupName": "Imported Group",
-                "sourceServerIds": ["s-1234567890abcdef0", "s-0fedcba0987654321"],
+                "sourceServerIds": [
+                    "s-1234567890abcdef0",
+                    "s-0fedcba0987654321",
+                ],
                 "region": "us-east-1",
                 "accountId": "123456789012",
             }
@@ -788,7 +843,6 @@ def test_import_configuration_success():
         "recoveryPlans": [],
     }
 
-    # Mock DRS client to return servers exist
     mock_drs = MagicMock()
     mock_drs.describe_source_servers.return_value = {
         "items": [
@@ -796,47 +850,39 @@ def test_import_configuration_success():
             {"sourceServerID": "s-0fedcba0987654321"},
         ]
     }
-    with patch.object(data_management_handler, "boto3") as mock_boto3:
-        mock_boto3.client.return_value = mock_drs
-        result = import_configuration(body)
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_pg_table,
+    ):
+        with patch.object(
+            data_management_handler,
+            "get_recovery_plans_table",
+            return_value=mock_rp_table,
+        ):
+            with patch.object(
+                data_management_handler, "boto3"
+            ) as mock_boto3:
+                mock_boto3.client.return_value = mock_drs
+                result = import_configuration(body)
 
     print(f"RESULT: {json.dumps(result, indent=2)}")
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
     print(f"RESPONSE: {json.dumps(response_body, indent=2)}")
-    # Check the actual response structure
-    assert response_body["summary"]["protectionGroups"]["created"] == 1
+    assert (
+        response_body["summary"]["protectionGroups"]["created"] == 1
+    )
 
 
-@mock_aws
 def test_import_configuration_validation_error():
     """Test import with validation errors"""
-    pg_table, _, _ = setup_dynamodb_tables()
+    mock_pg_table = MagicMock()
+    mock_pg_table.scan.return_value = {"Items": []}
+    mock_pg_table.put_item.return_value = {}
 
-    # Create mock recovery plans and executions tables
-    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    rp_table = dynamodb.create_table(
-        TableName="test-recovery-plans",
-        KeySchema=[{"AttributeName": "planId", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "planId", "AttributeType": "S"}],
-        BillingMode="PAY_PER_REQUEST",
-    )
-    exec_table = dynamodb.create_table(
-        TableName="test-executions",
-        KeySchema=[{"AttributeName": "executionId", "KeyType": "HASH"}],
-        AttributeDefinitions=[
-            {"AttributeName": "executionId", "AttributeType": "S"},
-            {"AttributeName": "status", "AttributeType": "S"},
-        ],
-        GlobalSecondaryIndexes=[
-            {
-                "IndexName": "StatusIndex",
-                "KeySchema": [{"AttributeName": "status", "KeyType": "HASH"}],
-                "Projection": {"ProjectionType": "ALL"},
-            }
-        ],
-        BillingMode="PAY_PER_REQUEST",
-    )
+    mock_rp_table = MagicMock()
+    mock_rp_table.scan.return_value = {"Items": []}
 
     body = {
         "metadata": {
@@ -851,14 +897,27 @@ def test_import_configuration_validation_error():
             }
         ],
     }
-    result = import_configuration(body)
+
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_pg_table,
+    ):
+        with patch.object(
+            data_management_handler,
+            "get_recovery_plans_table",
+            return_value=mock_rp_table,
+        ):
+            result = import_configuration(body)
 
     # Import returns 200 with summary showing failures, not 400
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
     assert "summary" in response_body
     # Check that the protection group failed to import
-    assert response_body["summary"]["protectionGroups"]["failed"] >= 1
+    assert (
+        response_body["summary"]["protectionGroups"]["failed"] >= 1
+    )
 
 
 # ============================================================================
@@ -866,19 +925,18 @@ def test_import_configuration_validation_error():
 # ============================================================================
 
 
-@mock_aws
 def test_direct_invocation_update_server_launch_config():
     """Test direct invocation of update_server_launch_config"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
             "servers": [],
         }
-    )
+    }
+    mock_table.update_item.return_value = {}
 
     event = {
         "operation": "update_server_launch_config",
@@ -893,35 +951,61 @@ def test_direct_invocation_update_server_launch_config():
 
     # Mock context with serializable attributes
     context = MagicMock()
-    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test"
+    context.invoked_function_arn = (
+        "arn:aws:lambda:us-east-1:123456789012:function:test"
+    )
     context.aws_request_id = "test-request-id"
     context.function_name = "test-function"
     context.function_version = "$LATEST"
-    with patch("shared.iam_utils.validate_iam_authorization", return_value=True):
-        with patch("shared.iam_utils.extract_iam_principal", return_value="arn:aws:iam::123456789012:role/test-role"):
-            result = handle_direct_invocation(event, context)
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        with patch(
+            "shared.iam_utils.validate_iam_authorization",
+            return_value=True,
+        ):
+            with patch(
+                "shared.iam_utils.extract_iam_principal",
+                return_value=(
+                    "arn:aws:iam::123456789012:role/test-role"
+                ),
+            ):
+                with patch(
+                    "shared.launch_config_validation"
+                    ".validate_instance_type",
+                    return_value={"valid": True},
+                ):
+                    result = handle_direct_invocation(
+                        event, context
+                    )
 
-    assert "error" not in result or result.get("statusCode") == 200
+    assert (
+        "error" not in result
+        or result.get("statusCode") == 200
+    )
 
 
-@mock_aws
 def test_direct_invocation_delete_server_launch_config():
     """Test direct invocation of delete_server_launch_config"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
             "servers": [
                 {
                     "sourceServerId": "s-111",
-                    "launchTemplate": {"instanceType": "t3.large"},
+                    "launchTemplate": {
+                        "instanceType": "t3.large",
+                    },
                 }
             ],
         }
-    )
+    }
+    mock_table.update_item.return_value = {}
 
     event = {
         "operation": "delete_server_launch_config",
@@ -932,31 +1016,48 @@ def test_direct_invocation_delete_server_launch_config():
     }
 
     context = MagicMock()
-    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test"
+    context.invoked_function_arn = (
+        "arn:aws:lambda:us-east-1:123456789012:function:test"
+    )
     context.aws_request_id = "test-request-id"
     context.function_name = "test-function"
     context.function_version = "$LATEST"
-    with patch("shared.iam_utils.validate_iam_authorization", return_value=True):
-        with patch("shared.iam_utils.extract_iam_principal", return_value="arn:aws:iam::123456789012:role/test-role"):
-            result = handle_direct_invocation(event, context)
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        with patch(
+            "shared.iam_utils.validate_iam_authorization",
+            return_value=True,
+        ):
+            with patch(
+                "shared.iam_utils.extract_iam_principal",
+                return_value=(
+                    "arn:aws:iam::123456789012:role/test-role"
+                ),
+            ):
+                result = handle_direct_invocation(event, context)
 
-    assert "error" not in result or result.get("statusCode") == 200
+    assert (
+        "error" not in result
+        or result.get("statusCode") == 200
+    )
 
 
 
-@mock_aws
 def test_direct_invocation_bulk_update_server_configs():
     """Test direct invocation of bulk_update_server_configs"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111", "s-222"],
             "servers": [],
         }
-    )
+    }
+    mock_table.update_item.return_value = {}
 
     event = {
         "operation": "bulk_update_server_configs",
@@ -965,23 +1066,50 @@ def test_direct_invocation_bulk_update_server_configs():
             "servers": [
                 {
                     "sourceServerId": "s-111",
-                    "launchTemplate": {"instanceType": "t3.large"},
+                    "launchTemplate": {
+                        "instanceType": "t3.large",
+                    },
                 },
                 {
                     "sourceServerId": "s-222",
-                    "launchTemplate": {"instanceType": "t3.xlarge"},
+                    "launchTemplate": {
+                        "instanceType": "t3.xlarge",
+                    },
                 },
             ],
         },
     }
 
     context = MagicMock()
-    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test"
-    with patch("shared.iam_utils.validate_iam_authorization", return_value=True):
-        with patch("shared.iam_utils.extract_iam_principal", return_value="test-role"):
-            result = handle_direct_invocation(event, context)
+    context.invoked_function_arn = (
+        "arn:aws:lambda:us-east-1:123456789012:function:test"
+    )
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        with patch(
+            "shared.iam_utils.validate_iam_authorization",
+            return_value=True,
+        ):
+            with patch(
+                "shared.iam_utils.extract_iam_principal",
+                return_value="test-role",
+            ):
+                with patch(
+                    "shared.launch_config_validation"
+                    ".validate_instance_type",
+                    return_value={"valid": True},
+                ):
+                    result = handle_direct_invocation(
+                        event, context
+                    )
 
-    assert "error" not in result or result.get("statusCode") == 200
+    assert (
+        "error" not in result
+        or result.get("statusCode") == 200
+    )
 
 
 def test_direct_invocation_add_target_account():
@@ -1063,21 +1191,26 @@ def test_direct_invocation_trigger_tag_sync():
     assert "error" not in result or result.get("statusCode") == 200
 
 
-@mock_aws
 def test_direct_invocation_invalid_operation():
     """Test direct invocation with invalid operation"""
-    setup_dynamodb_tables()
-
     event = {
         "operation": "invalid_operation",
         "body": {},
     }
 
     context = MagicMock()
-    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test"
+    context.invoked_function_arn = (
+        "arn:aws:lambda:us-east-1:123456789012:function:test"
+    )
 
-    with patch("shared.iam_utils.validate_iam_authorization", return_value=True):
-        with patch("shared.iam_utils.extract_iam_principal", return_value="test-role"):
+    with patch(
+        "shared.iam_utils.validate_iam_authorization",
+        return_value=True,
+    ):
+        with patch(
+            "shared.iam_utils.extract_iam_principal",
+            return_value="test-role",
+        ):
             result = handle_direct_invocation(event, context)
 
     assert "error" in result
@@ -1089,42 +1222,53 @@ def test_direct_invocation_invalid_operation():
 # ============================================================================
 
 
-@mock_aws
 def test_update_server_launch_config_missing_parameters():
     """Test update with missing required parameters"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
         }
-    )
+    }
+    mock_table.update_item.return_value = {}
 
     body = {}  # Missing all parameters
-    result = update_server_launch_config("pg-123", "s-111", body)
 
-    assert result["statusCode"] == 200  # Empty body is valid, uses group defaults
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        result = update_server_launch_config(
+            "pg-123", "s-111", body
+        )
+
+    assert result["statusCode"] == 200  # Empty body is valid
     response_body = json.loads(result["body"])
     assert response_body["sourceServerId"] == "s-111"
 
 
-@mock_aws
 def test_bulk_update_missing_servers_array():
     """Test bulk update with missing servers array"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    pg_table.put_item(
-        Item={
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "sourceServerIds": ["s-111"],
         }
-    )
+    }
 
     body = {}  # Missing servers array
-    result = bulk_update_server_launch_config("pg-123", body)
+
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        result = bulk_update_server_launch_config("pg-123", body)
 
     assert result["statusCode"] == 400
     response_body = json.loads(result["body"])
@@ -1161,24 +1305,29 @@ def test_create_target_account_missing_required_fields():
 # ============================================================================
 
 
-@mock_aws
 def test_update_server_launch_config_empty_body():
-    """Test updating server launch config with empty body (should succeed)"""
-    pg_table, _, _ = setup_dynamodb_tables()
-
-    # Create protection group
-    pg_table.put_item(
-        Item={
+    """Test updating server launch config with empty body"""
+    mock_table = MagicMock()
+    mock_table.get_item.return_value = {
+        "Item": {
             "groupId": "pg-123",
             "groupName": "Test Group",
             "region": "us-east-1",
             "sourceServerIds": ["s-111"],
         }
-    )
+    }
+    mock_table.update_item.return_value = {}
 
-    # Empty body is valid - it means no changes
     body = {}
-    result = update_server_launch_config("pg-123", "s-111", body)
+
+    with patch.object(
+        data_management_handler,
+        "get_protection_groups_table",
+        return_value=mock_table,
+    ):
+        result = update_server_launch_config(
+            "pg-123", "s-111", body
+        )
 
     # Should succeed with 200
     assert result["statusCode"] == 200

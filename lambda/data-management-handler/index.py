@@ -193,6 +193,15 @@ from shared.account_utils import (
     get_account_name,
     get_target_accounts,
     validate_target_account,
+    validate_account_context_for_invocation,
+)
+from shared.security_utils import (
+    sanitize_string,
+    validate_email,
+    InputValidationError,
+)
+from shared.notifications import (
+    manage_recovery_plan_subscription,
 )
 from shared.conflict_detection import (
     check_server_conflicts_for_create,
@@ -373,7 +382,7 @@ def handle_api_gateway_request(event, context):
             if http_method == "GET":
                 return get_protection_groups(query_parameters)
             elif http_method == "POST":
-                return create_protection_group(body)
+                return create_protection_group(event, body)
 
         elif path == "/protection-groups/resolve":
             if http_method == "POST":
@@ -449,7 +458,7 @@ def handle_api_gateway_request(event, context):
             if http_method == "GET":
                 return get_recovery_plans(query_parameters)
             elif http_method == "POST":
-                return create_recovery_plan(body)
+                return create_recovery_plan(event, body)
 
         elif "/recovery-plans/" in path and "/check-existing-instances" in path:
             plan_id = path_parameters.get("id")
@@ -646,14 +655,14 @@ def handle_direct_invocation(event, context):
     # Map operations to functions
     operations = {
         # Protection Groups
-        "create_protection_group": lambda: create_protection_group(body),
+        "create_protection_group": lambda: create_protection_group(event, body),
         "list_protection_groups": lambda: get_protection_groups(query_params),
         "get_protection_group": lambda: get_protection_group(body.get("groupId")),
         "update_protection_group": lambda: update_protection_group(body.get("groupId"), body),
         "delete_protection_group": lambda: delete_protection_group(body.get("groupId")),
         "resolve_protection_group_tags": lambda: resolve_protection_group_tags(body),
         # Recovery Plans
-        "create_recovery_plan": lambda: create_recovery_plan(body),
+        "create_recovery_plan": lambda: create_recovery_plan(event, body),
         "list_recovery_plans": lambda: get_recovery_plans(query_params),
         "get_recovery_plan": lambda: get_recovery_plan(body.get("planId")),
         "update_recovery_plan": lambda: update_recovery_plan(body.get("planId"), body),
@@ -675,6 +684,7 @@ def handle_direct_invocation(event, context):
         "get_tag_sync_settings": lambda: get_tag_sync_settings(),
         "update_tag_sync_settings": lambda: update_tag_sync_settings(body),
         "import_configuration": lambda: import_configuration(body),
+        "export_configuration": lambda: export_configuration({}),
         # Staging Accounts (Phase 4: Tasks 5.8-5.9, 5.12)
         "add_staging_account": lambda: handle_add_staging_account(body),
         "remove_staging_account": lambda: handle_remove_staging_account(body),
@@ -1309,12 +1319,19 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
         )
 
 
-def create_protection_group(body: Dict) -> Dict:
+def create_protection_group(event: Dict, body: Dict) -> Dict:
     """
     Create a new Protection Group - supports both tag-based and explicit server selection.
 
     EXTRACTION TARGET: Data Management Handler (Phase 3)
     Validates name uniqueness, checks for server conflicts, and stores in DynamoDB.
+
+    Args:
+        event: Lambda event object (for invocation source detection)
+        body: Request body with Protection Group configuration
+
+    Returns:
+        API Gateway response dict with statusCode and body
     """
     try:
         # FORCE DEPLOYMENT: camelCase migration complete - v1.3.1-hotfix
@@ -1357,7 +1374,13 @@ def create_protection_group(body: Dict) -> Dict:
                 },
             )
 
-        name = body["groupName"]
+        # Validate and extract account context (handles both
+        # API Gateway and direct invocation modes)
+        account_context = validate_account_context_for_invocation(event, body)
+
+        # Sanitize user inputs
+        name = sanitize_string(body["groupName"], max_length=64)
+        description = sanitize_string(body.get("description", ""), max_length=1000)
         region = body["region"]
 
         # Validate name is not empty or whitespace-only
@@ -1366,7 +1389,7 @@ def create_protection_group(body: Dict) -> Dict:
                 400,
                 {
                     "error": "INVALID_NAME",
-                    "message": "groupName cannot be empty or whitespace-only",
+                    "message": ("groupName cannot be empty or " "whitespace-only"),
                     "field": "groupName",
                 },
             )
@@ -1377,7 +1400,7 @@ def create_protection_group(body: Dict) -> Dict:
                 400,
                 {
                     "error": "INVALID_NAME",
-                    "message": "groupName must be 64 characters or fewer",
+                    "message": ("groupName must be 64 characters or fewer"),
                     "field": "groupName",
                     "maxLength": 64,
                     "actualLength": len(name.strip()),
@@ -1434,20 +1457,20 @@ def create_protection_group(body: Dict) -> Dict:
         if has_servers:
             print(f"DEBUG: Validating {len(source_server_ids)} explicit server IDs")
 
-            # Create account context for cross-account DRS access
-            account_context = None
-            if body.get("accountId"):
+            # Create DRS account context for cross-account access
+            drs_account_context = None
+            if account_context.get("accountId"):
                 current_account_id = get_current_account_id()
-                target_account_id = body.get("accountId")
-                account_context = {
+                target_account_id = account_context["accountId"]
+                drs_account_context = {
                     "accountId": target_account_id,
-                    "assumeRoleName": body.get("assumeRoleName"),
+                    "assumeRoleName": account_context.get("assumeRoleName"),
                     "isCurrentAccount": (current_account_id == target_account_id),
-                    "externalId": "drs-orchestration-cross-account",
+                    "externalId": ("drs-orchestration-cross-account"),
                 }
 
             # Use cross-account DRS client
-            regional_drs = create_drs_client(region, account_context)
+            regional_drs = create_drs_client(region, drs_account_context)
             print(f"DEBUG: Created DRS client for region {region} with account context")
             try:
                 drs_response = regional_drs.describe_source_servers(filters={"sourceServerIDs": source_server_ids})
@@ -1498,16 +1521,16 @@ def create_protection_group(body: Dict) -> Dict:
 
         # QUOTA VALIDATION: For tag-based selection, resolve and count servers
         if has_tags:
-            # Create account context for cross-account access
-            account_context = None
-            if body.get("accountId"):
-                account_context = {
-                    "accountId": body.get("accountId"),
-                    "assumeRoleName": body.get("assumeRoleName"),
+            # Use validated account context for cross-account access
+            tag_account_context = None
+            if account_context.get("accountId"):
+                tag_account_context = {
+                    "accountId": account_context["accountId"],
+                    "assumeRoleName": account_context.get("assumeRoleName"),
                 }
 
             # Resolve servers matching tags
-            resolved = query_drs_servers_by_tags(region, selection_tags, account_context)
+            resolved = query_drs_servers_by_tags(region, selection_tags, tag_account_context)
             server_count = len(resolved)
 
             # Check 100 servers per job limit
@@ -1539,11 +1562,11 @@ def create_protection_group(body: Dict) -> Dict:
         item = {
             "groupId": group_id,  # DynamoDB key (camelCase)
             "groupName": name,
-            "description": body.get("description", ""),
+            "description": description,
             "region": region,
-            "accountId": body.get("accountId", ""),
-            "assumeRoleName": body.get("assumeRoleName", ""),
-            "owner": body.get("owner", ""),  # FIXED: camelCase
+            "accountId": account_context["accountId"],
+            "assumeRoleName": account_context.get("assumeRoleName", ""),
+            "owner": sanitize_string(body.get("owner", ""), max_length=255),
             "createdDate": timestamp,  # FIXED: camelCase
             "lastModifiedDate": timestamp,  # FIXED: camelCase
             "version": 1,  # FIXED: camelCase - Optimistic locking starts at version 1
@@ -1594,14 +1617,14 @@ def create_protection_group(body: Dict) -> Dict:
             # If using tags, resolve servers first
             if has_tags and not server_ids_to_apply:
                 print("DEBUG: Resolving servers from tags")
-                # Create account context for cross-account access
-                account_context = None
-                if body.get("accountId"):
-                    account_context = {
-                        "accountId": body.get("accountId"),
-                        "assumeRoleName": body.get("assumeRoleName"),
+                # Use validated account context for cross-account
+                lc_account_context = None
+                if account_context.get("accountId"):
+                    lc_account_context = {
+                        "accountId": account_context["accountId"],
+                        "assumeRoleName": account_context.get("assumeRoleName"),
                     }
-                resolved = query_drs_servers_by_tags(region, selection_tags, account_context)
+                resolved = query_drs_servers_by_tags(region, selection_tags, lc_account_context)
                 server_ids_to_apply = [s.get("sourceServerID") for s in resolved if s.get("sourceServerID")]
                 print(f"DEBUG: Resolved {len(server_ids_to_apply)} servers from tags")
 
@@ -1614,8 +1637,8 @@ def create_protection_group(body: Dict) -> Dict:
                 pg_for_apply = {
                     "groupId": group_id,
                     "groupName": name,
-                    "accountId": body.get("accountId", ""),
-                    "assumeRoleName": body.get("assumeRoleName", ""),
+                    "accountId": account_context["accountId"],
+                    "assumeRoleName": account_context.get("assumeRoleName", ""),
                     "region": region,
                 }
 
@@ -1661,6 +1684,16 @@ def create_protection_group(body: Dict) -> Dict:
         # needed
         item["protectionGroupId"] = item["groupId"]  # Only add this alias for compatibility
         return response(201, item)
+
+    except InputValidationError as e:
+        print(f"Validation error creating Protection Group: {e}")
+        return response(
+            400,
+            {
+                "error": "VALIDATION_ERROR",
+                "message": str(e),
+            },
+        )
 
     except Exception as e:
         print(f"Error creating Protection Group: {str(e)}")
@@ -3430,16 +3463,31 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
 # ============================================================================
 
 
-def create_recovery_plan(body: Dict) -> Dict:
+def create_recovery_plan(event: Dict, body: Dict) -> Dict:
     """
-    Create a new Recovery Plan.
+    Create a new Recovery Plan with account context and
+    optional notification email.
 
-    EXTRACTION TARGET: Data Management Handler (Phase 3)
-    Validates wave sizes against DRS limits and stores plan in DynamoDB.
+    Validates wave sizes against DRS limits, ensures all
+    Protection Groups belong to the same account, and
+    stores plan in DynamoDB. Optionally creates an SNS
+    subscription for execution notifications.
+
+    Args:
+        event: Lambda event object (for invocation source
+            detection)
+        body: Request body with Recovery Plan configuration
+
+    Returns:
+        API Gateway response dict with statusCode and body
     """
     try:
-        # Validate required fields - accept both frontend (name) and legacy
-        # (PlanName) formats
+        # Validate and extract account context (handles both
+        # API Gateway and direct invocation modes)
+        account_context = validate_account_context_for_invocation(event, body)
+
+        # Validate required fields - accept both frontend
+        # (name) and legacy (PlanName) formats
         plan_name = body.get("name") or body.get("planName")
         if not plan_name:
             return response(
@@ -3468,7 +3516,7 @@ def create_recovery_plan(body: Dict) -> Dict:
                 400,
                 {
                     "error": "INVALID_NAME",
-                    "message": "name cannot be empty or whitespace-only",
+                    "message": ("name cannot be empty or " "whitespace-only"),
                     "field": "name",
                 },
             )
@@ -3479,7 +3527,7 @@ def create_recovery_plan(body: Dict) -> Dict:
                 400,
                 {
                     "error": "INVALID_NAME",
-                    "message": "name must be 64 characters or fewer",
+                    "message": ("name must be 64 characters or fewer"),
                     "field": "name",
                     "maxLength": 64,
                     "actualLength": len(plan_name.strip()),
@@ -3489,13 +3537,27 @@ def create_recovery_plan(body: Dict) -> Dict:
         # Use trimmed name
         plan_name = plan_name.strip()
 
-        # Validate unique name (case-insensitive, global across all users)
+        # Validate notification email format if provided
+        notification_email = body.get("notificationEmail")
+        if notification_email:
+            notification_email = notification_email.strip()
+            if not validate_email(notification_email):
+                return response(
+                    400,
+                    {
+                        "error": "INVALID_EMAIL",
+                        "message": (f"Invalid email format: " f"{notification_email}"),
+                        "field": "notificationEmail",
+                    },
+                )
+
+        # Validate unique name (case-insensitive)
         if not validate_unique_rp_name(plan_name):
             return response(
                 409,
-                {  # Conflict
+                {
                     "error": "RP_NAME_EXISTS",
-                    "message": f'A Recovery Plan named "{plan_name}" already exists',
+                    "message": (f"A Recovery Plan named " f'"{plan_name}" already exists'),
                     "existingName": plan_name,
                 },
             )
@@ -3503,16 +3565,20 @@ def create_recovery_plan(body: Dict) -> Dict:
         # Generate UUID for PlanId
         plan_id = str(uuid.uuid4())
 
-        # Create Recovery Plan item
+        # Create Recovery Plan item with account context
         timestamp = int(time.time())
         item = {
             "planId": plan_id,
-            "planName": plan_name,  # Use the validated plan_name variable
-            "description": body.get("description", body.get("description", "")),  # Accept both formats
-            "waves": waves,  # Use the validated waves variable
-            "createdDate": timestamp,  # FIXED: camelCase
-            "lastModifiedDate": timestamp,  # FIXED: camelCase
-            "version": 1,  # FIXED: camelCase - Optimistic locking starts at version 1
+            "planName": plan_name,
+            "description": body.get("description", ""),
+            "accountId": account_context["accountId"],
+            "assumeRoleName": account_context.get("assumeRoleName", ""),
+            "notificationEmail": notification_email or "",
+            "snsSubscriptionArn": "",
+            "waves": waves,
+            "createdDate": timestamp,
+            "lastModifiedDate": timestamp,
+            "version": 1,
         }
 
         # Validate waves if provided
@@ -3537,6 +3603,45 @@ def create_recovery_plan(body: Dict) -> Dict:
 
             # Store in camelCase format
             item["waves"] = camelcase_waves
+
+            # Validate all Protection Groups belong to the
+            # same account as this Recovery Plan
+            plan_account_id = account_context["accountId"]
+            for wave in camelcase_waves:
+                pg_id = wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
+                if pg_id:
+                    try:
+                        pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
+                        pg = pg_result.get("Item")
+                        if not pg:
+                            return response(
+                                400,
+                                {
+                                    "error": "PG_NOT_FOUND",
+                                    "message": (f"Protection Group " f"{pg_id} not found"),
+                                    "field": "waves",
+                                },
+                            )
+                        pg_account = pg.get("accountId", "")
+                        if pg_account and pg_account != plan_account_id:
+                            return response(
+                                400,
+                                {
+                                    "error": ("ACCOUNT_MISMATCH"),
+                                    "message": (
+                                        f"Protection Group "
+                                        f"{pg_id} belongs to "
+                                        f"account "
+                                        f"{pg_account}, but "
+                                        f"Recovery Plan is "
+                                        f"for account "
+                                        f"{plan_account_id}"
+                                    ),
+                                    "field": "waves",
+                                },
+                            )
+                    except ClientError as e:
+                        print(f"Warning: Could not validate " f"PG {pg_id} account: {e}")
 
             validation_error = validate_waves(camelcase_waves)
             if validation_error:
@@ -3667,9 +3772,40 @@ def create_recovery_plan(body: Dict) -> Dict:
 
         print(f"Created Recovery Plan: {plan_id}")
 
+        # Create SNS subscription if notification email provided
+        if notification_email:
+            try:
+                subscription_arn = manage_recovery_plan_subscription(
+                    plan_id=plan_id,
+                    email=notification_email,
+                    action="create",
+                )
+                if subscription_arn:
+                    # Update item with subscription ARN
+                    get_recovery_plans_table().update_item(
+                        Key={"planId": plan_id},
+                        UpdateExpression=("SET snsSubscriptionArn = :arn"),
+                        ExpressionAttributeValues={":arn": subscription_arn},
+                    )
+                    item["snsSubscriptionArn"] = subscription_arn
+                    print(f"Created SNS subscription for " f"plan {plan_id}: " f"{subscription_arn}")
+            except Exception as sub_err:
+                # Don't fail plan creation if subscription
+                # creation fails
+                print(f"Warning: Failed to create SNS " f"subscription for plan {plan_id}: " f"{sub_err}")
+
         # Data is already in camelCase - return directly
         return response(201, item)
 
+    except InputValidationError as e:
+        print(f"Validation error creating Recovery Plan: {e}")
+        return response(
+            400,
+            error_response(
+                ERROR_INVALID_PARAMETER,
+                str(e),
+            ),
+        )
     except Exception as e:
         print(f"Error creating Recovery Plan: {str(e)}")
         return response(
@@ -4300,6 +4436,66 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                         },
                     )
 
+        # Handle notificationEmail changes
+        new_email = body.get("notificationEmail")
+        old_email = existing_plan.get("notificationEmail", "")
+        old_sub_arn = existing_plan.get("snsSubscriptionArn", "")
+        email_changed = "notificationEmail" in body and new_email != old_email
+        # Also trigger if email exists but subscription is missing
+        email_to_subscribe = new_email if new_email else old_email
+        needs_subscription = bool(email_to_subscribe and not old_sub_arn)
+
+        print(
+            f"[Notification] plan={plan_id} "
+            f"new_email={new_email!r} old_email={old_email!r} "
+            f"old_sub_arn={old_sub_arn!r} "
+            f"email_changed={email_changed} "
+            f"needs_subscription={needs_subscription} "
+            f"'notificationEmail' in body={'notificationEmail' in body}"
+        )
+
+        if email_changed or needs_subscription:
+            # Use the right email for subscription
+            effective_email = new_email if email_changed else email_to_subscribe
+            # Validate new email format if non-empty
+            if effective_email and not validate_email(effective_email):
+                return response(
+                    400,
+                    error_response(
+                        ERROR_INVALID_PARAMETER,
+                        f"Invalid email format: {effective_email}",
+                        details={"parameter": "notificationEmail"},
+                    ),
+                )
+
+            # Delete old subscription if one exists and email changed
+            old_sub_arn = existing_plan.get("snsSubscriptionArn", "")
+            if email_changed and old_email and old_sub_arn:
+                try:
+                    manage_recovery_plan_subscription(
+                        plan_id=plan_id,
+                        email=old_email,
+                        action="delete",
+                    )
+                except Exception as sub_err:
+                    print(f"Failed to delete old subscription " f"for plan {plan_id}: {sub_err}")
+
+            # Create subscription for the effective email
+            if effective_email:
+                try:
+                    new_sub_arn = manage_recovery_plan_subscription(
+                        plan_id=plan_id,
+                        email=effective_email,
+                        action="create",
+                    )
+                    body["snsSubscriptionArn"] = new_sub_arn or ""
+                except Exception as sub_err:
+                    print(f"Failed to create subscription " f"for plan {plan_id}: {sub_err}")
+                    body["snsSubscriptionArn"] = ""
+            else:
+                # Email removed — clear subscription ARN
+                body["snsSubscriptionArn"] = ""
+
         # NEW: Pre-write validation for Waves - waves field is camelCase
         waves = body.get("waves")
         if waves is not None:
@@ -4363,7 +4559,15 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         }
         expression_names = {}
 
-        updatable_fields = ["planName", "description", "rpo", "rto", "waves"]
+        updatable_fields = [
+            "planName",
+            "description",
+            "rpo",
+            "rto",
+            "waves",
+            "notificationEmail",
+            "snsSubscriptionArn",
+        ]
         for field in updatable_fields:
             if field in body:
                 if field == "description":
@@ -4446,6 +4650,26 @@ def delete_recovery_plan(plan_id: str) -> Dict:
             )
 
         # No active executions, safe to delete
+        # Clean up SNS subscription before deletion
+        try:
+            plan_result = get_recovery_plans_table().get_item(Key={"planId": plan_id})
+            plan_item = plan_result.get("Item", {})
+            plan_email = plan_item.get("notificationEmail")
+            plan_sub_arn = plan_item.get("snsSubscriptionArn")
+
+            if plan_email and plan_sub_arn:
+                try:
+                    manage_recovery_plan_subscription(
+                        plan_id=plan_id,
+                        email=plan_email,
+                        action="delete",
+                    )
+                    print(f"Deleted SNS subscription for" f" plan {plan_id}")
+                except Exception as sub_err:
+                    print(f"Warning: Failed to delete SNS" f" subscription for plan" f" {plan_id}: {str(sub_err)}")
+        except Exception as fetch_err:
+            print(f"Warning: Failed to fetch plan for" f" subscription cleanup: {str(fetch_err)}")
+
         print(f"Deleting Recovery Plan: {plan_id}")
         get_recovery_plans_table().delete_item(Key={"planId": plan_id})
 
@@ -7219,7 +7443,7 @@ def export_configuration(query_params: Dict) -> Dict:
                 "description": pg.get("description", ""),
                 "region": pg.get("region", ""),
                 "accountId": pg.get("accountId", ""),
-                "owner": pg.get("owner", ""),  # FIXED: camelCase
+                "assumeRoleName": pg.get("assumeRoleName", ""),
             }
             # Include server selection method (mutually exclusive)
             if pg.get("sourceServerIds"):
@@ -7280,11 +7504,16 @@ def export_configuration(query_params: Dict) -> Dict:
                         # reference)
                         orphaned_pg_ids.append(pg_id)
                         print(f"Warning: PG ID '{pg_id}' not found - keeping ID in export")
+                # Remove internal ID arrays — export uses names only
+                exported_wave.pop("protectionGroupIds", None)
                 exported_waves.append(exported_wave)
 
             exported_rp = {
                 "planName": rp.get("planName", ""),
                 "description": rp.get("description", ""),
+                "accountId": rp.get("accountId", ""),
+                "assumeRoleName": rp.get("assumeRoleName", ""),
+                "notificationEmail": rp.get("notificationEmail", ""),
                 "waves": exported_waves,
             }
             exported_rps.append(exported_rp)
@@ -7292,19 +7521,10 @@ def export_configuration(query_params: Dict) -> Dict:
         if orphaned_pg_ids:
             print(f"Export contains {len(orphaned_pg_ids)} orphaned PG references")
 
-        # Build export payload
+        # Build export payload — clean, customer-facing format
         export_data = {
-            "metadata": {
-                "schemaVersion": SCHEMA_VERSION,
-                "exportedAt": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
-                "sourceRegion": source_region,
-                "exportedBy": "api",
-                "protectionGroupCount": len(exported_pgs),
-                "recoveryPlanCount": len(exported_rps),
-                "serverCount": total_server_count,
-                "serversWithCustomConfig": servers_with_custom_config,
-                "orphanedReferences": len(orphaned_pg_ids),
-            },
+            "exportedAt": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
+            "sourceRegion": source_region,
             "protectionGroups": exported_pgs,
             "recoveryPlans": exported_rps,
         }
@@ -7691,28 +7911,6 @@ def import_configuration(body: Dict) -> Dict:
         # Extract parameters
         dry_run = body.get("dryRun", False)
         config = body.get("config", body)  # Support both wrapped and direct format
-
-        # Validate schema version
-        metadata = config.get("metadata", {})
-        schema_version = metadata.get("schemaVersion", "")
-
-        if not schema_version:
-            return response(
-                400,
-                {
-                    "error": "Missing schemaVersion in metadata",
-                    "supportedVersions": SUPPORTED_SCHEMA_VERSIONS,
-                },
-            )
-
-        if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
-            return response(
-                400,
-                {
-                    "error": f"Unsupported schema version: {schema_version}",
-                    "supportedVersions": SUPPORTED_SCHEMA_VERSIONS,
-                },
-            )
 
         # Get import data
         import_pgs = config.get("protectionGroups", [])
@@ -8794,6 +8992,8 @@ def _process_protection_group_import(
                 "description": pg.get("description", ""),
                 "region": region,
                 "accountId": pg.get("accountId", ""),
+                "assumeRoleName": pg.get("assumeRoleName", ""),
+                "externalId": pg.get("externalId", ""),
                 "owner": pg.get("owner", ""),  # FIXED: camelCase
                 "createdDate": timestamp,  # FIXED: camelCase
                 "lastModifiedDate": timestamp,  # FIXED: camelCase
@@ -8884,6 +9084,11 @@ def _process_protection_group_import(
             return result
     else:
         result["details"] = {"wouldCreate": True}
+        # Warn if account context is missing
+        if not pg.get("accountId"):
+            result["details"]["accountContextWarning"] = (
+                "No accountId in imported data. " "Account context should be set after import."
+            )
         print(f"[{correlation_id}] [DRY RUN] Would create PG '{pg_name}'")
 
     result["status"] = "created"
@@ -9021,10 +9226,26 @@ def _process_recovery_plan_import(
             plan_id = str(uuid.uuid4())
             timestamp = int(time.time())
 
+            # Validate account context (warn if missing, don't block)
+            account_id = rp.get("accountId", "")
+            assume_role_name = rp.get("assumeRoleName", "")
+
+            if not account_id:
+                print(
+                    f"[{correlation_id}] Warning: Recovery Plan "
+                    f"'{plan_name}' has no accountId - "
+                    f"backward compatible import"
+                )
+                result["details"]["accountContextWarning"] = (
+                    "No accountId in imported data. " "Account context should be set after import."
+                )
+
             item = {
                 "planId": plan_id,
                 "planName": plan_name,
                 "description": rp.get("description", ""),
+                "accountId": account_id,
+                "assumeRoleName": assume_role_name,
                 "waves": resolved_waves,  # Use resolved waves with correct IDs
                 "createdDate": timestamp,  # FIXED: camelCase
                 "lastModifiedDate": timestamp,  # FIXED: camelCase
@@ -9040,10 +9261,15 @@ def _process_recovery_plan_import(
             print(f"[{correlation_id}] Failed to create RP '{plan_name}': {e}")
             return result
     else:
-        result["details"] = {
-            "wouldCreate": True,
-            "resolvedWaves": len(resolved_waves),
-        }
+        # Validate account context in dry run too
+        account_id = rp.get("accountId", "")
+        if not account_id:
+            result["details"]["accountContextWarning"] = (
+                "No accountId in imported data. " "Account context should be set after import."
+            )
+
+        result["details"]["wouldCreate"] = True
+        result["details"]["resolvedWaves"] = len(resolved_waves)
         print(f"[{correlation_id}] [DRY RUN] Would create RP '{plan_name}'")
 
     result["status"] = "created"

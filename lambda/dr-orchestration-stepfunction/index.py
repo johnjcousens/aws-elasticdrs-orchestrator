@@ -185,18 +185,45 @@ logger.setLevel(logging.INFO)
 try:
     from shared.account_utils import construct_role_arn
     from shared.cross_account import create_drs_client
+    from shared.notifications import (
+        publish_recovery_plan_notification,
+    )
 except ImportError:
     # Fallback for local testing
     def construct_role_arn(account_id: str) -> str:
         """Construct standardized role ARN from account ID."""
-        if not account_id or len(account_id) != 12 or not account_id.isdigit():
-            raise ValueError(f"Invalid account ID: {account_id}. Must be 12 digits.")
-        return f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole"
+        if (
+            not account_id
+            or len(account_id) != 12
+            or not account_id.isdigit()
+        ):
+            raise ValueError(
+                f"Invalid account ID: {account_id}. "
+                "Must be 12 digits."
+            )
+        return (
+            f"arn:aws:iam::{account_id}:role/"
+            "DRSOrchestrationRole"
+        )
 
     # Fallback create_drs_client for local testing
-    def create_drs_client(region: str, account_context: Dict = None):
-        """Fallback DRS client creation for local testing."""
+    def create_drs_client(
+        region: str, account_context: Dict = None
+    ):
+        """Fallback DRS client creation."""
         return boto3.client("drs", region_name=region)
+
+    def publish_recovery_plan_notification(
+        plan_id: str,
+        event_type: str,
+        details: dict,
+    ) -> None:
+        """Fallback no-op for local testing."""
+        logger.info(
+            "Notification stub: plan=%s event=%s",
+            plan_id,
+            event_type,
+        )
 
 
 # Environment variables
@@ -285,6 +312,7 @@ def lambda_handler(event, context):
     Supported Actions:
     - begin: Initialize wave plan execution
     - store_task_token: Store callback token for pause/resume
+    - pause: Handle execution pause with task token
     - resume_wave: Resume execution after manual approval
     - poll_wave_status: Poll wave status via query-handler
 
@@ -312,6 +340,8 @@ def lambda_handler(event, context):
         return begin_wave_plan(event)
     elif action == "store_task_token":
         return store_task_token(event)
+    elif action == "pause":
+        return handle_execution_pause(event, context)
     elif action == "resume_wave":
         return resume_wave(event)
     elif action == "poll_wave_status":
@@ -394,6 +424,8 @@ def begin_wave_plan(event: Dict) -> Dict:
         "error_code": None,
         # Pause/Resume
         "paused_before_wave": None,
+        # Step Functions pause check support
+        "pauseBeforeExecution": False,
         # Timing for SLA tracking
         "start_time": start_time,
         "end_time": None,
@@ -458,6 +490,34 @@ def begin_wave_plan(event: Dict) -> Dict:
                 f"region={state.get('region')}, server_ids={state.get('server_ids')}"
             )
 
+            # Notify: execution started successfully
+            try:
+                publish_recovery_plan_notification(
+                    plan_id=plan_id,
+                    event_type="start",
+                    details={
+                        "executionId": execution_id,
+                        "planId": plan_id,
+                        "planName": plan.get(
+                            "planName", ""
+                        ),
+                        "accountId": account_context.get(
+                            "accountId", ""
+                        ),
+                        "waveCount": len(waves),
+                        "isDrill": is_drill,
+                        "timestamp": time.strftime(
+                            "%Y-%m-%dT%H:%M:%SZ",
+                            time.gmtime(),
+                        ),
+                    },
+                )
+            except Exception as notif_err:
+                logger.error(
+                    "Notification failed (start): %s",
+                    notif_err,
+                )
+
         except Exception as e:
             logger.error(f"Error invoking execution-handler: {e}")
             import traceback
@@ -466,10 +526,64 @@ def begin_wave_plan(event: Dict) -> Dict:
             state["wave_completed"] = True
             state["status"] = "failed"
             state["error"] = str(e)
+
+            # Notify: execution failed to start
+            try:
+                publish_recovery_plan_notification(
+                    plan_id=plan_id,
+                    event_type="fail",
+                    details={
+                        "executionId": execution_id,
+                        "planId": plan_id,
+                        "planName": plan.get(
+                            "planName", ""
+                        ),
+                        "accountId": account_context.get(
+                            "accountId", ""
+                        ),
+                        "errorMessage": str(e),
+                        "timestamp": time.strftime(
+                            "%Y-%m-%dT%H:%M:%SZ",
+                            time.gmtime(),
+                        ),
+                    },
+                )
+            except Exception as notif_err:
+                logger.error(
+                    "Notification failed (fail): %s",
+                    notif_err,
+                )
     else:
         print("No waves to execute")
         state["all_waves_completed"] = True
         state["status"] = "completed"
+
+        # Notify: execution completed (no waves)
+        try:
+            publish_recovery_plan_notification(
+                plan_id=plan_id,
+                event_type="complete",
+                details={
+                    "executionId": execution_id,
+                    "planId": plan_id,
+                    "planName": plan.get(
+                        "planName", ""
+                    ),
+                    "accountId": account_context.get(
+                        "accountId", ""
+                    ),
+                    "waveCount": 0,
+                    "timestamp": time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ",
+                        time.gmtime(),
+                    ),
+                },
+            )
+        except Exception as notif_err:
+            logger.error(
+                "Notification failed (complete): %s",
+                notif_err,
+            )
 
     print(
         f"DEBUG: Returning state with job_id={state.get('job_id')}, wave_completed={state.get('wave_completed')}, status={state.get('status')}"  # noqa: E501
@@ -530,6 +644,267 @@ def store_task_token(event: Dict) -> Dict:
     # State Ownership pattern: Return complete state for SendTaskSuccess
     state["paused_before_wave"] = paused_before_wave
     return state
+
+
+def _notify_execution_start(state: Dict) -> None:
+    """
+    Publish notification for execution start event.
+
+    Wraps publish_recovery_plan_notification with start-specific
+    details. Failures are logged but never block execution.
+
+    Args:
+        state: Execution state dictionary.
+    """
+    try:
+        account_ctx = state.get("accountContext", {})
+        publish_recovery_plan_notification(
+            plan_id=state.get("plan_id", ""),
+            event_type="start",
+            details={
+                "executionId": state.get(
+                    "execution_id", ""
+                ),
+                "planName": state.get("plan_name", ""),
+                "waveCount": state.get("total_waves", 0),
+                "isDrill": state.get("is_drill", False),
+                "accountId": account_ctx.get(
+                    "accountId", ""
+                ),
+                "consoleLink": os.environ.get(
+                    "API_GATEWAY_URL", ""
+                ),
+                "timestamp": time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                ),
+            },
+        )
+    except Exception as exc:
+        logger.error(
+            "Notification failed (start): %s", exc
+        )
+
+
+def _notify_execution_complete(state: Dict) -> None:
+    """
+    Publish notification for execution complete event.
+
+    Wraps publish_recovery_plan_notification with completion
+    details. Failures are logged but never block execution.
+
+    Args:
+        state: Execution state dictionary.
+    """
+    try:
+        wave_results = state.get("wave_results", [])
+        success_count = sum(
+            1
+            for w in wave_results
+            if w.get("status") == "success"
+        )
+        failure_count = sum(
+            1
+            for w in wave_results
+            if w.get("status") == "failed"
+        )
+        account_ctx = state.get("accountContext", {})
+        publish_recovery_plan_notification(
+            plan_id=state.get("plan_id", ""),
+            event_type="complete",
+            details={
+                "executionId": state.get(
+                    "execution_id", ""
+                ),
+                "planName": state.get("plan_name", ""),
+                "successCount": success_count,
+                "failureCount": failure_count,
+                "durationSeconds": state.get(
+                    "duration_seconds", 0
+                ),
+                "accountId": account_ctx.get(
+                    "accountId", ""
+                ),
+                "timestamp": time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                ),
+            },
+        )
+    except Exception as exc:
+        logger.error(
+            "Notification failed (complete): %s", exc
+        )
+
+
+def _notify_execution_failure(state: Dict) -> None:
+    """
+    Publish notification for execution failure event.
+
+    Wraps publish_recovery_plan_notification with failure
+    details. Failures are logged but never block execution.
+
+    Args:
+        state: Execution state dictionary.
+    """
+    try:
+        account_ctx = state.get("accountContext", {})
+        publish_recovery_plan_notification(
+            plan_id=state.get("plan_id", ""),
+            event_type="fail",
+            details={
+                "executionId": state.get(
+                    "execution_id", ""
+                ),
+                "planName": state.get("plan_name", ""),
+                "errorMessage": state.get("error", ""),
+                "errorCode": state.get(
+                    "error_code", ""
+                ),
+                "accountId": account_ctx.get(
+                    "accountId", ""
+                ),
+                "timestamp": time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                ),
+            },
+        )
+    except Exception as exc:
+        logger.error(
+            "Notification failed (failure): %s", exc
+        )
+
+
+def handle_execution_pause(
+    event: Dict, context
+) -> Dict:
+    """
+    Handle execution pause with task token for resume/cancel.
+
+    Called by Step Functions when the state machine routes to
+    PauseForApproval using the waitForTaskToken integration.
+    This handler is ONLY invoked for pause-enabled executions
+    and does NOT affect the normal (non-pause) execution flow.
+
+    Workflow:
+    1. Extract state and taskToken from the event
+    2. Store task token in DynamoDB (marks execution PAUSED)
+    3. Publish pause notification with resume/cancel URLs
+    4. Return state with pause metadata for Step Functions
+
+    Args:
+        event: Step Functions event with application state
+            and taskToken from waitForTaskToken
+        context: Lambda context (unused)
+
+    Returns:
+        Complete state object with pause metadata
+
+    Raises:
+        ValueError: If task token is missing
+    """
+    state = event.get("application", event)
+    task_token = event.get("taskToken")
+    execution_id = state.get("execution_id", "")
+    plan_id = state.get("plan_id", "")
+    plan_name = state.get("plan_name", "")
+    pause_reason = state.get(
+        "pause_reason", "Manual approval required"
+    )
+
+    logger.info(
+        "Pause requested for execution %s, plan %s",
+        execution_id,
+        plan_id,
+    )
+
+    if not task_token:
+        raise ValueError(
+            "taskToken is required for pause handler. "
+            "This handler must be invoked via "
+            "waitForTaskToken integration."
+        )
+
+    # Store task token and mark execution as PAUSED
+    paused_before_wave = state.get(
+        "paused_before_wave",
+        state.get("current_wave_number", 0) + 1,
+    )
+    try:
+        get_execution_history_table().update_item(
+            Key={
+                "executionId": execution_id,
+                "planId": plan_id,
+            },
+            UpdateExpression=(
+                "SET #status = :status, "
+                "taskToken = :token, "
+                "pausedBeforeWave = :wave"
+            ),
+            ExpressionAttributeNames={
+                "#status": "status"
+            },
+            ExpressionAttributeValues={
+                ":status": "PAUSED",
+                ":token": task_token,
+                ":wave": paused_before_wave,
+            },
+        )
+        logger.info(
+            "Task token stored for execution %s",
+            execution_id,
+        )
+    except Exception as exc:
+        logger.error(
+            "Failed to store task token: %s", exc
+        )
+        raise
+
+    # Update state with pause metadata
+    state["status"] = "paused"
+    state["paused_before_wave"] = paused_before_wave
+
+    # Build callback URLs for email action links
+    api_url = os.environ.get("API_GATEWAY_URL", "")
+    resume_url = (
+        f"{api_url}/execution-callback"
+        f"?action=resume&taskToken={task_token}"
+    )
+    cancel_url = (
+        f"{api_url}/execution-callback"
+        f"?action=cancel&taskToken={task_token}"
+    )
+
+    # Publish pause notification (never blocks execution)
+    account_ctx = get_account_context(state)
+    try:
+        publish_recovery_plan_notification(
+            plan_id=plan_id,
+            event_type="pause",
+            details={
+                "executionId": execution_id,
+                "planId": plan_id,
+                "planName": plan_name,
+                "accountId": account_ctx.get(
+                    "accountId", ""
+                ),
+                "pauseReason": pause_reason,
+                "pausedBeforeWave": paused_before_wave,
+                "taskToken": task_token,
+                "resumeUrl": resume_url,
+                "cancelUrl": cancel_url,
+                "timestamp": time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ",
+                    time.gmtime(),
+                ),
+            },
+        )
+    except Exception as notif_err:
+        logger.error(
+            "Notification failed (pause): %s",
+            notif_err,
+        )
+
+    return state
+
 
 
 def resume_wave(event: Dict) -> Dict:
@@ -637,6 +1012,10 @@ def poll_wave_status(event: Dict) -> Dict:
             raise Exception(f"Handler error: {response}")
 
         result = json.loads(response["Payload"].read())
+
+        # Notify on execution completion or failure
+        _notify_on_status_change(state, result)
+
         return result
 
     except Exception as e:
@@ -644,4 +1023,103 @@ def poll_wave_status(event: Dict) -> Dict:
         state["wave_completed"] = True
         state["status"] = "failed"
         state["error"] = str(e)
+
+        # Notify: polling failure
+        try:
+            publish_recovery_plan_notification(
+                plan_id=state.get("plan_id", ""),
+                event_type="fail",
+                details={
+                    "executionId": state.get(
+                        "execution_id", ""
+                    ),
+                    "planId": state.get("plan_id", ""),
+                    "planName": state.get(
+                        "plan_name", ""
+                    ),
+                    "accountId": get_account_context(
+                        state
+                    ).get("accountId", ""),
+                    "errorMessage": str(e),
+                    "timestamp": time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ",
+                        time.gmtime(),
+                    ),
+                },
+            )
+        except Exception as notif_err:
+            logger.error(
+                "Notification failed (fail): %s",
+                notif_err,
+            )
+
         return state
+
+
+def _notify_on_status_change(
+    old_state: Dict, new_state: Dict
+) -> None:
+    """
+    Publish notification when execution status changes.
+
+    Checks the query-handler result for completion or failure
+    and sends the appropriate notification. Failures in
+    notification publishing are logged but never raised.
+
+    Args:
+        old_state: State before polling
+        new_state: State returned by query-handler
+    """
+    new_status = new_state.get("status", "")
+    all_done = new_state.get("all_waves_completed", False)
+    plan_id = new_state.get("plan_id", "")
+
+    if not plan_id:
+        return
+
+    account_ctx = get_account_context(new_state)
+    base_details = {
+        "executionId": new_state.get("execution_id", ""),
+        "planId": plan_id,
+        "planName": new_state.get("plan_name", ""),
+        "accountId": account_ctx.get("accountId", ""),
+        "timestamp": time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+        ),
+    }
+
+    try:
+        if all_done and new_status == "completed":
+            base_details["completedWaves"] = new_state.get(
+                "completed_waves", 0
+            )
+            base_details["totalWaves"] = new_state.get(
+                "total_waves", 0
+            )
+            start_ts = new_state.get("start_time")
+            if start_ts:
+                base_details["durationSeconds"] = (
+                    int(time.time()) - int(start_ts)
+                )
+            publish_recovery_plan_notification(
+                plan_id=plan_id,
+                event_type="complete",
+                details=base_details,
+            )
+        elif new_status == "failed":
+            base_details["errorMessage"] = new_state.get(
+                "error", "Unknown error"
+            )
+            base_details["failedWaves"] = new_state.get(
+                "failed_waves", 0
+            )
+            publish_recovery_plan_notification(
+                plan_id=plan_id,
+                event_type="fail",
+                details=base_details,
+            )
+    except Exception as notif_err:
+        logger.error(
+            "Notification failed (status change): %s",
+            notif_err,
+        )

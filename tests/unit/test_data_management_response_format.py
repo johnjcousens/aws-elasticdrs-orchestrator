@@ -241,67 +241,52 @@ class TestDirectInvocationResponseFormat:
         mock_exec_table = MagicMock()
         mock_exec_table.scan.return_value = {"Items": []}
         
-        # Import conflict_detection to patch its getter functions
-        import shared.conflict_detection
-        
-        # Patch getter functions on BOTH modules
+        # Patch getter functions and conflict detection
+        # check_server_conflicts_for_create is imported directly
+        # into the handler, so patch it at the handler level
         with patch.object(
             data_management_handler,
             "get_protection_groups_table",
             return_value=mock_pg_table
+        ), patch.object(
+            data_management_handler,
+            "get_recovery_plans_table",
+            return_value=mock_rp_table
+        ), patch.object(
+            data_management_handler,
+            "get_executions_table",
+            return_value=mock_exec_table
+        ), patch.object(
+            data_management_handler,
+            "check_server_conflicts_for_create",
+            return_value=[]
+        ), patch.object(
+            data_management_handler,
+            "create_drs_client",
+            return_value=mock_drs
         ):
-            with patch.object(
-                data_management_handler,
-                "get_recovery_plans_table",
-                return_value=mock_rp_table
-            ):
-                with patch.object(
-                    data_management_handler,
-                    "get_executions_table",
-                    return_value=mock_exec_table
-                ):
-                    # CRITICAL: Also patch conflict_detection getter functions
-                    with patch.object(
-                        shared.conflict_detection,
-                        "get_protection_groups_table",
-                        return_value=mock_pg_table
-                    ):
-                        with patch.object(
-                            shared.conflict_detection,
-                            "get_recovery_plans_table",
-                            return_value=mock_rp_table
-                        ):
-                            with patch.object(
-                                shared.conflict_detection,
-                                "get_execution_history_table",
-                                return_value=mock_exec_table
-                            ):
-                                with patch.object(
-                                    data_management_handler,
-                                    "create_drs_client",
-                                    return_value=mock_drs
-                                ):
-                                    event = {
-                                        "operation": "create_protection_group",
-                                        "body": {
-                                            "groupName": "New Group",
-                                            "region": "us-east-1",
-                                            "sourceServerIds": ["s-456"],
-                                        },
-                                    }
-                                    
-                                    result = (
-                                        data_management_handler.lambda_handler(
-                                            event, lambda_context
-                                        )
-                                    )
-                                    
-                                    # Verify raw response format
-                                    assert isinstance(result, dict)
-                                    # Should NOT have API Gateway wrapper
-                                    assert "statusCode" not in result
-                                    assert "groupId" in result
-                                    assert result["groupName"] == "New Group"
+            event = {
+                "operation": "create_protection_group",
+                "body": {
+                    "groupName": "New Group",
+                    "region": "us-east-1",
+                    "sourceServerIds": ["s-456"],
+                    "accountId": "123456789012",
+                },
+            }
+            
+            result = (
+                data_management_handler.lambda_handler(
+                    event, lambda_context
+                )
+            )
+            
+            # Verify raw response format
+            assert isinstance(result, dict)
+            # Should NOT have API Gateway wrapper
+            assert "statusCode" not in result
+            assert "groupId" in result
+            assert result["groupName"] == "New Group"
 
 
 class TestErrorResponseFormat:

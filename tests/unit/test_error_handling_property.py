@@ -335,6 +335,7 @@ class TestDynamoDBErrorConsistencyProperty:
                     "groupName": "Test",
                     "region": "us-east-1",
                     "sourceServerIds": ["s-1234567890abcdef0"],
+                    "accountId": "123456789012",
                 },
             }
 
@@ -535,6 +536,7 @@ class TestUnexpectedExceptionConsistencyProperty:
                     "groupName": "Test",
                     "region": "us-east-1",
                     "sourceServerIds": ["s-1234567890abcdef0"],
+                    "accountId": "123456789012",
                 },
             }
 

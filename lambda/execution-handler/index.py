@@ -855,6 +855,7 @@ def execute_with_step_functions(
             },
             "isDrill": is_drill,
             "resumeFromWave": resume_from_wave,
+            "pauseBeforeExecution": False,
             "accountContext": account_context,
         }
 
@@ -7452,3 +7453,138 @@ def get_execution_details_fast(execution_id: str) -> Dict:
                 "executionId": execution_id,
             },
         )
+
+
+# =========================================================================
+# EXECUTION CALLBACK HANDLER (Unauthenticated - Task Token Pattern)
+# =========================================================================
+
+
+def _validate_task_token(token: str) -> None:
+    """
+    Validate task token format.
+
+    Args:
+        token: Task token string to validate.
+
+    Raises:
+        ValueError: If token is empty, whitespace-only,
+            or shorter than 100 characters.
+    """
+    if not token or not token.strip():
+        raise ValueError(
+            "taskToken is required and cannot be empty."
+        )
+    if len(token) < 100:
+        raise ValueError(
+            "taskToken is invalid or expired "
+            f"(length {len(token)} < 100)."
+        )
+
+
+def handle_execution_callback(event: Dict) -> Dict:
+    """Handle resume/cancel callbacks from email notification links."""
+    try:
+        params = event.get("queryStringParameters") or {}
+        action = params.get("action", "")
+        task_token = params.get("taskToken", "")
+
+        if action not in ("resume", "cancel"):
+            return _callback_error_response(
+                400,
+                "Invalid action. Must be 'resume' or 'cancel'.",
+            )
+
+        if not task_token:
+            return _callback_error_response(
+                400, "Missing task token."
+            )
+
+        _validate_task_token(task_token)
+
+        if action == "resume":
+            _resume_via_task_token(task_token)
+            message = "Execution has been resumed successfully."
+        else:
+            _cancel_via_task_token(task_token)
+            message = "Execution has been cancelled."
+
+        print(
+            f"[CALLBACK] action={action} success=True "
+            f"token_prefix={task_token[:20]}..."
+        )
+        return _callback_success_response(message, action)
+
+    except ValueError as e:
+        print(f"Validation error in callback: {e}")
+        return _callback_error_response(400, str(e))
+    except Exception as e:
+        print(f"Error handling callback: {e}")
+        return _callback_error_response(
+            500, f"Internal error: {str(e)}"
+        )
+
+
+def _resume_via_task_token(task_token: str) -> Dict:
+    """Resume paused execution via Step Functions task token."""
+    try:
+        return stepfunctions.send_task_success(
+            taskToken=task_token,
+            output=json.dumps({
+                "action": "resume",
+                "timestamp": datetime.utcnow().isoformat(),
+                "resumedBy": "email_callback",
+            }),
+        )
+    except stepfunctions.exceptions.InvalidToken:
+        raise ValueError("Task token is invalid or expired")
+    except stepfunctions.exceptions.TaskTimedOut:
+        raise ValueError("Task has timed out")
+    except stepfunctions.exceptions.TaskDoesNotExist:
+        raise ValueError(
+            "Task no longer exists or has already completed"
+        )
+
+
+def _cancel_via_task_token(task_token: str) -> Dict:
+    """Cancel paused execution via Step Functions task token."""
+    try:
+        return stepfunctions.send_task_failure(
+            taskToken=task_token,
+            error="ExecutionCancelled",
+            cause="User cancelled execution via email notification",
+        )
+    except stepfunctions.exceptions.InvalidToken:
+        raise ValueError("Task token is invalid or expired")
+    except stepfunctions.exceptions.TaskTimedOut:
+        raise ValueError("Task has timed out")
+    except stepfunctions.exceptions.TaskDoesNotExist:
+        raise ValueError(
+            "Task no longer exists or has already completed"
+        )
+
+
+def _callback_success_response(message: str, action: str) -> Dict:
+    """Generate success HTML response for email callback."""
+    html = f"""<!DOCTYPE html>
+<html><head><title>Execution {action.capitalize()}</title>
+<style>body{{font-family:Arial,sans-serif;text-align:center;padding:50px}}
+.success{{color:#037f0c;font-size:24px;margin-bottom:20px}}
+.message{{color:#16191f;font-size:16px}}</style></head>
+<body><div class="success">&#10003; Success</div>
+<div class="message">{message}</div>
+<p>You can close this window.</p></body></html>"""
+    return {"statusCode": 200, "headers": {"Content-Type": "text/html"}, "body": html}
+
+
+def _callback_error_response(status_code: int, message: str) -> Dict:
+    """Generate error HTML response for email callback."""
+    html = f"""<!DOCTYPE html>
+<html><head><title>Error</title>
+<style>body{{font-family:Arial,sans-serif;text-align:center;padding:50px}}
+.error{{color:#d13212;font-size:24px;margin-bottom:20px}}
+.message{{color:#16191f;font-size:16px}}</style></head>
+<body><div class="error">&#10007; Error</div>
+<div class="message">{message}</div>
+<p>Please contact your administrator if this issue persists.</p></body></html>"""
+    return {"statusCode": status_code, "headers": {"Content-Type": "text/html"}, "body": html}

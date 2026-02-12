@@ -283,7 +283,8 @@ class TestHandleFindOperation:
                 {"executionId": "exec-1", "planId": "plan-1", "status": "POLLING"},
                 {"executionId": "exec-2", "planId": "plan-2", "status": "POLLING"}
             ]},
-            {"Items": []}  # No CANCELLING executions
+            {"Items": []},  # No CANCELLING executions
+            {"Items": []},  # No COMPLETED executions
         ]
 
         event = {"operation": "find"}
@@ -313,7 +314,8 @@ class TestHandleFindOperation:
             {"Items": []},  # No POLLING executions
             {"Items": [
                 {"executionId": "exec-3", "planId": "plan-3", "status": "CANCELLING"}
-            ]}
+            ]},
+            {"Items": []},  # No COMPLETED executions
         ]
 
         event = {"operation": "find"}
@@ -344,7 +346,8 @@ class TestHandleFindOperation:
                 {"planId": "plan-2"},  # Missing executionId
                 {"executionId": "exec-3", "planId": "plan-3"}  # Valid
             ]},
-            {"Items": []}
+            {"Items": []},
+            {"Items": []},  # No COMPLETED executions
         ]
 
         event = {"operation": "find"}

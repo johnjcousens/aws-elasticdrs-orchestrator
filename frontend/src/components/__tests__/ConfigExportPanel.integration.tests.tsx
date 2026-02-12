@@ -178,12 +178,6 @@ describe('ConfigExportPanel - Integration Tests', () => {
   });
 
   describe('Schema Version Indicator', () => {
-    it('displays schema version 1.1 info alert', () => {
-      render(<ConfigExportPanel />);
-
-      expect(screen.getByText(/Schema version 1.1/i)).toBeInTheDocument();
-    });
-
     it('mentions per-server configurations in description', () => {
       render(<ConfigExportPanel />);
 

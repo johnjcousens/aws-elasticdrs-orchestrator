@@ -283,7 +283,7 @@ class TestDynamoDBErrors:
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test Group", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"]},
+            "body": {"groupName": "Test Group", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
         }
         context = MagicMock()
         context.invoked_function_arn = (
@@ -324,7 +324,7 @@ class TestDynamoDBErrors:
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test Group", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"]},
+            "body": {"groupName": "Test Group", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
         }
         context = MagicMock()
         context.invoked_function_arn = (
@@ -480,7 +480,7 @@ class TestUnexpectedExceptions:
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"]},
+            "body": {"groupName": "Test", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
         }
         context = MagicMock()
         context.invoked_function_arn = (
@@ -510,7 +510,7 @@ class TestUnexpectedExceptions:
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"]},
+            "body": {"groupName": "Test", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
         }
         context = MagicMock()
         context.invoked_function_arn = (
@@ -628,7 +628,7 @@ class TestErrorResponseStructure:
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"]},
+            "body": {"groupName": "Test", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
         }
         context = MagicMock()
         context.invoked_function_arn = (
@@ -690,8 +690,18 @@ class TestErrorConsistencyAcrossOperations:
 
                             # Check if result has error field (error response) or is success
                             if "error" in result:
-                                # All should return missing parameter, missing field, or not found error
-                                assert result["error"] in [ERROR_MISSING_PARAMETER, "MISSING_FIELD", ERROR_NOT_FOUND]
+                                # All should return missing parameter, missing field,
+                                # not found, or invalid parameter error.
+                                # INVALID_PARAMETER is returned when account context
+                                # validation fails before field-level checks (e.g.,
+                                # create_recovery_plan requires accountId for direct
+                                # invocation).
+                                assert result["error"] in [
+                                    ERROR_MISSING_PARAMETER,
+                                    "MISSING_FIELD",
+                                    ERROR_NOT_FOUND,
+                                    ERROR_INVALID_PARAMETER,
+                                ]
                                 # Should have message about the issue
                                 assert "message" in result
                             else:
