@@ -192,24 +192,12 @@ except ImportError:
     # Fallback for local testing
     def construct_role_arn(account_id: str) -> str:
         """Construct standardized role ARN from account ID."""
-        if (
-            not account_id
-            or len(account_id) != 12
-            or not account_id.isdigit()
-        ):
-            raise ValueError(
-                f"Invalid account ID: {account_id}. "
-                "Must be 12 digits."
-            )
-        return (
-            f"arn:aws:iam::{account_id}:role/"
-            "DRSOrchestrationRole"
-        )
+        if not account_id or len(account_id) != 12 or not account_id.isdigit():
+            raise ValueError(f"Invalid account ID: {account_id}. " "Must be 12 digits.")
+        return f"arn:aws:iam::{account_id}:role/" "DRSOrchestrationRole"
 
     # Fallback create_drs_client for local testing
-    def create_drs_client(
-        region: str, account_context: Dict = None
-    ):
+    def create_drs_client(region: str, account_context: Dict = None):
         """Fallback DRS client creation."""
         return boto3.client("drs", region_name=region)
 
@@ -498,12 +486,8 @@ def begin_wave_plan(event: Dict) -> Dict:
                     details={
                         "executionId": execution_id,
                         "planId": plan_id,
-                        "planName": plan.get(
-                            "planName", ""
-                        ),
-                        "accountId": account_context.get(
-                            "accountId", ""
-                        ),
+                        "planName": plan.get("planName", ""),
+                        "accountId": account_context.get("accountId", ""),
                         "waveCount": len(waves),
                         "isDrill": is_drill,
                         "timestamp": time.strftime(
@@ -535,12 +519,8 @@ def begin_wave_plan(event: Dict) -> Dict:
                     details={
                         "executionId": execution_id,
                         "planId": plan_id,
-                        "planName": plan.get(
-                            "planName", ""
-                        ),
-                        "accountId": account_context.get(
-                            "accountId", ""
-                        ),
+                        "planName": plan.get("planName", ""),
+                        "accountId": account_context.get("accountId", ""),
                         "errorMessage": str(e),
                         "timestamp": time.strftime(
                             "%Y-%m-%dT%H:%M:%SZ",
@@ -566,12 +546,8 @@ def begin_wave_plan(event: Dict) -> Dict:
                 details={
                     "executionId": execution_id,
                     "planId": plan_id,
-                    "planName": plan.get(
-                        "planName", ""
-                    ),
-                    "accountId": account_context.get(
-                        "accountId", ""
-                    ),
+                    "planName": plan.get("planName", ""),
+                    "accountId": account_context.get("accountId", ""),
                     "waveCount": 0,
                     "timestamp": time.strftime(
                         "%Y-%m-%dT%H:%M:%SZ",
@@ -662,27 +638,17 @@ def _notify_execution_start(state: Dict) -> None:
             plan_id=state.get("plan_id", ""),
             event_type="start",
             details={
-                "executionId": state.get(
-                    "execution_id", ""
-                ),
+                "executionId": state.get("execution_id", ""),
                 "planName": state.get("plan_name", ""),
                 "waveCount": state.get("total_waves", 0),
                 "isDrill": state.get("is_drill", False),
-                "accountId": account_ctx.get(
-                    "accountId", ""
-                ),
-                "consoleLink": os.environ.get(
-                    "API_GATEWAY_URL", ""
-                ),
-                "timestamp": time.strftime(
-                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-                ),
+                "accountId": account_ctx.get("accountId", ""),
+                "consoleLink": os.environ.get("API_GATEWAY_URL", ""),
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             },
         )
     except Exception as exc:
-        logger.error(
-            "Notification failed (start): %s", exc
-        )
+        logger.error("Notification failed (start): %s", exc)
 
 
 def _notify_execution_complete(state: Dict) -> None:
@@ -697,42 +663,24 @@ def _notify_execution_complete(state: Dict) -> None:
     """
     try:
         wave_results = state.get("wave_results", [])
-        success_count = sum(
-            1
-            for w in wave_results
-            if w.get("status") == "success"
-        )
-        failure_count = sum(
-            1
-            for w in wave_results
-            if w.get("status") == "failed"
-        )
+        success_count = sum(1 for w in wave_results if w.get("status") == "success")
+        failure_count = sum(1 for w in wave_results if w.get("status") == "failed")
         account_ctx = state.get("accountContext", {})
         publish_recovery_plan_notification(
             plan_id=state.get("plan_id", ""),
             event_type="complete",
             details={
-                "executionId": state.get(
-                    "execution_id", ""
-                ),
+                "executionId": state.get("execution_id", ""),
                 "planName": state.get("plan_name", ""),
                 "successCount": success_count,
                 "failureCount": failure_count,
-                "durationSeconds": state.get(
-                    "duration_seconds", 0
-                ),
-                "accountId": account_ctx.get(
-                    "accountId", ""
-                ),
-                "timestamp": time.strftime(
-                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-                ),
+                "durationSeconds": state.get("duration_seconds", 0),
+                "accountId": account_ctx.get("accountId", ""),
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             },
         )
     except Exception as exc:
-        logger.error(
-            "Notification failed (complete): %s", exc
-        )
+        logger.error("Notification failed (complete): %s", exc)
 
 
 def _notify_execution_failure(state: Dict) -> None:
@@ -751,31 +699,19 @@ def _notify_execution_failure(state: Dict) -> None:
             plan_id=state.get("plan_id", ""),
             event_type="fail",
             details={
-                "executionId": state.get(
-                    "execution_id", ""
-                ),
+                "executionId": state.get("execution_id", ""),
                 "planName": state.get("plan_name", ""),
                 "errorMessage": state.get("error", ""),
-                "errorCode": state.get(
-                    "error_code", ""
-                ),
-                "accountId": account_ctx.get(
-                    "accountId", ""
-                ),
-                "timestamp": time.strftime(
-                    "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-                ),
+                "errorCode": state.get("error_code", ""),
+                "accountId": account_ctx.get("accountId", ""),
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             },
         )
     except Exception as exc:
-        logger.error(
-            "Notification failed (failure): %s", exc
-        )
+        logger.error("Notification failed (failure): %s", exc)
 
 
-def handle_execution_pause(
-    event: Dict, context
-) -> Dict:
+def handle_execution_pause(event: Dict, context) -> Dict:
     """
     Handle execution pause with task token for resume/cancel.
 
@@ -806,9 +742,7 @@ def handle_execution_pause(
     execution_id = state.get("execution_id", "")
     plan_id = state.get("plan_id", "")
     plan_name = state.get("plan_name", "")
-    pause_reason = state.get(
-        "pause_reason", "Manual approval required"
-    )
+    pause_reason = state.get("pause_reason", "Manual approval required")
 
     logger.info(
         "Pause requested for execution %s, plan %s",
@@ -834,14 +768,8 @@ def handle_execution_pause(
                 "executionId": execution_id,
                 "planId": plan_id,
             },
-            UpdateExpression=(
-                "SET #status = :status, "
-                "taskToken = :token, "
-                "pausedBeforeWave = :wave"
-            ),
-            ExpressionAttributeNames={
-                "#status": "status"
-            },
+            UpdateExpression=("SET #status = :status, " "taskToken = :token, " "pausedBeforeWave = :wave"),
+            ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={
                 ":status": "PAUSED",
                 ":token": task_token,
@@ -853,9 +781,7 @@ def handle_execution_pause(
             execution_id,
         )
     except Exception as exc:
-        logger.error(
-            "Failed to store task token: %s", exc
-        )
+        logger.error("Failed to store task token: %s", exc)
         raise
 
     # Update state with pause metadata
@@ -864,14 +790,8 @@ def handle_execution_pause(
 
     # Build callback URLs for email action links
     api_url = os.environ.get("API_GATEWAY_URL", "")
-    resume_url = (
-        f"{api_url}/execution-callback"
-        f"?action=resume&taskToken={task_token}"
-    )
-    cancel_url = (
-        f"{api_url}/execution-callback"
-        f"?action=cancel&taskToken={task_token}"
-    )
+    resume_url = f"{api_url}/execution-callback" f"?action=resume&taskToken={task_token}"
+    cancel_url = f"{api_url}/execution-callback" f"?action=cancel&taskToken={task_token}"
 
     # Publish pause notification (never blocks execution)
     account_ctx = get_account_context(state)
@@ -883,9 +803,7 @@ def handle_execution_pause(
                 "executionId": execution_id,
                 "planId": plan_id,
                 "planName": plan_name,
-                "accountId": account_ctx.get(
-                    "accountId", ""
-                ),
+                "accountId": account_ctx.get("accountId", ""),
                 "pauseReason": pause_reason,
                 "pausedBeforeWave": paused_before_wave,
                 "taskToken": task_token,
@@ -904,7 +822,6 @@ def handle_execution_pause(
         )
 
     return state
-
 
 
 def resume_wave(event: Dict) -> Dict:
@@ -1030,16 +947,10 @@ def poll_wave_status(event: Dict) -> Dict:
                 plan_id=state.get("plan_id", ""),
                 event_type="fail",
                 details={
-                    "executionId": state.get(
-                        "execution_id", ""
-                    ),
+                    "executionId": state.get("execution_id", ""),
                     "planId": state.get("plan_id", ""),
-                    "planName": state.get(
-                        "plan_name", ""
-                    ),
-                    "accountId": get_account_context(
-                        state
-                    ).get("accountId", ""),
+                    "planName": state.get("plan_name", ""),
+                    "accountId": get_account_context(state).get("accountId", ""),
                     "errorMessage": str(e),
                     "timestamp": time.strftime(
                         "%Y-%m-%dT%H:%M:%SZ",
@@ -1056,9 +967,7 @@ def poll_wave_status(event: Dict) -> Dict:
         return state
 
 
-def _notify_on_status_change(
-    old_state: Dict, new_state: Dict
-) -> None:
+def _notify_on_status_change(old_state: Dict, new_state: Dict) -> None:
     """
     Publish notification when execution status changes.
 
@@ -1083,36 +992,24 @@ def _notify_on_status_change(
         "planId": plan_id,
         "planName": new_state.get("plan_name", ""),
         "accountId": account_ctx.get("accountId", ""),
-        "timestamp": time.strftime(
-            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-        ),
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
     try:
         if all_done and new_status == "completed":
-            base_details["completedWaves"] = new_state.get(
-                "completed_waves", 0
-            )
-            base_details["totalWaves"] = new_state.get(
-                "total_waves", 0
-            )
+            base_details["completedWaves"] = new_state.get("completed_waves", 0)
+            base_details["totalWaves"] = new_state.get("total_waves", 0)
             start_ts = new_state.get("start_time")
             if start_ts:
-                base_details["durationSeconds"] = (
-                    int(time.time()) - int(start_ts)
-                )
+                base_details["durationSeconds"] = int(time.time()) - int(start_ts)
             publish_recovery_plan_notification(
                 plan_id=plan_id,
                 event_type="complete",
                 details=base_details,
             )
         elif new_status == "failed":
-            base_details["errorMessage"] = new_state.get(
-                "error", "Unknown error"
-            )
-            base_details["failedWaves"] = new_state.get(
-                "failed_waves", 0
-            )
+            base_details["errorMessage"] = new_state.get("error", "Unknown error")
+            base_details["failedWaves"] = new_state.get("failed_waves", 0)
             publish_recovery_plan_notification(
                 plan_id=plan_id,
                 event_type="fail",
