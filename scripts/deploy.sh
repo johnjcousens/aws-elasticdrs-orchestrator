@@ -822,10 +822,15 @@ if [ "$LAMBDA_ONLY" = true ]; then
     )
     for func in "${LAMBDA_FUNCTIONS[@]}"; do
         FUNCTION_NAME="${PROJECT_NAME}-${func}-${ENVIRONMENT}"
+        # Map short function names to S3 zip keys
+        S3_KEY="${func}"
+        if [ "$func" = "dr-orch-sf" ]; then
+            S3_KEY="dr-orchestration-stepfunction"
+        fi
         aws lambda update-function-code \
             --function-name "$FUNCTION_NAME" \
             --s3-bucket "$DEPLOYMENT_BUCKET" \
-            --s3-key "lambda/${func}.zip" \
+            --s3-key "lambda/${S3_KEY}.zip" \
             --output json > /dev/null 2>&1 && \
             echo -e "${GREEN}    ✓ ${func}${NC}" || \
             echo -e "${YELLOW}    ⚠ ${func} (skipped)${NC}"
@@ -968,10 +973,15 @@ else
     )
     for func in "${LAMBDA_FUNCTIONS[@]}"; do
         FUNCTION_NAME="${PROJECT_NAME}-${func}-${ENVIRONMENT}"
+        # Map short function names to S3 zip keys
+        S3_KEY="${func}"
+        if [ "$func" = "dr-orch-sf" ]; then
+            S3_KEY="dr-orchestration-stepfunction"
+        fi
         aws lambda update-function-code \
             --function-name "$FUNCTION_NAME" \
             --s3-bucket "$DEPLOYMENT_BUCKET" \
-            --s3-key "lambda/${func}.zip" \
+            --s3-key "lambda/${S3_KEY}.zip" \
             --output json > /dev/null 2>&1 && \
             echo -e "${GREEN}    ✓ ${func}${NC}" || \
             echo -e "${YELLOW}    ⚠ ${func} (skipped)${NC}"
