@@ -32,6 +32,9 @@ export interface TargetAccount {
   status: 'active' | 'pending' | 'error' | 'ACTIVE' | 'INACTIVE' | 'ERROR';
   lastValidated?: string;
   crossAccountRoleArn?: string;
+  roleArn?: string;
+  assumeRoleName?: string;
+  externalId?: string;
 }
 
 interface AccountManagementPanelProps {

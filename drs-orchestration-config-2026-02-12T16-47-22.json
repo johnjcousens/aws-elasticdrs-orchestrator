@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "1.1",
+  "exportedAt": "2026-02-12T16:47:22.049876+00:00Z",
+  "sourceRegion": "us-east-1",
+  "sourceAccount": "438465159935",
+  "protectionGroups": [
+    {
+      "groupName": "WebServersGroup",
+      "description": "",
+      "region": "us-east-1",
+      "accountId": "160885257264",
+      "assumeRoleName": "DRSOrchestrationRole",
+      "externalId": "",
+      "owner": "",
+      "sourceServerIds": [
+        "s-33ba12bd0ef6fce87",
+        "s-333bf16028bf01350",
+        "s-384a23e047de29fbe",
+        "s-384dc02bb4487fb5e"
+      ],
+      "launchConfig": {
+        "launchDisposition": "STARTED",
+        "copyTags": true,
+        "licensing": {
+          "osByol": false
+        }
+      }
+    },
+    {
+      "groupName": "AppServerGroup",
+      "description": "",
+      "region": "us-east-1",
+      "accountId": "160885257264",
+      "assumeRoleName": "DRSOrchestrationRole",
+      "externalId": "",
+      "owner": "",
+      "sourceServerIds": [
+        "s-315c8c48094e4d24e",
+        "s-360c523f1b7fce993",
+        "s-3ab728b83a1315a76",
+        "s-36ed406daaad5f9ba"
+      ],
+      "launchConfig": {
+        "launchDisposition": "STARTED",
+        "copyTags": true,
+        "licensing": {
+          "osByol": false
+        }
+      }
+    },
+    {
+      "groupName": "DatabaseGroup",
+      "description": "",
+      "region": "us-east-1",
+      "accountId": "160885257264",
+      "assumeRoleName": "DRSOrchestrationRole",
+      "externalId": "",
+      "owner": "",
+      "sourceServerIds": [
+        "s-3261bfc73189c0044",
+        "s-3c918ebe1f910cf4e",
+        "s-30ec43b76413599f8",
+        "s-34ec53d77260270c5"
+      ],
+      "launchConfig": {
+        "launchDisposition": "STARTED",
+        "copyTags": true,
+        "licensing": {
+          "osByol": false
+        }
+      }
+    }
+  ],
+  "recoveryPlans": [
+    {
+      "planName": "ExtendedSourceServers",
+      "description": "",
+      "accountId": "160885257264",
+      "assumeRoleName": "DRSOrchestrationRole",
+      "notificationEmail": "",
+      "waves": [
+        {
+          "waveDescription": "",
+          "protectionGroupIds": [
+            "1257adcd-fb7e-4a62-8547-c282924a6072"
+          ],
+          "pauseBeforeWave": false,
+          "dependsOnWaves": [],
+          "waveName": "Wave 1",
+          "waveNumber": 0,
+          "serverIds": [
+            "s-360c523f1b7fce993",
+            "s-315c8c48094e4d24e"
+          ],
+          "protectionGroupName": "AppServerGroup"
+        }
+      ]
+    },
+    {
+      "planName": "TargetAcountOnly",
+      "description": "",
+      "accountId": "160885257264",
+      "assumeRoleName": "DRSOrchestrationRole",
+      "notificationEmail": "",
+      "waves": [
+        {
+          "waveDescription": "",
+          "protectionGroupIds": [
+            "0ca455b1-b031-4c31-b009-f779cc28915d"
+          ],
+          "pauseBeforeWave": false,
+          "dependsOnWaves": [],
+          "waveName": "Wave 1",
+          "waveNumber": 0,
+          "serverIds": [
+            "s-3261bfc73189c0044",
+            "s-3c918ebe1f910cf4e"
+          ],
+          "protectionGroupName": "DatabaseGroup"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "protectionGroupCount": 3,
+    "recoveryPlanCount": 2,
+    "serverCount": 0,
+    "serversWithCustomConfig": 0,
+    "orphanedReferences": 0
+  }
+}

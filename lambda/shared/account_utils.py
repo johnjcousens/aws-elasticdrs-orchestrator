@@ -59,7 +59,7 @@ arn = get_role_arn("123456789012", explicit_arn=None)
 import os
 import re
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -67,6 +67,7 @@ from botocore.exceptions import ClientError
 # Import from existing shared modules
 from shared.cross_account import get_current_account_id
 from shared.response_utils import response
+from shared.security_utils import InputValidationError
 
 # Standardized role name across all accounts
 STANDARD_ROLE_NAME = "DRSOrchestrationRole"
@@ -213,6 +214,35 @@ def _get_target_accounts_table():
                 _dynamodb = boto3.resource("dynamodb")
             _target_accounts_table = _dynamodb.Table(table_name)
     return _target_accounts_table
+
+
+def get_target_account_name(account_id: str) -> Optional[str]:
+    """
+    Get account name from target accounts table.
+
+    Args:
+        account_id: AWS account ID
+
+    Returns:
+        Account name from target accounts table, or None if not found
+
+    Example:
+        >>> name = get_target_account_name("160885257264")
+        >>> print(name)
+        'DEMO_TARGET'
+    """
+    target_accounts_table = _get_target_accounts_table()
+    if not target_accounts_table or not account_id:
+        return None
+
+    try:
+        result = target_accounts_table.get_item(Key={"accountId": account_id})
+        if "Item" in result:
+            return result["Item"].get("accountName")
+        return None
+    except Exception as e:
+        print(f"Error getting account name from target accounts table: {e}")
+        return None
 
 
 def get_account_name(account_id: str) -> Optional[str]:
@@ -454,3 +484,192 @@ def validate_target_account(account_id: str) -> Dict:
     except Exception as e:
         print(f"Error validating target account: {e}")
         return response(500, {"error": str(e)})
+
+
+# Type alias for invocation source detection
+InvocationSource = Literal["api_gateway", "direct"]
+
+
+def detect_invocation_source(event: Dict[str, Any]) -> InvocationSource:
+    """
+    Detect Lambda invocation source.
+
+    Determines whether the Lambda was invoked via API Gateway
+    or directly (SDK, CLI, Step Functions, EventBridge).
+
+    Args:
+        event: Lambda event object
+
+    Returns:
+        "api_gateway" if invoked via API Gateway (has requestContext)
+        "direct" if invoked directly (no requestContext)
+
+    Example:
+        >>> detect_invocation_source({"requestContext": {"requestId": "abc"}})
+        'api_gateway'
+
+        >>> detect_invocation_source({"operation": "create"})
+        'direct'
+    """
+    if "requestContext" in event:
+        return "api_gateway"
+    return "direct"
+
+
+def get_invocation_metadata(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract invocation metadata for logging and audit.
+
+    Provides structured metadata about how the Lambda was invoked,
+    including source type, timestamp, and request identifiers.
+
+    Args:
+        event: Lambda event object
+
+    Returns:
+        Dictionary with invocation metadata:
+        - invocation_source: "api_gateway" or "direct"
+        - timestamp: ISO 8601 UTC timestamp
+        - request_id: API Gateway request ID or event requestId
+        - api_id: API Gateway ID (api_gateway mode only)
+        - cognito_identity: Cognito identity ID (api_gateway mode only)
+
+    Example:
+        >>> metadata = get_invocation_metadata({
+        ...     "requestContext": {
+        ...         "requestId": "req-123",
+        ...         "apiId": "api-456",
+        ...         "identity": {"cognitoIdentityId": "id-789"}
+        ...     }
+        ... })
+        >>> metadata["invocation_source"]
+        'api_gateway'
+        >>> metadata["request_id"]
+        'req-123'
+    """
+    source = detect_invocation_source(event)
+
+    metadata: Dict[str, Any] = {
+        "invocation_source": source,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    if source == "api_gateway":
+        request_context = event.get("requestContext", {})
+        identity = request_context.get("identity", {})
+        metadata.update(
+            {
+                "request_id": request_context.get("requestId", "unknown"),
+                "api_id": request_context.get("apiId", "unknown"),
+                "cognito_identity": identity.get("cognitoIdentityId"),
+            }
+        )
+    else:
+        metadata.update(
+            {
+                "request_id": event.get("requestId", "unknown"),
+            }
+        )
+
+    return metadata
+
+
+def extract_account_from_cognito(event: Dict[str, Any]) -> str:
+    """
+    Extract account ID from Cognito identity in API Gateway event.
+
+    Parses the cognitoAuthenticationProvider field to extract
+    the account ID from the provider string.
+
+    Args:
+        event: API Gateway event with requestContext
+
+    Returns:
+        Account ID extracted from Cognito authentication provider
+
+    Raises:
+        InputValidationError: If account ID cannot be extracted
+            from the Cognito identity
+
+    Example:
+        >>> event = {
+        ...     "requestContext": {
+        ...         "identity": {
+        ...             "cognitoAuthenticationProvider": (
+        ...                 "cognito-idp.us-east-1.amazonaws.com"
+        ...                 "/us-east-1_abc:CognitoSignIn"
+        ...                 ":123456789012"
+        ...             )
+        ...         }
+        ...     }
+        ... }
+        >>> extract_account_from_cognito(event)
+        '123456789012'
+    """
+    try:
+        cognito_identity = event["requestContext"]["identity"]
+        provider = cognito_identity.get("cognitoAuthenticationProvider", "")
+        account_id = provider.split(":")[-1]
+        return account_id
+    except (KeyError, IndexError) as e:
+        raise InputValidationError(f"Cannot extract account ID from Cognito: {e}")
+
+
+def validate_account_context_for_invocation(event: Dict[str, Any], body: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Validate and extract account context based on invocation source.
+
+    Enforces different validation rules depending on how the Lambda
+    was invoked:
+
+    API Gateway Mode:
+        - accountId is optional
+        - Defaults to Cognito identity if missing
+
+    Direct Invocation Mode:
+        - accountId is REQUIRED
+        - Raises InputValidationError if missing
+
+    Args:
+        event: Lambda event object
+        body: Request body
+
+    Returns:
+        Dictionary with accountId, assumeRoleName, externalId
+
+    Raises:
+        InputValidationError: If validation fails
+
+    Example:
+        >>> event = {"operation": "create"}
+        >>> body = {"accountId": "123456789012"}
+        >>> result = validate_account_context_for_invocation(
+        ...     event, body
+        ... )
+        >>> result["accountId"]
+        '123456789012'
+    """
+    invocation_source = detect_invocation_source(event)
+
+    if invocation_source == "direct":
+        account_id = body.get("accountId")
+        if not account_id:
+            raise InputValidationError(
+                "accountId is required for direct Lambda "
+                "invocation. When invoking Lambda directly "
+                "(without API Gateway), you must explicitly "
+                "provide accountId in the event payload."
+            )
+    else:
+        account_id = body.get("accountId")
+        if not account_id:
+            account_id = extract_account_from_cognito(event)
+
+    if not validate_account_id(account_id):
+        raise InputValidationError(f"Invalid account ID format: {account_id}")
+
+    return {
+        "accountId": account_id,
+        "assumeRoleName": body.get("assumeRoleName", ""),
+        "externalId": body.get("externalId", ""),
+    }

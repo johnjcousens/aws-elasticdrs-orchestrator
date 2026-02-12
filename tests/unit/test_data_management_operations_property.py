@@ -57,6 +57,12 @@ def setup_test_environment():
             "ENVIRONMENT": "test",
         },
     ):
+        # Save original shared modules before replacing
+        original_shared_modules = {
+            name: mod for name, mod in sys.modules.items()
+            if name == "shared" or name.startswith("shared.")
+        }
+
         # Mock shared modules
         sys.modules["shared"] = Mock()
         sys.modules["shared.account_utils"] = Mock()
@@ -65,6 +71,8 @@ def setup_test_environment():
         sys.modules["shared.cross_account"] = Mock()
         sys.modules["shared.drs_regions"] = Mock()
         sys.modules["shared.drs_regions"].DRS_REGIONS = ["us-east-1", "us-west-2"]
+        sys.modules["shared.security_utils"] = Mock()
+        sys.modules["shared.notifications"] = Mock()
 
         mock_response_utils = Mock()
 
@@ -106,10 +114,11 @@ def setup_test_environment():
             if original_index is not None:
                 sys.modules["index"] = original_index
 
-            # Clean up mocked modules
+            # Restore original shared modules
             for module_name in list(sys.modules.keys()):
-                if module_name.startswith("shared"):
+                if module_name == "shared" or module_name.startswith("shared."):
                     del sys.modules[module_name]
+            sys.modules.update(original_shared_modules)
 
 
 

@@ -28,6 +28,8 @@ interface ImportPreview {
   sourceRegion: string;
   serversWithCustomConfig?: number;
   serversWithStaticIPs?: number;
+  pgsWithoutAccountContext?: number;
+  rpsWithoutAccountContext?: number;
 }
 
 interface ImportResults {
@@ -83,9 +85,13 @@ export const ConfigImportPanel: React.FC<ConfigImportPanelProps> = ({
       // Count servers with custom configs and static IPs
       let serversWithCustomConfig = 0;
       let serversWithStaticIPs = 0;
+      let pgsWithoutAccountContext = 0;
       
       if (data.protectionGroups && Array.isArray(data.protectionGroups)) {
         data.protectionGroups.forEach((group: any) => {
+          if (!group.accountId) {
+            pgsWithoutAccountContext++;
+          }
           if (group.servers && Array.isArray(group.servers)) {
             group.servers.forEach((server: any) => {
               // Count servers with custom config
@@ -101,6 +107,15 @@ export const ConfigImportPanel: React.FC<ConfigImportPanelProps> = ({
         });
       }
 
+      let rpsWithoutAccountContext = 0;
+      if (data.recoveryPlans && Array.isArray(data.recoveryPlans)) {
+        data.recoveryPlans.forEach((plan: any) => {
+          if (!plan.accountId) {
+            rpsWithoutAccountContext++;
+          }
+        });
+      }
+
       setConfigData(data);
       setPreview({
         protectionGroups: data.protectionGroups?.length || 0,
@@ -110,6 +125,8 @@ export const ConfigImportPanel: React.FC<ConfigImportPanelProps> = ({
         sourceRegion: data.metadata.sourceRegion || 'Unknown',
         serversWithCustomConfig,
         serversWithStaticIPs,
+        pgsWithoutAccountContext,
+        rpsWithoutAccountContext,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to parse configuration file';
@@ -245,6 +262,21 @@ export const ConfigImportPanel: React.FC<ConfigImportPanelProps> = ({
                 <Alert type="info">
                   Schema version {preview.schemaVersion} detected. This configuration does not include per-server settings. 
                   All servers will use protection group defaults.
+                </Alert>
+              )}
+
+              {/* Account context warning */}
+              {((preview.pgsWithoutAccountContext || 0) > 0 || (preview.rpsWithoutAccountContext || 0) > 0) && (
+                <Alert type="warning">
+                  Some resources are missing account context:
+                  {(preview.pgsWithoutAccountContext || 0) > 0 && (
+                    <> {preview.pgsWithoutAccountContext} Protection Group{preview.pgsWithoutAccountContext === 1 ? '' : 's'}</>
+                  )}
+                  {(preview.pgsWithoutAccountContext || 0) > 0 && (preview.rpsWithoutAccountContext || 0) > 0 && ' and'}
+                  {(preview.rpsWithoutAccountContext || 0) > 0 && (
+                    <> {preview.rpsWithoutAccountContext} Recovery Plan{preview.rpsWithoutAccountContext === 1 ? '' : 's'}</>
+                  )}
+                  {' '}without account ID. These will still be imported, but you should set the account context after import.
                 </Alert>
               )}
             </SpaceBetween>

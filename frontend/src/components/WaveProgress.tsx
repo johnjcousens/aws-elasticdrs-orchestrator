@@ -56,14 +56,11 @@ const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse |
   
   // 1. Check explicit wave status first
   if (['completed', 'failed', 'cancelled'].includes(waveStatus)) {
-    console.log(`[WaveProgress] Wave ${wave.waveNumber} has explicit status: ${wave.status}`);
     return waveStatus;
   }
   
-  // 2. NEW: Check if wave has endTime (authoritative completion signal)
+  // 2. Check if wave has endTime (authoritative completion signal)
   if (wave.endTime) {
-    console.log(`[WaveProgress] Wave ${wave.waveNumber} has endTime: ${new Date(wave.endTime).toISOString()}`);
-    
     // Verify all servers are in terminal state
     const servers = wave.serverExecutions || [];
     const allServersTerminal = servers.every(s => {
@@ -78,9 +75,7 @@ const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse |
         return status === 'FAILED';
       });
       
-      const status = anyFailed ? 'failed' : 'completed';
-      console.log(`[WaveProgress] Wave ${wave.waveNumber} completed with status: ${status}`);
-      return status;
+      return anyFailed ? 'failed' : 'completed';
     }
   }
   
@@ -93,7 +88,6 @@ const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse |
     });
     
     if (allLaunched) {
-      console.log(`[WaveProgress] Wave ${wave.waveNumber} - all ${servers.length} servers launched`);
       return 'completed';
     }
     
@@ -107,7 +101,6 @@ const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse |
     });
     
     if (anyFailed) {
-      console.log(`[WaveProgress] Wave ${wave.waveNumber} has failed servers`);
       return 'failed';
     }
     
@@ -120,13 +113,11 @@ const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse |
         
         // JOB_END is authoritative completion signal
         if (jobEndEvents.length > 0) {
-          console.log(`[WaveProgress] Wave ${wave.waveNumber} has JOB_END event in logs`);
           return 'completed';
         }
         
         // LAUNCH_END for all servers also indicates completion
         if (launchEndEvents.length === servers.length && servers.length > 0) {
-          console.log(`[WaveProgress] Wave ${wave.waveNumber} has LAUNCH_END for all ${servers.length} servers`);
           return 'completed';
         }
       }
@@ -144,24 +135,17 @@ const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse |
   }
   
   // 7. Map wave status as fallback
-  let mappedStatus: string;
   switch (waveStatus) {
     case 'started':
-      mappedStatus = 'in_progress'; // DRS job is active, show as in progress
-      break;
+      return 'in_progress'; // DRS job is active, show as in progress
     case 'launching':
     case 'initiated':
-      mappedStatus = 'in_progress';
-      break;
+      return 'in_progress';
     case 'polling':
-      mappedStatus = 'in_progress';
-      break;
+      return 'in_progress';
     default:
-      mappedStatus = waveStatus;
+      return waveStatus;
   }
-  
-  console.log(`[WaveProgress] Wave ${wave.waveNumber} mapped status: ${mappedStatus} (from ${wave.status})`);
-  return mappedStatus;
 };
 
 /**
@@ -696,13 +680,6 @@ const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsRes
         );
       }
       
-      // Data should be available but isn't - log warning
-      if (status === 'LAUNCHED' || status === 'COMPLETED') {
-        console.warn(
-          `[WaveProgress] Server ${server.serverId} (${server.serverName}) launched but missing instance ID`
-        );
-      }
-      
       return (
         <span style={{ color: '#5f6b7a', fontSize: '13px' }} title="Instance ID not available">
           —
@@ -767,36 +744,12 @@ const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsRes
 ];
 
 /**
- * Log EC2 data availability for debugging
+ * Log EC2 data availability for debugging (only when data is missing)
+ * REMOVED: This was causing console spam due to parent component re-rendering every second
  */
 const logEC2DataAvailability = (wave: WaveExecution) => {
-  const serversWithEC2Data = wave.serverExecutions.filter(
-    s => s.recoveredInstanceId && s.instanceType && s.privateIp
-  );
-  const serversWithoutEC2Data = wave.serverExecutions.filter(
-    s => !s.recoveredInstanceId || !s.instanceType || !s.privateIp
-  );
-  
-  if (serversWithoutEC2Data.length > 0) {
-    console.log(
-      `[WaveProgress] Wave ${wave.waveNumber} - ${serversWithoutEC2Data.length}/${wave.serverExecutions.length} servers missing EC2 data`
-    );
-    console.log('[WaveProgress] Servers missing EC2 data:', 
-      serversWithoutEC2Data.map(s => ({
-        serverId: s.serverId,
-        serverName: s.serverName,
-        launchStatus: s.launchStatus,
-        hasInstanceId: !!s.recoveredInstanceId,
-        hasInstanceType: !!s.instanceType,
-        hasPrivateIp: !!s.privateIp,
-        hasLaunchTime: !!(s.launchTime || s.startTime),
-      }))
-    );
-  } else if (wave.serverExecutions.length > 0) {
-    console.log(
-      `[WaveProgress] Wave ${wave.waveNumber} - all ${wave.serverExecutions.length} servers have EC2 data`
-    );
-  }
+  // Logging removed to prevent console spam
+  // EC2 data availability can be checked by inspecting the table directly
 };
 
 /**

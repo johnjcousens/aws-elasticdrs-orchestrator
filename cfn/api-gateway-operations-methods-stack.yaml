@@ -67,6 +67,11 @@ Parameters:
     Type: String
     Description: Execution Handler Function ARN from Lambda Stack
 
+  # Execution Callback Resource ID from Resources Stack
+  ExecutionCallbackResourceId:
+    Type: String
+    Description: Execution Callback Resource ID from Resources Stack
+
   # Execution Resource IDs from Resources Stack
   ExecutionsResourceId:
     Type: String
@@ -795,6 +800,64 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: true
 
   # ===========================================================================
+  # EXECUTION CALLBACK METHODS (UNAUTHENTICATED)
+  # ===========================================================================
+  # /execution-callback - GET callback for pause/resume from email links
+  # No Cognito auth - task token serves as the credential
+  # Query parameters: action (resume|cancel), taskToken (Step Functions token)
+
+  ExecutionCallbackGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ExecutionCallbackResourceId
+      HttpMethod: GET
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.querystring.action: true
+        method.request.querystring.taskToken: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ExecutionHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            text/html: Empty
+        - StatusCode: 400
+          ResponseModels:
+            text/html: Empty
+        - StatusCode: 500
+          ResponseModels:
+            text/html: Empty
+
+  ExecutionCallbackOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ExecutionCallbackResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ===========================================================================
   # LAMBDA PERMISSIONS
   # ===========================================================================
   # Grants API Gateway permission to invoke the Execution Handler Lambda.
@@ -815,6 +878,6 @@ Resources:
 Outputs:
   OperationsMethodsStackStatus:
     Description: 'API Gateway Operations Methods Stack deployment status'
-    Value: 'Operations methods deployed: Executions (18 methods) + DRS Failover/Failback (16 methods) + DRS Jobs (6 methods) = 40 methods total'
+    Value: 'Operations methods deployed: Executions (18 methods) + DRS Failover/Failback (16 methods) + DRS Jobs (6 methods) + Execution Callback (2 methods) = 42 methods total'
     Export:
       Name: !Sub '${AWS::StackName}-OperationsMethodsStackStatus'

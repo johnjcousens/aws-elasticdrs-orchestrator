@@ -72,6 +72,12 @@ export interface TargetAccount {
   /** IAM role ARN for cross-account access (optional for same-account) */
   roleArn?: string;
 
+  /** Cross-account role ARN (alias for roleArn) */
+  crossAccountRoleArn?: string;
+
+  /** IAM role name for cross-account access */
+  assumeRoleName?: string;
+
   /** External ID for role assumption (optional) */
   externalId?: string;
 

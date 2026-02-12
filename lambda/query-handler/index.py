@@ -2905,7 +2905,7 @@ def export_configuration(query_params: Dict) -> Dict:
                 "description": pg.get("description", ""),
                 "region": pg.get("region", ""),
                 "accountId": pg.get("accountId", ""),
-                "owner": pg.get("owner", ""),
+                "assumeRoleName": pg.get("assumeRoleName", ""),
             }
             # Include server selection method (mutually exclusive)
             if pg.get("sourceServerIds"):
@@ -2966,11 +2966,16 @@ def export_configuration(query_params: Dict) -> Dict:
                         # reference)
                         orphaned_pg_ids.append(pg_id)
                         print(f"Warning: PG ID '{pg_id}' not found - keeping ID in export")
+                # Remove internal ID arrays — export uses names only
+                exported_wave.pop("protectionGroupIds", None)
                 exported_waves.append(exported_wave)
 
             exported_rp = {
                 "planName": rp.get("planName", ""),
                 "description": rp.get("description", ""),
+                "accountId": rp.get("accountId", ""),
+                "assumeRoleName": rp.get("assumeRoleName", ""),
+                "notificationEmail": rp.get("notificationEmail", ""),
                 "waves": exported_waves,
             }
             exported_rps.append(exported_rp)
@@ -2978,21 +2983,13 @@ def export_configuration(query_params: Dict) -> Dict:
         if orphaned_pg_ids:
             print(f"Export contains {len(orphaned_pg_ids)} orphaned PG references")
 
-        # Build export payload with schema v1.1 metadata
+        # Build export payload — clean, customer-facing format
         export_data = {
-            "schemaVersion": "1.1",
             "exportedAt": datetime.now(timezone.utc).isoformat() + "Z",
             "sourceRegion": source_region,
             "sourceAccount": get_current_account_id(),
             "protectionGroups": exported_pgs,
             "recoveryPlans": exported_rps,
-            "metadata": {
-                "protectionGroupCount": len(exported_pgs),
-                "recoveryPlanCount": len(exported_rps),
-                "serverCount": total_server_count,
-                "serversWithCustomConfig": servers_with_custom_config,
-                "orphanedReferences": len(orphaned_pg_ids),
-            },
         }
 
         return response(200, export_data)
@@ -4653,7 +4650,7 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
     # Step 1: Query target account
     target_config = {
         "accountId": target_account.get("accountId"),
-        "accountName": target_account.get("accountName", "Target Account"),
+        "accountName": target_account.get("accountName"),
         "accountType": "target",
         "roleArn": target_account.get("roleArn"),
         "externalId": target_account.get("externalId"),

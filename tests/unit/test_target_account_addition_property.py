@@ -180,8 +180,13 @@ def test_property_optional_role_arn_acceptance(
                 mock_boto3.client.side_effect = mock_client
                 mock_boto3.resource.return_value = dynamodb
                 
-                # Act
-                response = data_management_handler.create_target_account(body)
+                # Act - patch table getter to use moto table
+                with patch.object(
+                    data_management_handler,
+                    "get_target_accounts_table",
+                    return_value=table,
+                ):
+                    response = data_management_handler.create_target_account(body)
 
         # Assert - Both should succeed
         assert response["statusCode"] in [200, 201], (

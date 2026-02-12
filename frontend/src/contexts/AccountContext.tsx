@@ -11,6 +11,19 @@ import apiClient from '../services/api';
 import type { TargetAccount } from '../components/AccountManagementPanel';
 import { useAuth } from './AuthContext';
 
+/**
+ * Account context data for API requests.
+ *
+ * Provides the current account's identity and cross-account
+ * access details so create/update requests can include them
+ * automatically.
+ */
+export interface AccountContextData {
+  accountId: string;
+  assumeRoleName?: string;
+  externalId?: string;
+}
+
 interface AccountContextType {
   // Account selection
   selectedAccount: SelectProps.Option | null;
@@ -25,6 +38,7 @@ interface AccountContextType {
   refreshAccounts: () => Promise<void>;
   getCurrentAccountId: () => string | null;
   getCurrentAccountName: () => string | null;
+  getAccountContext: () => AccountContextData;
   
   // Auto-selection based on settings
   applyDefaultAccount: (defaultAccountId?: string) => void;
@@ -252,6 +266,42 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     return account?.accountName || accountId;
   }, [selectedAccount?.value, availableAccounts]);
 
+  /**
+   * Return the current account context for API requests.
+   *
+   * Extracts accountId, assumeRoleName (from the role ARN), and
+   * externalId from the currently selected account.
+   *
+   * @throws Error when no account is selected
+   */
+  const getAccountContext = useCallback((): AccountContextData => {
+    if (!selectedAccount?.value) {
+      throw new Error("No account selected");
+    }
+
+    const account = availableAccounts.find(
+      acc => acc.accountId === selectedAccount.value
+    );
+
+    // Extract role name from ARN (arn:aws:iam::ACCOUNT:role/ROLE_NAME)
+    const roleArn = account?.roleArn ?? account?.crossAccountRoleArn ?? "";
+    let assumeRoleName: string | undefined;
+    if (roleArn) {
+      const parts = roleArn.split("/");
+      if (parts.length > 1) {
+        assumeRoleName = parts.slice(1).join("/");
+      }
+    }
+
+    const externalId = account?.externalId;
+
+    return {
+      accountId: selectedAccount.value,
+      assumeRoleName: assumeRoleName || undefined,
+      externalId: externalId || undefined,
+    };
+  }, [selectedAccount?.value, availableAccounts]);
+
   // Apply default account selection when accounts are loaded (only once)
   useEffect(() => {
     if (!accountsLoading && availableAccounts.length > 0 && !selectedAccount) {
@@ -286,6 +336,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     refreshAccounts,
     getCurrentAccountId,
     getCurrentAccountName,
+    getAccountContext,
     applyDefaultAccount,
     isAccountRequired,
     hasSelectedAccount,

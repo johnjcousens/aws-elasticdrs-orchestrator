@@ -40,6 +40,18 @@ create_recovery_plan = index.create_recovery_plan
 validate_waves = index.validate_waves
 
 
+# Default event for API Gateway invocation mode
+API_GATEWAY_EVENT = {
+    "requestContext": {
+        "requestId": "test-request-id",
+        "apiId": "test-api-id",
+        "identity": {},
+    },
+    "httpMethod": "POST",
+    "path": "/protection-groups",
+}
+
+
 # ============================
 # Test Fixtures
 # ============================================================================
@@ -87,6 +99,7 @@ def test_pg_creation_with_100_servers_succeeds(
         "groupName": "Test PG 100 Servers",
         "region": "us-east-1",
         "sourceServerIds": server_ids,
+        "accountId": "123456789012",
     }
 
     # Mock DRS API to return all servers as valid
@@ -96,9 +109,11 @@ def test_pg_creation_with_100_servers_succeeds(
 
     with patch.object(index, "boto3") as mock_boto3, patch.object(
         index, "check_server_conflicts_for_create", return_value=[]
+    ), patch.object(
+        index, "create_drs_client", return_value=mock_drs_client
     ):
         mock_boto3.client.return_value = mock_drs_client
-        result = create_protection_group(body)  # noqa: F841
+        result = create_protection_group(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 201
     body_data = json.loads(result["body"])
@@ -115,6 +130,7 @@ def test_pg_creation_with_101_servers_fails(
         "groupName": "Test PG 101 Servers",
         "region": "us-east-1",
         "sourceServerIds": server_ids,
+        "accountId": "123456789012",
     }
 
     # Mock DRS API to return all servers as valid
@@ -124,9 +140,11 @@ def test_pg_creation_with_101_servers_fails(
 
     with patch.object(index, "boto3") as mock_boto3, patch.object(
         index, "check_server_conflicts_for_create", return_value=[]
+    ), patch.object(
+        index, "create_drs_client", return_value=mock_drs_client
     ):
         mock_boto3.client.return_value = mock_drs_client
-        result = create_protection_group(body)  # noqa: F841
+        result = create_protection_group(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -146,6 +164,7 @@ def test_pg_creation_with_150_servers_fails(
         "groupName": "Test PG 150 Servers",
         "region": "us-east-1",
         "sourceServerIds": server_ids,
+        "accountId": "123456789012",
     }
 
     mock_drs_client.describe_source_servers.return_value = {
@@ -154,9 +173,11 @@ def test_pg_creation_with_150_servers_fails(
 
     with patch.object(index, "boto3") as mock_boto3, patch.object(
         index, "check_server_conflicts_for_create", return_value=[]
+    ), patch.object(
+        index, "create_drs_client", return_value=mock_drs_client
     ):
         mock_boto3.client.return_value = mock_drs_client
-        result = create_protection_group(body)  # noqa: F841
+        result = create_protection_group(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -177,6 +198,7 @@ def test_pg_creation_tag_based_100_servers_succeeds(
         "groupName": "Test Tag PG 100",
         "region": "us-east-1",
         "serverSelectionTags": {"Environment": "Production"},
+        "accountId": "123456789012",
     }
 
     # Mock tag resolution to return 100 servers
@@ -188,7 +210,7 @@ def test_pg_creation_tag_based_100_servers_succeeds(
     with patch.object(
         index, "check_tag_conflicts_for_create", return_value=[]
     ), patch.object(index, "query_drs_servers_by_tags", return_value=mock_servers):
-        result = create_protection_group(body)  # noqa: F841
+        result = create_protection_group(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 201
 
@@ -201,6 +223,7 @@ def test_pg_creation_tag_based_101_servers_fails(
         "groupName": "Test Tag PG 101",
         "region": "us-east-1",
         "serverSelectionTags": {"Environment": "Production"},
+        "accountId": "123456789012",
     }
 
     # Mock tag resolution to return 101 servers
@@ -212,7 +235,7 @@ def test_pg_creation_tag_based_101_servers_fails(
     with patch.object(
         index, "check_tag_conflicts_for_create", return_value=[]
     ), patch.object(index, "query_drs_servers_by_tags", return_value=mock_servers):
-        result = create_protection_group(body)  # noqa: F841
+        result = create_protection_group(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -230,6 +253,7 @@ def test_pg_creation_tag_based_200_servers_fails(
         "groupName": "Test Tag PG 200",
         "region": "us-east-1",
         "serverSelectionTags": {"Tier": "Web"},
+        "accountId": "123456789012",
     }
 
     # Mock tag resolution to return 200 servers
@@ -241,7 +265,7 @@ def test_pg_creation_tag_based_200_servers_fails(
     with patch.object(
         index, "check_tag_conflicts_for_create", return_value=[]
     ), patch.object(index, "query_drs_servers_by_tags", return_value=mock_servers):
-        result = create_protection_group(body)  # noqa: F841
+        result = create_protection_group(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -339,6 +363,7 @@ def test_rp_creation_total_500_servers_succeeds(mock_dynamodb_tables):
     """Test Recovery Plan with exactly 500 total servers succeeds"""
     body = {
         "name": "Test Plan 500 Servers",
+        "accountId": "123456789012",
         "waves": [
             {"waveNumber": i, "waveName": f"Wave {i+1}", "protectionGroupId": f"pg-{i}"}
             for i in range(5)
@@ -351,6 +376,7 @@ def test_rp_creation_total_500_servers_succeeds(mock_dynamodb_tables):
         return {
             "Item": {
                 "groupId": pg_id,
+                "accountId": "123456789012",
                 "region": "us-east-1",
                 "sourceServerIds": [f"s-{pg_id}-{i:03d}" for i in range(100)],
             }
@@ -365,7 +391,7 @@ def test_rp_creation_total_500_servers_succeeds(mock_dynamodb_tables):
         "shared.conflict_detection.check_concurrent_jobs_limit",
         return_value={"canStartJob": True, "currentJobs": 0, "maxJobs": 20},
     ), patch("shared.conflict_detection.check_server_conflicts", return_value=[]):
-        result = create_recovery_plan(body)  # noqa: F841
+        result = create_recovery_plan(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 201
     body_data = json.loads(result["body"])
@@ -376,6 +402,7 @@ def test_rp_creation_total_501_servers_fails(mock_dynamodb_tables):
     """Test Recovery Plan with 501 total servers fails"""
     body = {
         "name": "Test Plan 501 Servers",
+        "accountId": "123456789012",
         "waves": [
             {"waveNumber": 0, "waveName": "Wave 1", "protectionGroupId": "pg-1"},
             {"waveNumber": 1, "waveName": "Wave 2", "protectionGroupId": "pg-2"},
@@ -396,6 +423,7 @@ def test_rp_creation_total_501_servers_fails(mock_dynamodb_tables):
         return {
             "Item": {
                 "groupId": pg_id,
+                "accountId": "123456789012",
                 "region": "us-east-1",
                 "sourceServerIds": [
                     f"s-{pg_id}-{i:03d}" for i in range(server_count)
@@ -407,7 +435,7 @@ def test_rp_creation_total_501_servers_fails(mock_dynamodb_tables):
         mock_pg_get_item
     )
 
-    result = create_recovery_plan(body)  # noqa: F841
+    result = create_recovery_plan(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -421,6 +449,7 @@ def test_rp_creation_total_1000_servers_fails(mock_dynamodb_tables):
     """Test Recovery Plan with 1000 total servers fails"""
     body = {
         "name": "Test Plan 1000 Servers",
+        "accountId": "123456789012",
         "waves": [
             {"waveNumber": i, "waveName": f"Wave {i+1}", "protectionGroupId": f"pg-{i}"}
             for i in range(10)
@@ -433,6 +462,7 @@ def test_rp_creation_total_1000_servers_fails(mock_dynamodb_tables):
         return {
             "Item": {
                 "groupId": pg_id,
+                "accountId": "123456789012",
                 "region": "us-east-1",
                 "sourceServerIds": [f"s-{pg_id}-{i:03d}" for i in range(100)],
             }
@@ -442,7 +472,7 @@ def test_rp_creation_total_1000_servers_fails(mock_dynamodb_tables):
         mock_pg_get_item
     )
 
-    result = create_recovery_plan(body)  # noqa: F841
+    result = create_recovery_plan(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 400
     body_data = json.loads(result["body"])
@@ -459,6 +489,7 @@ def test_rp_creation_with_concurrent_jobs_warning(mock_dynamodb_tables):
     """Test Recovery Plan creation shows warning when concurrent jobs at limit"""
     body = {
         "name": "Test Plan With Warning",
+        "accountId": "123456789012",
         "waves": [
             {"waveNumber": 0, "waveName": "Wave 1", "protectionGroupId": "pg-1"}
         ],
@@ -468,6 +499,7 @@ def test_rp_creation_with_concurrent_jobs_warning(mock_dynamodb_tables):
     mock_dynamodb_tables["protection_groups"].get_item.return_value = {
         "Item": {
             "groupId": "pg-1",
+            "accountId": "123456789012",
             "region": "us-east-1",
             "sourceServerIds": [f"s-{i:03d}" for i in range(50)],
         }
@@ -478,7 +510,7 @@ def test_rp_creation_with_concurrent_jobs_warning(mock_dynamodb_tables):
         "shared.conflict_detection.check_concurrent_jobs_limit",
         return_value={"canStartJob": False, "currentJobs": 20, "maxJobs": 20},
     ), patch("shared.conflict_detection.check_server_conflicts", return_value=[]):
-        result = create_recovery_plan(body)  # noqa: F841
+        result = create_recovery_plan(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 201
     body_data = json.loads(result["body"])
@@ -493,6 +525,7 @@ def test_rp_creation_with_server_conflicts_warning(mock_dynamodb_tables):
     """Test Recovery Plan creation shows warning when servers have conflicts"""
     body = {
         "name": "Test Plan With Conflicts",
+        "accountId": "123456789012",
         "waves": [
             {"waveNumber": 0, "waveName": "Wave 1", "protectionGroupId": "pg-1"}
         ],
@@ -502,6 +535,7 @@ def test_rp_creation_with_server_conflicts_warning(mock_dynamodb_tables):
     mock_dynamodb_tables["protection_groups"].get_item.return_value = {
         "Item": {
             "groupId": "pg-1",
+            "accountId": "123456789012",
             "region": "us-east-1",
             "sourceServerIds": [f"s-{i:03d}" for i in range(50)],
         }
@@ -525,7 +559,7 @@ def test_rp_creation_with_server_conflicts_warning(mock_dynamodb_tables):
         "shared.conflict_detection.check_concurrent_jobs_limit",
         return_value={"canStartJob": True, "currentJobs": 5, "maxJobs": 20},
     ), patch("shared.conflict_detection.check_server_conflicts", return_value=mock_conflicts):
-        result = create_recovery_plan(body)  # noqa: F841
+        result = create_recovery_plan(API_GATEWAY_EVENT, body)  # noqa: F841
 
     assert result["statusCode"] == 201
     body_data = json.loads(result["body"])

@@ -68,6 +68,11 @@ Parameters:
     Default: ""
     Description: "SNS topic ARN for execution pause notifications"
 
+  ApiGatewayUrl:
+    Type: String
+    Default: ""
+    Description: "API Gateway base URL for callback URL construction (empty if API Gateway not deployed)"
+
 Resources:
   # ===========================================================================
   # DEAD LETTER QUEUE FOR LAMBDA FUNCTIONS
@@ -127,6 +132,7 @@ Resources:
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
           STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -160,6 +166,8 @@ Resources:
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
           STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          API_GATEWAY_URL: !Ref ApiGatewayUrl
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -227,6 +235,7 @@ Resources:
           DRS_ALERTS_TOPIC_ARN: !Ref DRSAlertsTopicArn
           EXECUTION_HANDLER_ARN: !GetAtt ExecutionHandlerFunction.Arn
           QUERY_HANDLER_ARN: !GetAtt QueryHandlerFunction.Arn
+          API_GATEWAY_URL: !Ref ApiGatewayUrl
       Tags:
         - Key: Project
           Value: !Ref ProjectName

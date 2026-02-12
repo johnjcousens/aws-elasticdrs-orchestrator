@@ -6,14 +6,22 @@ Properties:
 - Property 1: ARN construction follows standardized pattern
 - Property 7: Account ID extraction is inverse of construction
 
-Validates: Requirements 1.2, 2.2, 4.2
+Feature: account-context-improvements
+Properties:
+- Property 2: Account ID Format Validation
+- Property 3: Invocation Source Detection
+- Property 4: Direct Invocation Requires Account ID
+
+Validates: Requirements 1.2, 1.6, 1.7, 1.9, 1.10, 2.2, 4.2
 """
 
+import json  # noqa: E402
 import os  # noqa: E402
 import sys  # noqa: E402
 
 import pytest  # noqa: F401
-from hypothesis import given, settings, strategies as st  # noqa: E402
+from hypothesis import assume, given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
 
 # Add lambda directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
@@ -21,8 +29,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 from shared.account_utils import (  # noqa: E402
     STANDARD_ROLE_NAME,
     construct_role_arn,
+    detect_invocation_source,
     extract_account_id_from_arn,
+    validate_account_context_for_invocation,
     validate_account_id,
+)
+from shared.security_utils import (  # noqa: E402
+    InputValidationError,
 )
 
 
@@ -277,3 +290,208 @@ def test_account_id_extraction_specific_examples():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--hypothesis-show-statistics"])
+
+
+# ============================================================
+# Strategies for account-context-improvements properties
+# ============================================================
+
+@st.composite
+def api_gateway_event_strategy(draw):
+    """Generate API Gateway event with requestContext."""
+    return {
+        "requestContext": {
+            "requestId": draw(st.uuids()).hex,
+            "apiId": draw(
+                st.text(min_size=10, max_size=10)
+            ),
+            "identity": {
+                "cognitoIdentityId": draw(st.uuids()).hex
+            }
+        },
+        "body": json.dumps({
+            "groupName": draw(
+                st.text(min_size=1, max_size=255)
+            )
+        })
+    }
+
+
+@st.composite
+def direct_lambda_event_strategy(draw):
+    """Generate direct Lambda invocation event (no requestContext)."""
+    include_account = draw(st.booleans())
+    body = {
+        "groupName": draw(
+            st.text(min_size=1, max_size=255)
+        )
+    }
+    if include_account:
+        body["accountId"] = draw(
+            st.from_regex(r"^\d{12}$", fullmatch=True)
+        )
+    return {"body": json.dumps(body)}
+
+
+@st.composite
+def direct_event_without_account_strategy(draw):
+    """Generate direct Lambda event without accountId in body."""
+    body = {
+        "groupName": draw(
+            st.text(min_size=1, max_size=255)
+        )
+    }
+    # Optionally include empty accountId
+    if draw(st.booleans()):
+        body["accountId"] = ""
+    return {"body": json.dumps(body)}
+
+
+# ============================================================
+# Property 2: Account ID Format Validation
+# ============================================================
+
+@settings(max_examples=200)
+@given(account_id=st.text())
+@pytest.mark.property
+def test_property_account_id_format_validation(account_id):
+    """
+    Property 2: Account ID Format Validation.
+
+    For any string, validate_account_id returns True if and only
+    if the string is exactly 12 digits.
+
+    **Validates: Requirements 1.6, 1.7**
+    """
+    is_valid = validate_account_id(account_id)
+
+    expected_valid = (
+        len(account_id) == 12
+        and account_id.isdigit()
+    )
+
+    assert is_valid == expected_valid, (
+        f"validate_account_id('{account_id}') returned "
+        f"{is_valid}, expected {expected_valid}"
+    )
+
+
+# ============================================================
+# Property 3: Invocation Source Detection
+# ============================================================
+
+@settings(max_examples=200)
+@given(event=st.one_of(
+    api_gateway_event_strategy(),
+    direct_lambda_event_strategy(),
+))
+@pytest.mark.property
+def test_property_invocation_source_detection(event):
+    """
+    Property 3: Invocation Source Detection.
+
+    For any Lambda event, events with requestContext are detected
+    as api_gateway, events without are detected as direct.
+
+    **Validates: Requirements 1.10**
+    """
+    source = detect_invocation_source(event)
+
+    if "requestContext" in event:
+        assert source == "api_gateway", (
+            f"Event with requestContext should be 'api_gateway'"
+            f", got '{source}'"
+        )
+    else:
+        assert source == "direct", (
+            f"Event without requestContext should be 'direct'"
+            f", got '{source}'"
+        )
+
+
+@settings(max_examples=100)
+@given(extra_keys=st.dictionaries(
+    keys=st.text(min_size=1, max_size=30).filter(
+        lambda k: k != "requestContext"
+    ),
+    values=st.text(min_size=1, max_size=50),
+    min_size=0,
+    max_size=5,
+))
+@pytest.mark.property
+def test_property_invocation_source_direct_no_request_context(
+    extra_keys,
+):
+    """
+    Property 3 (supplemental): Any dict without requestContext
+    is detected as direct invocation.
+
+    **Validates: Requirements 1.10**
+    """
+    event = dict(extra_keys)
+    assert "requestContext" not in event
+    source = detect_invocation_source(event)
+    assert source == "direct", (
+        f"Event without requestContext should be 'direct'"
+        f", got '{source}'"
+    )
+
+
+# ============================================================
+# Property 4: Direct Invocation Requires Account ID
+# ============================================================
+
+@settings(max_examples=200)
+@given(event=direct_event_without_account_strategy())
+@pytest.mark.property
+def test_property_direct_invocation_requires_account_id(event):
+    """
+    Property 4: Direct Invocation Requires Account ID.
+
+    For any direct Lambda event without accountId in body,
+    validate_account_context_for_invocation raises
+    InputValidationError.
+
+    **Validates: Requirements 1.7, 1.9**
+    """
+    body = json.loads(event.get("body", "{}"))
+
+    # Confirm this is a direct invocation event
+    assert "requestContext" not in event
+
+    # Body has no accountId or empty accountId
+    account_id = body.get("accountId")
+    assert not account_id
+
+    with pytest.raises(InputValidationError):
+        validate_account_context_for_invocation(event, body)
+
+
+@settings(max_examples=100)
+@given(event=direct_lambda_event_strategy())
+@pytest.mark.property
+def test_property_direct_invocation_with_valid_account_succeeds(
+    event,
+):
+    """
+    Property 4 (supplemental): Direct invocation with valid
+    accountId succeeds and returns the provided accountId.
+
+    **Validates: Requirements 1.6, 1.9**
+    """
+    body = json.loads(event.get("body", "{}"))
+    account_id = body.get("accountId")
+
+    if not account_id:
+        # No accountId — should raise
+        with pytest.raises(InputValidationError):
+            validate_account_context_for_invocation(event, body)
+    else:
+        # Has valid 12-digit accountId — should succeed
+        result = validate_account_context_for_invocation(
+            event, body
+        )
+        assert result["accountId"] == account_id, (
+            f"Expected accountId '{account_id}', "
+            f"got '{result['accountId']}'"
+        )

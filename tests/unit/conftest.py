@@ -168,11 +168,13 @@ def reset_module_state():
         import importlib
         data_management_handler = importlib.import_module("data-management-handler.index")
         
+        shared.conflict_detection.dynamodb = None
         shared.conflict_detection._protection_groups_table = None
         shared.conflict_detection._recovery_plans_table = None
         shared.conflict_detection._execution_history_table = None
         shared.account_utils._dynamodb = None
         shared.account_utils._target_accounts_table = None
+        data_management_handler.dynamodb = None
         data_management_handler._protection_groups_table = None
         data_management_handler._recovery_plans_table = None
         data_management_handler._executions_table = None
