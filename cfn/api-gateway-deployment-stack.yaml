@@ -78,29 +78,17 @@ Resources:
   # ===========================================================================
   # DEAD LETTER QUEUE FOR DEPLOYMENT ORCHESTRATOR
   # ===========================================================================
-  # API GATEWAY CLOUDWATCH LOGS ROLE
+  # ===========================================================================
+  # API GATEWAY CLOUDWATCH LOGS ACCOUNT SETTING
   # ===========================================================================
   # API Gateway requires an account-level IAM role to write to CloudWatch Logs.
   # Without this, stage creation fails when AccessLogSetting is configured.
-
-  ApiGatewayCloudWatchRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: apigateway.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  # Uses the orchestration role (apigateway.amazonaws.com added to trust policy).
 
   ApiGatewayAccount:
     Type: AWS::ApiGateway::Account
-    DependsOn: ApiGatewayCloudWatchRole
     Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
+      CloudWatchRoleArn: !Ref OrchestrationRoleArn
 
   # ===========================================================================
   # SQS queue to capture failed Lambda invocations for debugging
