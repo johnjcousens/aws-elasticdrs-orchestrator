@@ -1392,7 +1392,8 @@ def format_pause_notification(
 
     SNS email subscriptions deliver plain text only. Uses single-line
     CLI commands (no backslash continuations) so they copy-paste
-    cleanly from any email client.
+    cleanly from any email client. Includes feedback echo so the
+    operator sees confirmation in CloudShell.
 
     Args:
         details: Event details including planName, executionId,
@@ -1419,12 +1420,13 @@ def format_pause_notification(
 
     lines = [
         sep,
-        "  DR EXECUTION PAUSED - ACTION REQUIRED",
+        "  AWS DRS ORCHESTRATION - EXECUTION PAUSED",
+        "  ACTION REQUIRED",
         sep,
         "",
         f"  Recovery Plan:    {plan_name}",
         f"  Execution ID:     {execution_id}",
-        f"  Account ID:       {account_id}",
+        f"  Target Account:   {account_id}",
         f"  Region:           {region}",
         f"  Paused At:        {timestamp}",
         f"  Reason:           {pause_reason}",
@@ -1434,12 +1436,16 @@ def format_pause_notification(
         lines.append(f"  Waiting to start: Wave {paused_before}")
 
     if task_token:
-        # Single-line commands for clean copy-paste from email
+        wave_label = f"Wave {paused_before}" if paused_before else "next wave"
+
         resume_cmd = (
             f"aws stepfunctions send-task-success"
             f" --task-token '{task_token}'"
             f" --task-output '{{}}'"
             f" --region {region}"
+            f' && echo "SUCCESS: Execution resumed.'
+            f" {wave_label} is now starting for"
+            f' recovery plan {plan_name}."'
         )
         cancel_cmd = (
             f"aws stepfunctions send-task-failure"
@@ -1447,6 +1453,9 @@ def format_pause_notification(
             f' --error "UserCancelled"'
             f' --cause "Cancelled via email"'
             f" --region {region}"
+            f' && echo "CANCELLED: Execution has been'
+            f" stopped. No further waves will run for"
+            f' recovery plan {plan_name}."'
         )
 
         lines.extend(
@@ -1465,7 +1474,7 @@ def format_pause_notification(
                 "",
                 "",
                 sep,
-                "  >>> RESUME EXECUTION <<<",
+                f"  >>> RESUME EXECUTION ({wave_label}) <<<",
                 sep,
                 "",
                 resume_cmd,
