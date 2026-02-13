@@ -12,13 +12,17 @@
 # =============================================================================
 
 # ---------------------------------------------------------------------------
-# GitLab built-in security scanning templates
-# Remap default 'test' stage to our 'security' stage to avoid cyclic deps
+# GitLab built-in security scanning
 # ---------------------------------------------------------------------------
-include:
-  - template: Security/Secret-Detection.gitlab-ci.yml
-  - template: Security/SAST.gitlab-ci.yml
-  - template: Security/Dependency-Scanning.gitlab-ci.yml
+# Note: GitLab Security templates (SAST, Secret-Detection, Dependency-Scanning)
+# are NOT included via 'include:' because they inject stages that conflict
+# with pipeline execution policies, causing cyclic dependency errors.
+#
+# Equivalent coverage is provided by our custom security jobs:
+#   - bandit + semgrep (SAST)
+#   - detect-secrets (Secret Detection)
+#   - grype + npm audit (Dependency Scanning)
+#   - checkov + cfn-nag (IaC Security)
 
 stages:
   - validate
@@ -26,16 +30,6 @@ stages:
   - test
   - build
   - deploy
-
-# Override GitLab template stages to fit our pipeline
-secret_detection:
-  stage: security
-
-sast:
-  stage: security
-
-dependency_scanning:
-  stage: security
 
 # ---------------------------------------------------------------------------
 # Global defaults
