@@ -1360,7 +1360,6 @@ def format_pause_notification(
     paused_before = details.get("pausedBeforeWave", "")
     task_token = details.get("taskToken", "")
     region = details.get("region", "us-east-1")
-    execution_id = details.get("executionId", "")
 
     cloudshell_url = f"https://{region}.console.aws.amazon.com/cloudshell/home?region={region}"
 
