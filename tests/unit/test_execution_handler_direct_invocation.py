@@ -83,10 +83,9 @@ def mock_shared_modules():
     mock_iam_utils.extract_iam_principal = Mock(return_value="arn:aws:iam::123456789012:role/TestRole")
     mock_iam_utils.validate_iam_authorization = Mock(return_value=True)
     mock_iam_utils.log_direct_invocation = Mock()
-    mock_iam_utils.create_authorization_error_response = Mock(return_value={
-        "error": "AUTHORIZATION_FAILED",
-        "message": "Insufficient permissions"
-    })
+    mock_iam_utils.create_authorization_error_response = Mock(
+        return_value={"error": "AUTHORIZATION_FAILED", "message": "Insufficient permissions"}
+    )
     mock_iam_utils.validate_direct_invocation_event = Mock(return_value=True)
     sys.modules["shared.iam_utils"] = mock_iam_utils
 
@@ -121,16 +120,12 @@ def mock_lambda_context():
     """Mock Lambda context object"""
     context = Mock()
     context.request_id = "test-request-id-123"
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test-execution-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test-execution-handler"
     return context
 
 
 # Test: Missing operation field
-def test_handle_direct_invocation_missing_operation(
-    mock_env_vars, mock_shared_modules, mock_lambda_context
-):
+def test_handle_direct_invocation_missing_operation(mock_env_vars, mock_shared_modules, mock_lambda_context):
     """
     Test that missing operation field returns appropriate error.
 
@@ -147,9 +142,7 @@ def test_handle_direct_invocation_missing_operation(
 
 
 # Test: Invalid operation name
-def test_handle_direct_invocation_invalid_operation(
-    mock_env_vars, mock_shared_modules, mock_lambda_context
-):
+def test_handle_direct_invocation_invalid_operation(mock_env_vars, mock_shared_modules, mock_lambda_context):
     """
     Test that invalid operation name returns appropriate error with valid operations list.
 
@@ -262,9 +255,7 @@ def test_handle_direct_invocation_cancel_execution(
 
 # Test: pause_execution operation
 @patch("index.pause_execution")
-def test_handle_direct_invocation_pause_execution(
-    mock_pause, mock_env_vars, mock_shared_modules, mock_lambda_context
-):
+def test_handle_direct_invocation_pause_execution(mock_pause, mock_env_vars, mock_shared_modules, mock_lambda_context):
     """
     Test pause_execution operation routes correctly.
 
@@ -482,9 +473,7 @@ def test_handle_direct_invocation_response_format(
 
 
 # Test: Error response structure consistency
-def test_handle_direct_invocation_error_structure(
-    mock_env_vars, mock_shared_modules, mock_lambda_context
-):
+def test_handle_direct_invocation_error_structure(mock_env_vars, mock_shared_modules, mock_lambda_context):
     """
     Test that error responses follow consistent structure.
 
@@ -535,9 +524,7 @@ def test_handle_direct_invocation_list_executions(
 
 # Test: get_execution delegation
 @patch("index._delegate_to_query_handler")
-def test_handle_direct_invocation_get_execution(
-    mock_delegate, mock_env_vars, mock_shared_modules, mock_lambda_context
-):
+def test_handle_direct_invocation_get_execution(mock_delegate, mock_env_vars, mock_shared_modules, mock_lambda_context):
     """
     Test get_execution operation delegates to query-handler.
 
@@ -564,9 +551,7 @@ def test_handle_direct_invocation_get_execution(
 
 
 # Test: All valid operations are supported
-def test_handle_direct_invocation_all_operations_supported(
-    mock_env_vars, mock_shared_modules, mock_lambda_context
-):
+def test_handle_direct_invocation_all_operations_supported(mock_env_vars, mock_shared_modules, mock_lambda_context):
     """
     Test that all required operations are supported.
 
@@ -624,9 +609,7 @@ def test_handle_direct_invocation_parameters_optional(
 
 # Test: Direct invocation returns dict, not string
 @patch("index.execute_recovery_plan")
-def test_handle_direct_invocation_returns_dict(
-    mock_execute, mock_env_vars, mock_shared_modules, mock_lambda_context
-):
+def test_handle_direct_invocation_returns_dict(mock_execute, mock_env_vars, mock_shared_modules, mock_lambda_context):
     """
     Test that direct invocation always returns a dict, never a string.
 

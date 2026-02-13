@@ -105,25 +105,16 @@ def sample_servers():
 class TestQueryServersByTagsSuccess:
     """Test successful server query with matching tags (Task 3.6)"""
 
-    def test_single_tag_match(
-        self, mock_drs_client, sample_servers
-    ):
+    def test_single_tag_match(self, mock_drs_client, sample_servers):
         """Test querying servers with single tag"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator to return all servers
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": sample_servers}
-        ]
+        paginator.paginate.return_value = [{"items": sample_servers}]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "production"})
 
         # Verify correct servers returned
         assert len(result) == 4
@@ -133,65 +124,46 @@ class TestQueryServersByTagsSuccess:
         assert "s-005" in result
         assert "s-003" not in result  # staging environment
 
-    def test_multiple_tags_match(
-        self, mock_drs_client, sample_servers
-    ):
+    def test_multiple_tags_match(self, mock_drs_client, sample_servers):
         """Test querying servers with multiple tags (AND logic)"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": sample_servers}
-        ]
+        paginator.paginate.return_value = [{"items": sample_servers}]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={
-                    "Environment": "production",
-                    "Application": "web",
-                    "Customer": "acme"
-                }
+                region="us-east-1", tags={"Environment": "production", "Application": "web", "Customer": "acme"}
             )
 
         # Verify only server with ALL tags returned
         assert len(result) == 1
         assert result[0] == "s-001"
 
-    def test_exact_match_required(
-        self, mock_drs_client, sample_servers
-    ):
+    def test_exact_match_required(self, mock_drs_client, sample_servers):
         """Test that all tags must match exactly"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": sample_servers}
-        ]
+        paginator.paginate.return_value = [{"items": sample_servers}]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             result = query_drs_servers_by_tags(
                 region="us-east-1",
                 tags={
                     "Environment": "production",
                     "Application": "web",
                     "Customer": "acme",
-                    "Team": "platform"  # No servers have this tag
-                }
+                    "Team": "platform",  # No servers have this tag
+                },
             )
 
         # Verify no servers returned (missing Team tag)
         assert len(result) == 0
 
-    def test_pagination_multiple_pages(
-        self, mock_drs_client
-    ):
+    def test_pagination_multiple_pages(self, mock_drs_client):
         """Test handling multiple pages of results"""
         from index import query_drs_servers_by_tags
 
@@ -224,13 +196,8 @@ class TestQueryServersByTagsSuccess:
             },
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "production"})
 
         # Verify servers from both pages
         assert len(result) == 3
@@ -243,82 +210,56 @@ class TestQueryServersByTagsSuccess:
 class TestQueryServersByTagsNoMatch:
     """Test no servers match tags (Task 3.7)"""
 
-    def test_no_servers_in_region(
-        self, mock_drs_client
-    ):
+    def test_no_servers_in_region(self, mock_drs_client):
         """Test querying region with no DRS servers"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator with empty results
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": []}
-        ]
+        paginator.paginate.return_value = [{"items": []}]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-west-2",
-                tags={"Environment": "production"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-west-2", tags={"Environment": "production"})
 
         # Verify empty list returned
         assert result == []
 
-    def test_no_matching_tags(
-        self, mock_drs_client, sample_servers
-    ):
+    def test_no_matching_tags(self, mock_drs_client, sample_servers):
         """Test querying with tags that don't match any servers"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": sample_servers}
-        ]
+        paginator.paginate.return_value = [{"items": sample_servers}]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "development"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "development"})
 
         # Verify no servers returned
         assert len(result) == 0
 
-    def test_partial_tag_match_excluded(
-        self, mock_drs_client, sample_servers
-    ):
+    def test_partial_tag_match_excluded(self, mock_drs_client, sample_servers):
         """Test servers with partial tag matches are excluded"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": sample_servers}
-        ]
+        paginator.paginate.return_value = [{"items": sample_servers}]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             result = query_drs_servers_by_tags(
                 region="us-east-1",
                 tags={
                     "Environment": "production",
                     "Application": "web",
-                    "Team": "platform"  # Only s-001 has first 2 tags
-                }
+                    "Team": "platform",  # Only s-001 has first 2 tags
+                },
             )
 
         # Verify no servers returned (s-001 missing Team tag)
         assert len(result) == 0
 
-    def test_servers_without_tags(
-        self, mock_drs_client
-    ):
+    def test_servers_without_tags(self, mock_drs_client):
         """Test servers without any tags are excluded"""
         from index import query_drs_servers_by_tags
 
@@ -339,13 +280,8 @@ class TestQueryServersByTagsNoMatch:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "production"})
 
         # Verify only s-002 returned
         assert len(result) == 1
@@ -355,9 +291,7 @@ class TestQueryServersByTagsNoMatch:
 class TestQueryServersByTagsCaseInsensitive:
     """Test case-insensitive tag matching (Task 3.8)"""
 
-    def test_tag_value_case_insensitive(
-        self, mock_drs_client
-    ):
+    def test_tag_value_case_insensitive(self, mock_drs_client):
         """Test tag values are matched case-insensitively"""
         from index import query_drs_servers_by_tags
 
@@ -382,14 +316,9 @@ class TestQueryServersByTagsCaseInsensitive:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             # Query with lowercase
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"}
-            )
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "production"})
 
         # Verify all servers matched regardless of case
         assert len(result) == 3
@@ -397,9 +326,7 @@ class TestQueryServersByTagsCaseInsensitive:
         assert "s-002" in result
         assert "s-003" in result
 
-    def test_query_tag_uppercase(
-        self, mock_drs_client
-    ):
+    def test_query_tag_uppercase(self, mock_drs_client):
         """Test querying with uppercase tag values"""
         from index import query_drs_servers_by_tags
 
@@ -416,22 +343,15 @@ class TestQueryServersByTagsCaseInsensitive:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             # Query with uppercase
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "PRODUCTION"}
-            )
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "PRODUCTION"})
 
         # Verify match found
         assert len(result) == 1
         assert result[0] == "s-001"
 
-    def test_tag_key_case_sensitive(
-        self, mock_drs_client
-    ):
+    def test_tag_key_case_sensitive(self, mock_drs_client):
         """Test tag keys are case-sensitive (AWS standard)"""
         from index import query_drs_servers_by_tags
 
@@ -448,21 +368,14 @@ class TestQueryServersByTagsCaseInsensitive:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             # Query with different case key
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"environment": "production"}  # lowercase key
-            )
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"environment": "production"})  # lowercase key
 
         # Verify no match (key case mismatch)
         assert len(result) == 0
 
-    def test_whitespace_stripped(
-        self, mock_drs_client
-    ):
+    def test_whitespace_stripped(self, mock_drs_client):
         """Test whitespace is stripped from tag values"""
         from index import query_drs_servers_by_tags
 
@@ -483,13 +396,8 @@ class TestQueryServersByTagsCaseInsensitive:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "production"})
 
         # Verify both servers matched (whitespace stripped)
         assert len(result) == 2
@@ -500,9 +408,7 @@ class TestQueryServersByTagsCaseInsensitive:
 class TestQueryServersByTagsAndLogic:
     """Test AND logic (all tags must match) (Task 3.9)"""
 
-    def test_and_logic_two_tags(
-        self, mock_drs_client
-    ):
+    def test_and_logic_two_tags(self, mock_drs_client):
         """Test AND logic with two tags"""
         from index import query_drs_servers_by_tags
 
@@ -534,24 +440,16 @@ class TestQueryServersByTagsAndLogic:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={
-                    "Environment": "production",
-                    "Application": "web"
-                }
+                region="us-east-1", tags={"Environment": "production", "Application": "web"}
             )
 
         # Verify only server with BOTH tags returned
         assert len(result) == 1
         assert result[0] == "s-001"
 
-    def test_and_logic_three_tags(
-        self, mock_drs_client
-    ):
+    def test_and_logic_three_tags(self, mock_drs_client):
         """Test AND logic with three tags"""
         from index import query_drs_servers_by_tags
 
@@ -586,25 +484,16 @@ class TestQueryServersByTagsAndLogic:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={
-                    "Environment": "production",
-                    "Application": "web",
-                    "Customer": "acme"
-                }
+                region="us-east-1", tags={"Environment": "production", "Application": "web", "Customer": "acme"}
             )
 
         # Verify only server with ALL THREE tags returned
         assert len(result) == 1
         assert result[0] == "s-001"
 
-    def test_and_logic_multiple_matches(
-        self, mock_drs_client
-    ):
+    def test_and_logic_multiple_matches(self, mock_drs_client):
         """Test AND logic returns multiple servers when all match"""
         from index import query_drs_servers_by_tags
 
@@ -638,15 +527,9 @@ class TestQueryServersByTagsAndLogic:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={
-                    "Environment": "production",
-                    "Application": "web"
-                }
+                region="us-east-1", tags={"Environment": "production", "Application": "web"}
             )
 
         # Verify both production web servers returned
@@ -655,9 +538,7 @@ class TestQueryServersByTagsAndLogic:
         assert "s-002" in result
         assert "s-003" not in result
 
-    def test_and_logic_one_missing_tag(
-        self, mock_drs_client
-    ):
+    def test_and_logic_one_missing_tag(self, mock_drs_client):
         """Test server excluded if missing one required tag"""
         from index import query_drs_servers_by_tags
 
@@ -679,9 +560,7 @@ class TestQueryServersByTagsAndLogic:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             result = query_drs_servers_by_tags(
                 region="us-east-1",
                 tags={
@@ -689,8 +568,8 @@ class TestQueryServersByTagsAndLogic:
                     "Application": "web",
                     "Customer": "acme",
                     "Team": "platform",
-                    "Region": "us-east"  # Missing this tag
-                }
+                    "Region": "us-east",  # Missing this tag
+                },
             )
 
         # Verify no servers returned (missing Region tag)
@@ -700,17 +579,13 @@ class TestQueryServersByTagsAndLogic:
 class TestQueryServersByTagsCrossAccount:
     """Test cross-account context handling (Task 3.10)"""
 
-    def test_cross_account_context_passed(
-        self, mock_drs_client, sample_servers
-    ):
+    def test_cross_account_context_passed(self, mock_drs_client, sample_servers):
         """Test cross-account context is passed to create_drs_client"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": sample_servers}
-        ]
+        paginator.paginate.return_value = [{"items": sample_servers}]
 
         account_context = {
             "accountId": "123456789012",
@@ -718,13 +593,9 @@ class TestQueryServersByTagsCrossAccount:
             "isCurrentAccount": False,
         }
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ) as mock_create:
+        with patch("index.create_drs_client", return_value=mock_drs_client) as mock_create:
             result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"},
-                account_context=account_context
+                region="us-east-1", tags={"Environment": "production"}, account_context=account_context
             )
 
         # Verify create_drs_client called with account context
@@ -733,25 +604,16 @@ class TestQueryServersByTagsCrossAccount:
         # Verify results returned correctly
         assert len(result) == 4
 
-    def test_no_account_context(
-        self, mock_drs_client, sample_servers
-    ):
+    def test_no_account_context(self, mock_drs_client, sample_servers):
         """Test querying without account context (current account)"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": sample_servers}
-        ]
+        paginator.paginate.return_value = [{"items": sample_servers}]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ) as mock_create:
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client) as mock_create:
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "production"})
 
         # Verify create_drs_client called with None context
         mock_create.assert_called_once_with("us-east-1", None)
@@ -759,30 +621,22 @@ class TestQueryServersByTagsCrossAccount:
         # Verify results returned correctly
         assert len(result) == 4
 
-    def test_current_account_context(
-        self, mock_drs_client, sample_servers
-    ):
+    def test_current_account_context(self, mock_drs_client, sample_servers):
         """Test querying with current account context"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": sample_servers}
-        ]
+        paginator.paginate.return_value = [{"items": sample_servers}]
 
         account_context = {
             "accountId": "999888777666",
             "isCurrentAccount": True,
         }
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ) as mock_create:
+        with patch("index.create_drs_client", return_value=mock_drs_client) as mock_create:
             result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"},
-                account_context=account_context
+                region="us-east-1", tags={"Environment": "production"}, account_context=account_context
             )
 
         # Verify create_drs_client called with account context
@@ -795,9 +649,7 @@ class TestQueryServersByTagsCrossAccount:
 class TestQueryServersByTagsErrorHandling:
     """Test error handling and edge cases"""
 
-    def test_drs_api_error_raises_exception(
-        self, mock_drs_client
-    ):
+    def test_drs_api_error_raises_exception(self, mock_drs_client):
         """Test DRS API errors are raised"""
         from index import query_drs_servers_by_tags
         from botocore.exceptions import ClientError
@@ -814,41 +666,25 @@ class TestQueryServersByTagsErrorHandling:
             "DescribeSourceServers",
         )
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("index.create_drs_client", return_value=mock_drs_client):
             with pytest.raises(ClientError):
-                query_drs_servers_by_tags(
-                    region="us-east-1",
-                    tags={"Environment": "production"}
-                )
+                query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "production"})
 
-    def test_empty_tags_dict(
-        self, mock_drs_client, sample_servers
-    ):
+    def test_empty_tags_dict(self, mock_drs_client, sample_servers):
         """Test querying with empty tags dict returns all servers"""
         from index import query_drs_servers_by_tags
 
         # Mock paginator
         paginator = mock_drs_client.get_paginator.return_value
-        paginator.paginate.return_value = [
-            {"items": sample_servers}
-        ]
+        paginator.paginate.return_value = [{"items": sample_servers}]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-east-1", tags={})
 
         # Verify all servers returned (no filtering)
         assert len(result) == 5
 
-    def test_server_missing_tags_field(
-        self, mock_drs_client
-    ):
+    def test_server_missing_tags_field(self, mock_drs_client):
         """Test handling servers without tags field"""
         from index import query_drs_servers_by_tags
 
@@ -869,21 +705,14 @@ class TestQueryServersByTagsErrorHandling:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "production"})
 
         # Verify only s-002 returned (s-001 has no tags)
         assert len(result) == 1
         assert result[0] == "s-002"
 
-    def test_server_missing_source_server_id(
-        self, mock_drs_client
-    ):
+    def test_server_missing_source_server_id(self, mock_drs_client):
         """Test handling servers without sourceServerID field"""
         from index import query_drs_servers_by_tags
 
@@ -904,22 +733,15 @@ class TestQueryServersByTagsErrorHandling:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Environment": "production"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Environment": "production"})
 
         # Verify both servers processed (empty string for missing ID)
         assert len(result) == 2
         assert "" in result  # Empty string for missing ID
         assert "s-002" in result
 
-    def test_tag_value_numeric(
-        self, mock_drs_client
-    ):
+    def test_tag_value_numeric(self, mock_drs_client):
         """Test handling numeric tag values"""
         from index import query_drs_servers_by_tags
 
@@ -940,13 +762,8 @@ class TestQueryServersByTagsErrorHandling:
             }
         ]
 
-        with patch(
-            "index.create_drs_client", return_value=mock_drs_client
-        ):
-            result = query_drs_servers_by_tags(
-                region="us-east-1",
-                tags={"Port": "8080"}
-            )
+        with patch("index.create_drs_client", return_value=mock_drs_client):
+            result = query_drs_servers_by_tags(region="us-east-1", tags={"Port": "8080"})
 
         # Verify both servers matched (numeric converted to string)
         assert len(result) == 2

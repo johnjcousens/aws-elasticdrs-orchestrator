@@ -60,9 +60,7 @@ class TestMissingParameterErrors:
         # Event without operation or requestContext
         event = {"body": {"groupName": "Test"}}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch.object(data_management_handler_index, "boto3"):
             result = lambda_handler(event, context)
@@ -81,16 +79,16 @@ class TestMissingParameterErrors:
         # create_protection_group requires body with groupName
         event = {"operation": "create_protection_group", "body": {}}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         mock_table = MagicMock()
-        
+
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3"):
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     result = lambda_handler(event, context)
 
         # Should return error indicating missing groupName field
@@ -107,9 +105,7 @@ class TestMissingParameterErrors:
             "body": {"groupName": "Updated"},  # Missing groupId
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         # Mock table
         mock_table = MagicMock()
@@ -118,7 +114,9 @@ class TestMissingParameterErrors:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3"):
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     result = lambda_handler(event, context)
 
         # Should return error indicating missing or not found groupId
@@ -136,9 +134,7 @@ class TestMissingParameterErrors:
             "body": {"groupId": "pg-123", "instanceType": "t3.medium"},  # Missing serverId
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         # Mock table
         mock_table = MagicMock()
@@ -147,7 +143,9 @@ class TestMissingParameterErrors:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3"):
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     result = lambda_handler(event, context)
 
         # Should return error indicating missing or not found serverId
@@ -165,9 +163,7 @@ class TestInvalidOperationErrors:
 
         event = {"operation": "invalid_operation_name"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -189,9 +185,7 @@ class TestInvalidOperationErrors:
             "body": {"name": "Test"},
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -215,17 +209,17 @@ class TestAuthorizationErrors:
             "body": {"groupName": "Test"},
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         # Simulate authorization failure
         mock_table = MagicMock()
-        
+
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = False
             with patch.object(data_management_handler_index, "boto3"):
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     result = lambda_handler(event, context)
 
         # Should return authorization error
@@ -241,16 +235,16 @@ class TestAuthorizationErrors:
             "body": {"groupId": "pg-123"},
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         mock_table = MagicMock()
-        
+
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = False
             with patch.object(data_management_handler_index, "boto3"):
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     result = lambda_handler(event, context)
 
         # Should include details about required role (either as dict key or in message)
@@ -283,17 +277,22 @@ class TestDynamoDBErrors:
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test Group", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
+            "body": {
+                "groupName": "Test Group",
+                "region": "us-east-1",
+                "sourceServerIds": ["s-1234567890abcdef0"],
+                "accountId": "123456789012",
+            },
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3") as mock_boto3:
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     # Also need to mock conflict_detection functions
                     with patch("shared.conflict_detection.check_server_conflicts_for_create") as mock_conflict:
                         mock_conflict.return_value = []
@@ -324,17 +323,22 @@ class TestDynamoDBErrors:
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test Group", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
+            "body": {
+                "groupName": "Test Group",
+                "region": "us-east-1",
+                "sourceServerIds": ["s-1234567890abcdef0"],
+                "accountId": "123456789012",
+            },
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3") as mock_boto3:
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     # Also need to mock conflict_detection functions
                     with patch("shared.conflict_detection.check_server_conflicts_for_create") as mock_conflict:
                         mock_conflict.return_value = []
@@ -362,14 +366,14 @@ class TestDynamoDBErrors:
             "body": {"groupId": "pg-nonexistent", "groupName": "Updated"},
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3") as mock_boto3:
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     mock_boto3.resource.return_value.Table.return_value = mock_table
                     result = lambda_handler(event, context)
 
@@ -407,14 +411,14 @@ class TestDRSAPIErrors:
             "body": {"targetAccountId": "123456789012"},  # targetAccountId in body
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3") as mock_boto3:
-                with patch.object(data_management_handler_index, "get_target_accounts_table", return_value=mock_target_accounts):
+                with patch.object(
+                    data_management_handler_index, "get_target_accounts_table", return_value=mock_target_accounts
+                ):
                     mock_boto3.client.return_value = mock_drs
                     result = lambda_handler(event, context)
 
@@ -447,14 +451,14 @@ class TestDRSAPIErrors:
             "body": {"targetAccountId": "123456789012"},  # targetAccountId in body
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3") as mock_boto3:
-                with patch.object(data_management_handler_index, "get_target_accounts_table", return_value=mock_target_accounts):
+                with patch.object(
+                    data_management_handler_index, "get_target_accounts_table", return_value=mock_target_accounts
+                ):
                     mock_boto3.client.return_value = mock_drs
                     result = lambda_handler(event, context)
 
@@ -474,23 +478,26 @@ class TestUnexpectedExceptions:
 
         # Mock unexpected exception
         mock_table = MagicMock()
-        mock_table.put_item.side_effect = Exception(
-            "Unexpected internal error with sensitive data"
-        )
+        mock_table.put_item.side_effect = Exception("Unexpected internal error with sensitive data")
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
+            "body": {
+                "groupName": "Test",
+                "region": "us-east-1",
+                "sourceServerIds": ["s-1234567890abcdef0"],
+                "accountId": "123456789012",
+            },
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3") as mock_boto3:
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     mock_boto3.resource.return_value.Table.return_value = mock_table
                     result = lambda_handler(event, context)
 
@@ -510,17 +517,22 @@ class TestUnexpectedExceptions:
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
+            "body": {
+                "groupName": "Test",
+                "region": "us-east-1",
+                "sourceServerIds": ["s-1234567890abcdef0"],
+                "accountId": "123456789012",
+            },
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3") as mock_boto3:
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     # Mock conflict detection - also need to mock the shared module's table reference
                     with patch("shared.conflict_detection.check_server_conflicts_for_create") as mock_conflict:
                         # Conflict detection will fail because protection_groups_table is None in the module
@@ -546,9 +558,7 @@ class TestErrorResponseStructure:
         # Test with invalid operation
         event = {"operation": "invalid_operation"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -568,9 +578,7 @@ class TestErrorResponseStructure:
         # Test with missing parameter
         event = {"operation": "update_protection_group", "body": {"groupName": "Test"}}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         # Mock table
         mock_table = MagicMock()
@@ -579,7 +587,9 @@ class TestErrorResponseStructure:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3"):
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     result = lambda_handler(event, context)
 
         # Should have details field with parameter or error info
@@ -595,9 +605,7 @@ class TestErrorResponseStructure:
 
         event = {"operation": "invalid_operation"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -628,17 +636,22 @@ class TestErrorResponseStructure:
 
         event = {
             "operation": "create_protection_group",
-            "body": {"groupName": "Test", "region": "us-east-1", "sourceServerIds": ["s-1234567890abcdef0"], "accountId": "123456789012"},
+            "body": {
+                "groupName": "Test",
+                "region": "us-east-1",
+                "sourceServerIds": ["s-1234567890abcdef0"],
+                "accountId": "123456789012",
+            },
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3") as mock_boto3:
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     # Mock conflict detection
                     with patch("shared.conflict_detection.check_server_conflicts_for_create") as mock_conflict:
                         mock_conflict.return_value = []
@@ -660,9 +673,7 @@ class TestErrorConsistencyAcrossOperations:
         lambda_handler = get_lambda_handler()
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         # Test multiple operations with missing parameters
         operations = [
@@ -682,8 +693,12 @@ class TestErrorConsistencyAcrossOperations:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3"):
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
-                    with patch.object(data_management_handler_index, "get_recovery_plans_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
+                    with patch.object(
+                        data_management_handler_index, "get_recovery_plans_table", return_value=mock_table
+                    ):
                         for operation, expected_param in operations:
                             event = {"operation": operation}
                             result = lambda_handler(event, context)
@@ -719,9 +734,7 @@ class TestErrorConsistencyAcrossOperations:
         mock_table.delete_item.return_value = {}
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         # Test operations with non-existent resources
         operations = [
@@ -734,8 +747,12 @@ class TestErrorConsistencyAcrossOperations:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3") as mock_boto3:
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
-                    with patch.object(data_management_handler_index, "get_recovery_plans_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
+                    with patch.object(
+                        data_management_handler_index, "get_recovery_plans_table", return_value=mock_table
+                    ):
                         mock_boto3.resource.return_value.Table.return_value = mock_table
 
                         for operation, param_name, param_value in operations:
@@ -775,9 +792,7 @@ class TestValidationErrors:
             },
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         # Mock table to return a protection group
         mock_table = MagicMock()
@@ -793,7 +808,9 @@ class TestValidationErrors:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
             with patch.object(data_management_handler_index, "boto3"):
-                with patch.object(data_management_handler_index, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(
+                    data_management_handler_index, "get_protection_groups_table", return_value=mock_table
+                ):
                     result = lambda_handler(event, context)
 
         # Should return invalid parameter or invalid IP format error
@@ -810,9 +827,7 @@ class TestValidationErrors:
             "body": {},  # Missing required 'groupName' field
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:data-management-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True

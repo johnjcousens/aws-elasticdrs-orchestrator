@@ -61,9 +61,7 @@ launch_config_fields = st.sampled_from(
     use_group_defaults=st.booleans(),
 )
 @pytest.mark.property
-def test_configuration_merge_correctness(
-    group_defaults, server_overrides, use_group_defaults
-):
+def test_configuration_merge_correctness(group_defaults, server_overrides, use_group_defaults):
     """
     Property 1: Configuration Merge Correctness
 
@@ -92,23 +90,20 @@ def test_configuration_merge_correctness(
         for key, value in group_defaults.items():
             if key not in server_overrides or server_overrides[key] is None:
                 assert effective.get(key) == value, (
-                    f"Field {key} should inherit group default {value}, "
-                    f"got {effective.get(key)}"
+                    f"Field {key} should inherit group default {value}, " f"got {effective.get(key)}"
                 )
 
         for key, value in server_overrides.items():
             if value is not None:
                 assert effective.get(key) == value, (
-                    f"Field {key} should use server override {value}, "
-                    f"got {effective.get(key)}"
+                    f"Field {key} should use server override {value}, " f"got {effective.get(key)}"
                 )
     else:
         # Full override: only server config
         for key, value in server_overrides.items():
             if value is not None:
                 assert effective.get(key) == value, (
-                    f"Field {key} should use server override {value}, "
-                    f"got {effective.get(key)}"
+                    f"Field {key} should use server override {value}, " f"got {effective.get(key)}"
                 )
 
 
@@ -135,9 +130,7 @@ def test_no_server_config_returns_group_defaults(group_defaults):
     effective = get_effective_launch_config(protection_group, "s-nonexistent")
 
     # Assert
-    assert effective == group_defaults, (
-        f"Expected group defaults {group_defaults}, got {effective}"
-    )
+    assert effective == group_defaults, f"Expected group defaults {group_defaults}, got {effective}"
 
 
 @given(
@@ -179,9 +172,7 @@ def test_merge_idempotence(group_defaults, server_overrides):
     effective2 = get_effective_launch_config(protection_group, "s-test")
 
     # Assert
-    assert effective1 == effective2, (
-        f"Merge should be idempotent: {effective1} != {effective2}"
-    )
+    assert effective1 == effective2, f"Merge should be idempotent: {effective1} != {effective2}"
 
 
 @pytest.mark.property

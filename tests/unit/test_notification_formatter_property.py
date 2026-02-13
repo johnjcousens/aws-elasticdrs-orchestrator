@@ -19,9 +19,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # Add lambda directory to path
-sys.path.insert(
-    0, os.path.join(os.path.dirname(__file__), "../../lambda")
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
 from shared.notifications import (  # noqa: E402
     format_notification_message,
@@ -39,9 +37,7 @@ non_empty_text = st.text(
 )
 
 # Strategy for valid event types
-event_type_strategy = st.sampled_from(
-    ["start", "complete", "fail", "pause"]
-)
+event_type_strategy = st.sampled_from(["start", "complete", "fail", "pause"])
 
 
 @settings(max_examples=100)
@@ -78,46 +74,34 @@ def test_property_formatter_output_contains_required_fields(
     result = format_notification_message(event_type, details)
 
     # Result must be a dict with both keys
-    assert isinstance(result, dict), (
-        f"Expected dict, got {type(result)}"
-    )
-    assert "default" in result, (
-        "Result must contain 'default' key"
-    )
-    assert "email" in result, (
-        "Result must contain 'email' key"
-    )
+    assert isinstance(result, dict), f"Expected dict, got {type(result)}"
+    assert "default" in result, "Result must contain 'default' key"
+    assert "email" in result, "Result must contain 'email' key"
 
     # "default" must contain the plan name as plain text
     assert plan_name in result["default"], (
-        f"'default' should contain plan name "
-        f"'{plan_name}'. Got: {result['default']}"
+        f"'default' should contain plan name " f"'{plan_name}'. Got: {result['default']}"
     )
 
     # "email" must contain the HTML doctype declaration
     assert "<!DOCTYPE html>" in result["email"], (
-        "'email' should contain '<!DOCTYPE html>'. "
-        f"Got start: {result['email'][:100]}"
+        "'email' should contain '<!DOCTYPE html>'. " f"Got start: {result['email'][:100]}"
     )
 
     # "email" must contain the plan name
-    assert plan_name in result["email"], (
-        f"'email' should contain plan name "
-        f"'{plan_name}'."
-    )
+    assert plan_name in result["email"], f"'email' should contain plan name " f"'{plan_name}'."
 
     # "email" must contain the execution ID
-    assert execution_id in result["email"], (
-        f"'email' should contain execution ID "
-        f"'{execution_id}'."
-    )
+    assert execution_id in result["email"], f"'email' should contain execution ID " f"'{execution_id}'."
 
 
 # Strategy for details dictionaries with required fields
-details_strategy = st.fixed_dictionaries({
-    "planName": non_empty_text,
-    "executionId": non_empty_text,
-})
+details_strategy = st.fixed_dictionaries(
+    {
+        "planName": non_empty_text,
+        "executionId": non_empty_text,
+    }
+)
 
 
 @settings(max_examples=100)
@@ -165,14 +149,11 @@ def test_property_sns_publish_uses_structured_html(
     call_kwargs = mock_sns.publish.call_args
     kwargs = call_kwargs.kwargs if call_kwargs.kwargs else {}
     if not kwargs and call_kwargs.args:
-        kwargs = call_kwargs.args[0] if isinstance(
-            call_kwargs.args[0], dict
-        ) else {}
+        kwargs = call_kwargs.args[0] if isinstance(call_kwargs.args[0], dict) else {}
 
     # Must include MessageStructure="json"
     assert kwargs.get("MessageStructure") == "json", (
-        "Expected MessageStructure='json', got "
-        f"{kwargs.get('MessageStructure')!r}"
+        "Expected MessageStructure='json', got " f"{kwargs.get('MessageStructure')!r}"
     )
 
     # Message must be valid JSON with "default" and "email"
@@ -180,10 +161,6 @@ def test_property_sns_publish_uses_structured_html(
     message_parsed = json.loads(message_raw)
 
     assert "default" in message_parsed, (
-        "Message JSON must contain 'default' key. "
-        f"Keys: {list(message_parsed.keys())}"
+        "Message JSON must contain 'default' key. " f"Keys: {list(message_parsed.keys())}"
     )
-    assert "email" in message_parsed, (
-        "Message JSON must contain 'email' key. "
-        f"Keys: {list(message_parsed.keys())}"
-    )
+    assert "email" in message_parsed, "Message JSON must contain 'email' key. " f"Keys: {list(message_parsed.keys())}"

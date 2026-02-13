@@ -23,9 +23,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
 # Add lambda paths for imports
-query_handler_dir = (
-    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
-)
+query_handler_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 shared_dir = Path(__file__).parent.parent.parent / "lambda" / "shared"
 
 
@@ -80,7 +78,7 @@ def valid_account_id(draw):
 @st.composite
 def invalid_account_id(draw):
     """Strategy: Generate invalid account IDs (excluding empty string)
-    
+
     Empty string is treated as MISSING_PARAMETER, not INVALID_PARAMETER,
     so we exclude it from this strategy.
     """
@@ -92,9 +90,7 @@ def invalid_account_id(draw):
             st.from_regex(r"[0-9]{13,20}", fullmatch=True),
             # Contains non-digits
             st.text(
-                alphabet=st.characters(
-                    whitelist_categories=("Lu", "Ll"), min_codepoint=65
-                ),
+                alphabet=st.characters(whitelist_categories=("Lu", "Ll"), min_codepoint=65),
                 min_size=12,
                 max_size=12,
             ),
@@ -154,9 +150,7 @@ def capacity_data(draw):
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(account_id=valid_account_id(), account_data=target_account_with_staging())
-def test_property_get_staging_accounts_valid_account_returns_list(
-    account_id, account_data
-):
+def test_property_get_staging_accounts_valid_account_returns_list(account_id, account_data):
     """
     Property: For any valid account ID with staging accounts, should return list.
 
@@ -244,9 +238,7 @@ def test_property_get_staging_accounts_missing_parameter_returns_error(data):
         event = data.draw(
             st.dictionaries(
                 st.text(
-                    alphabet=st.characters(
-                        whitelist_categories=("Lu", "Ll"), min_codepoint=65
-                    ),
+                    alphabet=st.characters(whitelist_categories=("Lu", "Ll"), min_codepoint=65),
                     min_size=1,
                     max_size=20,
                 ).filter(lambda x: x != "targetAccountId"),
@@ -491,9 +483,10 @@ def test_property_get_drs_capacity_conflicts_returns_structure(num_accounts, dat
                 }
             )
 
-        with patch("index.get_target_accounts_table") as mock_func, patch(
-            "index.get_drs_account_capacity_all_regions"
-        ) as mock_capacity:
+        with (
+            patch("index.get_target_accounts_table") as mock_func,
+            patch("index.get_drs_account_capacity_all_regions") as mock_capacity,
+        ):
 
             mock_table = MagicMock()
             mock_func.return_value = mock_table
@@ -533,9 +526,7 @@ def test_property_get_drs_capacity_conflicts_returns_structure(num_accounts, dat
     replicating_servers=st.integers(min_value=241, max_value=300),
     account_id=valid_account_id(),
 )
-def test_property_get_drs_capacity_conflicts_detects_high_usage(
-    replicating_servers, account_id
-):
+def test_property_get_drs_capacity_conflicts_detects_high_usage(replicating_servers, account_id):
     """
     Property: For any account with high replicating servers, should detect conflict.
 
@@ -553,9 +544,10 @@ def test_property_get_drs_capacity_conflicts_detects_high_usage(
             "roleArn": f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole",
         }
 
-        with patch("index.get_target_accounts_table") as mock_func, patch(
-            "index.get_drs_account_capacity_all_regions"
-        ) as mock_capacity:
+        with (
+            patch("index.get_target_accounts_table") as mock_func,
+            patch("index.get_drs_account_capacity_all_regions") as mock_capacity,
+        ):
 
             mock_table = MagicMock()
             mock_func.return_value = mock_table
@@ -594,9 +586,7 @@ def test_property_get_drs_capacity_conflicts_detects_high_usage(
     replicating_servers=st.integers(min_value=0, max_value=239),
     account_id=valid_account_id(),
 )
-def test_property_get_drs_capacity_conflicts_no_conflict_for_low_usage(
-    replicating_servers, account_id
-):
+def test_property_get_drs_capacity_conflicts_no_conflict_for_low_usage(replicating_servers, account_id):
     """
     Property: For any account with low replicating servers, should not detect conflict.
 
@@ -614,9 +604,10 @@ def test_property_get_drs_capacity_conflicts_no_conflict_for_low_usage(
             "roleArn": f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole",
         }
 
-        with patch("index.get_target_accounts_table") as mock_func, patch(
-            "index.get_drs_account_capacity_all_regions"
-        ) as mock_capacity:
+        with (
+            patch("index.get_target_accounts_table") as mock_func,
+            patch("index.get_drs_account_capacity_all_regions") as mock_capacity,
+        ):
 
             mock_table = MagicMock()
             mock_func.return_value = mock_table
@@ -685,9 +676,7 @@ def test_property_get_drs_capacity_conflicts_no_error_for_any_input(event_data):
     replicating_servers=st.integers(min_value=271, max_value=300),
     account_id=valid_account_id(),
 )
-def test_property_conflict_severity_critical_for_90_percent(
-    replicating_servers, account_id
-):
+def test_property_conflict_severity_critical_for_90_percent(replicating_servers, account_id):
     """
     Property: For any account >= 90% capacity, severity should be critical.
 
@@ -705,9 +694,10 @@ def test_property_conflict_severity_critical_for_90_percent(
             "roleArn": f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole",
         }
 
-        with patch("index.get_target_accounts_table") as mock_func, patch(
-            "index.get_drs_account_capacity_all_regions"
-        ) as mock_capacity:
+        with (
+            patch("index.get_target_accounts_table") as mock_func,
+            patch("index.get_drs_account_capacity_all_regions") as mock_capacity,
+        ):
 
             mock_table = MagicMock()
             mock_func.return_value = mock_table
@@ -736,9 +726,7 @@ def test_property_conflict_severity_critical_for_90_percent(
     replicating_servers=st.integers(min_value=241, max_value=269),
     account_id=valid_account_id(),
 )
-def test_property_conflict_severity_warning_for_80_percent(
-    replicating_servers, account_id
-):
+def test_property_conflict_severity_warning_for_80_percent(replicating_servers, account_id):
     """
     Property: For any account 80-89% capacity, severity should be warning.
 
@@ -756,9 +744,10 @@ def test_property_conflict_severity_warning_for_80_percent(
             "roleArn": f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole",
         }
 
-        with patch("index.get_target_accounts_table") as mock_func, patch(
-            "index.get_drs_account_capacity_all_regions"
-        ) as mock_capacity:
+        with (
+            patch("index.get_target_accounts_table") as mock_func,
+            patch("index.get_drs_account_capacity_all_regions") as mock_capacity,
+        ):
 
             mock_table = MagicMock()
             mock_func.return_value = mock_table

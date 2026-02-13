@@ -104,14 +104,8 @@ class TestApiGatewayResponse:
         headers = result["headers"]
         assert headers["Content-Type"] == "application/json"
         assert headers["Access-Control-Allow-Origin"] == "*"
-        assert (
-            headers["Access-Control-Allow-Headers"]
-            == "Content-Type,Authorization"
-        )
-        assert (
-            headers["Access-Control-Allow-Methods"]
-            == "GET,POST,PUT,DELETE,OPTIONS"
-        )
+        assert headers["Access-Control-Allow-Headers"] == "Content-Type,Authorization"
+        assert headers["Access-Control-Allow-Methods"] == "GET,POST,PUT,DELETE,OPTIONS"
         assert headers["X-Content-Type-Options"] == "nosniff"
         assert headers["X-Frame-Options"] == "DENY"
 
@@ -124,9 +118,7 @@ class TestApiGatewayResponse:
 
     def test_error_response_structure(self):
         """Test API Gateway error response structure."""
-        result = response(
-            400, {"error": "INVALID_INPUT", "message": "Missing field"}
-        )
+        result = response(400, {"error": "INVALID_INPUT", "message": "Missing field"})
         assert result["statusCode"] == 400
         body = json.loads(result["body"])
         assert body["error"] == "INVALID_INPUT"
@@ -134,9 +126,7 @@ class TestApiGatewayResponse:
 
     def test_custom_headers(self):
         """Test API Gateway response with custom headers."""
-        result = response(
-            200, {"data": "value"}, headers={"Cache-Control": "no-cache"}
-        )
+        result = response(200, {"data": "value"}, headers={"Cache-Control": "no-cache"})
         assert result["headers"]["Cache-Control"] == "no-cache"
         # Default headers should still be present
         assert result["headers"]["Content-Type"] == "application/json"
@@ -154,9 +144,7 @@ class TestErrorResponse:
 
     def test_error_response_basic_structure(self):
         """Test error response has required fields."""
-        result = error_response(
-            ERROR_MISSING_PARAMETER, "Parameter is required"
-        )
+        result = error_response(ERROR_MISSING_PARAMETER, "Parameter is required")
         assert result["error"] == ERROR_MISSING_PARAMETER
         assert result["message"] == "Parameter is required"
 
@@ -174,15 +162,11 @@ class TestErrorResponse:
     def test_error_response_retryable_auto_detection(self):
         """Test retryable flag is auto-detected for transient errors."""
         # Retryable error
-        result = error_response(
-            ERROR_DRS_ERROR, "DRS service temporarily unavailable"
-        )
+        result = error_response(ERROR_DRS_ERROR, "DRS service temporarily unavailable")
         assert result["retryable"] is True
 
         # Non-retryable error
-        result = error_response(
-            ERROR_MISSING_PARAMETER, "Parameter is required"
-        )
+        result = error_response(ERROR_MISSING_PARAMETER, "Parameter is required")
         assert "retryable" not in result
 
     def test_error_response_explicit_retryable(self):

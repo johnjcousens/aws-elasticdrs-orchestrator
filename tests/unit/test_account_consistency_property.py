@@ -27,46 +27,28 @@ from hypothesis import (
 from hypothesis import strategies as st
 
 # Environment variables must be set before importing handler
-os.environ.setdefault(
-    "PROTECTION_GROUPS_TABLE", "test-pg"
-)
-os.environ.setdefault(
-    "RECOVERY_PLANS_TABLE", "test-rp"
-)
-os.environ.setdefault(
-    "EXECUTION_HISTORY_TABLE", "test-exec"
-)
-os.environ.setdefault(
-    "TARGET_ACCOUNTS_TABLE", "test-accounts"
-)
-os.environ.setdefault(
-    "TAG_SYNC_CONFIG_TABLE", "test-tag-sync"
-)
+os.environ.setdefault("PROTECTION_GROUPS_TABLE", "test-pg")
+os.environ.setdefault("RECOVERY_PLANS_TABLE", "test-rp")
+os.environ.setdefault("EXECUTION_HISTORY_TABLE", "test-exec")
+os.environ.setdefault("TARGET_ACCOUNTS_TABLE", "test-accounts")
+os.environ.setdefault("TAG_SYNC_CONFIG_TABLE", "test-tag-sync")
 os.environ.setdefault(
     "EXECUTION_NOTIFICATIONS_TOPIC_ARN",
     "arn:aws:sns:us-east-1:123456789012:test-notif",
 )
 
-sys.path.insert(
-    0, os.path.join(os.path.dirname(__file__), "../../lambda")
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
-handler_mod = importlib.import_module(
-    "data-management-handler.index"
-)
+handler_mod = importlib.import_module("data-management-handler.index")
 
 
 # ============================================================
 # Strategies
 # ============================================================
 
-account_id_strategy = st.from_regex(
-    r"^\d{12}$", fullmatch=True
-)
+account_id_strategy = st.from_regex(r"^\d{12}$", fullmatch=True)
 
-pg_id_strategy = st.from_regex(
-    r"^pg-[a-f0-9]{8}$", fullmatch=True
-)
+pg_id_strategy = st.from_regex(r"^pg-[a-f0-9]{8}$", fullmatch=True)
 
 
 @st.composite
@@ -74,7 +56,8 @@ def protection_group_strategy(draw):
     """Generate a Protection Group dict with account ID."""
     return {
         "groupId": draw(pg_id_strategy),
-        "groupName": "PG-" + draw(
+        "groupName": "PG-"
+        + draw(
             st.text(
                 alphabet="abcdefghijklmnopqrstuvwxyz",
                 min_size=3,
@@ -113,11 +96,13 @@ def mixed_account_pg_list_strategy(draw):
     mismatched_pg["accountId"] = mismatched_account
 
     # Optionally add more PGs (mixed or matching)
-    extra_pgs = draw(st.lists(
-        protection_group_strategy(),
-        min_size=0,
-        max_size=3,
-    ))
+    extra_pgs = draw(
+        st.lists(
+            protection_group_strategy(),
+            min_size=0,
+            max_size=3,
+        )
+    )
 
     # Combine: matching first, then mismatched, then extras
     all_pgs = [matching_pg, mismatched_pg] + extra_pgs
@@ -137,11 +122,13 @@ def same_account_pg_list_strategy(draw):
     Returns a tuple of (account_id, protection_groups).
     """
     account_id = draw(account_id_strategy)
-    pgs = draw(st.lists(
-        protection_group_strategy(),
-        min_size=1,
-        max_size=5,
-    ))
+    pgs = draw(
+        st.lists(
+            protection_group_strategy(),
+            min_size=1,
+            max_size=5,
+        )
+    )
     for pg in pgs:
         pg["accountId"] = account_id
     return (account_id, pgs)
@@ -150,6 +137,7 @@ def same_account_pg_list_strategy(draw):
 # ============================================================
 # Helpers
 # ============================================================
+
 
 def _reset_handler_tables():
     """Reset lazy-loaded table refs in handler module."""
@@ -160,6 +148,7 @@ def _reset_handler_tables():
     handler_mod._tag_sync_config_table = None
     import shared.account_utils as au
     import shared.conflict_detection as cd
+
     au._dynamodb = None
     au._target_accounts_table = None
     cd._protection_groups_table = None
@@ -183,8 +172,7 @@ def _build_api_gw_event(body, account_id):
                 "cognitoAuthenticationProvider": (
                     "cognito-idp.us-east-1.amazonaws.com/"
                     "pool,cognito-idp.us-east-1.amazonaws"
-                    ".com/pool:CognitoSignIn:"
-                    + account_id
+                    ".com/pool:CognitoSignIn:" + account_id
                 ),
             },
         },
@@ -227,18 +215,27 @@ def _mock_tables(pg_lookup_fn):
     exec_table.scan.return_value = {"Items": []}
 
     stack = ExitStack()
-    stack.enter_context(patch.object(
-        handler_mod, "get_protection_groups_table",
-        return_value=pg_table,
-    ))
-    stack.enter_context(patch.object(
-        handler_mod, "get_recovery_plans_table",
-        return_value=rp_table,
-    ))
-    stack.enter_context(patch.object(
-        handler_mod, "get_executions_table",
-        return_value=exec_table,
-    ))
+    stack.enter_context(
+        patch.object(
+            handler_mod,
+            "get_protection_groups_table",
+            return_value=pg_table,
+        )
+    )
+    stack.enter_context(
+        patch.object(
+            handler_mod,
+            "get_recovery_plans_table",
+            return_value=rp_table,
+        )
+    )
+    stack.enter_context(
+        patch.object(
+            handler_mod,
+            "get_executions_table",
+            return_value=exec_table,
+        )
+    )
     return stack, rp_table
 
 
@@ -253,6 +250,7 @@ def _parse_body(result):
 # ============================================================
 # Property 1: Account ID Consistency
 # ============================================================
+
 
 @settings(max_examples=100, deadline=None)
 @given(data=mixed_account_pg_list_strategy())
@@ -280,10 +278,7 @@ def test_property_mixed_accounts_rejected(data):
     _reset_handler_tables()
 
     # Build waves referencing each Protection Group
-    waves = [
-        {"protectionGroupId": pg["groupId"]}
-        for pg in pgs
-    ]
+    waves = [{"protectionGroupId": pg["groupId"]} for pg in pgs]
 
     body = {
         "name": "PropTest-Mixed",
@@ -296,9 +291,7 @@ def test_property_mixed_accounts_rejected(data):
     ctx, rp_table = _mock_tables(pg_lookup)
 
     with ctx:
-        result = handler_mod.create_recovery_plan(
-            event, body
-        )
+        result = handler_mod.create_recovery_plan(event, body)
 
     resp = _parse_body(result)
 
@@ -310,8 +303,7 @@ def test_property_mixed_accounts_rejected(data):
         f"Response: {resp}"
     )
     assert resp.get("error") == "ACCOUNT_MISMATCH", (
-        f"Expected ACCOUNT_MISMATCH error, got "
-        f"{resp.get('error')}. Response: {resp}"
+        f"Expected ACCOUNT_MISMATCH error, got " f"{resp.get('error')}. Response: {resp}"
     )
 
     # Recovery Plan must NOT be persisted
@@ -337,10 +329,7 @@ def test_property_same_account_accepted(data):
 
     _reset_handler_tables()
 
-    waves = [
-        {"protectionGroupId": pg["groupId"]}
-        for pg in pgs
-    ]
+    waves = [{"protectionGroupId": pg["groupId"]} for pg in pgs]
 
     body = {
         "name": "PropTest-Same",
@@ -352,42 +341,40 @@ def test_property_same_account_accepted(data):
     pg_lookup = _make_pg_lookup(pgs)
     ctx, rp_table = _mock_tables(pg_lookup)
 
-    with ctx, patch.object(
-        handler_mod, "validate_waves",
-        return_value=None,
-    ), patch(
-        "shared.conflict_detection"
-        ".resolve_pg_servers_for_conflict_check",
-        return_value=[],
-    ), patch(
-        "shared.conflict_detection"
-        ".check_concurrent_jobs_limit",
-        return_value={
-            "canStartJob": True,
-            "currentJobs": 0,
-            "maxJobs": 20,
-        },
-    ), patch(
-        "shared.conflict_detection"
-        ".check_server_conflicts",
-        return_value=[],
+    with (
+        ctx,
+        patch.object(
+            handler_mod,
+            "validate_waves",
+            return_value=None,
+        ),
+        patch(
+            "shared.conflict_detection" ".resolve_pg_servers_for_conflict_check",
+            return_value=[],
+        ),
+        patch(
+            "shared.conflict_detection" ".check_concurrent_jobs_limit",
+            return_value={
+                "canStartJob": True,
+                "currentJobs": 0,
+                "maxJobs": 20,
+            },
+        ),
+        patch(
+            "shared.conflict_detection" ".check_server_conflicts",
+            return_value=[],
+        ),
     ):
-        result = handler_mod.create_recovery_plan(
-            event, body
-        )
+        result = handler_mod.create_recovery_plan(event, body)
 
     resp = _parse_body(result)
 
     # Must NOT be rejected with ACCOUNT_MISMATCH
     if result["statusCode"] == 400:
         assert resp.get("error") != "ACCOUNT_MISMATCH", (
-            f"Same-account PGs should not trigger "
-            f"ACCOUNT_MISMATCH. Account: {account_id}. "
-            f"Response: {resp}"
+            f"Same-account PGs should not trigger " f"ACCOUNT_MISMATCH. Account: {account_id}. " f"Response: {resp}"
         )
 
 
 if __name__ == "__main__":
-    pytest.main([
-        __file__, "-v", "--hypothesis-show-statistics"
-    ])
+    pytest.main([__file__, "-v", "--hypothesis-show-statistics"])

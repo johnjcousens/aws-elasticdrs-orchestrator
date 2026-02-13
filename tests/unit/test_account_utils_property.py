@@ -61,20 +61,12 @@ def test_property_arn_construction_pattern(account_id):
 
     # Assert - Verify exact pattern
     expected = f"arn:aws:iam::{account_id}:role/{STANDARD_ROLE_NAME}"
-    assert arn == expected, (
-        f"ARN should match pattern. Expected: {expected}, Got: {arn}"
-    )
+    assert arn == expected, f"ARN should match pattern. Expected: {expected}, Got: {arn}"
 
     # Assert - Verify structure components
-    assert arn.startswith("arn:aws:iam::"), (
-        f"ARN should start with 'arn:aws:iam::'. Got: {arn}"
-    )
-    assert arn.endswith(f":role/{STANDARD_ROLE_NAME}"), (
-        f"ARN should end with ':role/{STANDARD_ROLE_NAME}'. Got: {arn}"
-    )
-    assert account_id in arn, (
-        f"ARN should contain account ID {account_id}. Got: {arn}"
-    )
+    assert arn.startswith("arn:aws:iam::"), f"ARN should start with 'arn:aws:iam::'. Got: {arn}"
+    assert arn.endswith(f":role/{STANDARD_ROLE_NAME}"), f"ARN should end with ':role/{STANDARD_ROLE_NAME}'. Got: {arn}"
+    assert account_id in arn, f"ARN should contain account ID {account_id}. Got: {arn}"
 
     # Assert - Verify no extra characters
     parts = arn.split("::")
@@ -82,9 +74,7 @@ def test_property_arn_construction_pattern(account_id):
 
     # Assert - Verify account ID position
     account_part = parts[1].split(":role/")[0]
-    assert account_part == account_id, (
-        f"Account ID in ARN should be {account_id}. Got: {account_part}"
-    )
+    assert account_part == account_id, f"Account ID in ARN should be {account_id}. Got: {account_part}"
 
 
 @settings(max_examples=100)
@@ -108,14 +98,11 @@ def test_property_account_id_extraction_inverse(account_id):
 
     # Assert - Must match original
     assert extracted_id == account_id, (
-        "Extracted account ID should match original. "
-        f"Original: {account_id}, Extracted: {extracted_id}, ARN: {arn}"
+        "Extracted account ID should match original. " f"Original: {account_id}, Extracted: {extracted_id}, ARN: {arn}"
     )
 
     # Assert - Extracted ID should be valid
-    assert validate_account_id(extracted_id), (
-        f"Extracted account ID should be valid. Got: {extracted_id}"
-    )
+    assert validate_account_id(extracted_id), f"Extracted account ID should be valid. Got: {extracted_id}"
 
 
 @settings(max_examples=100)
@@ -154,24 +141,18 @@ def test_property_extraction_works_for_any_role_name(account_id, role_name):
 @given(
     account_id=account_id_strategy,
     prefix=st.text(
-        alphabet=st.characters(
-            blacklist_categories=("Cc", "Cs", "Zs", "Zl", "Zp")
-        ),
+        alphabet=st.characters(blacklist_categories=("Cc", "Cs", "Zs", "Zl", "Zp")),
         min_size=0,
         max_size=10,
     ),
     suffix=st.text(
-        alphabet=st.characters(
-            blacklist_categories=("Cc", "Cs", "Zs", "Zl", "Zp")
-        ),
+        alphabet=st.characters(blacklist_categories=("Cc", "Cs", "Zs", "Zl", "Zp")),
         min_size=0,
         max_size=10,
     ),
 )
 @pytest.mark.property
-def test_property_validation_rejects_invalid_formats(
-    account_id, prefix, suffix
-):
+def test_property_validation_rejects_invalid_formats(account_id, prefix, suffix):
     """
     Property: Validation correctly identifies invalid account IDs.
 
@@ -194,9 +175,7 @@ def test_property_validation_rejects_invalid_formats(
         )
     else:
         # Should be valid if no prefix/suffix
-        assert is_valid, (
-            f"Should accept valid 12-digit account ID. Input: {invalid_id}"
-        )
+        assert is_valid, f"Should accept valid 12-digit account ID. Input: {invalid_id}"
 
 
 @pytest.mark.property
@@ -271,15 +250,11 @@ def test_account_id_validation_specific_examples():
 def test_account_id_extraction_specific_examples():
     """Unit test examples for account ID extraction"""
     # Standard ARN
-    account_id = extract_account_id_from_arn(  # noqa: F841
-        "arn:aws:iam::123456789012:role/DRSOrchestrationRole"
-    )
+    account_id = extract_account_id_from_arn("arn:aws:iam::123456789012:role/DRSOrchestrationRole")  # noqa: F841
     assert account_id == "123456789012"  # noqa: F841
 
     # Custom role name
-    account_id = extract_account_id_from_arn(  # noqa: F841
-        "arn:aws:iam::999999999999:role/CustomRole"
-    )
+    account_id = extract_account_id_from_arn("arn:aws:iam::999999999999:role/CustomRole")  # noqa: F841
     assert account_id == "999999999999"  # noqa: F841
 
     # Invalid ARN - returns None
@@ -296,24 +271,17 @@ if __name__ == "__main__":
 # Strategies for account-context-improvements properties
 # ============================================================
 
+
 @st.composite
 def api_gateway_event_strategy(draw):
     """Generate API Gateway event with requestContext."""
     return {
         "requestContext": {
             "requestId": draw(st.uuids()).hex,
-            "apiId": draw(
-                st.text(min_size=10, max_size=10)
-            ),
-            "identity": {
-                "cognitoIdentityId": draw(st.uuids()).hex
-            }
+            "apiId": draw(st.text(min_size=10, max_size=10)),
+            "identity": {"cognitoIdentityId": draw(st.uuids()).hex},
         },
-        "body": json.dumps({
-            "groupName": draw(
-                st.text(min_size=1, max_size=255)
-            )
-        })
+        "body": json.dumps({"groupName": draw(st.text(min_size=1, max_size=255))}),
     }
 
 
@@ -321,26 +289,16 @@ def api_gateway_event_strategy(draw):
 def direct_lambda_event_strategy(draw):
     """Generate direct Lambda invocation event (no requestContext)."""
     include_account = draw(st.booleans())
-    body = {
-        "groupName": draw(
-            st.text(min_size=1, max_size=255)
-        )
-    }
+    body = {"groupName": draw(st.text(min_size=1, max_size=255))}
     if include_account:
-        body["accountId"] = draw(
-            st.from_regex(r"^\d{12}$", fullmatch=True)
-        )
+        body["accountId"] = draw(st.from_regex(r"^\d{12}$", fullmatch=True))
     return {"body": json.dumps(body)}
 
 
 @st.composite
 def direct_event_without_account_strategy(draw):
     """Generate direct Lambda event without accountId in body."""
-    body = {
-        "groupName": draw(
-            st.text(min_size=1, max_size=255)
-        )
-    }
+    body = {"groupName": draw(st.text(min_size=1, max_size=255))}
     # Optionally include empty accountId
     if draw(st.booleans()):
         body["accountId"] = ""
@@ -350,6 +308,7 @@ def direct_event_without_account_strategy(draw):
 # ============================================================
 # Property 2: Account ID Format Validation
 # ============================================================
+
 
 @settings(max_examples=200)
 @given(account_id=st.text())
@@ -365,14 +324,10 @@ def test_property_account_id_format_validation(account_id):
     """
     is_valid = validate_account_id(account_id)
 
-    expected_valid = (
-        len(account_id) == 12
-        and account_id.isdigit()
-    )
+    expected_valid = len(account_id) == 12 and account_id.isdigit()
 
     assert is_valid == expected_valid, (
-        f"validate_account_id('{account_id}') returned "
-        f"{is_valid}, expected {expected_valid}"
+        f"validate_account_id('{account_id}') returned " f"{is_valid}, expected {expected_valid}"
     )
 
 
@@ -380,11 +335,14 @@ def test_property_account_id_format_validation(account_id):
 # Property 3: Invocation Source Detection
 # ============================================================
 
+
 @settings(max_examples=200)
-@given(event=st.one_of(
-    api_gateway_event_strategy(),
-    direct_lambda_event_strategy(),
-))
+@given(
+    event=st.one_of(
+        api_gateway_event_strategy(),
+        direct_lambda_event_strategy(),
+    )
+)
 @pytest.mark.property
 def test_property_invocation_source_detection(event):
     """
@@ -398,26 +356,20 @@ def test_property_invocation_source_detection(event):
     source = detect_invocation_source(event)
 
     if "requestContext" in event:
-        assert source == "api_gateway", (
-            f"Event with requestContext should be 'api_gateway'"
-            f", got '{source}'"
-        )
+        assert source == "api_gateway", f"Event with requestContext should be 'api_gateway'" f", got '{source}'"
     else:
-        assert source == "direct", (
-            f"Event without requestContext should be 'direct'"
-            f", got '{source}'"
-        )
+        assert source == "direct", f"Event without requestContext should be 'direct'" f", got '{source}'"
 
 
 @settings(max_examples=100)
-@given(extra_keys=st.dictionaries(
-    keys=st.text(min_size=1, max_size=30).filter(
-        lambda k: k != "requestContext"
-    ),
-    values=st.text(min_size=1, max_size=50),
-    min_size=0,
-    max_size=5,
-))
+@given(
+    extra_keys=st.dictionaries(
+        keys=st.text(min_size=1, max_size=30).filter(lambda k: k != "requestContext"),
+        values=st.text(min_size=1, max_size=50),
+        min_size=0,
+        max_size=5,
+    )
+)
 @pytest.mark.property
 def test_property_invocation_source_direct_no_request_context(
     extra_keys,
@@ -431,15 +383,13 @@ def test_property_invocation_source_direct_no_request_context(
     event = dict(extra_keys)
     assert "requestContext" not in event
     source = detect_invocation_source(event)
-    assert source == "direct", (
-        f"Event without requestContext should be 'direct'"
-        f", got '{source}'"
-    )
+    assert source == "direct", f"Event without requestContext should be 'direct'" f", got '{source}'"
 
 
 # ============================================================
 # Property 4: Direct Invocation Requires Account ID
 # ============================================================
+
 
 @settings(max_examples=200)
 @given(event=direct_event_without_account_strategy())
@@ -488,10 +438,5 @@ def test_property_direct_invocation_with_valid_account_succeeds(
             validate_account_context_for_invocation(event, body)
     else:
         # Has valid 12-digit accountId — should succeed
-        result = validate_account_context_for_invocation(
-            event, body
-        )
-        assert result["accountId"] == account_id, (
-            f"Expected accountId '{account_id}', "
-            f"got '{result['accountId']}'"
-        )
+        result = validate_account_context_for_invocation(event, body)
+        assert result["accountId"] == account_id, f"Expected accountId '{account_id}', " f"got '{result['accountId']}'"

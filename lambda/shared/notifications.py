@@ -168,9 +168,7 @@ sns = boto3.client("sns")
 # Environment variables for SNS topic ARNs
 EXECUTION_TOPIC_ARN = os.environ.get("EXECUTION_NOTIFICATIONS_TOPIC_ARN", "")
 DRS_ALERTS_TOPIC_ARN = os.environ.get("DRS_ALERTS_TOPIC_ARN", "")
-PROJECT_NAME = os.environ.get(
-    "PROJECT_NAME", "aws-elasticdrs-orchestrator"
-)
+PROJECT_NAME = os.environ.get("PROJECT_NAME", "aws-elasticdrs-orchestrator")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
@@ -639,13 +637,13 @@ def publish_recovery_plan_notification(
 
     # Attempt HTML formatting; fall back to raw JSON on error
     try:
-        formatted = format_notification_message(
-            event_type, details
+        formatted = format_notification_message(event_type, details)
+        message_body = json.dumps(
+            {
+                "default": formatted["default"],
+                "email": formatted["email"],
+            }
         )
-        message_body = json.dumps({
-            "default": formatted["default"],
-            "email": formatted["email"],
-        })
         message_structure = "json"
     except Exception as fmt_exc:
         logger.error(
@@ -673,20 +671,16 @@ def publish_recovery_plan_notification(
             },
         }
         if message_structure is not None:
-            publish_kwargs["MessageStructure"] = (
-                message_structure
-            )
+            publish_kwargs["MessageStructure"] = message_structure
         sns.publish(**publish_kwargs)
         logger.info(
-            "Published notification for Recovery Plan "
-            "%s, event %s",
+            "Published notification for Recovery Plan " "%s, event %s",
             plan_id,
             event_type,
         )
     except Exception as exc:
         logger.error(
-            "Failed to publish notification for Recovery "
-            "Plan %s, event %s: %s",
+            "Failed to publish notification for Recovery " "Plan %s, event %s: %s",
             plan_id,
             event_type,
             exc,
@@ -1143,7 +1137,6 @@ def _get_base_email_styles() -> str:
     """
 
 
-
 def _build_info_box(details: Dict[str, Any]) -> str:
     """
     Build the common info box HTML with execution details.
@@ -1162,31 +1155,18 @@ def _build_info_box(details: Dict[str, Any]) -> str:
     account_id = details.get("accountId", "")
     timestamp = details.get(
         "timestamp",
-        datetime.now(timezone.utc).strftime(
-            "%Y-%m-%d %H:%M:%S UTC"
-        ),
+        datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
     )
 
     lines = [
-        f"<p><strong>Recovery Plan:</strong>"
-        f" {plan_name}</p>",
-        f"<p><strong>Execution ID:</strong>"
-        f" {execution_id}</p>",
+        f"<p><strong>Recovery Plan:</strong>" f" {plan_name}</p>",
+        f"<p><strong>Execution ID:</strong>" f" {execution_id}</p>",
     ]
     if account_id:
-        lines.append(
-            f"<p><strong>Account ID:</strong>"
-            f" {account_id}</p>"
-        )
-    lines.append(
-        f"<p><strong>Timestamp:</strong> {timestamp}</p>"
-    )
+        lines.append(f"<p><strong>Account ID:</strong>" f" {account_id}</p>")
+    lines.append(f"<p><strong>Timestamp:</strong> {timestamp}</p>")
 
-    return (
-        '<div class="info-box">'
-        + "\n".join(lines)
-        + "</div>"
-    )
+    return '<div class="info-box">' + "\n".join(lines) + "</div>"
 
 
 def _build_console_link(details: Dict[str, Any]) -> str:
@@ -1202,18 +1182,8 @@ def _build_console_link(details: Dict[str, Any]) -> str:
     console_link = details.get("consoleLink", "")
     if not console_link:
         region = details.get("region", AWS_REGION)
-        console_link = (
-            f"https://{region}.console.aws.amazon.com"
-            f"/cloudformation/home?region={region}"
-            "#/stacks"
-        )
-    return (
-        '<div class="console-link">'
-        f'<a href="{console_link}">'
-        "View in AWS Console</a>"
-        "</div>"
-    )
-
+        console_link = f"https://{region}.console.aws.amazon.com" f"/cloudformation/home?region={region}" "#/stacks"
+    return '<div class="console-link">' f'<a href="{console_link}">' "View in AWS Console</a>" "</div>"
 
 
 def _wrap_html_email(
@@ -1299,9 +1269,7 @@ def format_start_notification(
         "progresses through each wave.</p>"
     )
 
-    return _wrap_html_email(
-        "\U0001f680 DR Execution Started", body, details
-    )
+    return _wrap_html_email("\U0001f680 DR Execution Started", body, details)
 
 
 def format_complete_notification(
@@ -1334,10 +1302,7 @@ def format_complete_notification(
         "in the target account.</p>"
     )
 
-    return _wrap_html_email(
-        "\u2705 DR Execution Completed", body, details
-    )
-
+    return _wrap_html_email("\u2705 DR Execution Completed", body, details)
 
 
 def format_failure_notification(
@@ -1369,9 +1334,7 @@ def format_failure_notification(
         "appropriate action to resolve the issue.</p>"
     )
 
-    return _wrap_html_email(
-        "\u274c DR Execution Failed", body, details
-    )
+    return _wrap_html_email("\u274c DR Execution Failed", body, details)
 
 
 def format_pause_notification(
@@ -1393,9 +1356,7 @@ def format_pause_notification(
     Returns:
         HTML email body with interactive action buttons
     """
-    pause_reason = details.get(
-        "pauseReason", "Manual pause requested"
-    )
+    pause_reason = details.get("pauseReason", "Manual pause requested")
     resume_url = details.get("resumeUrl", "")
     cancel_url = details.get("cancelUrl", "")
 
@@ -1424,9 +1385,7 @@ def format_pause_notification(
             "permanently.</p>"
         )
 
-    return _wrap_html_email(
-        "\U0001f6d1 DR Execution Paused", body, details
-    )
+    return _wrap_html_email("\U0001f6d1 DR Execution Paused", body, details)
 
 
 def format_notification_message(
@@ -1473,8 +1432,5 @@ def format_notification_message(
 
     return {
         "default": f"DR Event: {event_type}",
-        "email": (
-            f"Event: {event_type}\n"
-            f"Details: {json.dumps(details, indent=2)}"
-        ),
+        "email": (f"Event: {event_type}\n" f"Details: {json.dumps(details, indent=2)}"),
     }

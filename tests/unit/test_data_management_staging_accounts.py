@@ -37,9 +37,7 @@ def setup_dynamodb_table():
     table = dynamodb.create_table(  # noqa: F841
         TableName="test-target-accounts-table",
         KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-        AttributeDefinitions=[
-            {"AttributeName": "accountId", "AttributeType": "S"}
-        ],
+        AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
     )
 
@@ -70,9 +68,7 @@ def test_add_staging_account_success():
         "externalId": "external-id-123",
     }
 
-    result = add_staging_account(  # noqa: F841
-        target_account_id, staging_account, added_by="test_user"
-    )
+    result = add_staging_account(target_account_id, staging_account, added_by="test_user")  # noqa: F841
 
     assert result["success"] is True
     assert "STAGING_01" in result["message"]
@@ -95,16 +91,12 @@ def test_add_duplicate_staging_account():
     }
 
     # Add staging account first time
-    result1 = add_staging_account(
-        target_account_id, staging_account, added_by="test_user"
-    )
+    result1 = add_staging_account(target_account_id, staging_account, added_by="test_user")
     assert result1["success"] is True
 
     # Try to add same staging account again
     with pytest.raises(ValueError, match="already exists"):
-        add_staging_account(
-            target_account_id, staging_account, added_by="test_user"
-        )
+        add_staging_account(target_account_id, staging_account, added_by="test_user")
 
 
 @mock_aws
@@ -122,9 +114,7 @@ def test_add_staging_account_invalid_structure():
     }
 
     with pytest.raises(ValueError, match="Invalid staging account"):
-        add_staging_account(
-            target_account_id, invalid_staging_account, added_by="test_user"
-        )
+        add_staging_account(target_account_id, invalid_staging_account, added_by="test_user")
 
 
 @mock_aws
@@ -141,9 +131,7 @@ def test_add_staging_account_invalid_account_id():
     }
 
     with pytest.raises(ValueError, match="Invalid account ID format"):
-        add_staging_account(
-            target_account_id, staging_account, added_by="test_user"
-        )
+        add_staging_account(target_account_id, staging_account, added_by="test_user")
 
 
 @mock_aws
@@ -160,9 +148,7 @@ def test_add_staging_account_target_not_found():
     }
 
     with pytest.raises(ValueError, match="not found"):
-        add_staging_account(
-            nonexistent_target_id, staging_account, added_by="test_user"
-        )
+        add_staging_account(nonexistent_target_id, staging_account, added_by="test_user")
 
 
 @mock_aws
@@ -179,15 +165,11 @@ def test_remove_staging_account_success():
     }
 
     # Add staging account first
-    add_result = add_staging_account(  # noqa: F841
-        target_account_id, staging_account, added_by="test_user"
-    )
+    add_result = add_staging_account(target_account_id, staging_account, added_by="test_user")  # noqa: F841
     assert add_result["success"] is True
 
     # Remove staging account
-    remove_result = remove_staging_account(  # noqa: F841
-        target_account_id, staging_account["accountId"]
-    )
+    remove_result = remove_staging_account(target_account_id, staging_account["accountId"])  # noqa: F841
 
     assert remove_result["success"] is True
     assert "STAGING_01" in remove_result["message"]
@@ -248,9 +230,7 @@ def test_add_multiple_staging_accounts():
 
     # Add all staging accounts
     for staging_account in staging_accounts:
-        result = add_staging_account(  # noqa: F841
-            target_account_id, staging_account, added_by="test_user"
-        )
+        result = add_staging_account(target_account_id, staging_account, added_by="test_user")  # noqa: F841
         assert result["success"] is True
 
     # Verify all were added
@@ -298,9 +278,7 @@ def test_remove_staging_account_preserves_others():
     ]
 
     for staging_account in staging_accounts:
-        add_staging_account(
-            target_account_id, staging_account, added_by="test_user"
-        )
+        add_staging_account(target_account_id, staging_account, added_by="test_user")
 
     # Remove middle staging account
     result = remove_staging_account(target_account_id, "777777777777")  # noqa: F841
@@ -309,9 +287,7 @@ def test_remove_staging_account_preserves_others():
     assert len(result["stagingAccounts"]) == 2
 
     # Verify correct accounts remain
-    remaining_ids = [
-        acc["accountId"] for acc in result["stagingAccounts"]
-    ]
+    remaining_ids = [acc["accountId"] for acc in result["stagingAccounts"]]
     assert "444455556666" in remaining_ids
     assert "888888888888" in remaining_ids
     assert "777777777777" not in remaining_ids

@@ -59,9 +59,7 @@ account_id_strategy = st.text(alphabet="0123456789", min_size=12, max_size=12)
 
 # Strategy for account names
 account_name_strategy = st.text(
-    alphabet=st.characters(
-        whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters=" -_"
-    ),
+    alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters=" -_"),
     min_size=1,
     max_size=50,
 )
@@ -74,9 +72,7 @@ account_name_strategy = st.text(
     explicit_arn=st.text(min_size=20, max_size=100),
 )
 @pytest.mark.property
-def test_property_explicit_arn_precedence(
-    account_id, account_name, explicit_arn
-):
+def test_property_explicit_arn_precedence(account_id, account_name, explicit_arn):
     """
     Property 2: Explicit ARN takes precedence.
 
@@ -92,9 +88,7 @@ def test_property_explicit_arn_precedence(
         table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-            AttributeDefinitions=[
-                {"AttributeName": "accountId", "AttributeType": "S"}
-            ],
+            AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
 
@@ -112,14 +106,11 @@ def test_property_explicit_arn_precedence(
         if response["statusCode"] == 201:
             response_body = json.loads(response["body"])
             assert response_body["roleArn"] == explicit_arn, (
-                "Should use explicit ARN. "
-                f"Expected: {explicit_arn}, Got: {response_body.get('roleArn')}"
+                "Should use explicit ARN. " f"Expected: {explicit_arn}, Got: {response_body.get('roleArn')}"
             )
             # Should NOT be the constructed ARN
             constructed = construct_role_arn(account_id)
-            assert response_body["roleArn"] != constructed, (
-                "Should not use constructed ARN when explicit ARN provided"
-            )
+            assert response_body["roleArn"] != constructed, "Should not use constructed ARN when explicit ARN provided"
 
 
 @settings(max_examples=50, deadline=1000)  # Reduce examples, increase deadline
@@ -129,9 +120,7 @@ def test_property_explicit_arn_precedence(
     include_role_arn=st.booleans(),
 )
 @pytest.mark.property
-def test_property_optional_role_arn_acceptance(
-    account_id, account_name, include_role_arn
-):
+def test_property_optional_role_arn_acceptance(account_id, account_name, include_role_arn):
     """
     Property 5: Optional roleArn field acceptance.
 
@@ -147,9 +136,7 @@ def test_property_optional_role_arn_acceptance(
         table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-            AttributeDefinitions=[
-                {"AttributeName": "accountId", "AttributeType": "S"}
-            ],
+            AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
 
@@ -169,17 +156,17 @@ def test_property_optional_role_arn_acceptance(
                 mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
                 mock_iam = MagicMock()
                 mock_iam.list_account_aliases.return_value = {"AccountAliases": ["test-account"]}
-                
+
                 def mock_client(service_name, **kwargs):
                     if service_name == "sts":
                         return mock_sts
                     elif service_name == "iam":
                         return mock_iam
                     return MagicMock()
-                
+
                 mock_boto3.client.side_effect = mock_client
                 mock_boto3.resource.return_value = dynamodb
-                
+
                 # Act - patch table getter to use moto table
                 with patch.object(
                     data_management_handler,
@@ -201,9 +188,7 @@ def test_property_optional_role_arn_acceptance(
     account_name=account_name_strategy,
 )
 @pytest.mark.property
-def test_property_api_response_includes_role_arn(
-    account_id, account_name
-):
+def test_property_api_response_includes_role_arn(account_id, account_name):
     """
     Property 4: API responses include role ARN.
 
@@ -219,9 +204,7 @@ def test_property_api_response_includes_role_arn(
         table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-            AttributeDefinitions=[
-                {"AttributeName": "accountId", "AttributeType": "S"}
-            ],
+            AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
 
@@ -233,15 +216,9 @@ def test_property_api_response_includes_role_arn(
         # Assert - Response must include roleArn
         if response["statusCode"] in [200, 201]:
             response_body = json.loads(response["body"])
-            assert "roleArn" in response_body, (
-                "API response must include roleArn field"
-            )
-            assert response_body["roleArn"], (
-                "roleArn field must be non-empty"
-            )
-            assert len(response_body["roleArn"]) > 0, (
-                "roleArn must have content"
-            )
+            assert "roleArn" in response_body, "API response must include roleArn field"
+            assert response_body["roleArn"], "roleArn field must be non-empty"
+            assert len(response_body["roleArn"]) > 0, "roleArn must have content"
 
 
 @pytest.mark.property
@@ -253,9 +230,7 @@ def test_account_addition_without_role_arn():
         table = dynamodb.create_table(
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-            AttributeDefinitions=[
-                {"AttributeName": "accountId", "AttributeType": "S"}
-            ],
+            AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
 
@@ -273,17 +248,17 @@ def test_account_addition_without_role_arn():
                 mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
                 mock_iam = MagicMock()
                 mock_iam.list_account_aliases.return_value = {"AccountAliases": ["test-account"]}
-                
+
                 def mock_client(service_name, **kwargs):
                     if service_name == "sts":
                         return mock_sts
                     elif service_name == "iam":
                         return mock_iam
                     return MagicMock()
-                
+
                 mock_boto3.client.side_effect = mock_client
                 mock_boto3.resource.return_value = dynamodb
-                
+
                 # Patch the target_accounts_table global variable in data-management-handler
                 with patch.object(data_management_handler, "get_target_accounts_table", return_value=table):
                     response = data_management_handler.create_target_account(body)
@@ -296,9 +271,7 @@ def test_account_addition_without_role_arn():
 
         assert response["statusCode"] == 201
         response_body = json.loads(response["body"])
-        assert response_body["roleArn"] == (
-            "arn:aws:iam::999888777666:role/DRSOrchestrationRole"
-        )
+        assert response_body["roleArn"] == ("arn:aws:iam::999888777666:role/DRSOrchestrationRole")
 
 
 @pytest.mark.property
@@ -310,9 +283,7 @@ def test_account_addition_with_explicit_role_arn():
         table = dynamodb.create_table(
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-            AttributeDefinitions=[
-                {"AttributeName": "accountId", "AttributeType": "S"}
-            ],
+            AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
 
@@ -332,17 +303,17 @@ def test_account_addition_with_explicit_role_arn():
                 mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
                 mock_iam = MagicMock()
                 mock_iam.list_account_aliases.return_value = {"AccountAliases": ["test-account"]}
-                
+
                 def mock_client(service_name, **kwargs):
                     if service_name == "sts":
                         return mock_sts
                     elif service_name == "iam":
                         return mock_iam
                     return MagicMock()
-                
+
                 mock_boto3.client.side_effect = mock_client
                 mock_boto3.resource.return_value = dynamodb
-                
+
                 # Patch the target_accounts_table global variable in data-management-handler
                 with patch.object(data_management_handler, "get_target_accounts_table", return_value=table):
                     response = data_management_handler.create_target_account(body)

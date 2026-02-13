@@ -52,10 +52,7 @@ def test_allowed_fields_accepted(config):
     result = validate_aws_approved_fields(config)  # noqa: F841
 
     # Assert
-    assert result["valid"], (
-        f"Configuration with only allowed fields should be accepted: {config}, "
-        f"got: {result}"
-    )
+    assert result["valid"], f"Configuration with only allowed fields should be accepted: {config}, " f"got: {result}"
     assert not result.get("blockedFields", [])
 
 
@@ -78,9 +75,7 @@ def test_blocked_fields_rejected(blocked_field, value):
     result = validate_aws_approved_fields(config)  # noqa: F841
 
     # Assert
-    assert not result["valid"], (
-        f"Configuration with blocked field {blocked_field} should be rejected"
-    )
+    assert not result["valid"], f"Configuration with blocked field {blocked_field} should be rejected"
     assert blocked_field in result.get("blockedFields", [])
     assert "managed" in result.get("message", "").lower() and "drs" in result.get("message", "").lower()
 
@@ -110,9 +105,7 @@ def test_mixed_fields_rejected(allowed_config, blocked_field, blocked_value):
     result = validate_aws_approved_fields(config)  # noqa: F841
 
     # Assert
-    assert not result["valid"], (
-        f"Configuration with mixed fields should be rejected: {config}"
-    )
+    assert not result["valid"], f"Configuration with mixed fields should be rejected: {config}"
     assert blocked_field in result.get("blockedFields", [])
 
     # Verify only blocked fields are reported
@@ -121,9 +114,9 @@ def test_mixed_fields_rejected(allowed_config, blocked_field, blocked_value):
 
 
 @given(
-    unknown_field=st.text(
-        min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L",))
-    ).filter(lambda x: x not in ALLOWED_FIELDS and x not in BLOCKED_FIELDS),
+    unknown_field=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L",))).filter(
+        lambda x: x not in ALLOWED_FIELDS and x not in BLOCKED_FIELDS
+    ),
     value=st.text(min_size=1, max_size=50),
 )
 @pytest.mark.property
@@ -141,9 +134,7 @@ def test_unknown_fields_handling(unknown_field, value):
     result = validate_aws_approved_fields(config)  # noqa: F841
 
     # Assert - Unknown fields should be rejected (not in allowed list)
-    assert not result["valid"], (
-        f"Unknown field {unknown_field} should be rejected"
-    )
+    assert not result["valid"], f"Unknown field {unknown_field} should be rejected"
 
 
 @pytest.mark.property
@@ -211,9 +202,7 @@ def test_blocked_fields_list_completeness():
     expected_blocked = ["imageId", "userData", "blockDeviceMappings", "keyName"]
 
     for field in expected_blocked:
-        assert field in BLOCKED_FIELDS, (
-            f"Expected blocked field {field} not in BLOCKED_FIELDS"
-        )
+        assert field in BLOCKED_FIELDS, f"Expected blocked field {field} not in BLOCKED_FIELDS"
 
 
 @pytest.mark.property
@@ -233,9 +222,7 @@ def test_allowed_fields_list_completeness():
     ]
 
     for field in expected_allowed:
-        assert field in ALLOWED_FIELDS, (
-            f"Expected allowed field {field} not in ALLOWED_FIELDS"
-        )
+        assert field in ALLOWED_FIELDS, f"Expected allowed field {field} not in ALLOWED_FIELDS"
 
 
 if __name__ == "__main__":

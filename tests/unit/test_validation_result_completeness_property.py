@@ -33,9 +33,7 @@ if "index" in sys.modules:
     del sys.modules["index"]
 
 # Add query-handler to path - query-handler FIRST
-query_handler_dir = (
-    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
-)
+query_handler_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(query_handler_dir))
 
 from index import handle_validate_staging_account  # noqa: E402
@@ -45,23 +43,23 @@ from index import handle_validate_staging_account  # noqa: E402
 account_id_strategy = st.from_regex(r"\d{12}", fullmatch=True)
 
 # Strategy for generating valid IAM role ARNs
-role_arn_strategy = st.from_regex(
-    r"arn:aws:iam::\d{12}:role/[\w+=,.@-]+", fullmatch=True
-)
+role_arn_strategy = st.from_regex(r"arn:aws:iam::\d{12}:role/[\w+=,.@-]+", fullmatch=True)
 
 # Strategy for generating external IDs
 external_id_strategy = st.text(min_size=1, max_size=100)
 
 # Strategy for generating AWS regions
-region_strategy = st.sampled_from([
-    "us-east-1",
-    "us-east-2",
-    "us-west-1",
-    "us-west-2",
-    "eu-west-1",
-    "eu-central-1",
-    "ap-southeast-1",
-])
+region_strategy = st.sampled_from(
+    [
+        "us-east-1",
+        "us-east-2",
+        "us-west-1",
+        "us-west-2",
+        "eu-west-1",
+        "eu-central-1",
+        "ap-southeast-1",
+    ]
+)
 
 # Strategy for server counts
 server_count_strategy = st.integers(min_value=0, max_value=300)
@@ -82,10 +80,10 @@ def test_property_validation_result_completeness_success(
 ):
     """
     Property 6: Validation Result Completeness (Success Case)
-    
+
     For any successful validation attempt, the result must include all
     required fields with correct types.
-    
+
     Required fields for successful validation:
     - valid: True
     - roleAccessible: True
@@ -127,15 +125,13 @@ def test_property_validation_result_completeness_success(
         # Generate mock servers
         mock_servers = []
         for i in range(total_servers):
-            replication_state = (
-                "CONTINUOUS" if i < replicating_servers else "DISCONNECTED"
+            replication_state = "CONTINUOUS" if i < replicating_servers else "DISCONNECTED"
+            mock_servers.append(
+                {
+                    "sourceServerID": f"s-{i:08d}",
+                    "dataReplicationInfo": {"dataReplicationState": replication_state},
+                }
             )
-            mock_servers.append({
-                "sourceServerID": f"s-{i:08d}",
-                "dataReplicationInfo": {
-                    "dataReplicationState": replication_state
-                },
-            })
 
         mock_paginator.paginate.return_value = [{"items": mock_servers}]
 
@@ -161,32 +157,20 @@ def test_property_validation_result_completeness_success(
         assert "roleAccessible" in body, "Missing 'roleAccessible' field"
         assert "drsInitialized" in body, "Missing 'drsInitialized' field"
         assert "currentServers" in body, "Missing 'currentServers' field"
-        assert (
-            "replicatingServers" in body
-        ), "Missing 'replicatingServers' field"
+        assert "replicatingServers" in body, "Missing 'replicatingServers' field"
         assert "totalAfter" in body, "Missing 'totalAfter' field"
 
         # Verify field types and values
         assert body["valid"] is True, "valid should be True for success"
-        assert (
-            body["roleAccessible"] is True
-        ), "roleAccessible should be True for success"
-        assert (
-            body["drsInitialized"] is True
-        ), "drsInitialized should be True for success"
+        assert body["roleAccessible"] is True, "roleAccessible should be True for success"
+        assert body["drsInitialized"] is True, "drsInitialized should be True for success"
 
-        assert isinstance(
-            body["currentServers"], int
-        ), "currentServers must be int"
+        assert isinstance(body["currentServers"], int), "currentServers must be int"
         assert body["currentServers"] >= 0, "currentServers must be >= 0"
         assert body["currentServers"] == total_servers
 
-        assert isinstance(
-            body["replicatingServers"], int
-        ), "replicatingServers must be int"
-        assert (
-            body["replicatingServers"] >= 0
-        ), "replicatingServers must be >= 0"
+        assert isinstance(body["replicatingServers"], int), "replicatingServers must be int"
+        assert body["replicatingServers"] >= 0, "replicatingServers must be >= 0"
         assert body["replicatingServers"] == replicating_servers
 
         assert isinstance(body["totalAfter"], int), "totalAfter must be int"
@@ -205,12 +189,10 @@ def test_property_validation_result_completeness_success(
     error_code=st.sampled_from(["AccessDenied", "InvalidClientTokenId"]),
 )
 @pytest.mark.property
-def test_property_validation_result_completeness_role_failure(
-    account_id, role_arn, external_id, region, error_code
-):
+def test_property_validation_result_completeness_role_failure(account_id, role_arn, external_id, region, error_code):
     """
     Property 6: Validation Result Completeness (Role Assumption Failure)
-    
+
     For any validation attempt that fails at role assumption, the result
     must include:
     - valid: False
@@ -253,9 +235,7 @@ def test_property_validation_result_completeness_role_failure(
 
         # Verify field values
         assert body["valid"] is False, "valid should be False for role failure"
-        assert (
-            body["roleAccessible"] is False
-        ), "roleAccessible should be False for role failure"
+        assert body["roleAccessible"] is False, "roleAccessible should be False for role failure"
 
         assert isinstance(body["error"], str), "error must be string"
         assert len(body["error"]) > 0, "error message must not be empty"
@@ -269,12 +249,10 @@ def test_property_validation_result_completeness_role_failure(
     region=region_strategy,
 )
 @pytest.mark.property
-def test_property_validation_result_completeness_drs_uninitialized(
-    account_id, role_arn, external_id, region
-):
+def test_property_validation_result_completeness_drs_uninitialized(account_id, role_arn, external_id, region):
     """
     Property 6: Validation Result Completeness (DRS Uninitialized)
-    
+
     For any validation attempt where DRS is not initialized, the result
     must include:
     - valid: False
@@ -339,21 +317,13 @@ def test_property_validation_result_completeness_drs_uninitialized(
         assert "error" in body, "Missing 'error' field"
 
         # Verify field values
-        assert (
-            body["valid"] is False
-        ), "valid should be False for DRS uninitialized"
-        assert (
-            body["roleAccessible"] is True
-        ), "roleAccessible should be True (role worked)"
-        assert (
-            body["drsInitialized"] is False
-        ), "drsInitialized should be False"
+        assert body["valid"] is False, "valid should be False for DRS uninitialized"
+        assert body["roleAccessible"] is True, "roleAccessible should be True (role worked)"
+        assert body["drsInitialized"] is False, "drsInitialized should be False"
 
         assert isinstance(body["error"], str), "error must be string"
         assert len(body["error"]) > 0, "error message must not be empty"
-        assert (
-            "not initialized" in body["error"].lower()
-        ), "error should mention DRS not initialized"
+        assert "not initialized" in body["error"].lower(), "error should mention DRS not initialized"
 
 
 if __name__ == "__main__":

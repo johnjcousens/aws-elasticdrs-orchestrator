@@ -55,14 +55,8 @@ def mock_env_vars():
             "EXECUTION_HISTORY_TABLE": "test-execution-table",
             "PROTECTION_GROUPS_TABLE": "test-pg-table",
             "RECOVERY_PLANS_TABLE": "test-plans-table",
-            "EXECUTION_HANDLER_ARN": (
-                "arn:aws:lambda:us-east-1:123456789012:function:"
-                "test-execution-handler"
-            ),
-            "QUERY_HANDLER_ARN": (
-                "arn:aws:lambda:us-east-1:123456789012:function:"
-                "test-query-handler"
-            ),
+            "EXECUTION_HANDLER_ARN": ("arn:aws:lambda:us-east-1:123456789012:function:" "test-execution-handler"),
+            "QUERY_HANDLER_ARN": ("arn:aws:lambda:us-east-1:123456789012:function:" "test-query-handler"),
         },
     ):
         yield
@@ -171,10 +165,7 @@ class TestBeginWavePlanInvokesExecutionHandler:
         call_args = mock_lambda_client.invoke.call_args
 
         # Verify function name
-        assert (
-            call_args[1]["FunctionName"]
-            == os.environ["EXECUTION_HANDLER_ARN"]
-        )
+        assert call_args[1]["FunctionName"] == os.environ["EXECUTION_HANDLER_ARN"]
         assert call_args[1]["InvocationType"] == "RequestResponse"
 
         # Verify payload structure
@@ -195,9 +186,7 @@ class TestBeginWavePlanInvokesExecutionHandler:
         assert result["region"] == "us-east-1"
         assert result["server_ids"] == ["s-001"]
 
-    def test_begin_wave_plan_handles_empty_waves(
-        self, mock_env_vars, mock_lambda_client, mock_dynamodb_table
-    ):
+    def test_begin_wave_plan_handles_empty_waves(self, mock_env_vars, mock_lambda_client, mock_dynamodb_table):
         """Test begin_wave_plan() with no waves (edge case)"""
         from index import begin_wave_plan
 
@@ -237,11 +226,7 @@ class TestBeginWavePlanInvokesExecutionHandler:
 
         mock_response = {
             "StatusCode": 200,
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"job_id": "drsjob-123", "wave_completed": False}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"job_id": "drsjob-123", "wave_completed": False}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 
@@ -265,17 +250,13 @@ class TestBeginWavePlanInvokesExecutionHandler:
         # Verify update sets status to RUNNING
         assert call_args[1]["Key"]["executionId"] == "exec-456"
         assert call_args[1]["Key"]["planId"] == "plan-123"
-        assert (
-            call_args[1]["ExpressionAttributeValues"][":status"] == "RUNNING"
-        )
+        assert call_args[1]["ExpressionAttributeValues"][":status"] == "RUNNING"
 
 
 class TestPollWaveStatusInvokesQueryHandler:
     """Test poll_wave_status() invokes query-handler (Task 4.13)"""
 
-    def test_poll_wave_status_invokes_query_handler_correctly(
-        self, mock_env_vars, mock_lambda_client, sample_state
-    ):
+    def test_poll_wave_status_invokes_query_handler_correctly(self, mock_env_vars, mock_lambda_client, sample_state):
         """
         Test that poll_wave_status() invokes query-handler with
         correct payload
@@ -307,9 +288,7 @@ class TestPollWaveStatusInvokesQueryHandler:
         call_args = mock_lambda_client.invoke.call_args
 
         # Verify function name
-        assert (
-            call_args[1]["FunctionName"] == os.environ["QUERY_HANDLER_ARN"]
-        )
+        assert call_args[1]["FunctionName"] == os.environ["QUERY_HANDLER_ARN"]
         assert call_args[1]["InvocationType"] == "RequestResponse"
 
         # Verify payload structure
@@ -326,9 +305,7 @@ class TestPollWaveStatusInvokesQueryHandler:
         assert result["wave_completed"] is False
         assert result["status"] == "running"
 
-    def test_poll_wave_status_handles_wave_completed(
-        self, mock_env_vars, mock_lambda_client, sample_state
-    ):
+    def test_poll_wave_status_handles_wave_completed(self, mock_env_vars, mock_lambda_client, sample_state):
         """Test poll_wave_status() when wave is completed"""
         from index import poll_wave_status
 
@@ -357,19 +334,13 @@ class TestPollWaveStatusInvokesQueryHandler:
         assert result["status"] == "completed"
         assert result["all_waves_completed"] is True
 
-    def test_poll_wave_status_accepts_state_at_root(
-        self, mock_env_vars, mock_lambda_client, sample_state
-    ):
+    def test_poll_wave_status_accepts_state_at_root(self, mock_env_vars, mock_lambda_client, sample_state):
         """Test poll_wave_status() accepts state at root level"""
         from index import poll_wave_status
 
         mock_response = {
             "StatusCode": 200,
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"wave_completed": False, "status": "running"}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"wave_completed": False, "status": "running"}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 
@@ -433,10 +404,7 @@ class TestResumeWaveInvokesExecutionHandler:
         call_args = mock_lambda_client.invoke.call_args
 
         # Verify function name
-        assert (
-            call_args[1]["FunctionName"]
-            == os.environ["EXECUTION_HANDLER_ARN"]
-        )
+        assert call_args[1]["FunctionName"] == os.environ["EXECUTION_HANDLER_ARN"]
         assert call_args[1]["InvocationType"] == "RequestResponse"
 
         # Verify payload structure
@@ -465,11 +433,7 @@ class TestResumeWaveInvokesExecutionHandler:
 
         mock_response = {
             "StatusCode": 200,
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"job_id": "drsjob-456", "wave_completed": False}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"job_id": "drsjob-456", "wave_completed": False}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 
@@ -489,12 +453,8 @@ class TestResumeWaveInvokesExecutionHandler:
         # Verify update sets status to RUNNING and removes pause metadata
         assert call_args[1]["Key"]["executionId"] == "exec-456"
         assert call_args[1]["Key"]["planId"] == "plan-123"
-        assert (
-            call_args[1]["ExpressionAttributeValues"][":status"] == "RUNNING"
-        )
-        assert "REMOVE taskToken, pausedBeforeWave" in call_args[1][
-            "UpdateExpression"
-        ]
+        assert call_args[1]["ExpressionAttributeValues"][":status"] == "RUNNING"
+        assert "REMOVE taskToken, pausedBeforeWave" in call_args[1]["UpdateExpression"]
 
     def test_resume_wave_handles_decimal_wave_number(
         self,
@@ -513,11 +473,7 @@ class TestResumeWaveInvokesExecutionHandler:
 
         mock_response = {
             "StatusCode": 200,
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"job_id": "drsjob-789", "wave_completed": False}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"job_id": "drsjob-789", "wave_completed": False}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 
@@ -551,9 +507,7 @@ class TestInvocationErrorHandling:
         from index import begin_wave_plan
 
         # Setup mock to raise exception
-        mock_lambda_client.invoke.side_effect = Exception(
-            "Lambda invocation failed"
-        )
+        mock_lambda_client.invoke.side_effect = Exception("Lambda invocation failed")
 
         event = {
             "plan": sample_plan,
@@ -588,11 +542,7 @@ class TestInvocationErrorHandling:
         mock_response = {
             "StatusCode": 200,
             "FunctionError": "Unhandled",
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"errorMessage": "Handler failed"}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"errorMessage": "Handler failed"}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 
@@ -614,16 +564,12 @@ class TestInvocationErrorHandling:
         assert result["status"] == "failed"
         assert "error" in result
 
-    def test_poll_wave_status_handles_lambda_invocation_error(
-        self, mock_env_vars, mock_lambda_client, sample_state
-    ):
+    def test_poll_wave_status_handles_lambda_invocation_error(self, mock_env_vars, mock_lambda_client, sample_state):
         """Test error handling when poll_wave_status invocation fails"""
         from index import poll_wave_status
 
         # Setup mock to raise exception
-        mock_lambda_client.invoke.side_effect = Exception(
-            "Query handler timeout"
-        )
+        mock_lambda_client.invoke.side_effect = Exception("Query handler timeout")
 
         event = {"application": sample_state}
 
@@ -636,9 +582,7 @@ class TestInvocationErrorHandling:
         assert "error" in result
         assert "Query handler timeout" in result["error"]
 
-    def test_poll_wave_status_handles_function_error_response(
-        self, mock_env_vars, mock_lambda_client, sample_state
-    ):
+    def test_poll_wave_status_handles_function_error_response(self, mock_env_vars, mock_lambda_client, sample_state):
         """Test error handling when query-handler returns FunctionError"""
         from index import poll_wave_status
 
@@ -646,11 +590,7 @@ class TestInvocationErrorHandling:
         mock_response = {
             "StatusCode": 200,
             "FunctionError": "Unhandled",
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"errorMessage": "DRS API error"}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"errorMessage": "DRS API error"}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 
@@ -677,9 +617,7 @@ class TestInvocationErrorHandling:
         sample_state["paused_before_wave"] = 1
 
         # Setup mock to raise exception
-        mock_lambda_client.invoke.side_effect = Exception(
-            "Execution handler unavailable"
-        )
+        mock_lambda_client.invoke.side_effect = Exception("Execution handler unavailable")
 
         event = {"application": sample_state}
 
@@ -712,11 +650,7 @@ class TestInvocationErrorHandling:
         mock_response = {
             "StatusCode": 200,
             "FunctionError": "Unhandled",
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"errorMessage": "Protection Group not found"}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"errorMessage": "Protection Group not found"}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 
@@ -750,11 +684,7 @@ class TestInvocationPayloadStructure:
 
         mock_response = {
             "StatusCode": 200,
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"job_id": "drsjob-123", "wave_completed": False}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"job_id": "drsjob-123", "wave_completed": False}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 
@@ -792,13 +722,9 @@ class TestInvocationPayloadStructure:
 
         # Verify account context preserved
         assert state["accountContext"]["accountId"] == "987654321098"
-        assert (
-            state["accountContext"]["assumeRoleName"] == "CrossAccountRole"
-        )
+        assert state["accountContext"]["assumeRoleName"] == "CrossAccountRole"
 
-    def test_poll_wave_status_payload_preserves_state(
-        self, mock_env_vars, mock_lambda_client, sample_state
-    ):
+    def test_poll_wave_status_payload_preserves_state(self, mock_env_vars, mock_lambda_client, sample_state):
         """Test that poll_wave_status preserves all state fields"""
         from index import poll_wave_status
 
@@ -810,11 +736,7 @@ class TestInvocationPayloadStructure:
 
         mock_response = {
             "StatusCode": 200,
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"wave_completed": False, "status": "running"}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"wave_completed": False, "status": "running"}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 
@@ -852,11 +774,7 @@ class TestInvocationPayloadStructure:
 
         mock_response = {
             "StatusCode": 200,
-            "Payload": MagicMock(
-                read=lambda: json.dumps(
-                    {"job_id": "drsjob-789", "wave_completed": False}
-                ).encode()
-            ),
+            "Payload": MagicMock(read=lambda: json.dumps({"job_id": "drsjob-789", "wave_completed": False}).encode()),
         }
         mock_lambda_client.invoke.return_value = mock_response
 

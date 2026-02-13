@@ -56,9 +56,7 @@ def mock_env_vars():
             "TARGET_ACCOUNTS_TABLE": "test-target-accounts-table",
             "PROJECT_NAME": "test-project",
             "ENVIRONMENT": "test",
-            "STATE_MACHINE_ARN": (
-                "arn:aws:states:us-east-1:123456789012:stateMachine:test"
-            ),
+            "STATE_MACHINE_ARN": ("arn:aws:states:us-east-1:123456789012:stateMachine:test"),
         },
     ):
         yield
@@ -77,9 +75,7 @@ def mock_dynamodb_table():
 class TestAccountContextExtraction:
     """Test accountContext extraction in get_execution_details_realtime()"""
 
-    def test_cross_account_execution_extracts_and_passes_account_context(
-        self, mock_env_vars, mock_dynamodb_table
-    ):
+    def test_cross_account_execution_extracts_and_passes_account_context(self, mock_env_vars, mock_dynamodb_table):
         """
         Test with cross-account execution (isCurrentAccount=False).
 
@@ -114,12 +110,8 @@ class TestAccountContextExtraction:
         mock_dynamodb_table.query.return_value = {"Items": [execution]}
 
         with patch("index.execution_history_table", mock_dynamodb_table):
-            with patch(
-                "index.reconcile_wave_status_with_drs"
-            ) as mock_reconcile:
-                with patch(
-                    "index.enrich_execution_with_server_details"
-                ) as mock_enrich:
+            with patch("index.reconcile_wave_status_with_drs") as mock_reconcile:
+                with patch("index.enrich_execution_with_server_details") as mock_enrich:
                     # Mock reconcile to return execution unchanged
                     mock_reconcile.return_value = execution
                     mock_enrich.return_value = execution
@@ -132,36 +124,22 @@ class TestAccountContextExtraction:
                         mock_reconcile.assert_called_once()
                         call_args = mock_reconcile.call_args
                         assert call_args[0][0] == execution  # First arg is execution
-                        assert call_args[0][1] == execution[
-                            "accountContext"
-                        ]  # Second arg is account_context
+                        assert call_args[0][1] == execution["accountContext"]  # Second arg is account_context
 
                         # Verify logging shows account context being used
-                        print_calls = [
-                            str(call) for call in mock_print.call_args_list
-                        ]
-                        assert any(
-                            "Using account context for polling" in call
-                            for call in print_calls
-                        )
-                        assert any(
-                            "accountId=160885257264" in call
-                            for call in print_calls
-                        )
-                        assert any(
-                            "isCurrentAccount=False" in call
-                            for call in print_calls
-                        )
+                        print_calls = [str(call) for call in mock_print.call_args_list]
+                        assert any("Using account context for polling" in call for call in print_calls)
+                        assert any("accountId=160885257264" in call for call in print_calls)
+                        assert any("isCurrentAccount=False" in call for call in print_calls)
 
                         # Verify result is API Gateway response with execution data
                         assert result["statusCode"] == 200
                         import json
+
                         body = json.loads(result["body"])
                         assert body["executionId"] == "exec-123"
 
-    def test_same_account_execution_extracts_and_passes_account_context(
-        self, mock_env_vars, mock_dynamodb_table
-    ):
+    def test_same_account_execution_extracts_and_passes_account_context(self, mock_env_vars, mock_dynamodb_table):
         """
         Test with same-account execution (isCurrentAccount=True).
 
@@ -196,12 +174,8 @@ class TestAccountContextExtraction:
         mock_dynamodb_table.query.return_value = {"Items": [execution]}
 
         with patch("index.execution_history_table", mock_dynamodb_table):
-            with patch(
-                "index.reconcile_wave_status_with_drs"
-            ) as mock_reconcile:
-                with patch(
-                    "index.enrich_execution_with_server_details"
-                ) as mock_enrich:
+            with patch("index.reconcile_wave_status_with_drs") as mock_reconcile:
+                with patch("index.enrich_execution_with_server_details") as mock_enrich:
                     mock_reconcile.return_value = execution
                     mock_enrich.return_value = execution
 
@@ -214,26 +188,17 @@ class TestAccountContextExtraction:
                         assert call_args[0][1] == execution["accountContext"]
 
                         # Verify logging shows account context with isCurrentAccount=True
-                        print_calls = [
-                            str(call) for call in mock_print.call_args_list
-                        ]
-                        assert any(
-                            "Using account context for polling" in call
-                            for call in print_calls
-                        )
-                        assert any(
-                            "isCurrentAccount=True" in call
-                            for call in print_calls
-                        )
+                        print_calls = [str(call) for call in mock_print.call_args_list]
+                        assert any("Using account context for polling" in call for call in print_calls)
+                        assert any("isCurrentAccount=True" in call for call in print_calls)
 
                         assert result["statusCode"] == 200
                         import json
+
                         body = json.loads(result["body"])
                         assert body["executionId"] == "exec-456"
 
-    def test_missing_account_context_passes_none_for_backwards_compatibility(
-        self, mock_env_vars, mock_dynamodb_table
-    ):
+    def test_missing_account_context_passes_none_for_backwards_compatibility(self, mock_env_vars, mock_dynamodb_table):
         """
         Test with missing accountContext (backwards compatibility).
 
@@ -264,12 +229,8 @@ class TestAccountContextExtraction:
         mock_dynamodb_table.query.return_value = {"Items": [execution]}
 
         with patch("index.execution_history_table", mock_dynamodb_table):
-            with patch(
-                "index.reconcile_wave_status_with_drs"
-            ) as mock_reconcile:
-                with patch(
-                    "index.enrich_execution_with_server_details"
-                ) as mock_enrich:
+            with patch("index.reconcile_wave_status_with_drs") as mock_reconcile:
+                with patch("index.enrich_execution_with_server_details") as mock_enrich:
                     mock_reconcile.return_value = execution
                     mock_enrich.return_value = execution
 
@@ -282,26 +243,17 @@ class TestAccountContextExtraction:
                         assert call_args[0][1] is None  # Second arg should be None
 
                         # Verify logging shows no account context found
-                        print_calls = [
-                            str(call) for call in mock_print.call_args_list
-                        ]
-                        assert any(
-                            "No account context found" in call
-                            for call in print_calls
-                        )
-                        assert any(
-                            "using current account credentials" in call
-                            for call in print_calls
-                        )
+                        print_calls = [str(call) for call in mock_print.call_args_list]
+                        assert any("No account context found" in call for call in print_calls)
+                        assert any("using current account credentials" in call for call in print_calls)
 
                         assert result["statusCode"] == 200
                         import json
+
                         body = json.loads(result["body"])
                         assert body["executionId"] == "exec-789"
 
-    def test_account_context_extraction_handles_get_method_safely(
-        self, mock_env_vars, mock_dynamodb_table
-    ):
+    def test_account_context_extraction_handles_get_method_safely(self, mock_env_vars, mock_dynamodb_table):
         """
         Test that account_context extraction uses .get() method safely.
 
@@ -322,12 +274,8 @@ class TestAccountContextExtraction:
         mock_dynamodb_table.query.return_value = {"Items": [execution]}
 
         with patch("index.execution_history_table", mock_dynamodb_table):
-            with patch(
-                "index.reconcile_wave_status_with_drs"
-            ) as mock_reconcile:
-                with patch(
-                    "index.enrich_execution_with_server_details"
-                ) as mock_enrich:
+            with patch("index.reconcile_wave_status_with_drs") as mock_reconcile:
+                with patch("index.enrich_execution_with_server_details") as mock_enrich:
                     mock_reconcile.return_value = execution
                     mock_enrich.return_value = execution
 
@@ -340,6 +288,7 @@ class TestAccountContextExtraction:
 
                     assert result["statusCode"] == 200
                     import json
+
                     body = json.loads(result["body"])
                     assert body["executionId"] == "exec-minimal"
 
@@ -347,9 +296,7 @@ class TestAccountContextExtraction:
 class TestAccountContextLogging:
     """Test logging behavior for accountContext"""
 
-    def test_logging_includes_account_id_and_is_current_account_flag(
-        self, mock_env_vars, mock_dynamodb_table
-    ):
+    def test_logging_includes_account_id_and_is_current_account_flag(self, mock_env_vars, mock_dynamodb_table):
         """
         Test that logging includes both accountId and isCurrentAccount flag.
 
@@ -374,9 +321,7 @@ class TestAccountContextLogging:
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.reconcile_wave_status_with_drs") as mock_reconcile:
-                with patch(
-                    "index.enrich_execution_with_server_details"
-                ) as mock_enrich:
+                with patch("index.enrich_execution_with_server_details") as mock_enrich:
                     mock_reconcile.return_value = execution
                     mock_enrich.return_value = execution
 
@@ -384,13 +329,9 @@ class TestAccountContextLogging:
                         get_execution_details_realtime("exec-log-test")
 
                         # Find the specific log message
-                        print_calls = [
-                            call[0][0] for call in mock_print.call_args_list
-                        ]
+                        print_calls = [call[0][0] for call in mock_print.call_args_list]
                         account_context_logs = [
-                            log
-                            for log in print_calls
-                            if "Using account context for polling" in log
+                            log for log in print_calls if "Using account context for polling" in log
                         ]
 
                         assert len(account_context_logs) == 1
@@ -400,9 +341,7 @@ class TestAccountContextLogging:
                         assert "accountId=123456789012" in log_message
                         assert "isCurrentAccount=False" in log_message
 
-    def test_logging_when_no_account_context_present(
-        self, mock_env_vars, mock_dynamodb_table
-    ):
+    def test_logging_when_no_account_context_present(self, mock_env_vars, mock_dynamodb_table):
         """
         Test logging when accountContext is missing.
 
@@ -422,37 +361,24 @@ class TestAccountContextLogging:
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.reconcile_wave_status_with_drs") as mock_reconcile:
-                with patch(
-                    "index.enrich_execution_with_server_details"
-                ) as mock_enrich:
+                with patch("index.enrich_execution_with_server_details") as mock_enrich:
                     mock_reconcile.return_value = execution
                     mock_enrich.return_value = execution
 
                     with patch("builtins.print") as mock_print:
                         get_execution_details_realtime("exec-no-context")
 
-                        print_calls = [
-                            call[0][0] for call in mock_print.call_args_list
-                        ]
-                        no_context_logs = [
-                            log
-                            for log in print_calls
-                            if "No account context found" in log
-                        ]
+                        print_calls = [call[0][0] for call in mock_print.call_args_list]
+                        no_context_logs = [log for log in print_calls if "No account context found" in log]
 
                         assert len(no_context_logs) == 1
-                        assert (
-                            "using current account credentials"
-                            in no_context_logs[0]
-                        )
+                        assert "using current account credentials" in no_context_logs[0]
 
 
 class TestReconcileWaveStatusIntegration:
     """Test integration with reconcile_wave_status_with_drs()"""
 
-    def test_reconcile_receives_correct_parameters(
-        self, mock_env_vars, mock_dynamodb_table
-    ):
+    def test_reconcile_receives_correct_parameters(self, mock_env_vars, mock_dynamodb_table):
         """
         Test that reconcile_wave_status_with_drs receives correct parameters.
 
@@ -480,9 +406,7 @@ class TestReconcileWaveStatusIntegration:
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.reconcile_wave_status_with_drs") as mock_reconcile:
-                with patch(
-                    "index.enrich_execution_with_server_details"
-                ) as mock_enrich:
+                with patch("index.enrich_execution_with_server_details") as mock_enrich:
                     mock_reconcile.return_value = execution
                     mock_enrich.return_value = execution
 
@@ -506,9 +430,7 @@ class TestReconcileWaveStatusIntegration:
                     assert args[1]["isCurrentAccount"] is False
                     assert args[1]["externalId"] == "test-external-id"
 
-    def test_reconcile_handles_none_account_context(
-        self, mock_env_vars, mock_dynamodb_table
-    ):
+    def test_reconcile_handles_none_account_context(self, mock_env_vars, mock_dynamodb_table):
         """
         Test that reconcile_wave_status_with_drs handles None account_context.
 
@@ -527,9 +449,7 @@ class TestReconcileWaveStatusIntegration:
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.reconcile_wave_status_with_drs") as mock_reconcile:
-                with patch(
-                    "index.enrich_execution_with_server_details"
-                ) as mock_enrich:
+                with patch("index.enrich_execution_with_server_details") as mock_enrich:
                     mock_reconcile.return_value = execution
                     mock_enrich.return_value = execution
 
@@ -544,9 +464,7 @@ class TestReconcileWaveStatusIntegration:
 class TestErrorHandling:
     """Test error handling in accountContext extraction"""
 
-    def test_reconcile_error_does_not_prevent_execution_return(
-        self, mock_env_vars, mock_dynamodb_table
-    ):
+    def test_reconcile_error_does_not_prevent_execution_return(self, mock_env_vars, mock_dynamodb_table):
         """
         Test that errors in reconcile_wave_status_with_drs don't break execution.
 
@@ -573,13 +491,9 @@ class TestErrorHandling:
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.reconcile_wave_status_with_drs") as mock_reconcile:
-                with patch(
-                    "index.enrich_execution_with_server_details"
-                ) as mock_enrich:
+                with patch("index.enrich_execution_with_server_details") as mock_enrich:
                     # Simulate error in reconcile
-                    mock_reconcile.side_effect = Exception(
-                        "Failed to assume role None"
-                    )
+                    mock_reconcile.side_effect = Exception("Failed to assume role None")
                     mock_enrich.return_value = execution
 
                     with patch("builtins.print") as mock_print:
@@ -587,16 +501,12 @@ class TestErrorHandling:
                         result = get_execution_details_realtime("exec-error-test")
 
                         # Verify error was logged
-                        print_calls = [
-                            str(call) for call in mock_print.call_args_list
-                        ]
-                        assert any(
-                            "Error reconciling wave status" in call
-                            for call in print_calls
-                        )
+                        print_calls = [str(call) for call in mock_print.call_args_list]
+                        assert any("Error reconciling wave status" in call for call in print_calls)
 
                         # Verify execution data still returned
                         assert result["statusCode"] == 200
                         import json
+
                         body = json.loads(result["body"])
                         assert body["executionId"] == "exec-error-test"

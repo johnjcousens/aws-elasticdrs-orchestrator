@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: 
 import pytest  # noqa: F401
 
 # Add lambda directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../lambda/shared'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda/shared"))
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def mock_boto3_client():
 def test_role_assumption_with_explicit_role_arn(mock_boto3_client):
     """
     Test role assumption with assumeRoleName.
-    
+
     **Validates: Requirement 1.3** - Role name is used to construct ARN
     """
     # Import after mocking
@@ -77,7 +77,7 @@ def test_role_assumption_with_explicit_role_arn(mock_boto3_client):
 def test_role_assumption_with_constructed_role_arn(mock_boto3_client):
     """
     Test role assumption with standard role name.
-    
+
     **Validates: Requirement 1.2** - ARN construction with assumeRoleName
     """
     # Import after mocking
@@ -104,7 +104,7 @@ def test_role_assumption_with_constructed_role_arn(mock_boto3_client):
 def test_role_assumption_failure_handling(mock_boto3_client):
     """
     Test error handling when assumeRoleName is missing.
-    
+
     **Validates: Requirement 1.2** - Error handling for missing role name
     """
     # Import after mocking
@@ -124,7 +124,7 @@ def test_role_assumption_failure_handling(mock_boto3_client):
 def test_current_account_no_role_assumption(mock_boto3_client):
     """
     Test that current account doesn't trigger role assumption.
-    
+
     **Validates: Requirement 1.2** - Current account uses default credentials
     """
     # Import after mocking
@@ -146,7 +146,7 @@ def test_current_account_no_role_assumption(mock_boto3_client):
 def test_no_account_context_uses_default_credentials(mock_boto3_client):
     """
     Test that missing account context uses default credentials.
-    
+
     **Validates: Requirement 1.2** - Default behavior without account context
     """
     # Import after mocking
@@ -163,7 +163,7 @@ def test_no_account_context_uses_default_credentials(mock_boto3_client):
 def test_empty_account_id_uses_default_credentials(mock_boto3_client):
     """
     Test that empty account ID raises error.
-    
+
     **Validates: Requirement 1.2** - Empty account ID handling
     """
     # Import after mocking
@@ -182,7 +182,7 @@ def test_empty_account_id_uses_default_credentials(mock_boto3_client):
 def test_constructed_arn_follows_pattern():
     """
     Test that constructed ARN follows standardized pattern.
-    
+
     **Validates: Requirement 1.2** - ARN pattern correctness
     """
     # Import construct_role_arn directly
@@ -203,7 +203,7 @@ def test_constructed_arn_follows_pattern():
 def test_invalid_account_id_raises_error():
     """
     Test that invalid account ID raises ValueError.
-    
+
     **Validates: Requirement 1.2** - Input validation
     """
     # Import construct_role_arn directly

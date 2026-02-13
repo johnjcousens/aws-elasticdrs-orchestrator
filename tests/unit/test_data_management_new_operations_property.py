@@ -32,9 +32,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
 # Add lambda paths for imports
-data_mgmt_dir = (
-    Path(__file__).parent.parent.parent / "lambda" / "data-management-handler"
-)
+data_mgmt_dir = Path(__file__).parent.parent.parent / "lambda" / "data-management-handler"
 shared_dir = Path(__file__).parent.parent.parent / "lambda" / "shared"
 
 

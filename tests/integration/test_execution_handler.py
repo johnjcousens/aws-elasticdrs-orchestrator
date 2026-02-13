@@ -55,7 +55,7 @@ def mock_dynamodb_tables():
     """Create mock DynamoDB tables"""
     with mock_aws():
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        
+
         # Create Protection Groups table
         pg_table = dynamodb.create_table(
             TableName="test-protection-groups",
@@ -63,7 +63,7 @@ def mock_dynamodb_tables():
             AttributeDefinitions=[{"AttributeName": "groupId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
-        
+
         # Create Recovery Plans table
         rp_table = dynamodb.create_table(
             TableName="test-recovery-plans",
@@ -71,7 +71,7 @@ def mock_dynamodb_tables():
             AttributeDefinitions=[{"AttributeName": "planId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
-        
+
         # Create Execution History table
         eh_table = dynamodb.create_table(
             TableName="test-execution-history",
@@ -79,7 +79,7 @@ def mock_dynamodb_tables():
             AttributeDefinitions=[{"AttributeName": "executionId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
-        
+
         yield {
             "protection_groups": pg_table,
             "recovery_plans": rp_table,
@@ -93,18 +93,18 @@ def sample_data(mock_dynamodb_tables):
     pg_table = mock_dynamodb_tables["protection_groups"]
     rp_table = mock_dynamodb_tables["recovery_plans"]
     eh_table = mock_dynamodb_tables["execution_history"]
-    
+
     # Add sample Protection Groups
     pg_table.put_item(Item=get_mock_protection_group("pg-1", "Database Servers"))
     pg_table.put_item(Item=get_mock_protection_group("pg-2", "Web Servers"))
-    
+
     # Add sample Recovery Plans
     rp_table.put_item(Item=get_mock_recovery_plan("plan-1", "Production DR Plan"))
-    
+
     # Add sample Executions
     eh_table.put_item(Item=get_mock_execution("exec-1", "plan-1", "IN_PROGRESS"))
     eh_table.put_item(Item=get_mock_execution("exec-2", "plan-1", "COMPLETED"))
-    
+
     yield
 
 
@@ -118,7 +118,7 @@ def test_execute_recovery_plan_api_gateway(mock_boto_client, mock_env_vars, mock
         "startDate": "2024-01-15T10:00:00Z",
     }
     mock_boto_client.return_value = mock_sfn
-    
+
     # Create API Gateway event
     event = get_mock_api_gateway_event(
         method="POST",
@@ -126,12 +126,12 @@ def test_execute_recovery_plan_api_gateway(mock_boto_client, mock_env_vars, mock
         path_params={"id": "plan-1"},
         body={"isDrill": True, "pauseBeforeWave": 2},
     )
-    
+
     # Validate event structure
     assert event["httpMethod"] == "POST"
     assert event["path"] == "/recovery-plans/{id}/execute"
     assert event["pathParameters"]["id"] == "plan-1"
-    
+
     body = json.loads(event["body"])
     assert body["isDrill"] is True
     assert body["pauseBeforeWave"] == 2
@@ -147,13 +147,13 @@ def test_execute_recovery_plan_direct_invocation(mock_boto_client, mock_env_vars
         "startDate": "2024-01-15T10:00:00Z",
     }
     mock_boto_client.return_value = mock_sfn
-    
+
     # Create direct invocation event
     event = get_mock_direct_invocation_event(
         operation="execute_recovery_plan",
         body={"planId": "plan-1", "isDrill": True, "pauseBeforeWave": 2},
     )
-    
+
     # Validate event structure
     assert event["operation"] == "execute_recovery_plan"
     assert event["body"]["planId"] == "plan-1"
@@ -167,7 +167,7 @@ def test_list_executions_api_gateway(mock_env_vars, mock_dynamodb_tables, sample
         method="GET",
         path="/executions",
     )
-    
+
     # Validate event structure
     assert event["httpMethod"] == "GET"
     assert event["path"] == "/executions"
@@ -181,7 +181,7 @@ def test_get_execution_api_gateway(mock_env_vars, mock_dynamodb_tables, sample_d
         path="/executions/{id}",
         path_params={"id": "exec-1"},
     )
-    
+
     # Validate event structure
     assert event["httpMethod"] == "GET"
     assert event["path"] == "/executions/{id}"
@@ -197,14 +197,14 @@ def test_cancel_execution_api_gateway(mock_boto_client, mock_env_vars, mock_dyna
         "stopDate": "2024-01-15T10:05:00Z",
     }
     mock_boto_client.return_value = mock_sfn
-    
+
     # Create API Gateway event
     event = get_mock_api_gateway_event(
         method="POST",
         path="/executions/{id}/cancel",
         path_params={"id": "exec-1"},
     )
-    
+
     # Validate event structure
     assert event["httpMethod"] == "POST"
     assert event["path"] == "/executions/{id}/cancel"
@@ -220,7 +220,7 @@ def test_pause_execution_api_gateway(mock_boto_client, mock_env_vars, mock_dynam
         path="/executions/{id}/pause",
         path_params={"id": "exec-1"},
     )
-    
+
     # Validate event structure
     assert event["httpMethod"] == "POST"
     assert event["path"] == "/executions/{id}/pause"
@@ -236,7 +236,7 @@ def test_resume_execution_api_gateway(mock_boto_client, mock_env_vars, mock_dyna
         path="/executions/{id}/resume",
         path_params={"id": "exec-1"},
     )
-    
+
     # Validate event structure
     assert event["httpMethod"] == "POST"
     assert event["path"] == "/executions/{id}/resume"
@@ -252,14 +252,14 @@ def test_terminate_recovery_instances_api_gateway(mock_boto_client, mock_env_var
         "job": get_mock_drs_job("job-terminate-123", "STARTED", "TERMINATE"),
     }
     mock_boto_client.return_value = mock_drs
-    
+
     # Create API Gateway event
     event = get_mock_api_gateway_event(
         method="POST",
         path="/executions/{id}/terminate",
         path_params={"id": "exec-1"},
     )
-    
+
     # Validate event structure
     assert event["httpMethod"] == "POST"
     assert event["path"] == "/executions/{id}/terminate"
@@ -277,14 +277,14 @@ def test_get_recovery_instances_api_gateway(mock_boto_client, mock_env_vars, moc
         ]
     }
     mock_boto_client.return_value = mock_drs
-    
+
     # Create API Gateway event
     event = get_mock_api_gateway_event(
         method="GET",
         path="/executions/{id}/recovery-instances",
         path_params={"id": "exec-1"},
     )
-    
+
     # Validate event structure
     assert event["httpMethod"] == "GET"
     assert event["path"] == "/executions/{id}/recovery-instances"
@@ -302,44 +302,47 @@ def test_list_drs_jobs_api_gateway(mock_boto_client, mock_env_vars):
         ]
     }
     mock_boto_client.return_value = mock_drs
-    
+
     # Create API Gateway event
     event = get_mock_api_gateway_event(
         method="GET",
         path="/drs/jobs",
         query_params={"region": "us-east-1"},
     )
-    
+
     # Validate event structure
     assert event["httpMethod"] == "GET"
     assert event["path"] == "/drs/jobs"
 
 
-@pytest.mark.parametrize("method,path,path_params", [
-    ("POST", "/recovery-plans/{id}/execute", {"id": "plan-1"}),
-    ("GET", "/executions", None),
-    ("DELETE", "/executions", None),
-    ("GET", "/executions/{id}", {"id": "exec-1"}),
-    ("POST", "/executions/{id}/cancel", {"id": "exec-1"}),
-    ("POST", "/executions/{id}/pause", {"id": "exec-1"}),
-    ("POST", "/executions/{id}/resume", {"id": "exec-1"}),
-    ("POST", "/executions/{id}/terminate", {"id": "exec-1"}),
-    ("GET", "/executions/{id}/recovery-instances", {"id": "exec-1"}),
-    ("GET", "/executions/{id}/job-logs", {"id": "exec-1"}),
-    ("GET", "/executions/{id}/termination-status", {"id": "exec-1"}),
-    ("POST", "/drs/failover", None),
-    ("POST", "/drs/start-recovery", None),
-    ("POST", "/drs/terminate-recovery-instances", None),
-    ("POST", "/drs/disconnect-recovery-instance", None),
-    ("POST", "/drs/failback", None),
-    ("POST", "/drs/reverse-replication", None),
-    ("POST", "/drs/start-failback", None),
-    ("POST", "/drs/stop-failback", None),
-    ("GET", "/drs/failback-configuration", None),
-    ("GET", "/drs/jobs", None),
-    ("GET", "/drs/jobs/{id}", {"id": "job-1"}),
-    ("GET", "/drs/jobs/{id}/logs", {"id": "job-1"}),
-])
+@pytest.mark.parametrize(
+    "method,path,path_params",
+    [
+        ("POST", "/recovery-plans/{id}/execute", {"id": "plan-1"}),
+        ("GET", "/executions", None),
+        ("DELETE", "/executions", None),
+        ("GET", "/executions/{id}", {"id": "exec-1"}),
+        ("POST", "/executions/{id}/cancel", {"id": "exec-1"}),
+        ("POST", "/executions/{id}/pause", {"id": "exec-1"}),
+        ("POST", "/executions/{id}/resume", {"id": "exec-1"}),
+        ("POST", "/executions/{id}/terminate", {"id": "exec-1"}),
+        ("GET", "/executions/{id}/recovery-instances", {"id": "exec-1"}),
+        ("GET", "/executions/{id}/job-logs", {"id": "exec-1"}),
+        ("GET", "/executions/{id}/termination-status", {"id": "exec-1"}),
+        ("POST", "/drs/failover", None),
+        ("POST", "/drs/start-recovery", None),
+        ("POST", "/drs/terminate-recovery-instances", None),
+        ("POST", "/drs/disconnect-recovery-instance", None),
+        ("POST", "/drs/failback", None),
+        ("POST", "/drs/reverse-replication", None),
+        ("POST", "/drs/start-failback", None),
+        ("POST", "/drs/stop-failback", None),
+        ("GET", "/drs/failback-configuration", None),
+        ("GET", "/drs/jobs", None),
+        ("GET", "/drs/jobs/{id}", {"id": "job-1"}),
+        ("GET", "/drs/jobs/{id}/logs", {"id": "job-1"}),
+    ],
+)
 def test_execution_handler_endpoints(method, path, path_params, mock_env_vars):
     """Test all Execution Handler endpoints have correct event structure"""
     event = get_mock_api_gateway_event(
@@ -347,11 +350,10 @@ def test_execution_handler_endpoints(method, path, path_params, mock_env_vars):
         path=path,
         path_params=path_params,
     )
-    
+
     assert event["httpMethod"] == method
     assert event["path"] == path
     assert "requestContext" in event
-    
+
     if path_params:
         assert event["pathParameters"] == path_params
-

@@ -18,20 +18,19 @@ os.environ["PROTECTION_GROUPS_TABLE"] = "test-protection-groups-table"
 os.environ["RECOVERY_PLANS_TABLE"] = "test-recovery-plans-table"
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
 os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history-table"
-os.environ["EXECUTION_HANDLER_ARN"] = (
-    "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-)
+os.environ["EXECUTION_HANDLER_ARN"] = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
 # Import query-handler module
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda"))
 import importlib
+
 query_handler_index = importlib.import_module("query-handler.index")
 
 
 def get_lambda_handler():
     """
     Import and return the lambda_handler function from query-handler.
-    
+
     This function uses importlib to dynamically load the handler module,
     which is necessary because the module name contains hyphens.
     """
@@ -43,9 +42,7 @@ def lambda_context():
     """Mock Lambda context"""
     context = MagicMock()
     context.function_name = "query-handler"
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
     return context
 
 
@@ -55,15 +52,15 @@ def mock_protection_groups_table():
     return MagicMock()
 
 
-def test_get_server_launch_config_missing_group_id(
-    lambda_context, mock_protection_groups_table
-):
+def test_get_server_launch_config_missing_group_id(lambda_context, mock_protection_groups_table):
     """Test error when groupId is missing"""
     lambda_handler = get_lambda_handler()
 
-    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
-        
+    with (
+        patch("shared.iam_utils.validate_iam_authorization") as mock_validate,
+        patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table),
+    ):
+
         mock_validate.return_value = True
 
         # Create event without groupId
@@ -78,15 +75,15 @@ def test_get_server_launch_config_missing_group_id(
         assert "groupId and serverId are required" in result["message"]
 
 
-def test_get_server_launch_config_missing_server_id(
-    lambda_context, mock_protection_groups_table
-):
+def test_get_server_launch_config_missing_server_id(lambda_context, mock_protection_groups_table):
     """Test error when serverId is missing"""
     lambda_handler = get_lambda_handler()
 
-    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
-        
+    with (
+        patch("shared.iam_utils.validate_iam_authorization") as mock_validate,
+        patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table),
+    ):
+
         mock_validate.return_value = True
 
         # Create event without serverId
@@ -101,15 +98,15 @@ def test_get_server_launch_config_missing_server_id(
         assert "groupId and serverId are required" in result["message"]
 
 
-def test_get_server_launch_config_protection_group_not_found(
-    lambda_context, mock_protection_groups_table
-):
+def test_get_server_launch_config_protection_group_not_found(lambda_context, mock_protection_groups_table):
     """Test error when protection group doesn't exist"""
     lambda_handler = get_lambda_handler()
 
-    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
-        
+    with (
+        patch("shared.iam_utils.validate_iam_authorization") as mock_validate,
+        patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table),
+    ):
+
         mock_validate.return_value = True
 
         # Mock DynamoDB to return no item
@@ -131,15 +128,15 @@ def test_get_server_launch_config_protection_group_not_found(
         assert "Protection group pg-nonexistent not found" in result["message"]
 
 
-def test_get_server_launch_config_server_not_found(
-    lambda_context, mock_protection_groups_table
-):
+def test_get_server_launch_config_server_not_found(lambda_context, mock_protection_groups_table):
     """Test error when server is not in protection group"""
     lambda_handler = get_lambda_handler()
 
-    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
-        
+    with (
+        patch("shared.iam_utils.validate_iam_authorization") as mock_validate,
+        patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table),
+    ):
+
         mock_validate.return_value = True
 
         # Mock DynamoDB to return protection group without the server
@@ -168,15 +165,15 @@ def test_get_server_launch_config_server_not_found(
         assert "Server s-123 not found in protection group pg-123" in result["message"]
 
 
-def test_get_server_launch_config_server_uses_group_defaults(
-    lambda_context, mock_protection_groups_table
-):
+def test_get_server_launch_config_server_uses_group_defaults(lambda_context, mock_protection_groups_table):
     """Test server that exists but has no custom config (uses group defaults)"""
     lambda_handler = get_lambda_handler()
 
-    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
-        
+    with (
+        patch("shared.iam_utils.validate_iam_authorization") as mock_validate,
+        patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table),
+    ):
+
         mock_validate.return_value = True
 
         # Mock DynamoDB to return protection group with server in sourceServerIds
@@ -212,15 +209,15 @@ def test_get_server_launch_config_server_uses_group_defaults(
         assert result["launchConfiguration"]["subnetId"] == "subnet-default"
 
 
-def test_get_server_launch_config_server_with_custom_config(
-    lambda_context, mock_protection_groups_table
-):
+def test_get_server_launch_config_server_with_custom_config(lambda_context, mock_protection_groups_table):
     """Test server with custom launch configuration"""
     lambda_handler = get_lambda_handler()
 
-    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
-        
+    with (
+        patch("shared.iam_utils.validate_iam_authorization") as mock_validate,
+        patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table),
+    ):
+
         mock_validate.return_value = True
 
         # Mock DynamoDB to return protection group with server having custom config
@@ -274,15 +271,15 @@ def test_get_server_launch_config_server_with_custom_config(
         assert result["tags"]["Environment"] == "production"
 
 
-def test_get_server_launch_config_minimal_custom_config(
-    lambda_context, mock_protection_groups_table
-):
+def test_get_server_launch_config_minimal_custom_config(lambda_context, mock_protection_groups_table):
     """Test server with minimal custom configuration"""
     lambda_handler = get_lambda_handler()
 
-    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
-        
+    with (
+        patch("shared.iam_utils.validate_iam_authorization") as mock_validate,
+        patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table),
+    ):
+
         mock_validate.return_value = True
 
         # Mock DynamoDB to return protection group with server having minimal config
@@ -318,15 +315,15 @@ def test_get_server_launch_config_minimal_custom_config(
         assert result["launchConfiguration"] == {}
 
 
-def test_get_server_launch_config_dynamodb_error(
-    lambda_context, mock_protection_groups_table
-):
+def test_get_server_launch_config_dynamodb_error(lambda_context, mock_protection_groups_table):
     """Test handling of DynamoDB errors"""
     lambda_handler = get_lambda_handler()
 
-    with patch("shared.iam_utils.validate_iam_authorization") as mock_validate, \
-         patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
-        
+    with (
+        patch("shared.iam_utils.validate_iam_authorization") as mock_validate,
+        patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table),
+    ):
+
         mock_validate.return_value = True
 
         # Mock DynamoDB to raise an exception

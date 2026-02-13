@@ -19,9 +19,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # Add lambda directory to path
-sys.path.insert(
-    0, os.path.join(os.path.dirname(__file__), "../../lambda")
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
 from shared.security_utils import validate_email  # noqa: E402
 
@@ -29,6 +27,7 @@ from shared.security_utils import validate_email  # noqa: E402
 # ============================================================
 # Property 5: Email Format Validation
 # ============================================================
+
 
 @settings(max_examples=300)
 @given(text=st.text())
@@ -49,27 +48,17 @@ def test_property_email_format_validation(text):
         # If validate_email says True, the string MUST
         # contain '@' followed by a domain with at least
         # one '.'.
-        assert "@" in text, (
-            f"validate_email returned True but string "
-            f"has no '@': {text!r}"
-        )
+        assert "@" in text, f"validate_email returned True but string " f"has no '@': {text!r}"
         local_part, _, domain = text.partition("@")
         assert "." in domain, (
-            f"validate_email returned True but domain "
-            f"has no '.': domain={domain!r}, "
-            f"full={text!r}"
+            f"validate_email returned True but domain " f"has no '.': domain={domain!r}, " f"full={text!r}"
         )
-
 
 
 @settings(max_examples=100)
 @given(
-    local=st.from_regex(
-        r"[a-zA-Z0-9._%+-]+", fullmatch=True
-    ),
-    domain=st.from_regex(
-        r"[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", fullmatch=True
-    ),
+    local=st.from_regex(r"[a-zA-Z0-9._%+-]+", fullmatch=True),
+    domain=st.from_regex(r"[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", fullmatch=True),
 )
 @pytest.mark.property
 def test_property_email_valid_format_accepted(local, domain):
@@ -82,10 +71,7 @@ def test_property_email_valid_format_accepted(local, domain):
     **Validates: Requirements 5.3, 5.6**
     """
     email = f"{local}@{domain}"
-    assert validate_email(email), (
-        f"validate_email should accept well-formed email: "
-        f"{email!r}"
-    )
+    assert validate_email(email), f"validate_email should accept well-formed email: " f"{email!r}"
 
 
 @pytest.mark.property
@@ -129,17 +115,18 @@ def test_property_email_rejects_missing_domain_dot():
 # Property 7: Notification Delivery for All Event Types
 # ============================================================
 
+
 @settings(max_examples=200)
 @given(
-    event_type=st.sampled_from(
-        ["start", "complete", "fail", "pause"]
-    ),
+    event_type=st.sampled_from(["start", "complete", "fail", "pause"]),
     plan_id=st.uuids().map(str),
     plan_name=st.text(min_size=1, max_size=100),
 )
 @pytest.mark.property
 def test_property_notification_delivery_all_event_types(
-    event_type, plan_id, plan_name,
+    event_type,
+    plan_id,
+    plan_name,
 ):
     """
     Property 7: Notification Delivery for All Event Types.
@@ -151,9 +138,7 @@ def test_property_notification_delivery_all_event_types(
 
     **Validates: Requirements 5.3, 5.6**
     """
-    topic_arn = (
-        "arn:aws:sns:us-east-1:123456789012:test-topic"
-    )
+    topic_arn = "arn:aws:sns:us-east-1:123456789012:test-topic"
 
     with patch.dict(
         os.environ,
@@ -161,13 +146,12 @@ def test_property_notification_delivery_all_event_types(
     ):
         # Re-import to pick up patched env var
         import shared.notifications as notif_mod
+
         original_arn = notif_mod.EXECUTION_TOPIC_ARN
         notif_mod.EXECUTION_TOPIC_ARN = topic_arn
 
         try:
-            with patch.object(
-                notif_mod, "sns"
-            ) as mock_sns:
+            with patch.object(notif_mod, "sns") as mock_sns:
                 notif_mod.publish_recovery_plan_notification(
                     plan_id=plan_id,
                     event_type=event_type,
@@ -178,9 +162,7 @@ def test_property_notification_delivery_all_event_types(
                 )
 
                 mock_sns.publish.assert_called_once()
-                call_kwargs = (
-                    mock_sns.publish.call_args[1]
-                )
+                call_kwargs = mock_sns.publish.call_args[1]
 
                 # Verify TopicArn
                 assert call_kwargs["TopicArn"] == topic_arn
@@ -188,46 +170,22 @@ def test_property_notification_delivery_all_event_types(
                 # Verify MessageAttributes contain
                 # recoveryPlanId
                 attrs = call_kwargs["MessageAttributes"]
-                assert "recoveryPlanId" in attrs, (
-                    "MessageAttributes must include "
-                    "recoveryPlanId"
+                assert "recoveryPlanId" in attrs, "MessageAttributes must include " "recoveryPlanId"
+                assert attrs["recoveryPlanId"]["StringValue"] == plan_id, (
+                    f"recoveryPlanId should be {plan_id}, " f"got " f"{attrs['recoveryPlanId']['StringValue']}"
                 )
-                assert (
-                    attrs["recoveryPlanId"]["StringValue"]
-                    == plan_id
-                ), (
-                    f"recoveryPlanId should be {plan_id}, "
-                    f"got "
-                    f"{attrs['recoveryPlanId']['StringValue']}"
-                )
-                assert (
-                    attrs["recoveryPlanId"]["DataType"]
-                    == "String"
-                )
+                assert attrs["recoveryPlanId"]["DataType"] == "String"
 
                 # Verify MessageAttributes contain
                 # eventType
-                assert "eventType" in attrs, (
-                    "MessageAttributes must include "
-                    "eventType"
+                assert "eventType" in attrs, "MessageAttributes must include " "eventType"
+                assert attrs["eventType"]["StringValue"] == event_type, (
+                    f"eventType should be {event_type}, " f"got " f"{attrs['eventType']['StringValue']}"
                 )
-                assert (
-                    attrs["eventType"]["StringValue"]
-                    == event_type
-                ), (
-                    f"eventType should be {event_type}, "
-                    f"got "
-                    f"{attrs['eventType']['StringValue']}"
-                )
-                assert (
-                    attrs["eventType"]["DataType"]
-                    == "String"
-                )
+                assert attrs["eventType"]["DataType"] == "String"
 
                 # Verify message body is JSON with details
-                body = json.loads(
-                    call_kwargs["Message"]
-                )
+                body = json.loads(call_kwargs["Message"])
                 assert body["planName"] == plan_name
         finally:
             notif_mod.EXECUTION_TOPIC_ARN = original_arn
@@ -242,6 +200,7 @@ def test_property_notification_skips_without_topic():
     **Validates: Requirements 5.3**
     """
     import shared.notifications as notif_mod
+
     original_arn = notif_mod.EXECUTION_TOPIC_ARN
     notif_mod.EXECUTION_TOPIC_ARN = ""
 

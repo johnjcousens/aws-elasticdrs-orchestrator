@@ -48,31 +48,29 @@ from shared.response_utils import (  # noqa: E402
 def get_lambda_handler_module(handler_name):
     """
     Import and return the handler module for patching and testing.
-    
+
     Args:
         handler_name: One of 'query_handler', 'execution_handler', 'data_management_handler'
-    
+
     Returns:
         Tuple of (lambda_handler function, module object for patching)
     """
     import importlib
-    
+
     # Map handler names to module names (with hyphens)
     module_map = {
         "query_handler": "query-handler.index",
         "execution_handler": "execution-handler.index",
         "data_management_handler": "data-management-handler.index",
     }
-    
+
     module_name = module_map[handler_name]
     module = importlib.import_module(module_name)
     return module.lambda_handler, module
 
 
 # Strategy for generating handler names
-handler_names = st.sampled_from(
-    ["query_handler", "execution_handler", "data_management_handler"]
-)
+handler_names = st.sampled_from(["query_handler", "execution_handler", "data_management_handler"])
 
 # Strategy for generating error codes
 error_codes = st.sampled_from(
@@ -104,9 +102,7 @@ valid_operations = st.sampled_from(
 )
 
 invalid_operations = st.text(
-    alphabet=st.characters(
-        whitelist_categories=("Ll", "Lu"), min_codepoint=97, max_codepoint=122
-    ),
+    alphabet=st.characters(whitelist_categories=("Ll", "Lu"), min_codepoint=97, max_codepoint=122),
     min_size=5,
     max_size=30,
 ).filter(
@@ -139,9 +135,7 @@ class TestErrorResponseStructureProperty:
         operation=invalid_operations,
     )
     @settings(max_examples=50)
-    def test_invalid_operation_error_structure_consistent(
-        self, handler, operation
-    ):
+    def test_invalid_operation_error_structure_consistent(self, handler, operation):
         """
         Property: For any handler and any invalid operation name, the error
         response should have consistent structure with error, message, and
@@ -155,9 +149,7 @@ class TestErrorResponseStructureProperty:
         # Create event with invalid operation
         event = {"operation": operation}
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock authorization to pass - patch at source module
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
@@ -167,26 +159,16 @@ class TestErrorResponseStructureProperty:
 
         # Verify error response structure
         assert "error" in result, "Error response must have 'error' field"
-        assert (
-            "message" in result
-        ), "Error response must have 'message' field"
-        assert isinstance(
-            result["error"], str
-        ), "Error code must be a string"
-        assert isinstance(
-            result["message"], str
-        ), "Error message must be a string"
+        assert "message" in result, "Error response must have 'message' field"
+        assert isinstance(result["error"], str), "Error code must be a string"
+        assert isinstance(result["message"], str), "Error message must be a string"
 
         # For invalid operation, should return INVALID_OPERATION
-        assert (
-            result["error"] == ERROR_INVALID_OPERATION
-        ), f"Invalid operation should return {ERROR_INVALID_OPERATION}"
+        assert result["error"] == ERROR_INVALID_OPERATION, f"Invalid operation should return {ERROR_INVALID_OPERATION}"
 
         # Should include operation in details
         assert "details" in result, "Error should include details"
-        assert (
-            "operation" in result["details"]
-        ), "Details should include operation"
+        assert "operation" in result["details"], "Details should include operation"
 
         # Response should be JSON serializable
         try:
@@ -210,9 +192,7 @@ class TestErrorResponseStructureProperty:
         # Create event without operation field
         event = {"someField": "value"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         with patch.object(handler_module, "boto3"):
             result = lambda_handler(event, context)
@@ -255,9 +235,7 @@ class TestErrorResponseStructureProperty:
         # Create valid event
         event = {"operation": operation}
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock authorization to fail - patch at source module
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
@@ -270,10 +248,7 @@ class TestErrorResponseStructureProperty:
         assert "message" in result
         assert result["error"] == ERROR_AUTHORIZATION_FAILED
         # Accept both "not authorized" and "insufficient permissions"
-        assert (
-            "not authorized" in result["message"].lower()
-            or "insufficient permissions" in result["message"].lower()
-        )
+        assert "not authorized" in result["message"].lower() or "insufficient permissions" in result["message"].lower()
 
         # Should include required role in details (if details field exists)
         # Some handlers may return string message instead of details object
@@ -343,9 +318,7 @@ class TestDynamoDBErrorConsistencyProperty:
         lambda_handler, handler_module = get_lambda_handler_module(handler)
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock DynamoDB error
         mock_table = MagicMock()
@@ -370,9 +343,7 @@ class TestDynamoDBErrorConsistencyProperty:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
             mock_auth.return_value = True
             with patch.object(handler_module, "boto3") as mock_boto3:
-                mock_boto3.resource.return_value.Table.return_value = (
-                    mock_table
-                )
+                mock_boto3.resource.return_value.Table.return_value = mock_table
                 result = lambda_handler(event, context)
 
         # Verify error response structure
@@ -439,9 +410,7 @@ class TestDRSErrorConsistencyProperty:
         lambda_handler, handler_module = get_lambda_handler_module(handler)
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock DRS error
         mock_drs = MagicMock()
@@ -466,7 +435,7 @@ class TestDRSErrorConsistencyProperty:
             with patch.object(handler_module, "boto3") as mock_boto3:
                 mock_boto3.client.return_value = mock_drs
                 mock_boto3.resource.return_value.Table.return_value = mock_table
-                
+
                 # For execution_handler, also patch the module-level execution_history_table
                 if handler == "execution_handler":
                     with patch.object(handler_module, "execution_history_table", mock_table):
@@ -544,38 +513,24 @@ class TestUnexpectedExceptionConsistencyProperty:
         lambda_handler, handler_module = get_lambda_handler_module(handler)
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock unexpected exception with sensitive data
         mock_table = MagicMock()
-        mock_table.scan.side_effect = Exception(
-            "Unexpected error with sensitive data: password123"
-        )
-        mock_table.get_item.side_effect = Exception(
-            "Unexpected error with sensitive data: password123"
-        )
-        mock_table.put_item.side_effect = Exception(
-            "Unexpected error with sensitive data: password123"
-        )
-        mock_table.query.side_effect = Exception(
-            "Unexpected error with sensitive data: password123"
-        )
+        mock_table.scan.side_effect = Exception("Unexpected error with sensitive data: password123")
+        mock_table.get_item.side_effect = Exception("Unexpected error with sensitive data: password123")
+        mock_table.put_item.side_effect = Exception("Unexpected error with sensitive data: password123")
+        mock_table.query.side_effect = Exception("Unexpected error with sensitive data: password123")
 
         # Mock DRS client to prevent REGION_NOT_ENABLED error
         mock_drs = MagicMock()
-        mock_drs.describe_source_servers.side_effect = Exception(
-            "Unexpected error with sensitive data: password123"
-        )
+        mock_drs.describe_source_servers.side_effect = Exception("Unexpected error with sensitive data: password123")
 
         # Mock authorization to pass - patch at source module
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
             mock_auth.return_value = True
             with patch.object(handler_module, "boto3") as mock_boto3:
-                mock_boto3.resource.return_value.Table.return_value = (
-                    mock_table
-                )
+                mock_boto3.resource.return_value.Table.return_value = mock_table
                 mock_boto3.client.return_value = mock_drs
                 result = lambda_handler(event, context)
 
@@ -610,9 +565,7 @@ class TestMissingParameterConsistencyProperty:
 
     @given(handler=handler_names)
     @settings(max_examples=50)
-    def test_missing_parameter_error_consistent_across_handlers(
-        self, handler
-    ):
+    def test_missing_parameter_error_consistent_across_handlers(self, handler):
         """
         Property: For any handler, when a required parameter is missing,
         the error response should be consistent with MISSING_PARAMETER code
@@ -641,9 +594,7 @@ class TestMissingParameterConsistencyProperty:
         lambda_handler, handler_module = get_lambda_handler_module(handler)
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock authorization to pass - patch at source module
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
@@ -715,9 +666,7 @@ class TestNotFoundErrorConsistencyProperty:
         lambda_handler, handler_module = get_lambda_handler_module(handler)
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock DynamoDB returning no item
         mock_table = MagicMock()
@@ -732,11 +681,9 @@ class TestNotFoundErrorConsistencyProperty:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
             mock_auth.return_value = True
             with patch.object(handler_module, "boto3") as mock_boto3:
-                mock_boto3.resource.return_value.Table.return_value = (
-                    mock_table
-                )
+                mock_boto3.resource.return_value.Table.return_value = mock_table
                 mock_boto3.client.return_value = mock_drs
-                
+
                 # For execution_handler, also patch the module-level execution_history_table
                 if handler == "execution_handler":
                     with patch.object(handler_module, "execution_history_table", mock_table):
@@ -758,7 +705,12 @@ class TestNotFoundErrorConsistencyProperty:
             # Should return NOT_FOUND, CONFIGURATION_ERROR, EXECUTION_NOT_FOUND, or INTERNAL_ERROR
             # (execution_handler returns EXECUTION_NOT_FOUND for missing executions)
             # (data_management_handler may return INTERNAL_ERROR due to AWS credential errors in mocks)
-            assert result["error"] in [ERROR_NOT_FOUND, "CONFIGURATION_ERROR", "EXECUTION_NOT_FOUND", ERROR_INTERNAL_ERROR]
+            assert result["error"] in [
+                ERROR_NOT_FOUND,
+                "CONFIGURATION_ERROR",
+                "EXECUTION_NOT_FOUND",
+                ERROR_INTERNAL_ERROR,
+            ]
 
             # Should include resource identifier in message (if NOT_FOUND or EXECUTION_NOT_FOUND)
             if result["error"] in [ERROR_NOT_FOUND, "EXECUTION_NOT_FOUND"]:
@@ -787,9 +739,7 @@ class TestErrorResponseJSONSerializability:
         ),
     )
     @settings(max_examples=100)
-    def test_all_error_responses_json_serializable(
-        self, handler, error_scenario
-    ):
+    def test_all_error_responses_json_serializable(self, handler, error_scenario):
         """
         Property: For any handler and any error scenario, the error
         response should be JSON serializable.
@@ -826,9 +776,7 @@ class TestErrorResponseJSONSerializability:
                 event["body"] = {"name": "Test"}
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock based on error scenario - patch at source module
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
@@ -843,9 +791,7 @@ class TestErrorResponseJSONSerializability:
                     mock_table.scan.side_effect = Exception("Unexpected")
                     mock_table.get_item.side_effect = Exception("Unexpected")
                     mock_table.put_item.side_effect = Exception("Unexpected")
-                    mock_boto3.resource.return_value.Table.return_value = (
-                        mock_table
-                    )
+                    mock_boto3.resource.return_value.Table.return_value = mock_table
 
                 result = lambda_handler(event, context)
 
@@ -858,6 +804,4 @@ class TestErrorResponseJSONSerializability:
             assert "error" in parsed
             assert "message" in parsed
         except (TypeError, ValueError) as e:
-            assert (
-                False
-            ), f"Error response not JSON serializable for {error_scenario}: {e}"
+            assert False, f"Error response not JSON serializable for {error_scenario}: {e}"

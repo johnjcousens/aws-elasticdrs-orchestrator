@@ -46,7 +46,6 @@ def mock_context():
     return context
 
 
-
 # ============================================================================
 # Test: Required Fields in Audit Logs
 # ============================================================================
@@ -55,14 +54,14 @@ def mock_context():
 def test_audit_log_contains_timestamp(caplog, mock_context):
     """
     Test that audit logs include ISO 8601 timestamp.
-    
+
     Validates:
     - Timestamp field is present
     - Timestamp is in ISO 8601 format
     - Timestamp ends with 'Z' (UTC)
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -72,9 +71,9 @@ def test_audit_log_contains_timestamp(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert "timestamp" in log_data
     # Verify ISO 8601 format with Z suffix
     assert log_data["timestamp"].endswith("Z")
@@ -85,15 +84,15 @@ def test_audit_log_contains_timestamp(caplog, mock_context):
 def test_audit_log_contains_principal(caplog, mock_context):
     """
     Test that audit logs include IAM principal ARN.
-    
+
     Validates:
     - Principal field is present
     - Principal ARN is complete
     """
     import logging
-    
+
     principal_arn = "arn:aws:iam::111111111111:role/OrchestrationRole"
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal=principal_arn,
@@ -103,9 +102,9 @@ def test_audit_log_contains_principal(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert "principal" in log_data
     assert log_data["principal"] == principal_arn
 
@@ -113,15 +112,15 @@ def test_audit_log_contains_principal(caplog, mock_context):
 def test_audit_log_contains_operation(caplog, mock_context):
     """
     Test that audit logs include operation name.
-    
+
     Validates:
     - Operation field is present
     - Operation name is correct
     """
     import logging
-    
+
     operation_name = "get_drs_source_servers"
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -131,9 +130,9 @@ def test_audit_log_contains_operation(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert "operation" in log_data
     assert log_data["operation"] == operation_name
 
@@ -141,15 +140,15 @@ def test_audit_log_contains_operation(caplog, mock_context):
 def test_audit_log_contains_parameters(caplog, mock_context):
     """
     Test that audit logs include operation parameters.
-    
+
     Validates:
     - Parameters field is present
     - Parameters are logged correctly
     """
     import logging
-    
+
     params = {"region": "us-east-1", "accountId": "123456789012"}
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -159,9 +158,9 @@ def test_audit_log_contains_parameters(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert "parameters" in log_data
     assert log_data["parameters"]["region"] == "us-east-1"
     assert log_data["parameters"]["accountId"] == "123456789012"
@@ -170,15 +169,15 @@ def test_audit_log_contains_parameters(caplog, mock_context):
 def test_audit_log_contains_result(caplog, mock_context):
     """
     Test that audit logs include operation result.
-    
+
     Validates:
     - Result field is present
     - Result data is logged
     """
     import logging
-    
+
     result = {"protectionGroups": [], "count": 0}
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -188,9 +187,9 @@ def test_audit_log_contains_result(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert "result" in log_data
     assert "count" in log_data["result"]
 
@@ -198,13 +197,13 @@ def test_audit_log_contains_result(caplog, mock_context):
 def test_audit_log_contains_request_id(caplog, mock_context):
     """
     Test that audit logs include Lambda request ID.
-    
+
     Validates:
     - Request ID field is present
     - Request ID matches context
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -214,12 +213,11 @@ def test_audit_log_contains_request_id(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert "request_id" in log_data
     assert log_data["request_id"] == mock_context.aws_request_id
-
 
 
 # ============================================================================
@@ -230,14 +228,14 @@ def test_audit_log_contains_request_id(caplog, mock_context):
 def test_audit_log_get_drs_source_servers(caplog, mock_context):
     """
     Test audit logging for get_drs_source_servers operation.
-    
+
     Validates:
     - Operation is logged
     - Region parameter is logged
     - Result summary is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -247,9 +245,9 @@ def test_audit_log_get_drs_source_servers(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "get_drs_source_servers"
     assert log_data["parameters"]["region"] == "us-east-1"
     assert log_data["success"] is True
@@ -258,13 +256,13 @@ def test_audit_log_get_drs_source_servers(caplog, mock_context):
 def test_audit_log_list_protection_groups(caplog, mock_context):
     """
     Test audit logging for list_protection_groups operation.
-    
+
     Validates:
     - Operation is logged
     - Result count is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -274,9 +272,9 @@ def test_audit_log_list_protection_groups(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "list_protection_groups"
     assert log_data["success"] is True
 
@@ -284,13 +282,13 @@ def test_audit_log_list_protection_groups(caplog, mock_context):
 def test_audit_log_get_protection_group(caplog, mock_context):
     """
     Test audit logging for get_protection_group operation.
-    
+
     Validates:
     - Operation is logged
     - Group ID parameter is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -300,9 +298,9 @@ def test_audit_log_get_protection_group(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "get_protection_group"
     assert log_data["parameters"]["groupId"] == "pg-123"
 
@@ -310,13 +308,13 @@ def test_audit_log_get_protection_group(caplog, mock_context):
 def test_audit_log_list_recovery_plans(caplog, mock_context):
     """
     Test audit logging for list_recovery_plans operation.
-    
+
     Validates:
     - Operation is logged
     - Result is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -326,9 +324,9 @@ def test_audit_log_list_recovery_plans(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "list_recovery_plans"
     assert log_data["success"] is True
 
@@ -336,13 +334,13 @@ def test_audit_log_list_recovery_plans(caplog, mock_context):
 def test_audit_log_get_recovery_plan(caplog, mock_context):
     """
     Test audit logging for get_recovery_plan operation.
-    
+
     Validates:
     - Operation is logged
     - Plan ID parameter is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -352,9 +350,9 @@ def test_audit_log_get_recovery_plan(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "get_recovery_plan"
     assert log_data["parameters"]["planId"] == "plan-456"
 
@@ -362,13 +360,13 @@ def test_audit_log_get_recovery_plan(caplog, mock_context):
 def test_audit_log_list_executions(caplog, mock_context):
     """
     Test audit logging for list_executions operation.
-    
+
     Validates:
     - Operation is logged
     - Filter parameters are logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -378,9 +376,9 @@ def test_audit_log_list_executions(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "list_executions"
     assert log_data["parameters"]["status"] == "IN_PROGRESS"
 
@@ -388,13 +386,13 @@ def test_audit_log_list_executions(caplog, mock_context):
 def test_audit_log_get_execution(caplog, mock_context):
     """
     Test audit logging for get_execution operation.
-    
+
     Validates:
     - Operation is logged
     - Execution ID parameter is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -404,9 +402,9 @@ def test_audit_log_get_execution(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "get_execution"
     assert log_data["parameters"]["executionId"] == "exec-789"
 
@@ -414,13 +412,13 @@ def test_audit_log_get_execution(caplog, mock_context):
 def test_audit_log_get_target_accounts(caplog, mock_context):
     """
     Test audit logging for get_target_accounts operation.
-    
+
     Validates:
     - Operation is logged
     - Result is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -430,12 +428,11 @@ def test_audit_log_get_target_accounts(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "get_target_accounts"
     assert log_data["success"] is True
-
 
 
 # ============================================================================
@@ -446,14 +443,14 @@ def test_audit_log_get_target_accounts(caplog, mock_context):
 def test_audit_log_create_protection_group(caplog, mock_context):
     """
     Test audit logging for create_protection_group operation.
-    
+
     Validates:
     - Operation is logged
     - Group data is logged
     - Result includes new group ID
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -463,9 +460,9 @@ def test_audit_log_create_protection_group(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "create_protection_group"
     assert log_data["parameters"]["name"] == "New Group"
     assert log_data["success"] is True
@@ -474,13 +471,13 @@ def test_audit_log_create_protection_group(caplog, mock_context):
 def test_audit_log_update_protection_group(caplog, mock_context):
     """
     Test audit logging for update_protection_group operation.
-    
+
     Validates:
     - Operation is logged
     - Group ID and updates are logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -490,9 +487,9 @@ def test_audit_log_update_protection_group(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "update_protection_group"
     assert log_data["parameters"]["groupId"] == "pg-123"
 
@@ -500,14 +497,14 @@ def test_audit_log_update_protection_group(caplog, mock_context):
 def test_audit_log_delete_protection_group(caplog, mock_context):
     """
     Test audit logging for delete_protection_group operation.
-    
+
     Validates:
     - Operation is logged
     - Group ID is logged
     - Deletion is confirmed
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -517,9 +514,9 @@ def test_audit_log_delete_protection_group(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "delete_protection_group"
     assert log_data["parameters"]["groupId"] == "pg-123"
 
@@ -527,14 +524,14 @@ def test_audit_log_delete_protection_group(caplog, mock_context):
 def test_audit_log_create_recovery_plan(caplog, mock_context):
     """
     Test audit logging for create_recovery_plan operation.
-    
+
     Validates:
     - Operation is logged
     - Plan data is logged
     - Result includes new plan ID
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -544,9 +541,9 @@ def test_audit_log_create_recovery_plan(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "create_recovery_plan"
     assert log_data["parameters"]["name"] == "New Plan"
 
@@ -554,13 +551,13 @@ def test_audit_log_create_recovery_plan(caplog, mock_context):
 def test_audit_log_update_recovery_plan(caplog, mock_context):
     """
     Test audit logging for update_recovery_plan operation.
-    
+
     Validates:
     - Operation is logged
     - Plan ID and updates are logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -570,9 +567,9 @@ def test_audit_log_update_recovery_plan(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "update_recovery_plan"
     assert log_data["parameters"]["planId"] == "plan-456"
 
@@ -580,14 +577,14 @@ def test_audit_log_update_recovery_plan(caplog, mock_context):
 def test_audit_log_delete_recovery_plan(caplog, mock_context):
     """
     Test audit logging for delete_recovery_plan operation.
-    
+
     Validates:
     - Operation is logged
     - Plan ID is logged
     - Deletion is confirmed
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -597,12 +594,11 @@ def test_audit_log_delete_recovery_plan(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "delete_recovery_plan"
     assert log_data["parameters"]["planId"] == "plan-456"
-
 
 
 # ============================================================================
@@ -613,14 +609,14 @@ def test_audit_log_delete_recovery_plan(caplog, mock_context):
 def test_audit_log_start_execution(caplog, mock_context):
     """
     Test audit logging for start_execution operation.
-    
+
     Validates:
     - Operation is logged
     - Plan ID and execution type are logged
     - Result includes execution ID
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -630,9 +626,9 @@ def test_audit_log_start_execution(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "start_execution"
     assert log_data["parameters"]["planId"] == "plan-456"
     assert log_data["parameters"]["executionType"] == "DRILL"
@@ -641,14 +637,14 @@ def test_audit_log_start_execution(caplog, mock_context):
 def test_audit_log_cancel_execution(caplog, mock_context):
     """
     Test audit logging for cancel_execution operation.
-    
+
     Validates:
     - Operation is logged
     - Execution ID is logged
     - Cancellation reason is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -658,9 +654,9 @@ def test_audit_log_cancel_execution(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "cancel_execution"
     assert log_data["parameters"]["executionId"] == "exec-789"
 
@@ -668,13 +664,13 @@ def test_audit_log_cancel_execution(caplog, mock_context):
 def test_audit_log_pause_execution(caplog, mock_context):
     """
     Test audit logging for pause_execution operation.
-    
+
     Validates:
     - Operation is logged
     - Execution ID is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -684,9 +680,9 @@ def test_audit_log_pause_execution(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "pause_execution"
     assert log_data["parameters"]["executionId"] == "exec-789"
 
@@ -694,13 +690,13 @@ def test_audit_log_pause_execution(caplog, mock_context):
 def test_audit_log_resume_execution(caplog, mock_context):
     """
     Test audit logging for resume_execution operation.
-    
+
     Validates:
     - Operation is logged
     - Execution ID is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -710,9 +706,9 @@ def test_audit_log_resume_execution(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "resume_execution"
     assert log_data["parameters"]["executionId"] == "exec-789"
 
@@ -720,14 +716,14 @@ def test_audit_log_resume_execution(caplog, mock_context):
 def test_audit_log_terminate_instances(caplog, mock_context):
     """
     Test audit logging for terminate_instances operation.
-    
+
     Validates:
     - Operation is logged
     - Execution ID is logged
     - Termination is confirmed
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -737,9 +733,9 @@ def test_audit_log_terminate_instances(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "terminate_instances"
     assert log_data["parameters"]["executionId"] == "exec-789"
 
@@ -747,14 +743,14 @@ def test_audit_log_terminate_instances(caplog, mock_context):
 def test_audit_log_get_recovery_instances(caplog, mock_context):
     """
     Test audit logging for get_recovery_instances operation.
-    
+
     Validates:
     - Operation is logged
     - Execution ID is logged
     - Instance data is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -764,9 +760,9 @@ def test_audit_log_get_recovery_instances(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["operation"] == "get_recovery_instances"
     assert log_data["parameters"]["executionId"] == "exec-789"
 
@@ -779,14 +775,14 @@ def test_audit_log_get_recovery_instances(caplog, mock_context):
 def test_audit_log_masks_password_field(caplog, mock_context):
     """
     Test that password fields are masked in audit logs.
-    
+
     Validates:
     - Password value is not in log
     - Password is masked with asterisks
     - First 4 characters are visible
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -796,10 +792,10 @@ def test_audit_log_masks_password_field(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_message = caplog.records[0].message
     log_data = json.loads(log_message)
-    
+
     # Password should not appear in full
     assert "secretpassword123" not in log_message
     # Password should be masked
@@ -810,13 +806,13 @@ def test_audit_log_masks_password_field(caplog, mock_context):
 def test_audit_log_masks_secret_field(caplog, mock_context):
     """
     Test that secret fields are masked in audit logs.
-    
+
     Validates:
     - Secret value is not in log
     - Secret is masked with asterisks
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -826,10 +822,10 @@ def test_audit_log_masks_secret_field(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_message = caplog.records[0].message
     log_data = json.loads(log_message)
-    
+
     # Secret should not appear in full
     assert "topsecret456" not in log_message
     # Secret should be masked
@@ -839,13 +835,13 @@ def test_audit_log_masks_secret_field(caplog, mock_context):
 def test_audit_log_masks_token_field(caplog, mock_context):
     """
     Test that token fields are masked in audit logs.
-    
+
     Validates:
     - Token value is not in log
     - Token is masked with asterisks
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -855,10 +851,10 @@ def test_audit_log_masks_token_field(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_message = caplog.records[0].message
     log_data = json.loads(log_message)
-    
+
     # Token should not appear in full
     assert "bearer_token_xyz789" not in log_message
     # Token should be masked
@@ -868,13 +864,13 @@ def test_audit_log_masks_token_field(caplog, mock_context):
 def test_audit_log_masks_key_field(caplog, mock_context):
     """
     Test that key fields are masked in audit logs.
-    
+
     Validates:
     - Key value is not in log
     - Key is masked with asterisks
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -884,10 +880,10 @@ def test_audit_log_masks_key_field(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_message = caplog.records[0].message
     log_data = json.loads(log_message)
-    
+
     # Key should not appear in full
     assert "AKIAIOSFODNN7EXAMPLE" not in log_message
     # Key should be masked
@@ -897,13 +893,13 @@ def test_audit_log_masks_key_field(caplog, mock_context):
 def test_audit_log_masks_credential_field(caplog, mock_context):
     """
     Test that credential fields are masked in audit logs.
-    
+
     Validates:
     - Credential value is not in log
     - Credential is masked with asterisks
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -913,10 +909,10 @@ def test_audit_log_masks_credential_field(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_message = caplog.records[0].message
     log_data = json.loads(log_message)
-    
+
     # Credential should not appear in full
     assert "mycredential123" not in log_message
     # Credential should be masked
@@ -926,14 +922,14 @@ def test_audit_log_masks_credential_field(caplog, mock_context):
 def test_audit_log_does_not_mask_non_sensitive_fields(caplog, mock_context):
     """
     Test that non-sensitive fields are not masked.
-    
+
     Validates:
     - Region is not masked
     - Account ID is not masked
     - Other parameters are not masked
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -947,9 +943,9 @@ def test_audit_log_does_not_mask_non_sensitive_fields(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     # Non-sensitive fields should not be masked
     assert log_data["parameters"]["region"] == "us-east-1"
     assert log_data["parameters"]["accountId"] == "123456789012"
@@ -959,13 +955,13 @@ def test_audit_log_does_not_mask_non_sensitive_fields(caplog, mock_context):
 def test_audit_log_masks_nested_sensitive_fields(caplog, mock_context):
     """
     Test that nested sensitive fields are masked.
-    
+
     Validates:
     - Nested password is masked
     - Nested structure is preserved
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -980,16 +976,15 @@ def test_audit_log_masks_nested_sensitive_fields(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_message = caplog.records[0].message
     log_data = json.loads(log_message)
-    
+
     # Nested password should be masked
     assert "nestedsecret" not in log_message
     assert "*" in log_data["parameters"]["config"]["password"]
     # Non-sensitive nested field should not be masked
     assert log_data["parameters"]["config"]["region"] == "us-west-2"
-
 
 
 # ============================================================================
@@ -1000,7 +995,7 @@ def test_audit_log_masks_nested_sensitive_fields(caplog, mock_context):
 def test_audit_log_truncates_large_result(caplog, mock_context):
     """
     Test that large results are truncated in audit logs.
-    
+
     Validates:
     - Large result is truncated
     - Truncation is indicated
@@ -1008,7 +1003,7 @@ def test_audit_log_truncates_large_result(caplog, mock_context):
     - Original length is recorded
     """
     import logging
-    
+
     # Create large result (over 1000 characters)
     large_result = {
         "servers": [
@@ -1020,7 +1015,7 @@ def test_audit_log_truncates_large_result(caplog, mock_context):
             for i in range(50)
         ]
     }
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -1030,9 +1025,9 @@ def test_audit_log_truncates_large_result(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     # Result should be truncated
     if isinstance(log_data["result"], dict) and "truncated" in log_data["result"]:
         assert log_data["result"]["truncated"] is True
@@ -1043,15 +1038,15 @@ def test_audit_log_truncates_large_result(caplog, mock_context):
 def test_audit_log_does_not_truncate_small_result(caplog, mock_context):
     """
     Test that small results are not truncated.
-    
+
     Validates:
     - Small result is logged in full
     - No truncation indicator
     """
     import logging
-    
+
     small_result = {"servers": [], "totalCount": 0}
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -1061,9 +1056,9 @@ def test_audit_log_does_not_truncate_small_result(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     # Result should not be truncated
     if isinstance(log_data["result"], dict):
         # If it's the original result, it shouldn't have truncated field
@@ -1082,7 +1077,7 @@ def test_audit_log_does_not_truncate_small_result(caplog, mock_context):
 def test_audit_log_failed_operation_authorization(caplog, mock_context):
     """
     Test audit logging for failed authorization.
-    
+
     Validates:
     - Failed operation is logged
     - Success is False
@@ -1090,7 +1085,7 @@ def test_audit_log_failed_operation_authorization(caplog, mock_context):
     - Warning level is used
     """
     import logging
-    
+
     with caplog.at_level(logging.WARNING):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:user/unauthorized",
@@ -1100,9 +1095,9 @@ def test_audit_log_failed_operation_authorization(caplog, mock_context):
             success=False,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["success"] is False
     assert "error" in log_data["result"]
     assert log_data["result"]["error"] == "AUTHORIZATION_FAILED"
@@ -1111,14 +1106,14 @@ def test_audit_log_failed_operation_authorization(caplog, mock_context):
 def test_audit_log_failed_operation_not_found(caplog, mock_context):
     """
     Test audit logging for resource not found error.
-    
+
     Validates:
     - Failed operation is logged
     - Success is False
     - Error message is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.WARNING):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -1128,9 +1123,9 @@ def test_audit_log_failed_operation_not_found(caplog, mock_context):
             success=False,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["success"] is False
     assert log_data["result"]["error"] == "NOT_FOUND"
 
@@ -1138,14 +1133,14 @@ def test_audit_log_failed_operation_not_found(caplog, mock_context):
 def test_audit_log_failed_operation_invalid_parameter(caplog, mock_context):
     """
     Test audit logging for invalid parameter error.
-    
+
     Validates:
     - Failed operation is logged
     - Success is False
     - Parameter error is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.WARNING):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -1155,9 +1150,9 @@ def test_audit_log_failed_operation_invalid_parameter(caplog, mock_context):
             success=False,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["success"] is False
     assert log_data["result"]["error"] == "INVALID_PARAMETER"
 
@@ -1165,14 +1160,14 @@ def test_audit_log_failed_operation_invalid_parameter(caplog, mock_context):
 def test_audit_log_failed_operation_dynamodb_error(caplog, mock_context):
     """
     Test audit logging for DynamoDB error.
-    
+
     Validates:
     - Failed operation is logged
     - Success is False
     - DynamoDB error is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.WARNING):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -1185,9 +1180,9 @@ def test_audit_log_failed_operation_dynamodb_error(caplog, mock_context):
             success=False,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["success"] is False
     assert log_data["result"]["error"] == "DYNAMODB_ERROR"
 
@@ -1195,14 +1190,14 @@ def test_audit_log_failed_operation_dynamodb_error(caplog, mock_context):
 def test_audit_log_failed_operation_drs_error(caplog, mock_context):
     """
     Test audit logging for DRS API error.
-    
+
     Validates:
     - Failed operation is logged
     - Success is False
     - DRS error is logged
     """
     import logging
-    
+
     with caplog.at_level(logging.WARNING):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -1212,9 +1207,9 @@ def test_audit_log_failed_operation_drs_error(caplog, mock_context):
             success=False,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["success"] is False
     assert log_data["result"]["error"] == "DRS_ERROR"
 
@@ -1227,13 +1222,13 @@ def test_audit_log_failed_operation_drs_error(caplog, mock_context):
 def test_audit_log_is_valid_json(caplog, mock_context):
     """
     Test that audit logs are valid JSON.
-    
+
     Validates:
     - Log message is valid JSON
     - Can be parsed without errors
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -1243,9 +1238,9 @@ def test_audit_log_is_valid_json(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_message = caplog.records[0].message
-    
+
     # Should parse without error
     log_data = json.loads(log_message)
     assert isinstance(log_data, dict)
@@ -1254,13 +1249,13 @@ def test_audit_log_is_valid_json(caplog, mock_context):
 def test_audit_log_structure_is_consistent(caplog, mock_context):
     """
     Test that audit log structure is consistent.
-    
+
     Validates:
     - All required fields are present
     - Field types are correct
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -1270,9 +1265,9 @@ def test_audit_log_structure_is_consistent(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     # Verify required fields
     assert "timestamp" in log_data
     assert "event_type" in log_data
@@ -1283,7 +1278,7 @@ def test_audit_log_structure_is_consistent(caplog, mock_context):
     assert "success" in log_data
     assert "request_id" in log_data
     assert "function_name" in log_data
-    
+
     # Verify field types
     assert isinstance(log_data["timestamp"], str)
     assert isinstance(log_data["event_type"], str)
@@ -1298,13 +1293,13 @@ def test_audit_log_structure_is_consistent(caplog, mock_context):
 def test_audit_log_event_type_is_direct_invocation(caplog, mock_context):
     """
     Test that event_type is always "direct_invocation".
-    
+
     Validates:
     - event_type field is present
     - event_type value is "direct_invocation"
     """
     import logging
-    
+
     with caplog.at_level(logging.INFO):
         log_direct_invocation(
             principal="arn:aws:iam::111111111111:role/OrchestrationRole",
@@ -1314,9 +1309,9 @@ def test_audit_log_event_type_is_direct_invocation(caplog, mock_context):
             success=True,
             context=mock_context,
         )
-    
+
     log_data = json.loads(caplog.records[0].message)
-    
+
     assert log_data["event_type"] == "direct_invocation"
 
 

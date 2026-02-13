@@ -13,9 +13,7 @@ import pytest
 # Add lambda directory to path for imports
 sys.path.insert(
     0,
-    os.path.join(
-        os.path.dirname(__file__), "..", "..", "..", "lambda"
-    ),
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "lambda"),
 )
 
 from shared.drs_limits import (
@@ -225,16 +223,12 @@ def test_validate_servers_in_all_jobs_within_limit(mock_boto_client):
                 {
                     "jobID": "job-1",
                     "status": "STARTED",
-                    "participatingServers": [
-                        {"sourceServerID": f"s-{i}"} for i in range(100)
-                    ],
+                    "participatingServers": [{"sourceServerID": f"s-{i}"} for i in range(100)],
                 },
                 {
                     "jobID": "job-2",
                     "status": "STARTED",
-                    "participatingServers": [
-                        {"sourceServerID": f"s-{i}"} for i in range(100, 200)
-                    ],
+                    "participatingServers": [{"sourceServerID": f"s-{i}"} for i in range(100, 200)],
                 },
             ]
         }
@@ -264,9 +258,7 @@ def test_validate_servers_in_all_jobs_exceeds_limit(mock_boto_client):
                 {
                     "jobID": "job-1",
                     "status": "STARTED",
-                    "participatingServers": [
-                        {"sourceServerID": f"s-{i}"} for i in range(480)
-                    ],
+                    "participatingServers": [{"sourceServerID": f"s-{i}"} for i in range(480)],
                 }
             ]
         }

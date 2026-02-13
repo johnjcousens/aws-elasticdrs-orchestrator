@@ -21,16 +21,10 @@ import boto3  # noqa: F401
 from moto import mock_aws  # noqa: E402
 
 # Add lambda paths for imports
-sys.path.insert(
-    0, str(Path(__file__).parent.parent.parent / "lambda" / "shared")
-)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "shared"))
 sys.path.insert(
     0,
-    str(
-        Path(__file__).parent.parent.parent
-        / "lambda"
-        / "data-management-handler"
-    ),
+    str(Path(__file__).parent.parent.parent / "lambda" / "data-management-handler"),
 )
 
 # Set environment variables before importing
@@ -40,6 +34,7 @@ os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 # Import from data-management-handler using importlib
 import importlib
+
 data_management_handler = importlib.import_module("data-management-handler.index")
 handle_add_staging_account = data_management_handler.handle_add_staging_account
 
@@ -54,9 +49,7 @@ class TestHandleAddStagingAccount:
         table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-            AttributeDefinitions=[
-                {"AttributeName": "accountId", "AttributeType": "S"}
-            ],
+            AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
 
@@ -82,10 +75,7 @@ class TestHandleAddStagingAccount:
             "stagingAccount": {
                 "accountId": "444455556666",
                 "accountName": "STAGING_01",
-                "roleArn": (
-                    "arn:aws:iam::444455556666:role/"
-                    "DRSOrchestrationRole-test"
-                ),
+                "roleArn": ("arn:aws:iam::444455556666:role/" "DRSOrchestrationRole-test"),
                 "externalId": "drs-orchestration-test-444455556666",
             },
         }
@@ -115,10 +105,7 @@ class TestHandleAddStagingAccount:
             "stagingAccount": {
                 "accountId": "444455556666",
                 "accountName": "STAGING_01",
-                "roleArn": (
-                    "arn:aws:iam::444455556666:role/"
-                    "DRSOrchestrationRole-test"
-                ),
+                "roleArn": ("arn:aws:iam::444455556666:role/" "DRSOrchestrationRole-test"),
                 "externalId": "drs-orchestration-test-444455556666",
             }
         }
@@ -150,10 +137,7 @@ class TestHandleAddStagingAccount:
             "stagingAccount": {
                 "accountId": "444455556666",
                 "accountName": "STAGING_01",
-                "roleArn": (
-                    "arn:aws:iam::444455556666:role/"
-                    "DRSOrchestrationRole-test"
-                ),
+                "roleArn": ("arn:aws:iam::444455556666:role/" "DRSOrchestrationRole-test"),
                 "externalId": "drs-orchestration-test-444455556666",
             },
         }
@@ -175,10 +159,7 @@ class TestHandleAddStagingAccount:
             "stagingAccount": {
                 "accountId": "444455556666",
                 "accountName": "STAGING_01",
-                "roleArn": (
-                    "arn:aws:iam::444455556666:role/"
-                    "DRSOrchestrationRole-test"
-                ),
+                "roleArn": ("arn:aws:iam::444455556666:role/" "DRSOrchestrationRole-test"),
                 "externalId": "drs-orchestration-test-444455556666",
             },
         }
@@ -201,10 +182,7 @@ class TestHandleAddStagingAccount:
             "stagingAccount": {
                 "accountId": "444455556666",
                 "accountName": "STAGING_01",
-                "roleArn": (
-                    "arn:aws:iam::444455556666:role/"
-                    "DRSOrchestrationRole-test"
-                ),
+                "roleArn": ("arn:aws:iam::444455556666:role/" "DRSOrchestrationRole-test"),
                 "externalId": "drs-orchestration-test-444455556666",
             },
         }

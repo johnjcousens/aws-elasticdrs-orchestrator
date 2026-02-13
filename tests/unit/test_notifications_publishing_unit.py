@@ -16,14 +16,13 @@ from unittest.mock import MagicMock, patch, call
 import pytest
 
 # Add lambda directory to path
-sys.path.insert(
-    0, os.path.join(os.path.dirname(__file__), "../../lambda")
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
 
 # ------------------------------------------------------------------ #
 # Fixtures
 # ------------------------------------------------------------------ #
+
 
 @pytest.fixture(autouse=True)
 def _env_vars(monkeypatch):
@@ -55,12 +54,11 @@ def mock_sns():
 # publish_recovery_plan_notification
 # ------------------------------------------------------------------ #
 
+
 class TestPublishRecoveryPlanNotification:
     """Tests for publish_recovery_plan_notification."""
 
-    def test_publishes_with_correct_attributes(
-        self, mock_sns
-    ):
+    def test_publishes_with_correct_attributes(self, mock_sns):
         """Publish includes recoveryPlanId and eventType."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -78,13 +76,9 @@ class TestPublishRecoveryPlanNotification:
         mock_sns.publish.assert_called_once()
         kwargs = mock_sns.publish.call_args[1]
 
-        assert kwargs["TopicArn"] == (
-            "arn:aws:sns:us-east-1:123456789012:test-topic"
-        )
+        assert kwargs["TopicArn"] == ("arn:aws:sns:us-east-1:123456789012:test-topic")
         attrs = kwargs["MessageAttributes"]
-        assert attrs["recoveryPlanId"]["StringValue"] == (
-            "plan-001"
-        )
+        assert attrs["recoveryPlanId"]["StringValue"] == ("plan-001")
         assert attrs["eventType"]["StringValue"] == "start"
 
     def test_message_body_is_structured_json(self, mock_sns):
@@ -111,9 +105,7 @@ class TestPublishRecoveryPlanNotification:
         assert "email" in body
         assert "Test Plan" in body["default"]
 
-    def test_subject_includes_plan_name_and_event(
-        self, mock_sns
-    ):
+    def test_subject_includes_plan_name_and_event(self, mock_sns):
         """Subject line contains plan name and event type."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -146,17 +138,13 @@ class TestPublishRecoveryPlanNotification:
         assert len(kwargs["Subject"]) <= 100
         assert kwargs["Subject"].endswith("...")
 
-    def test_skips_when_topic_not_configured(
-        self, mock_sns
-    ):
+    def test_skips_when_topic_not_configured(self, mock_sns):
         """No publish when topic ARN is empty."""
         from shared.notifications import (
             publish_recovery_plan_notification,
         )
 
-        with patch(
-            "shared.notifications.EXECUTION_TOPIC_ARN", ""
-        ):
+        with patch("shared.notifications.EXECUTION_TOPIC_ARN", ""):
             publish_recovery_plan_notification(
                 plan_id="plan-005",
                 event_type="start",
@@ -180,9 +168,7 @@ class TestPublishRecoveryPlanNotification:
             details={"planName": "Test"},
         )
 
-    def test_all_event_types_publish_correctly(
-        self, mock_sns
-    ):
+    def test_all_event_types_publish_correctly(self, mock_sns):
         """All four event types produce valid publishes."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -198,13 +184,9 @@ class TestPublishRecoveryPlanNotification:
 
             kwargs = mock_sns.publish.call_args[1]
             attrs = kwargs["MessageAttributes"]
-            assert attrs["eventType"]["StringValue"] == (
-                event_type
-            )
+            assert attrs["eventType"]["StringValue"] == (event_type)
 
-    def test_unknown_plan_name_defaults_to_unknown(
-        self, mock_sns
-    ):
+    def test_unknown_plan_name_defaults_to_unknown(self, mock_sns):
         """Missing planName in details defaults to Unknown."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -224,12 +206,11 @@ class TestPublishRecoveryPlanNotification:
 # send_execution_started — MessageAttributes
 # ------------------------------------------------------------------ #
 
+
 class TestSendExecutionStartedAttributes:
     """Tests for send_execution_started with plan_id."""
 
-    def test_includes_attributes_when_plan_id_given(
-        self, mock_sns
-    ):
+    def test_includes_attributes_when_plan_id_given(self, mock_sns):
         """MessageAttributes present when plan_id provided."""
         from shared.notifications import (
             send_execution_started,
@@ -244,9 +225,7 @@ class TestSendExecutionStartedAttributes:
 
         kwargs = mock_sns.publish.call_args[1]
         attrs = kwargs["MessageAttributes"]
-        assert attrs["recoveryPlanId"]["StringValue"] == (
-            "plan-100"
-        )
+        assert attrs["recoveryPlanId"]["StringValue"] == ("plan-100")
         assert attrs["eventType"]["StringValue"] == "start"
 
     def test_no_attributes_when_plan_id_none(self, mock_sns):
@@ -264,9 +243,7 @@ class TestSendExecutionStartedAttributes:
         kwargs = mock_sns.publish.call_args[1]
         assert "MessageAttributes" not in kwargs
 
-    def test_backward_compatible_without_plan_id(
-        self, mock_sns
-    ):
+    def test_backward_compatible_without_plan_id(self, mock_sns):
         """Existing callers without plan_id still work."""
         from shared.notifications import (
             send_execution_started,
@@ -288,12 +265,11 @@ class TestSendExecutionStartedAttributes:
 # send_execution_completed — MessageAttributes
 # ------------------------------------------------------------------ #
 
+
 class TestSendExecutionCompletedAttributes:
     """Tests for send_execution_completed with plan_id."""
 
-    def test_includes_attributes_when_plan_id_given(
-        self, mock_sns
-    ):
+    def test_includes_attributes_when_plan_id_given(self, mock_sns):
         """MessageAttributes present when plan_id provided."""
         from shared.notifications import (
             send_execution_completed,
@@ -309,9 +285,7 @@ class TestSendExecutionCompletedAttributes:
 
         kwargs = mock_sns.publish.call_args[1]
         attrs = kwargs["MessageAttributes"]
-        assert attrs["recoveryPlanId"]["StringValue"] == (
-            "plan-200"
-        )
+        assert attrs["recoveryPlanId"]["StringValue"] == ("plan-200")
         assert attrs["eventType"]["StringValue"] == "complete"
 
     def test_no_attributes_when_plan_id_none(self, mock_sns):
@@ -335,12 +309,11 @@ class TestSendExecutionCompletedAttributes:
 # send_execution_failed — MessageAttributes
 # ------------------------------------------------------------------ #
 
+
 class TestSendExecutionFailedAttributes:
     """Tests for send_execution_failed with plan_id."""
 
-    def test_includes_attributes_when_plan_id_given(
-        self, mock_sns
-    ):
+    def test_includes_attributes_when_plan_id_given(self, mock_sns):
         """MessageAttributes present when plan_id provided."""
         from shared.notifications import (
             send_execution_failed,
@@ -356,9 +329,7 @@ class TestSendExecutionFailedAttributes:
 
         kwargs = mock_sns.publish.call_args[1]
         attrs = kwargs["MessageAttributes"]
-        assert attrs["recoveryPlanId"]["StringValue"] == (
-            "plan-300"
-        )
+        assert attrs["recoveryPlanId"]["StringValue"] == ("plan-300")
         assert attrs["eventType"]["StringValue"] == "fail"
 
     def test_no_attributes_when_plan_id_none(self, mock_sns):
@@ -381,12 +352,11 @@ class TestSendExecutionFailedAttributes:
 # send_execution_paused — MessageAttributes
 # ------------------------------------------------------------------ #
 
+
 class TestSendExecutionPausedAttributes:
     """Tests for send_execution_paused with plan_id."""
 
-    def test_includes_attributes_when_plan_id_given(
-        self, mock_sns
-    ):
+    def test_includes_attributes_when_plan_id_given(self, mock_sns):
         """MessageAttributes present when plan_id provided."""
         from shared.notifications import (
             send_execution_paused,
@@ -402,9 +372,7 @@ class TestSendExecutionPausedAttributes:
 
         kwargs = mock_sns.publish.call_args[1]
         attrs = kwargs["MessageAttributes"]
-        assert attrs["recoveryPlanId"]["StringValue"] == (
-            "plan-400"
-        )
+        assert attrs["recoveryPlanId"]["StringValue"] == ("plan-400")
         assert attrs["eventType"]["StringValue"] == "pause"
 
     def test_no_attributes_when_plan_id_none(self, mock_sns):
@@ -428,65 +396,51 @@ class TestSendExecutionPausedAttributes:
 # Graceful failure handling across all send_* functions
 # ------------------------------------------------------------------ #
 
+
 class TestGracefulFailureHandling:
     """All send_* functions log but don't raise on SNS errors."""
 
-    def test_started_does_not_raise_on_sns_error(
-        self, mock_sns
-    ):
+    def test_started_does_not_raise_on_sns_error(self, mock_sns):
         """send_execution_started swallows SNS errors."""
         from shared.notifications import (
             send_execution_started,
         )
 
         mock_sns.publish.side_effect = Exception("boom")
-        send_execution_started(
-            "exec-e1", "Plan", 1, plan_id="p-1"
-        )
+        send_execution_started("exec-e1", "Plan", 1, plan_id="p-1")
 
-    def test_completed_does_not_raise_on_sns_error(
-        self, mock_sns
-    ):
+    def test_completed_does_not_raise_on_sns_error(self, mock_sns):
         """send_execution_completed swallows SNS errors."""
         from shared.notifications import (
             send_execution_completed,
         )
 
         mock_sns.publish.side_effect = Exception("boom")
-        send_execution_completed(
-            "exec-e2", "Plan", 1, 60, plan_id="p-2"
-        )
+        send_execution_completed("exec-e2", "Plan", 1, 60, plan_id="p-2")
 
-    def test_failed_does_not_raise_on_sns_error(
-        self, mock_sns
-    ):
+    def test_failed_does_not_raise_on_sns_error(self, mock_sns):
         """send_execution_failed swallows SNS errors."""
         from shared.notifications import (
             send_execution_failed,
         )
 
         mock_sns.publish.side_effect = Exception("boom")
-        send_execution_failed(
-            "exec-e3", "Plan", "err", plan_id="p-3"
-        )
+        send_execution_failed("exec-e3", "Plan", "err", plan_id="p-3")
 
-    def test_paused_does_not_raise_on_sns_error(
-        self, mock_sns
-    ):
+    def test_paused_does_not_raise_on_sns_error(self, mock_sns):
         """send_execution_paused swallows SNS errors."""
         from shared.notifications import (
             send_execution_paused,
         )
 
         mock_sns.publish.side_effect = Exception("boom")
-        send_execution_paused(
-            "exec-e4", "Plan", 1, "Wave", plan_id="p-4"
-        )
+        send_execution_paused("exec-e4", "Plan", 1, "Wave", plan_id="p-4")
 
 
 # ------------------------------------------------------------------ #
 # HTML-formatted publish behaviour (Task 2.2)
 # ------------------------------------------------------------------ #
+
 
 class TestPublishHtmlFormattedMessages:
     """Tests for HTML-formatted SNS publishing.
@@ -498,9 +452,7 @@ class TestPublishHtmlFormattedMessages:
         "event_type",
         ["start", "complete", "fail", "pause"],
     )
-    def test_valid_event_publishes_with_message_structure(
-        self, mock_sns, event_type
-    ):
+    def test_valid_event_publishes_with_message_structure(self, mock_sns, event_type):
         """SNS publish uses MessageStructure=json for valid types."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -523,9 +475,7 @@ class TestPublishHtmlFormattedMessages:
         "event_type",
         ["start", "complete", "fail", "pause"],
     )
-    def test_valid_event_message_has_default_and_email(
-        self, mock_sns, event_type
-    ):
+    def test_valid_event_message_has_default_and_email(self, mock_sns, event_type):
         """Message body contains default and email keys."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -549,9 +499,7 @@ class TestPublishHtmlFormattedMessages:
         "event_type",
         ["start", "complete", "fail", "pause"],
     )
-    def test_email_key_contains_html(
-        self, mock_sns, event_type
-    ):
+    def test_email_key_contains_html(self, mock_sns, event_type):
         """Email key contains HTML produced by formatter."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -574,9 +522,7 @@ class TestPublishHtmlFormattedMessages:
         "event_type",
         ["start", "complete", "fail", "pause"],
     )
-    def test_default_key_contains_plan_name(
-        self, mock_sns, event_type
-    ):
+    def test_default_key_contains_plan_name(self, mock_sns, event_type):
         """Default key contains the plan name as plain text."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -595,9 +541,7 @@ class TestPublishHtmlFormattedMessages:
         body = json.loads(kwargs["Message"])
         assert "My DR Plan" in body["default"]
 
-    def test_formatter_exception_falls_back_to_raw_json(
-        self, mock_sns
-    ):
+    def test_formatter_exception_falls_back_to_raw_json(self, mock_sns):
         """Formatter error publishes raw JSON without MessageStructure."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -628,9 +572,7 @@ class TestPublishHtmlFormattedMessages:
         body = json.loads(kwargs["Message"])
         assert body == details
 
-    def test_formatter_exception_still_includes_attributes(
-        self, mock_sns
-    ):
+    def test_formatter_exception_still_includes_attributes(self, mock_sns):
         """Fallback publish still includes MessageAttributes."""
         from shared.notifications import (
             publish_recovery_plan_notification,
@@ -648,14 +590,10 @@ class TestPublishHtmlFormattedMessages:
 
         kwargs = mock_sns.publish.call_args[1]
         attrs = kwargs["MessageAttributes"]
-        assert attrs["recoveryPlanId"]["StringValue"] == (
-            "plan-fallback-02"
-        )
+        assert attrs["recoveryPlanId"]["StringValue"] == ("plan-fallback-02")
         assert attrs["eventType"]["StringValue"] == "fail"
 
-    def test_unrecognized_event_type_produces_fallback(
-        self, mock_sns
-    ):
+    def test_unrecognized_event_type_produces_fallback(self, mock_sns):
         """Unknown event type still publishes with MessageStructure."""
         from shared.notifications import (
             publish_recovery_plan_notification,

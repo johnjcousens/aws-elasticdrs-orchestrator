@@ -105,11 +105,11 @@ def test_combined_capacity_no_staging_accounts():
             }
         ]
 
-    with patch.object(index, "get_target_accounts_table", return_value=table), \
-         patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts):
-        result = handle_get_combined_capacity(  # noqa: F841
-            {"targetAccountId": target_account_id}
-        )
+    with (
+        patch.object(index, "get_target_accounts_table", return_value=table),
+        patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts),
+    ):
+        result = handle_get_combined_capacity({"targetAccountId": target_account_id})  # noqa: F841
 
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
@@ -273,13 +273,13 @@ def test_combined_capacity_multiple_staging_accounts():
 
     with (
         patch.object(index, "get_target_accounts_table", return_value=table),
-        patch.object(index, "query_all_accounts_parallel",
-                     side_effect=mock_query_all_accounts,
-                     ),
+        patch.object(
+            index,
+            "query_all_accounts_parallel",
+            side_effect=mock_query_all_accounts,
+        ),
     ):
-        result = handle_get_combined_capacity(  # noqa: F841
-            {"targetAccountId": target_account_id}
-        )
+        result = handle_get_combined_capacity({"targetAccountId": target_account_id})  # noqa: F841
 
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
@@ -294,20 +294,14 @@ def test_combined_capacity_multiple_staging_accounts():
         assert len(body["accounts"]) == 4
 
         # Verify per-account status (each account evaluated against its own 300 limit)
-        target_acct = next(
-            a for a in body["accounts"] if a["accountType"] == "target"
-        )
+        target_acct = next(a for a in body["accounts"] if a["accountType"] == "target")
         assert target_acct["status"] == "OK"  # 150/300 = 50%
         assert target_acct["percentUsed"] == 50.0
 
-        staging_01 = next(
-            a for a in body["accounts"] if a["accountId"] == "444455556666"
-        )
+        staging_01 = next(a for a in body["accounts"] if a["accountId"] == "444455556666")
         assert staging_01["status"] == "OK"  # 75/300 = 25%
 
-        staging_02 = next(
-            a for a in body["accounts"] if a["accountId"] == "777777777777"
-        )
+        staging_02 = next(a for a in body["accounts"] if a["accountId"] == "777777777777")
         assert staging_02["status"] == "OK"  # 50/300 = 16.7%
 
         # Verify combined status (300/1200 = 25% = OK)
@@ -432,13 +426,13 @@ def test_combined_capacity_one_staging_account_inaccessible():
 
     with (
         patch.object(index, "get_target_accounts_table", return_value=table),
-        patch.object(index, "query_all_accounts_parallel",
-                     side_effect=mock_query_all_accounts,
-                     ),
+        patch.object(
+            index,
+            "query_all_accounts_parallel",
+            side_effect=mock_query_all_accounts,
+        ),
     ):
-        result = handle_get_combined_capacity(  # noqa: F841
-            {"targetAccountId": target_account_id}
-        )
+        result = handle_get_combined_capacity({"targetAccountId": target_account_id})  # noqa: F841
 
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
@@ -453,9 +447,7 @@ def test_combined_capacity_one_staging_account_inaccessible():
         assert len(body["accounts"]) == 3
 
         # Verify inaccessible account marked
-        staging_02 = next(
-            a for a in body["accounts"] if a["accountId"] == "777777777777"
-        )
+        staging_02 = next(a for a in body["accounts"] if a["accountId"] == "777777777777")
         assert staging_02["accessible"] is False
         assert "error" in staging_02
 
@@ -569,13 +561,13 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
 
     with (
         patch.object(index, "get_target_accounts_table", return_value=table),
-        patch.object(index, "query_all_accounts_parallel",
-                     side_effect=mock_query_all_accounts,
-                     ),
+        patch.object(
+            index,
+            "query_all_accounts_parallel",
+            side_effect=mock_query_all_accounts,
+        ),
     ):
-        result = handle_get_combined_capacity(  # noqa: F841
-            {"targetAccountId": target_account_id}
-        )
+        result = handle_get_combined_capacity({"targetAccountId": target_account_id})  # noqa: F841
 
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
@@ -588,16 +580,12 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
         assert len(body["accounts"]) == 3
 
         # Verify target account accessible
-        target_acct = next(
-            a for a in body["accounts"] if a["accountType"] == "target"
-        )
+        target_acct = next(a for a in body["accounts"] if a["accountType"] == "target")
         assert target_acct["accessible"] is True
         assert target_acct["status"] == "HYPER-CRITICAL"  # 280 servers
 
         # Verify both staging accounts inaccessible
-        staging_accounts = [
-            a for a in body["accounts"] if a["accountType"] == "staging"
-        ]
+        staging_accounts = [a for a in body["accounts"] if a["accountType"] == "staging"]
         assert len(staging_accounts) == 2
         for staging in staging_accounts:
             assert staging["accessible"] is False
@@ -661,9 +649,7 @@ def test_combined_capacity_target_account_not_found():
     # Don't put any item in the table - simulating account not found
 
     with patch.object(index, "get_target_accounts_table", return_value=table):
-        result = handle_get_combined_capacity(  # noqa: F841
-            {"targetAccountId": target_account_id}
-        )
+        result = handle_get_combined_capacity({"targetAccountId": target_account_id})  # noqa: F841
 
         assert result["statusCode"] == 404
         body = json.loads(result["body"])

@@ -60,6 +60,7 @@ os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 # Import from data-management-handler using importlib
 import importlib
+
 data_management_handler = importlib.import_module("data-management-handler.index")
 
 # Import handler functions
@@ -117,7 +118,6 @@ def setup_dynamodb_tables():
     return pg_table, ta_table, ts_table
 
 
-
 # ============================================================================
 # Tests for update_server_launch_config (Task 5.1)
 # ============================================================================
@@ -167,9 +167,7 @@ def test_update_server_launch_config_protection_group_not_found():
         "get_protection_groups_table",
         return_value=mock_table,
     ):
-        result = update_server_launch_config(
-            "pg-nonexistent", "s-111", body
-        )
+        result = update_server_launch_config("pg-nonexistent", "s-111", body)
 
     assert result["statusCode"] == 404
     response_body = json.loads(result["body"])
@@ -200,7 +198,6 @@ def test_update_server_launch_config_server_not_in_group():
     assert result["statusCode"] == 404
     response_body = json.loads(result["body"])
     assert "error" in response_body
-
 
 
 # ============================================================================
@@ -306,13 +303,10 @@ def test_bulk_update_server_configs_success():
         return_value=mock_table,
     ):
         with patch(
-            "shared.launch_config_validation"
-            ".validate_instance_type",
+            "shared.launch_config_validation" ".validate_instance_type",
             return_value={"valid": True},
         ):
-            result = bulk_update_server_launch_config(
-                "pg-123", body
-            )
+            result = bulk_update_server_launch_config("pg-123", body)
 
     print(f"Result: {result}")
     if result["statusCode"] != 200:
@@ -354,24 +348,17 @@ def test_bulk_update_server_configs_partial_failure():
         return_value=mock_table,
     ):
         with patch(
-            "shared.launch_config_validation"
-            ".validate_instance_type",
+            "shared.launch_config_validation" ".validate_instance_type",
             return_value={"valid": True},
         ):
-            result = bulk_update_server_launch_config(
-                "pg-123", body
-            )
+            result = bulk_update_server_launch_config("pg-123", body)
 
     assert result["statusCode"] == 400  # Should fail validation
     response_body = json.loads(result["body"])
     assert response_body["error"] == "VALIDATION_FAILED"
     # s-999 not in group should be flagged
-    server_not_found = [
-        e for e in response_body["validationErrors"]
-        if e["sourceServerId"] == "s-999"
-    ]
+    server_not_found = [e for e in response_body["validationErrors"] if e["sourceServerId"] == "s-999"]
     assert len(server_not_found) == 1
-
 
 
 # ============================================================================
@@ -408,9 +395,7 @@ def test_validate_static_ip_success():
                 "subnetCidr": "10.0.1.0/24",
             },
         ):
-            result = validate_server_static_ip(
-                "pg-123", "s-111", body
-            )
+            result = validate_server_static_ip("pg-123", "s-111", body)
 
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
@@ -450,9 +435,7 @@ def test_validate_static_ip_already_in_use():
                 "conflictingResource": "eni-12345",
             },
         ):
-            result = validate_server_static_ip(
-                "pg-123", "s-111", body
-            )
+            result = validate_server_static_ip("pg-123", "s-111", body)
 
     assert result["statusCode"] == 400
     response_body = json.loads(result["body"])
@@ -480,7 +463,7 @@ def test_create_target_account_success():
         "externalId": "external-123",
         "regions": ["us-east-1", "us-west-2"],
     }
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_table):
         with patch("shared.cross_account.get_current_account_id", return_value="123456789012"):
             result = create_target_account(body)
@@ -508,7 +491,7 @@ def test_create_target_account_duplicate():
         "roleArn": "arn:aws:iam::999888777666:role/DRSRole",
         "externalId": "external-123",
     }
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_table):
         with patch("shared.cross_account.get_current_account_id", return_value="123456789012"):
             result = create_target_account(body)
@@ -542,7 +525,7 @@ def test_update_target_account_success():
         "accountName": "New Name",
         "roleArn": "arn:aws:iam::123456789012:role/NewRole",
     }
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_table):
         result = update_target_account("123456789012", body)
 
@@ -562,14 +545,13 @@ def test_delete_target_account_success():
         }
     }
     mock_table.delete_item.return_value = {}
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_table):
         result = delete_target_account("123456789012")
 
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
     assert "deleted" in response_body["message"].lower()
-
 
 
 # ============================================================================
@@ -602,6 +584,7 @@ def test_add_staging_account_success():
 
     # Import staging_account_models to mock its table reference
     from shared import staging_account_models
+
     with patch.object(staging_account_models, "_target_accounts_table", ta_table):
         result = handle_add_staging_account(body)
 
@@ -637,6 +620,7 @@ def test_remove_staging_account_success():
 
     # Import staging_account_models to mock its table reference
     from shared import staging_account_models
+
     with patch.object(staging_account_models, "_target_accounts_table", ta_table):
         result = handle_remove_staging_account(body)
 
@@ -655,7 +639,7 @@ def test_trigger_tag_sync_success():
     # Create mock DynamoDB tables
     mock_ta_table = MagicMock()
     mock_ts_table = MagicMock()
-    
+
     # Setup tag sync config
     mock_ts_table.get_item.return_value = {
         "Item": {
@@ -677,9 +661,7 @@ def test_trigger_tag_sync_success():
 
     # Mock DRS and EC2 clients
     mock_drs = MagicMock()
-    mock_drs.describe_source_servers.return_value = {
-        "items": [{"sourceServerID": "s-111"}]
-    }
+    mock_drs.describe_source_servers.return_value = {"items": [{"sourceServerID": "s-111"}]}
 
     mock_ec2 = MagicMock()
     mock_ec2.describe_instances.return_value = {
@@ -694,7 +676,7 @@ def test_trigger_tag_sync_success():
             }
         ]
     }
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_ta_table):
         with patch.object(data_management_handler, "get_tag_sync_config_table", return_value=mock_ts_table):
             with patch.object(data_management_handler, "create_drs_client", return_value=mock_drs):
@@ -754,6 +736,7 @@ def test_update_tag_sync_settings_success():
     mock_lambda = MagicMock()
     mock_lambda.invoke.return_value = {"StatusCode": 202}
     with patch("boto3.client") as mock_boto_client:
+
         def client_side_effect(service_name, **kwargs):
             if service_name == "events":
                 return mock_events
@@ -770,7 +753,6 @@ def test_update_tag_sync_settings_success():
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
     assert response_body["enabled"] is True
-
 
 
 # ============================================================================
@@ -795,7 +777,7 @@ def test_sync_extended_source_servers_success():
             ],
         }
     }
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_table):
         result = handle_sync_single_account("123456789012")
 
@@ -824,11 +806,7 @@ def test_import_configuration_success():
     mock_rp_table.put_item.return_value = {}
 
     body = {
-        "metadata": {
-            "schemaVersion": "1.0",
-            "exportedAt": "2026-01-25T10:00:00Z",
-            "sourceRegion": "us-east-1"
-        },
+        "metadata": {"schemaVersion": "1.0", "exportedAt": "2026-01-25T10:00:00Z", "sourceRegion": "us-east-1"},
         "protectionGroups": [
             {
                 "groupName": "Imported Group",
@@ -860,9 +838,7 @@ def test_import_configuration_success():
             "get_recovery_plans_table",
             return_value=mock_rp_table,
         ):
-            with patch.object(
-                data_management_handler, "boto3"
-            ) as mock_boto3:
+            with patch.object(data_management_handler, "boto3") as mock_boto3:
                 mock_boto3.client.return_value = mock_drs
                 result = import_configuration(body)
 
@@ -870,9 +846,7 @@ def test_import_configuration_success():
     assert result["statusCode"] == 200
     response_body = json.loads(result["body"])
     print(f"RESPONSE: {json.dumps(response_body, indent=2)}")
-    assert (
-        response_body["summary"]["protectionGroups"]["created"] == 1
-    )
+    assert response_body["summary"]["protectionGroups"]["created"] == 1
 
 
 def test_import_configuration_validation_error():
@@ -885,11 +859,7 @@ def test_import_configuration_validation_error():
     mock_rp_table.scan.return_value = {"Items": []}
 
     body = {
-        "metadata": {
-            "schemaVersion": "1.0",
-            "exportedAt": "2026-01-25T10:00:00Z",
-            "sourceRegion": "us-east-1"
-        },
+        "metadata": {"schemaVersion": "1.0", "exportedAt": "2026-01-25T10:00:00Z", "sourceRegion": "us-east-1"},
         "protectionGroups": [
             {
                 # Missing required fields
@@ -915,9 +885,7 @@ def test_import_configuration_validation_error():
     response_body = json.loads(result["body"])
     assert "summary" in response_body
     # Check that the protection group failed to import
-    assert (
-        response_body["summary"]["protectionGroups"]["failed"] >= 1
-    )
+    assert response_body["summary"]["protectionGroups"]["failed"] >= 1
 
 
 # ============================================================================
@@ -951,9 +919,7 @@ def test_direct_invocation_update_server_launch_config():
 
     # Mock context with serializable attributes
     context = MagicMock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test"
     context.aws_request_id = "test-request-id"
     context.function_name = "test-function"
     context.function_version = "$LATEST"
@@ -968,23 +934,15 @@ def test_direct_invocation_update_server_launch_config():
         ):
             with patch(
                 "shared.iam_utils.extract_iam_principal",
-                return_value=(
-                    "arn:aws:iam::123456789012:role/test-role"
-                ),
+                return_value=("arn:aws:iam::123456789012:role/test-role"),
             ):
                 with patch(
-                    "shared.launch_config_validation"
-                    ".validate_instance_type",
+                    "shared.launch_config_validation" ".validate_instance_type",
                     return_value={"valid": True},
                 ):
-                    result = handle_direct_invocation(
-                        event, context
-                    )
+                    result = handle_direct_invocation(event, context)
 
-    assert (
-        "error" not in result
-        or result.get("statusCode") == 200
-    )
+    assert "error" not in result or result.get("statusCode") == 200
 
 
 def test_direct_invocation_delete_server_launch_config():
@@ -1016,9 +974,7 @@ def test_direct_invocation_delete_server_launch_config():
     }
 
     context = MagicMock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test"
     context.aws_request_id = "test-request-id"
     context.function_name = "test-function"
     context.function_version = "$LATEST"
@@ -1033,17 +989,11 @@ def test_direct_invocation_delete_server_launch_config():
         ):
             with patch(
                 "shared.iam_utils.extract_iam_principal",
-                return_value=(
-                    "arn:aws:iam::123456789012:role/test-role"
-                ),
+                return_value=("arn:aws:iam::123456789012:role/test-role"),
             ):
                 result = handle_direct_invocation(event, context)
 
-    assert (
-        "error" not in result
-        or result.get("statusCode") == 200
-    )
-
+    assert "error" not in result or result.get("statusCode") == 200
 
 
 def test_direct_invocation_bulk_update_server_configs():
@@ -1081,9 +1031,7 @@ def test_direct_invocation_bulk_update_server_configs():
     }
 
     context = MagicMock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test"
     with patch.object(
         data_management_handler,
         "get_protection_groups_table",
@@ -1098,18 +1046,12 @@ def test_direct_invocation_bulk_update_server_configs():
                 return_value="test-role",
             ):
                 with patch(
-                    "shared.launch_config_validation"
-                    ".validate_instance_type",
+                    "shared.launch_config_validation" ".validate_instance_type",
                     return_value={"valid": True},
                 ):
-                    result = handle_direct_invocation(
-                        event, context
-                    )
+                    result = handle_direct_invocation(event, context)
 
-    assert (
-        "error" not in result
-        or result.get("statusCode") == 200
-    )
+    assert "error" not in result or result.get("statusCode") == 200
 
 
 def test_direct_invocation_add_target_account():
@@ -1134,10 +1076,12 @@ def test_direct_invocation_add_target_account():
     context.aws_request_id = "test-request-id"
     context.function_name = "test-function"
     context.function_version = "$LATEST"
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_table):
         with patch("shared.iam_utils.validate_iam_authorization", return_value=True):
-            with patch("shared.iam_utils.extract_iam_principal", return_value="arn:aws:iam::123456789012:role/test-role"):
+            with patch(
+                "shared.iam_utils.extract_iam_principal", return_value="arn:aws:iam::123456789012:role/test-role"
+            ):
                 with patch("shared.cross_account.get_current_account_id", return_value="123456789012"):
                     result = handle_direct_invocation(event, context)
 
@@ -1149,7 +1093,7 @@ def test_direct_invocation_trigger_tag_sync():
     # Create mock DynamoDB tables
     mock_ta_table = MagicMock()
     mock_ts_table = MagicMock()
-    
+
     mock_ts_table.get_item.return_value = {
         "Item": {
             "configId": "default",
@@ -1178,7 +1122,7 @@ def test_direct_invocation_trigger_tag_sync():
 
     mock_drs = MagicMock()
     mock_ec2 = MagicMock()
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_ta_table):
         with patch.object(data_management_handler, "get_tag_sync_config_table", return_value=mock_ts_table):
             with patch.object(data_management_handler, "create_drs_client", return_value=mock_drs):
@@ -1199,9 +1143,7 @@ def test_direct_invocation_invalid_operation():
     }
 
     context = MagicMock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test"
 
     with patch(
         "shared.iam_utils.validate_iam_authorization",
@@ -1241,9 +1183,7 @@ def test_update_server_launch_config_missing_parameters():
         "get_protection_groups_table",
         return_value=mock_table,
     ):
-        result = update_server_launch_config(
-            "pg-123", "s-111", body
-        )
+        result = update_server_launch_config("pg-123", "s-111", body)
 
     assert result["statusCode"] == 200  # Empty body is valid
     response_body = json.loads(result["body"])
@@ -1288,7 +1228,7 @@ def test_create_target_account_missing_required_fields():
         "accountName": "Same Account",
         # No roleArn - this is valid for same account
     }
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_table):
         with patch.object(data_management_handler, "get_current_account_id", return_value="123456789012"):
             result = create_target_account(body)
@@ -1325,9 +1265,7 @@ def test_update_server_launch_config_empty_body():
         "get_protection_groups_table",
         return_value=mock_table,
     ):
-        result = update_server_launch_config(
-            "pg-123", "s-111", body
-        )
+        result = update_server_launch_config("pg-123", "s-111", body)
 
     # Should succeed with 200
     assert result["statusCode"] == 200
@@ -1338,7 +1276,7 @@ def test_delete_target_account_not_found():
     # Create mock DynamoDB table
     mock_table = MagicMock()
     mock_table.get_item.return_value = {}  # Account doesn't exist
-    
+
     with patch.object(data_management_handler, "get_target_accounts_table", return_value=mock_table):
         result = delete_target_account("999999999999")
 

@@ -15,9 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Add lambda directory to path
-sys.path.insert(
-    0, os.path.join(os.path.dirname(__file__), "../../lambda")
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
 from shared.security_utils import InputValidationError  # noqa: E402
 
@@ -25,6 +23,7 @@ from shared.security_utils import InputValidationError  # noqa: E402
 # ------------------------------------------------------------------ #
 # Fixtures
 # ------------------------------------------------------------------ #
+
 
 @pytest.fixture(autouse=True)
 def _env_vars(monkeypatch):
@@ -69,6 +68,7 @@ def mock_dynamodb():
 # get_subscription_arn_for_plan
 # ------------------------------------------------------------------ #
 
+
 class TestGetSubscriptionArnForPlan:
     """Tests for get_subscription_arn_for_plan."""
 
@@ -78,13 +78,8 @@ class TestGetSubscriptionArnForPlan:
             get_subscription_arn_for_plan,
         )
 
-        expected_arn = (
-            "arn:aws:sns:us-east-1:123456789012:"
-            "test-topic:abc-123"
-        )
-        mock_dynamodb.get_item.return_value = {
-            "Item": {"snsSubscriptionArn": expected_arn}
-        }
+        expected_arn = "arn:aws:sns:us-east-1:123456789012:" "test-topic:abc-123"
+        mock_dynamodb.get_item.return_value = {"Item": {"snsSubscriptionArn": expected_arn}}
 
         result = get_subscription_arn_for_plan("plan-001")
 
@@ -107,9 +102,7 @@ class TestGetSubscriptionArnForPlan:
             get_subscription_arn_for_plan,
         )
 
-        mock_dynamodb.get_item.return_value = {
-            "Item": {"snsSubscriptionArn": ""}
-        }
+        mock_dynamodb.get_item.return_value = {"Item": {"snsSubscriptionArn": ""}}
 
         assert get_subscription_arn_for_plan("plan-002") is None
 
@@ -119,9 +112,7 @@ class TestGetSubscriptionArnForPlan:
             get_subscription_arn_for_plan,
         )
 
-        mock_dynamodb.get_item.return_value = {
-            "Item": {"planId": "plan-003"}
-        }
+        mock_dynamodb.get_item.return_value = {"Item": {"planId": "plan-003"}}
 
         assert get_subscription_arn_for_plan("plan-003") is None
 
@@ -135,9 +126,7 @@ class TestGetSubscriptionArnForPlan:
 
         assert get_subscription_arn_for_plan("plan-err") is None
 
-    def test_returns_none_when_table_not_configured(
-        self, monkeypatch
-    ):
+    def test_returns_none_when_table_not_configured(self, monkeypatch):
         """Return None when RECOVERY_PLANS_TABLE is unset."""
         from shared.notifications import (
             get_subscription_arn_for_plan,
@@ -152,20 +141,17 @@ class TestGetSubscriptionArnForPlan:
 # manage_recovery_plan_subscription — create
 # ------------------------------------------------------------------ #
 
+
 class TestManageSubscriptionCreate:
     """Tests for the 'create' action."""
 
-    def test_create_calls_sns_subscribe(
-        self, mock_sns, mock_dynamodb
-    ):
+    def test_create_calls_sns_subscribe(self, mock_sns, mock_dynamodb):
         """Create subscribes with correct topic, email, filter."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
         )
 
-        mock_sns.subscribe.return_value = {
-            "SubscriptionArn": "arn:aws:sns:us-east-1:123:t:sub-1"
-        }
+        mock_sns.subscribe.return_value = {"SubscriptionArn": "arn:aws:sns:us-east-1:123:t:sub-1"}
 
         result = manage_recovery_plan_subscription(
             plan_id="plan-100",
@@ -180,16 +166,10 @@ class TestManageSubscriptionCreate:
         assert call_kwargs["Endpoint"] == "ops@example.com"
         assert call_kwargs["ReturnSubscriptionArn"] is True
 
-        filter_policy = json.loads(
-            call_kwargs["Attributes"]["FilterPolicy"]
-        )
-        assert filter_policy == {
-            "recoveryPlanId": ["plan-100"]
-        }
+        filter_policy = json.loads(call_kwargs["Attributes"]["FilterPolicy"])
+        assert filter_policy == {"recoveryPlanId": ["plan-100"]}
 
-    def test_create_rejects_invalid_email(
-        self, mock_sns, mock_dynamodb
-    ):
+    def test_create_rejects_invalid_email(self, mock_sns, mock_dynamodb):
         """Create raises InputValidationError for bad email."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
@@ -204,9 +184,7 @@ class TestManageSubscriptionCreate:
 
         mock_sns.subscribe.assert_not_called()
 
-    def test_create_rejects_empty_email(
-        self, mock_sns, mock_dynamodb
-    ):
+    def test_create_rejects_empty_email(self, mock_sns, mock_dynamodb):
         """Create raises InputValidationError for empty email."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
@@ -224,21 +202,18 @@ class TestManageSubscriptionCreate:
 # manage_recovery_plan_subscription — delete
 # ------------------------------------------------------------------ #
 
+
 class TestManageSubscriptionDelete:
     """Tests for the 'delete' action."""
 
-    def test_delete_calls_unsubscribe(
-        self, mock_sns, mock_dynamodb
-    ):
+    def test_delete_calls_unsubscribe(self, mock_sns, mock_dynamodb):
         """Delete retrieves ARN from DynamoDB and unsubscribes."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
         )
 
         sub_arn = "arn:aws:sns:us-east-1:123:t:sub-del"
-        mock_dynamodb.get_item.return_value = {
-            "Item": {"snsSubscriptionArn": sub_arn}
-        }
+        mock_dynamodb.get_item.return_value = {"Item": {"snsSubscriptionArn": sub_arn}}
         # Mock get_subscription_attributes — only this plan in filter
         mock_sns.get_subscription_attributes.return_value = {
             "Attributes": {
@@ -253,13 +228,9 @@ class TestManageSubscriptionDelete:
         )
 
         assert result is None
-        mock_sns.unsubscribe.assert_called_once_with(
-            SubscriptionArn=sub_arn
-        )
+        mock_sns.unsubscribe.assert_called_once_with(SubscriptionArn=sub_arn)
 
-    def test_delete_skips_when_no_subscription(
-        self, mock_sns, mock_dynamodb
-    ):
+    def test_delete_skips_when_no_subscription(self, mock_sns, mock_dynamodb):
         """Delete does nothing when no ARN is stored."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
@@ -276,19 +247,13 @@ class TestManageSubscriptionDelete:
         assert result is None
         mock_sns.unsubscribe.assert_not_called()
 
-    def test_delete_skips_pending_confirmation(
-        self, mock_sns, mock_dynamodb
-    ):
+    def test_delete_skips_pending_confirmation(self, mock_sns, mock_dynamodb):
         """Delete skips subscriptions still pending confirmation."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
         )
 
-        mock_dynamodb.get_item.return_value = {
-            "Item": {
-                "snsSubscriptionArn": "PendingConfirmation"
-            }
-        }
+        mock_dynamodb.get_item.return_value = {"Item": {"snsSubscriptionArn": "PendingConfirmation"}}
 
         result = manage_recovery_plan_subscription(
             plan_id="plan-202",
@@ -299,18 +264,14 @@ class TestManageSubscriptionDelete:
         assert result is None
         mock_sns.unsubscribe.assert_not_called()
 
-    def test_delete_propagates_unsubscribe_error(
-        self, mock_sns, mock_dynamodb
-    ):
+    def test_delete_propagates_unsubscribe_error(self, mock_sns, mock_dynamodb):
         """Delete re-raises if sns.unsubscribe fails."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
         )
 
         sub_arn = "arn:aws:sns:us-east-1:123:t:sub-err"
-        mock_dynamodb.get_item.return_value = {
-            "Item": {"snsSubscriptionArn": sub_arn}
-        }
+        mock_dynamodb.get_item.return_value = {"Item": {"snsSubscriptionArn": sub_arn}}
         mock_sns.get_subscription_attributes.return_value = {
             "Attributes": {
                 "FilterPolicy": '{"recoveryPlanId": ["plan-203"]}',
@@ -330,12 +291,11 @@ class TestManageSubscriptionDelete:
 # manage_recovery_plan_subscription — update
 # ------------------------------------------------------------------ #
 
+
 class TestManageSubscriptionUpdate:
     """Tests for the 'update' action (delete + create)."""
 
-    def test_update_deletes_then_creates(
-        self, mock_sns, mock_dynamodb
-    ):
+    def test_update_deletes_then_creates(self, mock_sns, mock_dynamodb):
         """Update deletes old subscription then creates new."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
@@ -344,18 +304,14 @@ class TestManageSubscriptionUpdate:
         old_arn = "arn:aws:sns:us-east-1:123:t:sub-old"
         new_arn = "arn:aws:sns:us-east-1:123:t:sub-new"
 
-        mock_dynamodb.get_item.return_value = {
-            "Item": {"snsSubscriptionArn": old_arn}
-        }
+        mock_dynamodb.get_item.return_value = {"Item": {"snsSubscriptionArn": old_arn}}
         # Only this plan in filter — should fully unsubscribe
         mock_sns.get_subscription_attributes.return_value = {
             "Attributes": {
                 "FilterPolicy": '{"recoveryPlanId": ["plan-300"]}',
             }
         }
-        mock_sns.subscribe.return_value = {
-            "SubscriptionArn": new_arn
-        }
+        mock_sns.subscribe.return_value = {"SubscriptionArn": new_arn}
 
         result = manage_recovery_plan_subscription(
             plan_id="plan-300",
@@ -364,9 +320,7 @@ class TestManageSubscriptionUpdate:
         )
 
         assert result == new_arn
-        mock_sns.unsubscribe.assert_called_once_with(
-            SubscriptionArn=old_arn
-        )
+        mock_sns.unsubscribe.assert_called_once_with(SubscriptionArn=old_arn)
         mock_sns.subscribe.assert_called_once()
 
 
@@ -374,12 +328,11 @@ class TestManageSubscriptionUpdate:
 # manage_recovery_plan_subscription — validation
 # ------------------------------------------------------------------ #
 
+
 class TestManageSubscriptionValidation:
     """Tests for argument validation."""
 
-    def test_invalid_action_raises_value_error(
-        self, mock_sns, mock_dynamodb
-    ):
+    def test_invalid_action_raises_value_error(self, mock_sns, mock_dynamodb):
         """Unknown action raises ValueError."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
@@ -392,17 +345,13 @@ class TestManageSubscriptionValidation:
                 action="invalid",
             )
 
-    def test_missing_topic_arn_raises_value_error(
-        self, monkeypatch, mock_sns, mock_dynamodb
-    ):
+    def test_missing_topic_arn_raises_value_error(self, monkeypatch, mock_sns, mock_dynamodb):
         """Missing topic ARN raises ValueError."""
         from shared.notifications import (
             manage_recovery_plan_subscription,
         )
 
-        monkeypatch.setenv(
-            "EXECUTION_NOTIFICATIONS_TOPIC_ARN", ""
-        )
+        monkeypatch.setenv("EXECUTION_NOTIFICATIONS_TOPIC_ARN", "")
 
         with pytest.raises(ValueError, match="not configured"):
             manage_recovery_plan_subscription(

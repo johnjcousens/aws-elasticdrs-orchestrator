@@ -55,9 +55,7 @@ def mock_env_vars():
 def get_mock_context():
     """Create mock Lambda context with IAM principal"""
     context = Mock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
     context.request_id = "test-request-123"
     context.function_name = "query-handler"
     context.memory_limit_in_mb = 256
@@ -147,9 +145,7 @@ def test_api_gateway_mode_detection(mock_extract_principal, mock_env_vars):
 
 @patch("shared.iam_utils.extract_iam_principal")
 @patch("shared.iam_utils.validate_iam_authorization")
-def test_iam_authorization_success(
-    mock_validate, mock_extract_principal, mock_env_vars
-):
+def test_iam_authorization_success(mock_validate, mock_extract_principal, mock_env_vars):
     """
     Test successful IAM authorization for direct invocations.
 
@@ -176,9 +172,7 @@ def test_iam_authorization_success(
 
 @patch("shared.iam_utils.extract_iam_principal")
 @patch("shared.iam_utils.validate_iam_authorization")
-def test_iam_authorization_failure(
-    mock_validate, mock_extract_principal, mock_env_vars
-):
+def test_iam_authorization_failure(mock_validate, mock_extract_principal, mock_env_vars):
     """
     Test IAM authorization failure for direct invocations.
 
@@ -187,9 +181,7 @@ def test_iam_authorization_failure(
     - Error response structure
     - Security event logging
     """
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::999999999999:role/UnauthorizedRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::999999999999:role/UnauthorizedRole"
     mock_validate.return_value = False
 
     event = {"operation": "get_target_accounts", "queryParams": {}}
@@ -261,9 +253,7 @@ def test_invalid_operation_name(mock_extract_principal, mock_env_vars):
 
 @patch("shared.iam_utils.extract_iam_principal")
 @patch("index.target_accounts_table")
-def test_response_format_direct_invocation(
-    mock_table, mock_extract_principal, mock_env_vars
-):
+def test_response_format_direct_invocation(mock_table, mock_extract_principal, mock_env_vars):
     """
     Test response format for direct invocations (unwrapped).
 
@@ -283,16 +273,12 @@ def test_response_format_direct_invocation(
     # Direct invocation should NOT have statusCode
     assert "statusCode" not in result
     # Should have data or error
-    assert (
-        "accounts" in result or "targetAccounts" in result or "error" in result
-    )
+    assert "accounts" in result or "targetAccounts" in result or "error" in result
 
 
 @patch("shared.iam_utils.extract_iam_principal")
 @patch("index.protection_groups_table")
-def test_response_format_api_gateway(
-    mock_table, mock_extract_principal, mock_env_vars
-):
+def test_response_format_api_gateway(mock_table, mock_extract_principal, mock_env_vars):
     """
     Test response format for API Gateway invocations (wrapped).
 
@@ -343,9 +329,7 @@ def test_response_format_api_gateway(
 )
 @patch("shared.iam_utils.extract_iam_principal")
 @patch("index.target_accounts_table")
-def test_query_operations_routing(
-    mock_table, mock_extract_principal, operation, mock_env_vars
-):
+def test_query_operations_routing(mock_table, mock_extract_principal, operation, mock_env_vars):
     """
     Test that query operations are properly routed.
 
@@ -376,9 +360,7 @@ def test_query_operations_routing(
 @patch("shared.iam_utils.extract_iam_principal")
 @patch("shared.iam_utils.log_direct_invocation")
 @patch("index.target_accounts_table")
-def test_audit_logging_called(
-    mock_table, mock_log, mock_extract_principal, mock_env_vars
-):
+def test_audit_logging_called(mock_table, mock_log, mock_extract_principal, mock_env_vars):
     """
     Test that audit logging is called for direct invocations.
 
@@ -405,9 +387,7 @@ def test_audit_logging_called(
 
 @patch("shared.iam_utils.extract_iam_principal")
 @patch("index.protection_groups_table")
-def test_backward_compatibility_api_gateway_still_works(
-    mock_table, mock_extract_principal, mock_env_vars
-):
+def test_backward_compatibility_api_gateway_still_works(mock_table, mock_extract_principal, mock_env_vars):
     """
     Test that API Gateway mode still works after adding direct invocation.
 

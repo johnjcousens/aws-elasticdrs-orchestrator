@@ -30,8 +30,8 @@ lambda_root = Path(__file__).parent.parent / "lambda"
 if str(lambda_root) not in sys.path:
     sys.path.insert(0, str(lambda_root))
 
-# Note: Each test should add its specific handler path (query-handler, 
-# data-management-handler, etc.) to avoid conflicts between handlers that 
+# Note: Each test should add its specific handler path (query-handler,
+# data-management-handler, etc.) to avoid conflicts between handlers that
 # all have an index.py file.
 
 
@@ -39,7 +39,7 @@ if str(lambda_root) not in sys.path:
 def clear_index_module():
     """
     Clear the 'index' module from sys.modules before each test.
-    
+
     This prevents conflicts when different tests import 'index' from
     different Lambda handlers (query-handler, data-management-handler, etc.).
     """

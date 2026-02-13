@@ -45,7 +45,7 @@ from index import query_all_accounts_parallel  # noqa: E402
 def account_failure_scenario_strategy(draw):
     """
     Generate a scenario with some accounts failing and others succeeding.
-    
+
     Returns:
     - target_account: Target account config
     - staging_accounts: List of staging account configs
@@ -57,10 +57,7 @@ def account_failure_scenario_strategy(draw):
     # Generate unique account IDs
     account_ids = draw(
         st.lists(
-            st.from_regex(r"\d{12}", fullmatch=True),
-            min_size=num_staging + 1,
-            max_size=num_staging + 1,
-            unique=True
+            st.from_regex(r"\d{12}", fullmatch=True), min_size=num_staging + 1, max_size=num_staging + 1, unique=True
         )
     )
 
@@ -75,21 +72,20 @@ def account_failure_scenario_strategy(draw):
     # Create staging accounts
     staging_accounts = []
     for account_id in account_ids[1:]:
-        staging_accounts.append({
-            "accountId": account_id,
-            "accountName": f"Staging_{account_id}",
-            "roleArn": f"arn:aws:iam::{account_id}:role/TestRole",
-            "externalId": f"external-id-{account_id}",
-        })
+        staging_accounts.append(
+            {
+                "accountId": account_id,
+                "accountName": f"Staging_{account_id}",
+                "roleArn": f"arn:aws:iam::{account_id}:role/TestRole",
+                "externalId": f"external-id-{account_id}",
+            }
+        )
 
     # Randomly select which accounts should fail (at least 1, but not all)
     num_failed = draw(st.integers(min_value=1, max_value=num_staging))
     failed_indices = draw(
         st.lists(
-            st.integers(min_value=0, max_value=num_staging - 1),
-            min_size=num_failed,
-            max_size=num_failed,
-            unique=True
+            st.integers(min_value=0, max_value=num_staging - 1), min_size=num_failed, max_size=num_failed, unique=True
         )
     )
 
@@ -111,7 +107,7 @@ def account_failure_scenario_strategy(draw):
 def test_property_failed_account_resilience(scenario):
     """
     Property 10: Failed Account Resilience
-    
+
     For any combined capacity query where some accounts fail:
     1. Failed accounts should be marked as inaccessible
     2. Failed accounts should have error field
@@ -144,7 +140,7 @@ def test_property_failed_account_resilience(scenario):
                 "totalServers": 0,
                 "regionalBreakdown": [],
                 "accessible": False,
-                "error": "Role assumption failed: Access Denied"
+                "error": "Role assumption failed: Access Denied",
             }
         else:
             # Successful query
@@ -154,9 +150,7 @@ def test_property_failed_account_resilience(scenario):
                 "accountType": account_config.get("accountType", "staging"),
                 "replicatingServers": 50,
                 "totalServers": 50,
-                "regionalBreakdown": [
-                    {"region": "us-east-1", "totalServers": 50, "replicatingServers": 50}
-                ],
+                "regionalBreakdown": [{"region": "us-east-1", "totalServers": 50, "replicatingServers": 50}],
                 "accessible": True,
             }
 
@@ -165,62 +159,37 @@ def test_property_failed_account_resilience(scenario):
 
     # Property 1: Should return results for all accounts
     expected_num_accounts = 1 + len(staging_accounts)
-    assert len(results) == expected_num_accounts, (
-        f"Expected {expected_num_accounts} results, got {len(results)}"
-    )
+    assert len(results) == expected_num_accounts, f"Expected {expected_num_accounts} results, got {len(results)}"
 
     # Property 2: Failed accounts should be marked as inaccessible
-    failed_results = [  # noqa: F841
-        r for r in results
-        if r["accountId"] in failed_account_ids
-    ]
-    assert len(failed_results) == len(failed_account_ids), (
-        f"Expected {len(failed_account_ids)} failed results"
-    )
+    failed_results = [r for r in results if r["accountId"] in failed_account_ids]  # noqa: F841
+    assert len(failed_results) == len(failed_account_ids), f"Expected {len(failed_account_ids)} failed results"
 
     for result in failed_results:
-        assert result["accessible"] is False, (
-            f"Account {result['accountId']} should be marked as inaccessible"
-        )
-        assert "error" in result, (
-            f"Account {result['accountId']} should have error field"
-        )
-        assert result["replicatingServers"] == 0, (
-            "Failed account should have 0 replicating servers"
-        )
+        assert result["accessible"] is False, f"Account {result['accountId']} should be marked as inaccessible"
+        assert "error" in result, f"Account {result['accountId']} should have error field"
+        assert result["replicatingServers"] == 0, "Failed account should have 0 replicating servers"
 
     # Property 3: Successful accounts should return normal results
-    successful_results = [  # noqa: F841
-        r for r in results
-        if r["accountId"] not in failed_account_ids
-    ]
+    successful_results = [r for r in results if r["accountId"] not in failed_account_ids]  # noqa: F841
 
     for result in successful_results:
-        assert result["accessible"] is True, (
-            f"Account {result['accountId']} should be accessible"
-        )
-        assert "error" not in result, (
-            "Successful account should not have error field"
-        )
-        assert result["replicatingServers"] > 0, (
-            "Successful account should have servers"
-        )
+        assert result["accessible"] is True, f"Account {result['accountId']} should be accessible"
+        assert "error" not in result, "Successful account should not have error field"
+        assert result["replicatingServers"] > 0, "Successful account should have servers"
 
     # Property 4: Number of successful + failed = total
     assert len(successful_results) + len(failed_results) == expected_num_accounts
 
 
 @settings(max_examples=50, deadline=None)
-@given(
-    num_staging=st.integers(min_value=2, max_value=10),
-    num_failed=st.integers(min_value=1, max_value=5)
-)
+@given(num_staging=st.integers(min_value=2, max_value=10), num_failed=st.integers(min_value=1, max_value=5))
 @mock_aws
 @pytest.mark.property
 def test_property_partial_failure_continues_query(num_staging, num_failed):
     """
     Property: Partial failure continues query
-    
+
     When some accounts fail, the query should:
     - Continue querying remaining accounts
     - Return results for all accounts
@@ -258,7 +227,7 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
     ]
 
     # First num_failed staging accounts will fail
-    failed_account_ids = set(account_ids[1:num_failed + 1])
+    failed_account_ids = set(account_ids[1 : num_failed + 1])
 
     def mock_query_account_capacity(account_config):
         account_id = account_config.get("accountId")  # noqa: F841
@@ -272,7 +241,7 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
                 "totalServers": 0,
                 "regionalBreakdown": [],
                 "accessible": False,
-                "error": "Access Denied"
+                "error": "Access Denied",
             }
         else:
             return {
@@ -307,7 +276,7 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
 def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
     """
     Property: All staging accounts fail, target succeeds
-    
+
     When all staging accounts fail but target succeeds:
     - Should return results for all accounts
     - Target should be accessible
@@ -366,7 +335,7 @@ def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
                 "totalServers": 0,
                 "regionalBreakdown": [],
                 "accessible": False,
-                "error": "Access Denied"
+                "error": "Access Denied",
             }
 
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
@@ -441,7 +410,7 @@ def test_edge_case_target_fails_all_staging_succeed():
                 "totalServers": 0,
                 "regionalBreakdown": [],
                 "accessible": False,
-                "error": "Access Denied"
+                "error": "Access Denied",
             }
         else:
             # Staging accounts succeed
@@ -536,7 +505,7 @@ def test_edge_case_different_error_types():
                 "totalServers": 0,
                 "regionalBreakdown": [],
                 "accessible": False,
-                "error": "Role assumption failed: Access Denied"
+                "error": "Role assumption failed: Access Denied",
             }
         elif account_id == "333333333333":  # noqa: F841
             # Invalid credentials error
@@ -548,7 +517,7 @@ def test_edge_case_different_error_types():
                 "totalServers": 0,
                 "regionalBreakdown": [],
                 "accessible": False,
-                "error": "Invalid credentials"
+                "error": "Invalid credentials",
             }
         else:
             # Network timeout error
@@ -560,7 +529,7 @@ def test_edge_case_different_error_types():
                 "totalServers": 0,
                 "regionalBreakdown": [],
                 "accessible": False,
-                "error": "Network timeout"
+                "error": "Network timeout",
             }
 
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):

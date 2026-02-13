@@ -41,9 +41,7 @@ def account_result_strategy(draw, account_type="staging"):
 
     if accessible:
         replicating_servers = draw(st.integers(min_value=0, max_value=300))
-        total_servers = draw(
-            st.integers(min_value=replicating_servers, max_value=300)
-        )
+        total_servers = draw(st.integers(min_value=replicating_servers, max_value=300))
     else:
         replicating_servers = 0
         total_servers = 0
@@ -67,10 +65,7 @@ def account_results_list_strategy(draw):
 
     # Generate 0-10 staging accounts
     num_staging = draw(st.integers(min_value=0, max_value=10))
-    staging_accounts = [
-        draw(account_result_strategy(account_type="staging"))
-        for _ in range(num_staging)
-    ]
+    staging_accounts = [draw(account_result_strategy(account_type="staging")) for _ in range(num_staging)]
 
     return [target_account] + staging_accounts
 
@@ -99,55 +94,40 @@ def test_property_combined_capacity_aggregation(account_results):
     result = calculate_combined_metrics(account_results)  # noqa: F841
 
     # Filter accessible accounts
-    accessible_accounts = [
-        a for a in account_results if a.get("accessible", False)
-    ]
+    accessible_accounts = [a for a in account_results if a.get("accessible", False)]
 
     # Property 1: Total replicating = sum of replicating across accessible accounts
-    expected_total_replicating = sum(
-        a.get("replicatingServers", 0) for a in accessible_accounts
-    )
+    expected_total_replicating = sum(a.get("replicatingServers", 0) for a in accessible_accounts)
     assert result["totalReplicating"] == expected_total_replicating, (
-        f"Total replicating mismatch: expected {expected_total_replicating}, "
-        f"got {result['totalReplicating']}"
+        f"Total replicating mismatch: expected {expected_total_replicating}, " f"got {result['totalReplicating']}"
     )
 
     # Property 2: Total servers = sum of total servers across accessible accounts
-    expected_total_servers = sum(
-        a.get("totalServers", 0) for a in accessible_accounts
-    )
+    expected_total_servers = sum(a.get("totalServers", 0) for a in accessible_accounts)
     assert result["totalServers"] == expected_total_servers, (
-        f"Total servers mismatch: expected {expected_total_servers}, "
-        f"got {result['totalServers']}"
+        f"Total servers mismatch: expected {expected_total_servers}, " f"got {result['totalServers']}"
     )
 
     # Property 3: Max capacity = num_accessible_accounts × 300
     expected_max_capacity = len(accessible_accounts) * 300
     assert result["maxReplicating"] == expected_max_capacity, (
-        f"Max capacity mismatch: expected {expected_max_capacity}, "
-        f"got {result['maxReplicating']}"
+        f"Max capacity mismatch: expected {expected_max_capacity}, " f"got {result['maxReplicating']}"
     )
 
     # Property 4: Percentage used calculation
     if expected_max_capacity > 0:
-        expected_percent = (
-            expected_total_replicating / expected_max_capacity * 100
-        )
+        expected_percent = expected_total_replicating / expected_max_capacity * 100
         # Allow small floating point differences
         assert abs(result["percentUsed"] - expected_percent) < 0.01, (
-            f"Percent used mismatch: expected {expected_percent:.2f}, "
-            f"got {result['percentUsed']}"
+            f"Percent used mismatch: expected {expected_percent:.2f}, " f"got {result['percentUsed']}"
         )
     else:
-        assert (
-            result["percentUsed"] == 0.0
-        ), "Percent used should be 0 when max capacity is 0"
+        assert result["percentUsed"] == 0.0, "Percent used should be 0 when max capacity is 0"
 
     # Property 5: Available slots = max capacity - total replicating
     expected_available = expected_max_capacity - expected_total_replicating
     assert result["availableSlots"] == expected_available, (
-        f"Available slots mismatch: expected {expected_available}, "
-        f"got {result['availableSlots']}"
+        f"Available slots mismatch: expected {expected_available}, " f"got {result['availableSlots']}"
     )
 
     # Property 6: Accessible accounts count
@@ -158,8 +138,7 @@ def test_property_combined_capacity_aggregation(account_results):
 
     # Property 7: Total accounts count
     assert result["totalAccounts"] == len(account_results), (
-        f"Total accounts count mismatch: expected {len(account_results)}, "
-        f"got {result['totalAccounts']}"
+        f"Total accounts count mismatch: expected {len(account_results)}, " f"got {result['totalAccounts']}"
     )
 
 
@@ -169,9 +148,7 @@ def test_property_combined_capacity_aggregation(account_results):
     servers_per_account=st.integers(min_value=0, max_value=300),
 )
 @pytest.mark.property
-def test_property_uniform_capacity_distribution(
-    num_accounts, servers_per_account
-):
+def test_property_uniform_capacity_distribution(num_accounts, servers_per_account):
     """
     Property: Uniform capacity distribution (Staging Account Model)
 
@@ -220,9 +197,7 @@ def test_property_inaccessible_accounts_excluded(account_results):
 
     # Count accessible vs inaccessible
     accessible = [a for a in account_results if a.get("accessible", False)]
-    inaccessible = [
-        a for a in account_results if not a.get("accessible", False)
-    ]
+    inaccessible = [a for a in account_results if not a.get("accessible", False)]
 
     # Verify inaccessible accounts don't contribute to capacity
     if inaccessible:

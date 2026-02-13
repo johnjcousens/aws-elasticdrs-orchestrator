@@ -32,9 +32,7 @@ if "index" in sys.modules:
     del sys.modules["index"]
 
 # Add query-handler to path - query-handler FIRST
-query_handler_dir = (
-    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
-)
+query_handler_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(query_handler_dir))
 
 from index import handle_validate_staging_account  # noqa: E402
@@ -381,9 +379,7 @@ class TestValidateStagingAccountEdgeCases:
         }
 
         mock_sts = MagicMock()
-        mock_sts.assume_role.side_effect = EndpointConnectionError(
-            endpoint_url="https://sts.amazonaws.com"
-        )
+        mock_sts.assume_role.side_effect = EndpointConnectionError(endpoint_url="https://sts.amazonaws.com")
 
         mock_boto3_client.return_value = mock_sts
 

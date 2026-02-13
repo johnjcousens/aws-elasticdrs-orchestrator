@@ -32,9 +32,7 @@ if "index" in sys.modules:
     del sys.modules["index"]
 
 # Add query-handler to path - query-handler FIRST
-query_handler_dir = (
-    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
-)
+query_handler_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(query_handler_dir))
 
 from index import handle_validate_staging_account  # noqa: E402
@@ -44,23 +42,23 @@ from index import handle_validate_staging_account  # noqa: E402
 account_id_strategy = st.from_regex(r"\d{12}", fullmatch=True)
 
 # Strategy for generating valid IAM role ARNs
-role_arn_strategy = st.from_regex(
-    r"arn:aws:iam::\d{12}:role/[\w+=,.@-]+", fullmatch=True
-)
+role_arn_strategy = st.from_regex(r"arn:aws:iam::\d{12}:role/[\w+=,.@-]+", fullmatch=True)
 
 # Strategy for generating external IDs
 external_id_strategy = st.text(min_size=1, max_size=100)
 
 # Strategy for generating AWS regions
-region_strategy = st.sampled_from([
-    "us-east-1",
-    "us-east-2",
-    "us-west-1",
-    "us-west-2",
-    "eu-west-1",
-    "eu-central-1",
-    "ap-southeast-1",
-])
+region_strategy = st.sampled_from(
+    [
+        "us-east-1",
+        "us-east-2",
+        "us-west-1",
+        "us-west-2",
+        "eu-west-1",
+        "eu-central-1",
+        "ap-southeast-1",
+    ]
+)
 
 
 @settings(max_examples=100)
@@ -69,19 +67,19 @@ region_strategy = st.sampled_from([
     role_arn=role_arn_strategy,
     external_id=external_id_strategy,
     region=region_strategy,
-    error_code=st.sampled_from([
-        "AccessDenied",
-        "InvalidClientTokenId",
-        "InvalidParameterValue",
-    ]),
+    error_code=st.sampled_from(
+        [
+            "AccessDenied",
+            "InvalidClientTokenId",
+            "InvalidParameterValue",
+        ]
+    ),
 )
 @pytest.mark.property
-def test_property_validation_error_handling_role_failures(
-    account_id, role_arn, external_id, region, error_code
-):
+def test_property_validation_error_handling_role_failures(account_id, role_arn, external_id, region, error_code):
     """
     Property 7: Validation Error Handling (Role Assumption Failures)
-    
+
     For any role assumption failure, the validation result must:
     1. Have valid=False
     2. Include a descriptive error message
@@ -117,9 +115,7 @@ def test_property_validation_error_handling_role_failures(
         body = json.loads(result["body"])
 
         # Property 7: valid must be False for any failure
-        assert (
-            body["valid"] is False
-        ), "valid must be False for role assumption failure"
+        assert body["valid"] is False, "valid must be False for role assumption failure"
 
         # Property 7: error message must be present and descriptive
         assert "error" in body, "error field must be present for failures"
@@ -131,17 +127,12 @@ def test_property_validation_error_handling_role_failures(
 
         # Should mention the failure type
         assert any(
-            keyword in error_lower
-            for keyword in ["role", "assume", "access", "denied", "invalid"]
+            keyword in error_lower for keyword in ["role", "assume", "access", "denied", "invalid"]
         ), "error should describe the failure type"
 
         # Should not expose internal implementation details
-        assert (
-            "traceback" not in error_lower
-        ), "error should not contain traceback"
-        assert (
-            "exception" not in error_lower
-        ), "error should not contain exception details"
+        assert "traceback" not in error_lower, "error should not contain traceback"
+        assert "exception" not in error_lower, "error should not contain exception details"
 
 
 @settings(max_examples=100)
@@ -152,12 +143,10 @@ def test_property_validation_error_handling_role_failures(
     region=region_strategy,
 )
 @pytest.mark.property
-def test_property_validation_error_handling_drs_uninitialized(
-    account_id, role_arn, external_id, region
-):
+def test_property_validation_error_handling_drs_uninitialized(account_id, role_arn, external_id, region):
     """
     Property 7: Validation Error Handling (DRS Not Initialized)
-    
+
     For DRS uninitialized errors, the validation result must:
     1. Have valid=False
     2. Include a descriptive error message
@@ -215,9 +204,7 @@ def test_property_validation_error_handling_drs_uninitialized(
         body = json.loads(result["body"])
 
         # Property 7: valid must be False for DRS uninitialized
-        assert (
-            body["valid"] is False
-        ), "valid must be False for DRS uninitialized"
+        assert body["valid"] is False, "valid must be False for DRS uninitialized"
 
         # Property 7: error message must be present and descriptive
         assert "error" in body, "error field must be present for DRS failure"
@@ -234,9 +221,7 @@ def test_property_validation_error_handling_drs_uninitialized(
         assert "drs" in error_lower, "error should mention DRS"
 
         # Should provide actionable guidance
-        assert (
-            "initialize" in error_lower
-        ), "error should suggest initializing DRS"
+        assert "initialize" in error_lower, "error should suggest initializing DRS"
 
 
 @settings(max_examples=50)
@@ -245,19 +230,19 @@ def test_property_validation_error_handling_drs_uninitialized(
     role_arn=role_arn_strategy,
     external_id=external_id_strategy,
     region=region_strategy,
-    drs_error_code=st.sampled_from([
-        "ThrottlingException",
-        "InternalServerException",
-        "ServiceQuotaExceededException",
-    ]),
+    drs_error_code=st.sampled_from(
+        [
+            "ThrottlingException",
+            "InternalServerException",
+            "ServiceQuotaExceededException",
+        ]
+    ),
 )
 @pytest.mark.property
-def test_property_validation_error_handling_drs_other_errors(
-    account_id, role_arn, external_id, region, drs_error_code
-):
+def test_property_validation_error_handling_drs_other_errors(account_id, role_arn, external_id, region, drs_error_code):
     """
     Property 7: Validation Error Handling (Other DRS Errors)
-    
+
     For other DRS errors (throttling, internal errors, etc.), the validation
     result must:
     1. Have valid=False
@@ -336,12 +321,10 @@ def test_property_validation_error_handling_drs_other_errors(
     region=region_strategy,
 )
 @pytest.mark.property
-def test_property_validation_error_handling_invalid_account_id(
-    account_id, role_arn, external_id, region
-):
+def test_property_validation_error_handling_invalid_account_id(account_id, role_arn, external_id, region):
     """
     Property 7: Validation Error Handling (Invalid Account ID)
-    
+
     For invalid account ID format, the validation result must:
     1. Have valid=False in details
     2. Include a descriptive error message
@@ -386,12 +369,10 @@ def test_property_validation_error_handling_invalid_account_id(
     # Missing region - will be None
 )
 @pytest.mark.property
-def test_property_validation_error_handling_missing_required_fields(
-    account_id, role_arn, external_id
-):
+def test_property_validation_error_handling_missing_required_fields(account_id, role_arn, external_id):
     """
     Property 7: Validation Error Handling (Missing Required Fields)
-    
+
     For missing required fields, the validation result must:
     1. Have valid=False in details
     2. Include a descriptive error message
@@ -414,22 +395,16 @@ def test_property_validation_error_handling_missing_required_fields(
 
     # Property 7: valid must be False for missing fields (in details)
     assert "details" in body, "details field must be present"
-    assert (
-        body["details"]["valid"] is False
-    ), "valid must be False for missing required field"
+    assert body["details"]["valid"] is False, "valid must be False for missing required field"
 
     # Property 7: error code must be present
-    assert (
-        "error" in body
-    ), "error field must be present for missing required field"
+    assert "error" in body, "error field must be present for missing required field"
     assert isinstance(body["error"], str), "error must be a string"
     assert len(body["error"]) > 0, "error message must not be empty"
 
     # Error should specify which field is missing
     message_lower = body["message"].lower()
-    assert (
-        "missing" in message_lower or "required" in message_lower
-    ), "message should mention missing field"
+    assert "missing" in message_lower or "required" in message_lower, "message should mention missing field"
     assert "region" in message_lower, "message should specify region is missing"
 
 
