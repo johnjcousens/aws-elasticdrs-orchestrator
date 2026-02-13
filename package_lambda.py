@@ -200,7 +200,6 @@ def main():
         ("data-management-handler", False),  # Protection Groups + Recovery Plans CRUD
         ("execution-handler", False),  # DR execution lifecycle operations
         ("frontend-deployer", True),  # Frontend deployment automation (includes frontend dist)
-        ("notification-formatter", False),  # SNS notification formatting
         ("dr-orchestration-stepfunction", False),  # Refactored orchestration (no DRS code)
         # ("drs-agent-deployer", False),  # DRS agent deployment automation - NOT YET DEVELOPED
     ]

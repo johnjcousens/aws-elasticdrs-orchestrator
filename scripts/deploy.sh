@@ -817,7 +817,6 @@ if [ "$LAMBDA_ONLY" = true ]; then
         "execution-handler"
         "query-handler"
         "dr-orch-sf"
-        "notification-formatter"
         "frontend-deployer"
     )
     for func in "${LAMBDA_FUNCTIONS[@]}"; do
@@ -968,7 +967,6 @@ else
         "execution-handler"
         "query-handler"
         "dr-orch-sf"
-        "notification-formatter"
         "frontend-deployer"
     )
     for func in "${LAMBDA_FUNCTIONS[@]}"; do

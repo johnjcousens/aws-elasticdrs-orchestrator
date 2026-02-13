@@ -8,7 +8,6 @@ Description: |
   - Query Handler: Source servers, quotas, capacity, EC2 resources, configuration export
   - DR Orchestration Step Function: Wave execution logic invoked by Step Functions
   - Frontend Deployer: Builds and deploys React frontend to S3/CloudFront
-  - Notification Formatter: Formats events into user-friendly SNS notifications
   
   All functions share unified OrchestrationRoleArn for DRS, DynamoDB, SNS, Step Functions access.
   Supports cross-account DRS operations via IAM role assumption.
@@ -332,37 +331,6 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt ExecutionFinderScheduleRule.Arn
 
-  # Formats DRS orchestration events into user-friendly notifications
-  # Routes to appropriate SNS topics based on event type
-  NotificationFormatterFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-notification-formatter-${Environment}"
-      Description: !Sub "Formats DRS orchestration events into user-friendly notifications (v${LambdaCodeVersion})"
-      Runtime: python3.12
-      Handler: index.lambda_handler
-      Role: !Ref OrchestrationRoleArn
-      Code:
-        S3Bucket: !Ref SourceBucket
-        S3Key: "lambda/notification-formatter.zip"
-      Timeout: 60
-      MemorySize: 256
-      ReservedConcurrentExecutions: 50
-      DeadLetterConfig:
-        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
-      Environment:
-        Variables:
-          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
-          DRS_ALERTS_TOPIC_ARN: !Ref DRSAlertsTopicArn
-          EXECUTION_PAUSE_TOPIC_ARN: !Ref ExecutionPauseTopicArn
-          PROJECT_NAME: !Ref ProjectName
-          ENVIRONMENT: !Ref Environment
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
   # ============================================================================
   # DRS Agent Deployer - COMMENTED OUT (Not Yet Implemented)
   # ============================================================================
@@ -462,18 +430,6 @@ Outputs:
     Value: !GetAtt ExecutionFinderScheduleRule.Arn
     Export:
       Name: !Sub "${AWS::StackName}-ScheduleRuleArn"
-
-  NotificationFormatterFunctionArn:
-    Description: "Notification Formatter Lambda Function ARN"
-    Value: !GetAtt NotificationFormatterFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-NotificationFormatterArn"
-
-  NotificationFormatterFunctionName:
-    Description: "Notification Formatter Lambda Function Name"
-    Value: !Ref NotificationFormatterFunction
-    Export:
-      Name: !Sub "${AWS::StackName}-NotificationFormatterName"
 
   FrontendDeployerFunctionArn:
     Description: "Frontend Deployer Lambda Function ARN (Consolidated)"
