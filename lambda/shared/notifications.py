@@ -599,10 +599,14 @@ def publish_recovery_plan_notification(
     """
     Publish a notification for a Recovery Plan execution event.
 
-    Sends a JSON message to the execution notifications SNS topic
+    Sends a message to the execution notifications SNS topic
     with ``recoveryPlanId`` and ``eventType`` as MessageAttributes.
     SNS filter policies use these attributes to route the message
     only to subscribers of the given Recovery Plan.
+
+    For all event types, uses JSON MessageStructure with the
+    formatted text in both ``default`` and ``email`` keys to
+    ensure delivery to email protocol subscribers.
 
     Failures are logged but never raised so that notification
     issues do not block DR execution.
@@ -611,40 +615,28 @@ def publish_recovery_plan_notification(
         plan_id: Recovery Plan ID (UUID)
         event_type: Event type string, e.g. ``"start"``,
             ``"complete"``, ``"fail"``, ``"pause"``
-        details: Arbitrary event details dict that is
-            serialised as the message body
-
-    Example:
-        >>> publish_recovery_plan_notification(
-        ...     plan_id="plan-abc123",
-        ...     event_type="start",
-        ...     details={
-        ...         "executionId": "exec-1",
-        ...         "planName": "Prod DR",
-        ...         "accountId": "123456789012",
-        ...     },
-        ... )
+        details: Arbitrary event details dict
     """
     if not EXECUTION_TOPIC_ARN:
         logger.warning("EXECUTION_NOTIFICATIONS_TOPIC_ARN not " "configured, skipping notification")
         return
 
     plan_name = details.get("planName", "Unknown")
-    subject = f"[DRS] Recovery Plan: {plan_name} - " f"{event_type}"
-    # SNS subject max length is 100 characters
+    subject = f"[DRS] Recovery Plan: {plan_name} - {event_type}"
     if len(subject) > 100:
         subject = subject[:97] + "..."
 
-    # Attempt HTML formatting; fall back to raw JSON on error
+    message_structure = "json"
     try:
         formatted = format_notification_message(event_type, details)
+        # Use formatted text in both keys so email protocol
+        # subscribers receive the full content
         message_body = json.dumps(
             {
                 "default": formatted["default"],
                 "email": formatted["email"],
             }
         )
-        message_structure = "json"
     except Exception as fmt_exc:
         logger.error(
             "Failed to format notification for %s: %s",
@@ -1341,12 +1333,11 @@ def format_pause_notification(
     details: Dict[str, Any],
 ) -> str:
     """
-    Format HTML email for pause events with CloudShell instructions.
+    Format plain-text email for pause events with CloudShell instructions.
 
-    Includes ready-to-run AWS CLI commands and a direct link to
-    CloudShell in the correct region. The operator can open
-    CloudShell, paste the command, and resume or cancel the
-    execution with zero local tooling required.
+    SNS email subscriptions deliver plain text only. Uses single-line
+    CLI commands (no backslash continuations) so they copy-paste
+    cleanly from any email client.
 
     Args:
         details: Event details including planName, executionId,
@@ -1354,71 +1345,88 @@ def format_pause_notification(
             pauseReason, pausedBeforeWave
 
     Returns:
-        HTML email body with CloudShell link and CLI commands
+        Plain-text email body with CloudShell link and CLI commands
     """
     pause_reason = details.get("pauseReason", "Manual pause requested")
     paused_before = details.get("pausedBeforeWave", "")
     task_token = details.get("taskToken", "")
     region = details.get("region", "us-east-1")
+    execution_id = details.get("executionId", "")
+    plan_name = details.get("planName", "Unknown")
+    account_id = details.get("accountId", "")
+    timestamp = details.get("timestamp", "")
 
-    cloudshell_url = f"https://{region}.console.aws.amazon.com/cloudshell/home?region={region}"
+    cloudshell_url = f"https://{region}.console.aws.amazon.com" f"/cloudshell/home?region={region}"
 
-    body = (
-        "<p>The disaster recovery execution has been "
-        "<strong>paused</strong> and requires your action.</p>"
-        f"<p><strong>Reason:</strong> {pause_reason}</p>"
-    )
+    nl = "\r\n"
+    sep = "=" * 56
+    dash = "-" * 56
+
+    lines = [
+        sep,
+        "  DR EXECUTION PAUSED - ACTION REQUIRED",
+        sep,
+        "",
+        f"  Recovery Plan:    {plan_name}",
+        f"  Execution ID:     {execution_id}",
+        f"  Account ID:       {account_id}",
+        f"  Region:           {region}",
+        f"  Paused At:        {timestamp}",
+        f"  Reason:           {pause_reason}",
+    ]
 
     if paused_before:
-        body += f"<p><strong>Waiting to start:</strong> Wave {paused_before}</p>"
+        lines.append(f"  Waiting to start: Wave {paused_before}")
 
     if task_token:
-        # Instructions
-        body += (
-            '<div style="background:#f2f3f3;padding:16px;margin:16px 0;'
-            'border-radius:4px;">'
-            "<p><strong>How to resume or cancel:</strong></p>"
-            "<ol>"
-            f'<li>Open <a href="{cloudshell_url}" style="color:#0972d3;">'
-            "AWS CloudShell</a> (opens in the correct region)</li>"
-            "<li>Copy one of the commands below</li>"
-            "<li>Paste into CloudShell and press Enter</li>"
-            "</ol>"
-            "</div>"
+        # Single-line commands for clean copy-paste from email
+        resume_cmd = (
+            f"aws stepfunctions send-task-success"
+            f" --task-token '{task_token}'"
+            f" --task-output '{{}}'"
+            f" --region {region}"
+        )
+        cancel_cmd = (
+            f"aws stepfunctions send-task-failure"
+            f" --task-token '{task_token}'"
+            f' --error "UserCancelled"'
+            f' --cause "Cancelled via email"'
+            f" --region {region}"
         )
 
-        # Resume command
-        body += (
-            '<div class="info-box">'
-            '<p style="font-size:16px;font-weight:700;margin-bottom:12px;">'
-            "\u25b6 Resume Execution</p>"
-            '<pre style="background:#232f3e;color:#f2f3f3;padding:12px;'
-            "border-radius:4px;font-size:13px;overflow-x:auto;"
-            'white-space:pre-wrap;word-break:break-all;">'
-            "aws stepfunctions send-task-success \\\n"
-            f"  --task-token '{task_token}' \\\n"
-            "  --task-output '{}' \\\n"
-            f"  --region {region}</pre>"
-            "</div>"
+        lines.extend(
+            [
+                "",
+                dash,
+                "  HOW TO RESUME OR CANCEL",
+                dash,
+                "",
+                "  1. Open AWS CloudShell (click the link below):",
+                "",
+                f"     {cloudshell_url}",
+                "",
+                "  2. Copy ONE of the commands below and paste",
+                "     into CloudShell, then press Enter.",
+                "",
+                "",
+                sep,
+                "  >>> RESUME EXECUTION <<<",
+                sep,
+                "",
+                resume_cmd,
+                "",
+                "",
+                sep,
+                "  >>> CANCEL EXECUTION <<<",
+                sep,
+                "",
+                cancel_cmd,
+                "",
+                sep,
+            ]
         )
 
-        # Cancel command
-        body += (
-            '<div class="info-box" style="border-left-color:#d13212;">'
-            '<p style="font-size:16px;font-weight:700;margin-bottom:12px;">'
-            "\u2715 Cancel Execution</p>"
-            '<pre style="background:#232f3e;color:#f2f3f3;padding:12px;'
-            "border-radius:4px;font-size:13px;overflow-x:auto;"
-            'white-space:pre-wrap;word-break:break-all;">'
-            "aws stepfunctions send-task-failure \\\n"
-            f"  --task-token '{task_token}' \\\n"
-            '  --error "UserCancelled" \\\n'
-            '  --cause "Cancelled via email notification" \\\n'
-            f"  --region {region}</pre>"
-            "</div>"
-        )
-
-    return _wrap_html_email("\U0001f6d1 DR Execution Paused", body, details)
+    return nl.join(lines)
 
 
 def format_notification_message(
@@ -1426,16 +1434,25 @@ def format_notification_message(
     details: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Route to the appropriate HTML email formatter by event type.
+    Route to the appropriate formatter by event type.
+
+    For pause events, returns plain text (SNS email does not
+    render HTML). For other events, returns HTML in the email
+    key and a short summary in default.
 
     Args:
         event_type: One of "start", "complete", "fail", "pause"
         details: Event details dictionary
 
     Returns:
-        Dict with "default" (plain text) and "email" (HTML)
+        Dict with "default" (plain text) and "email" (formatted)
     """
     plan_name = details.get("planName", "Unknown")
+
+    if event_type == "pause":
+        # Plain text for pause — SNS email can't render HTML
+        plain = format_pause_notification(details)
+        return {"default": plain, "email": plain}
 
     formatters = {
         "start": (
@@ -1449,10 +1466,6 @@ def format_notification_message(
         "fail": (
             f"DR Execution Failed: {plan_name}",
             format_failure_notification,
-        ),
-        "pause": (
-            f"DR Execution Paused: {plan_name}",
-            format_pause_notification,
         ),
     }
 
