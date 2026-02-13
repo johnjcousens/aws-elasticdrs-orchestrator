@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [6.0.0] - 2026-02-13 - SNS Notifications & Email Callback
+
+### Added
+
+**SNS Pause/Resume Email Notifications**: Operators receive actionable email notifications when executions pause between waves, with copy-paste CLI commands to resume or cancel directly from AWS CloudShell — no frontend or API Gateway deployment required.
+
+#### Email Notification System
+- **Pause Notification**: Automatic SNS email when execution pauses between waves with task token, CloudShell link, and ready-to-run resume/cancel CLI commands
+- **Start/Complete/Fail Notifications**: Plain-text formatted emails for all execution lifecycle events with structured sections and DRS context
+- **CloudShell Integration**: Direct link to AWS CloudShell in the correct region for one-click access
+- **Infrastructure Status Feedback**: DynamoDB query runs automatically after resume/cancel to show real execution status in CloudShell
+- **SNS Filter Policy Support**: Per-recovery-plan email subscriptions with MessageAttribute-based filtering
+
+#### State Reconstruction on Resume
+- **DynamoDB State Snapshot**: Full execution state saved to DynamoDB when pausing, enabling CLI resume with `--task-output '{}'`
+- **Execution Name Lookup**: `ResumeWavePlan` passes `$$.Execution.Name` from Step Functions context so Lambda can find the execution in DynamoDB even with empty callback output
+- **Automatic State Restoration**: `resume_wave` reconstructs waves, account context, and all execution metadata from the DynamoDB snapshot
+
+#### Wave Merge Fix (Race Condition)
+- **`_merge_and_persist_waves` Helper**: All DynamoDB wave writes now merge with existing waves before persisting, preventing enrichment code from clobbering newly-added waves
+- **4 Call Sites Fixed**: `get_execution_details`, `poll_operation`, `cancel_operation`, and `get_execution_details_realtime` all use merge-based persistence
+- **Frontend/CLI Sync**: Wave 2 now appears in the UI immediately after CLI resume instead of being silently dropped
+
+### Changed
+- **Step Functions Definition**: Removed `accountContext.$` from `ResumeWavePlan` parameters — Lambda reconstructs state from DynamoDB instead of relying on callback output
+- **Notification Formatter**: All email notifications use plain text (SNS email protocol does not render HTML)
+- **Deploy Script**: Auto-syncs to Code.AWS mirror (`codeaws` remote) if configured
+
+### Fixed
+- **Missing Pause Email**: `store_task_token` (between-wave pause) was not sending any notification — now publishes to SNS with full execution details
+- **Wave Number Display**: Pause email now shows 1-based wave numbers (Wave 2, not Wave 1) since `pausedBeforeWave` is a 0-based index
+- **SNS Filter Policy**: Messages without `recoveryPlanId` MessageAttribute were silently dropped by subscription filter policies
+
+---
+
 ## [5.0.0] - 2026-02-10 - Direct Lambda Invocation Mode
 
 ### Added
