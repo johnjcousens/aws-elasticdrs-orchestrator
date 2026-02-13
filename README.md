@@ -715,51 +715,51 @@ Complete API documentation for all Lambda handlers with direct invocation suppor
 Complete working examples for AWS service integration:
 
 #### Python & Bash Scripts
-- **[Python Example](examples/python/complete_dr_workflow.py)** - Complete DR workflow automation
+- **[Python Example](docs/examples/python/complete_dr_workflow.py)** - Complete DR workflow automation
   - Create protection groups and recovery plans
   - Start recovery execution with monitoring
   - Error handling and retry logic
   - IAM policy included
 
-- **[Bash Example](examples/bash/dr_ci_pipeline.sh)** - CI/CD pipeline integration
+- **[Bash Example](docs/examples/bash/dr_ci_pipeline.sh)** - CI/CD pipeline integration
   - Automated DR testing in CI/CD pipelines
   - Pre-deployment validation
   - Post-deployment verification
   - Exit code handling for pipeline integration
 
 #### AWS CDK Examples
-- **[CDK Stack](examples/cdk/)** - Complete TypeScript CDK stack
+- **[CDK Stack](docs/examples/cdk/)** - Complete TypeScript CDK stack
   - Lambda function definitions with direct invocation
   - DynamoDB table integration
   - Step Functions state machine
   - IAM role configuration
 
-- **[DynamoDB Integration](examples/cdk/docs/DYNAMODB_INTEGRATION.md)** - DynamoDB patterns
+- **[DynamoDB Integration](docs/examples/cdk/docs/DYNAMODB_INTEGRATION.md)** - DynamoDB patterns
   - Table schema and GSI configuration
   - Query and scan patterns
   - Batch operations and transactions
   - Error handling and retries
 
-- **[Step Functions Integration](examples/cdk/docs/STEPFUNCTIONS_INTEGRATION.md)** - State machine patterns
+- **[Step Functions Integration](docs/examples/cdk/docs/STEPFUNCTIONS_INTEGRATION.md)** - State machine patterns
   - Lambda invocation from Step Functions
   - Error handling and retries
   - Parallel execution patterns
   - Wait states and callbacks
 
-- **[IAM Role Integration](examples/cdk/docs/IAM_ROLE_INTEGRATION.md)** - IAM configuration (1600+ lines)
+- **[IAM Role Integration](docs/examples/cdk/docs/IAM_ROLE_INTEGRATION.md)** - IAM configuration (1600+ lines)
   - Complete role and policy definitions
   - Cross-account access patterns
   - Service-specific permissions
   - Security best practices
 
 #### AWS Service Integration
-- **[Step Functions Example](examples/stepfunctions/)** - Lambda invocation patterns
+- **[Step Functions Example](docs/examples/stepfunctions/)** - Lambda invocation patterns
   - Complete state machine definition
   - Task states with Lambda invocation
   - Error handling and retries
   - Parallel and sequential execution
 
-- **[EventBridge Example](examples/eventbridge/)** - Event-driven invocation
+- **[EventBridge Example](docs/examples/eventbridge/)** - Event-driven invocation
   - 8 EventBridge rule definitions
   - Scheduled invocation (cron, rate)
   - Event pattern matching
