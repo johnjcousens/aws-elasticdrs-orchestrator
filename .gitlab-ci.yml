@@ -27,6 +27,7 @@
 stages:
   - .pre
   - validate
+  - scan
   - security
   - test
   - build
