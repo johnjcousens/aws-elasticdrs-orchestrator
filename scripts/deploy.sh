@@ -717,9 +717,18 @@ else
 fi
 
 if git push origin HEAD --quiet 2>/dev/null; then
-    echo -e "${GREEN}  ✓ Pushed to remote${NC}"
+    echo -e "${GREEN}  ✓ Pushed to origin${NC}"
 else
-    echo -e "${YELLOW}  ⚠ Push failed or nothing to push${NC}"
+    echo -e "${YELLOW}  ⚠ Push to origin failed or nothing to push${NC}"
+fi
+
+# Sync to Code.AWS mirror if remote exists
+if git remote get-url codeaws >/dev/null 2>&1; then
+    if git push codeaws HEAD --quiet 2>/dev/null; then
+        echo -e "${GREEN}  ✓ Pushed to codeaws${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Push to codeaws failed or nothing to push${NC}"
+    fi
 fi
 echo ""
 
