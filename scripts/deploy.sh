@@ -210,6 +210,9 @@ if [ -z "$AWS_PROFILE" ]; then
         if grep -q '\[891376951562_AdministratorAccess\]' ~/.aws/credentials; then
             export AWS_PROFILE="891376951562_AdministratorAccess"
             echo -e "${BLUE}Using AWS profile: $AWS_PROFILE${NC}"
+        elif grep -q '\[profile AWSAdministratorAccess-891376951562\]' ~/.aws/config; then
+            export AWS_PROFILE="AWSAdministratorAccess-891376951562"
+            echo -e "${BLUE}Using AWS profile: $AWS_PROFILE${NC}"
         fi
     fi
 fi
@@ -218,7 +221,7 @@ fi
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
 if [[ "$ACCOUNT_ID" == *"SSO session"* ]] || [[ "$ACCOUNT_ID" == *"expired"* ]]; then
     echo -e "${YELLOW}⚠ SSO session expired - logging in...${NC}"
-    aws sso login --profile ${AWS_PROFILE:-891376951562_AdministratorAccess}
+    aws sso login --profile ${AWS_PROFILE:-AWSAdministratorAccess-891376951562}
     ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
 fi
 

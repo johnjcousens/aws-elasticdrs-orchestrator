@@ -446,15 +446,16 @@ class TestResumeWaveInvokesExecutionHandler:
             ):
                 resume_wave(event)
 
-        # Verify DynamoDB update was called
-        mock_dynamodb_table.update_item.assert_called_once()
-        call_args = mock_dynamodb_table.update_item.call_args
+        # update_item is called twice: once to reset status, once to persist waves
+        assert mock_dynamodb_table.update_item.call_count == 2
+        first_call = mock_dynamodb_table.update_item.call_args_list[0]
 
-        # Verify update sets status to RUNNING and removes pause metadata
-        assert call_args[1]["Key"]["executionId"] == "exec-456"
-        assert call_args[1]["Key"]["planId"] == "plan-123"
-        assert call_args[1]["ExpressionAttributeValues"][":status"] == "RUNNING"
-        assert "REMOVE taskToken, pausedBeforeWave" in call_args[1]["UpdateExpression"]
+        # First call resets status to RUNNING and removes pause metadata
+        assert first_call[1]["Key"]["executionId"] == "exec-456"
+        assert first_call[1]["Key"]["planId"] == "plan-123"
+        assert first_call[1]["ExpressionAttributeValues"][":status"] == "RUNNING"
+        assert "REMOVE taskToken" in first_call[1]["UpdateExpression"]
+        assert "pausedBeforeWave" in first_call[1]["UpdateExpression"]
 
     def test_resume_wave_handles_decimal_wave_number(
         self,
