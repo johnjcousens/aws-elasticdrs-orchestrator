@@ -2274,22 +2274,14 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
                 execution = reconcile_wave_status_with_drs(execution, account_context)
 
                 # CRITICAL FIX: Persist wave status updates to DynamoDB
-                # The reconcile_wave_status_with_drs function updates wave status in memory,
-                # but we need to persist these updates so termination logic works correctly
+                # Uses merge to prevent clobbering waves added by other processes
                 try:
                     updated_waves = execution.get("waves", [])
-                    execution_history_table.update_item(
-                        Key={
-                            "executionId": execution_id,
-                            "planId": execution.get("planId"),
-                        },
-                        UpdateExpression="SET waves = :waves, updatedAt = :updated",
-                        ExpressionAttributeValues={
-                            ":waves": updated_waves,
-                            ":updated": int(time.time()),
-                        },
+                    _merge_and_persist_waves(
+                        execution_id,
+                        execution.get("planId"),
+                        updated_waves,
                     )
-                    print(f"✅ Persisted wave status updates to DynamoDB for {execution_id}")
                 except Exception as persist_error:
                     print(f"Error persisting wave updates: {persist_error}")
         except Exception as enrich_error:
@@ -3156,12 +3148,13 @@ def handle_poll_operation(event: Dict, context) -> Dict:
             print(f"CANCELLING execution {execution_id} - analyzed outcome: {final_status}")
             print(f"   Summary: {summary}")
 
-            execution_history_table.update_item(
-                Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET waves = :waves, lastPolledTime = :time, #status = :status, endTime = :endtime, outcomeSummary = :summary, outcomeDetails = :details, errorMessage = :error",
-                ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues={
-                    ":waves": updated_waves,
+            _merge_and_persist_waves(
+                execution_id,
+                plan_id,
+                updated_waves,
+                extra_updates="lastPolledTime = :time, #status = :status, endTime = :endtime, outcomeSummary = :summary, outcomeDetails = :details, errorMessage = :error",
+                extra_names={"#status": "status"},
+                extra_values={
                     ":time": int(time.time()),
                     ":status": final_status,
                     ":endtime": int(time.time()),
@@ -3182,13 +3175,12 @@ def handle_poll_operation(event: Dict, context) -> Dict:
             }
 
         # Update waves in DynamoDB (NO STATUS CHANGE for non-CANCELLING)
-        execution_history_table.update_item(
-            Key={"executionId": execution_id, "planId": plan_id},
-            UpdateExpression="SET waves = :waves, lastPolledTime = :time",
-            ExpressionAttributeValues={
-                ":waves": updated_waves,
-                ":time": int(time.time()),
-            },
+        _merge_and_persist_waves(
+            execution_id,
+            plan_id,
+            updated_waves,
+            extra_updates="lastPolledTime = :time",
+            extra_values={":time": int(time.time())},
         )
 
         print(f"✅ Polling complete for {execution_id} - waves updated, execution status unchanged")
@@ -4181,22 +4173,14 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         execution["terminationMetadata"] = can_terminate_execution(execution)
 
         # CRITICAL FIX: Persist wave status updates to DynamoDB
-        # The reconcile_wave_status_with_drs function updates wave status in memory,
-        # but we need to persist these updates so termination logic works correctly
+        # Uses merge to prevent clobbering waves added by other processes
         try:
             waves = execution.get("waves", [])
-            execution_history_table.update_item(
-                Key={
-                    "executionId": execution_id,
-                    "planId": execution.get("planId"),
-                },
-                UpdateExpression="SET waves = :waves, updatedAt = :updated",
-                ExpressionAttributeValues={
-                    ":waves": waves,
-                    ":updated": int(time.time()),
-                },
+            _merge_and_persist_waves(
+                execution_id,
+                execution.get("planId"),
+                waves,
             )
-            print(f"✅ Persisted wave status updates to DynamoDB for {execution_id}")
         except Exception as persist_error:
             print(f"Error persisting wave updates: {persist_error}")
 
@@ -6926,6 +6910,77 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
 
     print(f"DEBUG: Execution enrichment completed for {len(waves)} waves")
     return execution
+
+
+def _merge_and_persist_waves(
+    execution_id: str,
+    plan_id: str,
+    enriched_waves: list,
+    extra_updates: str = "",
+    extra_names: dict = None,
+    extra_values: dict = None,
+) -> None:
+    """
+    Merge enriched waves with current DynamoDB waves and persist.
+
+    Prevents race conditions where a new wave (e.g. Wave 2 started
+    by resume_wave) gets clobbered by an enrichment write that only
+    knows about earlier waves.
+
+    Merge strategy: for each wave index, keep the version with more
+    data (non-empty jobId, later status). If DynamoDB has more waves
+    than the enriched list, preserve the extra waves.
+
+    Args:
+        execution_id: Execution ID
+        plan_id: Plan ID
+        enriched_waves: Waves with enriched data to persist
+        extra_updates: Additional UpdateExpression clauses
+        extra_names: Additional ExpressionAttributeNames
+        extra_values: Additional ExpressionAttributeValues
+    """
+    try:
+        # Read current waves from DynamoDB
+        current = execution_history_table.get_item(
+            Key={"executionId": execution_id, "planId": plan_id},
+            ProjectionExpression="waves",
+        ).get("Item", {})
+        db_waves = current.get("waves", [])
+
+        # Merge: use the longer list as base
+        merged = list(enriched_waves)
+        for i in range(len(db_waves)):
+            if i >= len(merged):
+                # DynamoDB has more waves — preserve them
+                merged.append(db_waves[i])
+            elif not merged[i].get("jobId") and db_waves[i].get("jobId"):
+                # DB wave has job data that enriched doesn't — keep DB
+                merged[i] = db_waves[i]
+
+        update_expr = "SET waves = :waves, updatedAt = :updated"
+        if extra_updates:
+            update_expr += ", " + extra_updates
+
+        expr_names = extra_names or {}
+        expr_values = {
+            ":waves": merged,
+            ":updated": int(time.time()),
+        }
+        if extra_values:
+            expr_values.update(extra_values)
+
+        kwargs = {
+            "Key": {"executionId": execution_id, "planId": plan_id},
+            "UpdateExpression": update_expr,
+            "ExpressionAttributeValues": expr_values,
+        }
+        if expr_names:
+            kwargs["ExpressionAttributeNames"] = expr_names
+
+        execution_history_table.update_item(**kwargs)
+        print(f"✅ Merged and persisted {len(merged)} waves " f"to DynamoDB for {execution_id}")
+    except Exception as e:
+        print(f"Error in _merge_and_persist_waves: {e}")
 
 
 def reconcile_wave_status_with_drs(execution: Dict, account_context: Optional[Dict] = None) -> Dict:
