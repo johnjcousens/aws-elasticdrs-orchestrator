@@ -644,6 +644,7 @@ def store_task_token(event: Dict) -> Dict:
                 "pausedBeforeWave": paused_before_wave,
                 "taskToken": task_token,
                 "region": region,
+                "executionHistoryTable": EXECUTION_HISTORY_TABLE,
                 "timestamp": time.strftime(
                     "%Y-%m-%dT%H:%M:%SZ",
                     time.gmtime(),
