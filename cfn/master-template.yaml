@@ -38,7 +38,7 @@ Metadata:
 Parameters:
   ProjectName:
     Type: String
-    Default: 'aws-drs-orchestration'
+    Default: 'hrp-drs-tech-adapter'
     Description: 'Project name used for resource naming'
     AllowedPattern: '^[a-z0-9-]+$'
     ConstraintDescription: 'Must contain only lowercase letters, numbers, and hyphens'
@@ -56,7 +56,7 @@ Parameters:
 
   SourceBucket:
     Type: String
-    Default: 'aws-elasticdrs-orchestrator'
+    Default: 'hrp-drs-tech-adapter'
     Description: 'S3 bucket containing nested CloudFormation templates and Lambda code at root level'
 
   AdminEmail:

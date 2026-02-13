@@ -37,7 +37,7 @@ Parameters:
   ProjectName:
     Type: String
     Description: Name of the project for resource naming
-    Default: aws-drs-orchestration
+    Default: hrp-drs-tech-adapter
 
   Environment:
     Type: String

@@ -67,7 +67,7 @@ Parameters:
   ProjectName:
     Type: String
     Description: Project name for resource naming (used in WebACL name and metrics)
-    Default: aws-drs-orchestration
+    Default: hrp-drs-tech-adapter
 
   Environment:
     Type: String

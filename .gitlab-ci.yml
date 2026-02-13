@@ -1,0 +1,617 @@
+# =============================================================================
+# HRP DRS Tech Adapter - GitLab CI/CD Pipeline
+# =============================================================================
+# Mirrors the 5-stage pipeline from scripts/deploy.sh:
+#   [1/5] Validation  - cfn-lint, flake8, black, TypeScript
+#   [2/5] Security    - bandit, cfn_nag, detect-secrets, shellcheck, npm audit,
+#                        checkov, semgrep, grype, syft
+#                      + GitLab built-in: Secret Detection, SAST, Dependency Scanning
+#   [3/5] Tests       - pytest, vitest
+#   [4/5] Build       - Lambda packages, frontend build
+#   [5/5] Deploy      - S3 sync, CloudFormation deploy, Lambda code update
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# GitLab built-in security scanning templates
+# ---------------------------------------------------------------------------
+include:
+  - template: Security/Secret-Detection.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+
+stages:
+  - validate
+  - security
+  - test
+  - build
+  - deploy
+
+# ---------------------------------------------------------------------------
+# Global defaults
+# ---------------------------------------------------------------------------
+default:
+  image: python:3.12-slim
+  tags:
+    - docker
+
+variables:
+  AWS_REGION: us-east-2
+  AWS_DEFAULT_REGION: us-east-2
+  PROJECT_NAME: hrp-drs-tech-adapter
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  NODE_VERSION: "20"
+
+# ---------------------------------------------------------------------------
+# Reusable caches
+# ---------------------------------------------------------------------------
+.python-cache: &python-cache
+  cache:
+    key: python-${CI_COMMIT_REF_SLUG}
+    paths:
+      - .cache/pip
+      - .venv/
+
+.node-cache: &node-cache
+  cache:
+    key: node-${CI_COMMIT_REF_SLUG}
+    paths:
+      - frontend/node_modules/
+
+# ---------------------------------------------------------------------------
+# Setup templates
+# ---------------------------------------------------------------------------
+.setup-python: &setup-python
+  before_script:
+    - python -m venv .venv
+    - source .venv/bin/activate
+    - pip install --quiet -r requirements-dev.txt
+
+.setup-node: &setup-node
+  image: node:${NODE_VERSION}-slim
+  before_script:
+    - cd frontend
+    - npm ci --quiet
+
+.setup-aws: &setup-aws
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq jq > /dev/null
+    - python -m venv .venv
+    - source .venv/bin/activate
+    - pip install --quiet -r requirements-dev.txt
+    - pip install --quiet awscli
+
+# =============================================================================
+# STAGE 1: VALIDATION
+# =============================================================================
+
+cfn-lint:
+  stage: validate
+  <<: *python-cache
+  <<: *setup-python
+  script:
+    - source .venv/bin/activate
+    - cfn-lint cfn/*.yaml
+  allow_failure: false
+
+flake8:
+  stage: validate
+  <<: *python-cache
+  <<: *setup-python
+  script:
+    - source .venv/bin/activate
+    - flake8 lambda/ --config .flake8
+  allow_failure: true
+
+black:
+  stage: validate
+  <<: *python-cache
+  <<: *setup-python
+  script:
+    - source .venv/bin/activate
+    - black --check lambda/
+  allow_failure: false
+
+typescript-check:
+  stage: validate
+  <<: *node-cache
+  <<: *setup-node
+  script:
+    - npm run type-check
+  allow_failure: false
+  rules:
+    - exists:
+        - frontend/package.json
+
+# =============================================================================
+# STAGE 2: SECURITY
+# =============================================================================
+
+bandit:
+  stage: security
+  <<: *python-cache
+  <<: *setup-python
+  script:
+    - source .venv/bin/activate
+    - bandit -r lambda/ -ll -q
+  allow_failure: true
+
+detect-secrets:
+  stage: security
+  <<: *python-cache
+  <<: *setup-python
+  script:
+    - source .venv/bin/activate
+    - detect-secrets scan --list
+  allow_failure: true
+
+checkov:
+  stage: security
+  <<: *python-cache
+  <<: *setup-python
+  script:
+    - source .venv/bin/activate
+    - checkov -d cfn/ --framework cloudformation --quiet --compact
+  allow_failure: true
+
+semgrep:
+  stage: security
+  image: semgrep/semgrep:latest
+  script:
+    - semgrep scan --config=p/ci --quiet lambda/ frontend/src/
+  allow_failure: true
+  rules:
+    - exists:
+        - lambda/**/*.py
+
+cfn-nag:
+  stage: security
+  image: ruby:3.3-slim
+  before_script:
+    - gem install cfn-nag --quiet --no-document
+  script:
+    - cfn_nag_scan --input-path cfn/
+  allow_failure: true
+
+shellcheck:
+  stage: security
+  image: koalaman/shellcheck-alpine:stable
+  script:
+    - find lambda/ -name "*.sh" -exec shellcheck -S warning {} + 2>/dev/null || echo "No shell scripts in lambda/"
+  allow_failure: true
+
+npm-audit:
+  stage: security
+  <<: *node-cache
+  <<: *setup-node
+  script:
+    - npm audit --audit-level critical
+  allow_failure: true
+  rules:
+    - exists:
+        - frontend/package.json
+
+grype-scan:
+  stage: security
+  image:
+    name: anchore/grype:latest
+    entrypoint: [""]
+  script:
+    - grype dir:. --fail-on critical --exclude './archive/**' --exclude './.venv/**'
+  allow_failure: true
+
+syft-sbom:
+  stage: security
+  image:
+    name: anchore/syft:latest
+    entrypoint: [""]
+  script:
+    - syft dir:. -o spdx-json --exclude './archive/**' --exclude './.venv/**' > sbom.json
+  artifacts:
+    paths:
+      - sbom.json
+    expire_in: 30 days
+  allow_failure: true
+
+# =============================================================================
+# STAGE 3: TESTS
+# =============================================================================
+
+pytest-unit:
+  stage: test
+  <<: *python-cache
+  <<: *setup-python
+  script:
+    - source .venv/bin/activate
+    - pytest tests/unit/ -m "not property" -q --tb=short --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+    expire_in: 7 days
+  allow_failure: false
+
+pytest-property:
+  stage: test
+  <<: *python-cache
+  <<: *setup-python
+  script:
+    - source .venv/bin/activate
+    - pytest tests/unit/ -m "property" -q --tb=short --hypothesis-show-statistics --junitxml=report-property.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report-property.xml
+    expire_in: 7 days
+  allow_failure: true
+
+vitest:
+  stage: test
+  <<: *node-cache
+  <<: *setup-node
+  script:
+    - npm run test:skip-integration
+  allow_failure: false
+  rules:
+    - exists:
+        - frontend/package.json
+
+# =============================================================================
+# STAGE 4: BUILD
+# =============================================================================
+
+build-lambda:
+  stage: build
+  <<: *python-cache
+  <<: *setup-python
+  script:
+    - source .venv/bin/activate
+    - pip install --quiet boto3
+    - python package_lambda.py
+  artifacts:
+    paths:
+      - build/lambda/
+    expire_in: 1 day
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+build-frontend:
+  stage: build
+  <<: *node-cache
+  <<: *setup-node
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/dist/
+    expire_in: 1 day
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - exists:
+        - frontend/package.json
+
+# =============================================================================
+# STAGE 5: DEPLOY
+# =============================================================================
+# Deployment jobs require CI/CD variables set in GitLab:
+#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  (or use OIDC federation)
+#   ADMIN_EMAIL
+#
+# Change detection determines which deploy job runs:
+#   docs/** only           -> docs-only (no deploy)
+#   lambda/** only         -> deploy-lambda-only
+#   frontend/** only       -> deploy-frontend-only
+#   cfn/** only            -> deploy-cfn-only
+#   mixed changes          -> deploy-full
+#
+# Environment mapping:
+#   main/master  -> dev
+#   release/*    -> staging
+#   tags         -> prod
+# =============================================================================
+
+# --- Common AWS setup for all deploy jobs ---
+.deploy-setup: &deploy-setup
+  stage: deploy
+  image: python:3.12-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq jq > /dev/null
+    - pip install --quiet awscli boto3
+    - export STACK_NAME="${PROJECT_NAME}-${ENVIRONMENT}"
+    - export DEPLOYMENT_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}"
+
+# --- Docs-only: skip deployment entirely ---
+docs-only:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - echo "Documentation-only change — no deployment needed."
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - docs/**/*
+        - "*.md"
+        - .kiro/**/*
+      when: on_success
+    # Don't run if code files also changed (let other deploy jobs handle it)
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - lambda/**/*
+        - frontend/**/*
+        - cfn/**/*
+        - scripts/**/*
+      when: never
+
+# --- Lambda-only: package, sync zips, update function code ---
+.deploy-lambda-only-base: &deploy-lambda-only-base
+  <<: *deploy-setup
+  dependencies:
+    - build-lambda
+  script:
+    # Sync Lambda zips to S3
+    - aws s3 sync build/lambda/ "s3://${DEPLOYMENT_BUCKET}/lambda/" --delete --quiet
+    # Update each Lambda function code from S3
+    - |
+      for func in data-management-handler execution-handler query-handler dr-orch-sf frontend-deployer; do
+        FUNCTION_NAME="${PROJECT_NAME}-${func}-${ENVIRONMENT}"
+        S3_KEY="${func}"
+        if [ "$func" = "dr-orch-sf" ]; then
+          S3_KEY="dr-orchestration-stepfunction"
+        fi
+        aws lambda update-function-code \
+          --function-name "$FUNCTION_NAME" \
+          --s3-bucket "$DEPLOYMENT_BUCKET" \
+          --s3-key "lambda/${S3_KEY}.zip" \
+          --output json > /dev/null 2>&1 \
+          && echo "✓ ${func}" \
+          || echo "⚠ ${func} (skipped — may not exist yet)"
+      done
+
+deploy-lambda-only-dev:
+  <<: *deploy-lambda-only-base
+  variables:
+    ENVIRONMENT: dev
+  environment:
+    name: dev
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - lambda/**/*
+        - package_lambda.py
+      when: on_success
+    # Don't run if CFN or frontend also changed
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - cfn/**/*
+        - frontend/**/*
+      when: never
+
+# --- Frontend-only: build, package frontend-deployer, trigger via CFN ---
+# The frontend is deployed through the frontend-deployer Lambda (custom resource).
+# Updating FrontendBuildVersion triggers CloudFormation to invoke it.
+.deploy-frontend-only-base: &deploy-frontend-only-base
+  <<: *deploy-setup
+  dependencies:
+    - build-lambda
+    - build-frontend
+  script:
+    - export FRONTEND_VERSION=$(date +"%Y%m%d-%H%M")
+    # Sync updated frontend-deployer Lambda (contains frontend/dist)
+    - aws s3 cp build/lambda/frontend-deployer.zip "s3://${DEPLOYMENT_BUCKET}/lambda/frontend-deployer.zip" --quiet
+    - aws s3 sync cfn/ "s3://${DEPLOYMENT_BUCKET}/cfn/" --delete --quiet
+    # Update frontend-deployer Lambda code
+    - >
+      aws lambda update-function-code
+      --function-name "${PROJECT_NAME}-frontend-deployer-${ENVIRONMENT}"
+      --s3-bucket "$DEPLOYMENT_BUCKET"
+      --s3-key "lambda/frontend-deployer.zip"
+      --output json > /dev/null
+    # Get FrontendStack physical ID from master stack
+    - |
+      FRONTEND_STACK_NAME=$(aws cloudformation describe-stack-resources \
+        --stack-name "$STACK_NAME" \
+        --logical-resource-id FrontendStack \
+        --query 'StackResources[0].PhysicalResourceId' \
+        --output text 2>/dev/null || echo "")
+    # If FrontendStack exists, update it directly with new version
+    - |
+      if [ -n "$FRONTEND_STACK_NAME" ] && [ "$FRONTEND_STACK_NAME" != "None" ]; then
+        echo "Updating FrontendStack: $FRONTEND_STACK_NAME"
+        CURRENT_PARAMS=$(aws cloudformation describe-stacks \
+          --stack-name "$FRONTEND_STACK_NAME" \
+          --query 'Stacks[0].Parameters' --output json)
+        USER_POOL_ID=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="UserPoolId") | .ParameterValue')
+        USER_POOL_CLIENT_ID=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="UserPoolClientId") | .ParameterValue')
+        IDENTITY_POOL_ID=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="IdentityPoolId") | .ParameterValue')
+        API_ENDPOINT=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="ApiEndpoint") | .ParameterValue')
+        DEPLOYER_ARN=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="FrontendDeployerFunctionArn") | .ParameterValue')
+        aws cloudformation deploy \
+          --template-file cfn/frontend-stack.yaml \
+          --stack-name "$FRONTEND_STACK_NAME" \
+          --parameter-overrides \
+            ProjectName="$PROJECT_NAME" \
+            Environment="$ENVIRONMENT" \
+            UserPoolId="$USER_POOL_ID" \
+            UserPoolClientId="$USER_POOL_CLIENT_ID" \
+            IdentityPoolId="$IDENTITY_POOL_ID" \
+            ApiEndpoint="$API_ENDPOINT" \
+            FrontendDeployerFunctionArn="$DEPLOYER_ARN" \
+            SourceBucket="$DEPLOYMENT_BUCKET" \
+            FrontendBuildVersion="$FRONTEND_VERSION" \
+          --capabilities CAPABILITY_IAM \
+          --region "$AWS_REGION"
+        echo "✓ Frontend rebuild triggered (version: $FRONTEND_VERSION)"
+      else
+        echo "⚠ FrontendStack not found — run full deploy first"
+        exit 1
+      fi
+
+deploy-frontend-only-dev:
+  <<: *deploy-frontend-only-base
+  variables:
+    ENVIRONMENT: dev
+  environment:
+    name: dev
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - frontend/**/*
+      when: on_success
+    # Don't run if CFN or lambda also changed
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - cfn/**/*
+        - lambda/**/*
+      when: never
+
+# --- CFN-only: sync templates and deploy stack (no code rebuild) ---
+.deploy-cfn-only-base: &deploy-cfn-only-base
+  <<: *deploy-setup
+  script:
+    - aws s3 sync cfn/ "s3://${DEPLOYMENT_BUCKET}/cfn/" --delete --quiet
+    - >
+      aws cloudformation deploy
+      --template-file cfn/master-template.yaml
+      --stack-name "$STACK_NAME"
+      --s3-bucket "$DEPLOYMENT_BUCKET"
+      --s3-prefix cfn
+      --parameter-overrides
+        ProjectName="$PROJECT_NAME"
+        Environment="$ENVIRONMENT"
+        SourceBucket="$DEPLOYMENT_BUCKET"
+        AdminEmail="${ADMIN_EMAIL}"
+        EnableNotifications="${ENABLE_NOTIFICATIONS:-true}"
+        DeployFrontend="${DEPLOY_FRONTEND:-true}"
+        OrchestrationRoleArn="${ORCHESTRATION_ROLE_ARN:-}"
+      --capabilities CAPABILITY_NAMED_IAM
+      --no-fail-on-empty-changeset
+      --region "$AWS_REGION"
+
+deploy-cfn-only-dev:
+  <<: *deploy-cfn-only-base
+  variables:
+    ENVIRONMENT: dev
+  environment:
+    name: dev
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - cfn/**/*
+      when: on_success
+    # Don't run if lambda or frontend also changed
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - lambda/**/*
+        - frontend/**/*
+      when: never
+
+# --- Full deploy: everything changed or mixed changes ---
+.deploy-full-base: &deploy-full-base
+  <<: *deploy-setup
+  dependencies:
+    - build-lambda
+    - build-frontend
+  script:
+    - export LAMBDA_CODE_VERSION=$(date +%Y%m%d%H%M%S)
+    - export FRONTEND_VERSION=$(date +"%Y%m%d-%H%M")
+    # Sync all artifacts to S3
+    - aws s3 sync cfn/ "s3://${DEPLOYMENT_BUCKET}/cfn/" --delete --quiet
+    - aws s3 sync build/lambda/ "s3://${DEPLOYMENT_BUCKET}/lambda/" --delete --quiet
+    # Full CloudFormation deploy
+    - >
+      aws cloudformation deploy
+      --template-file cfn/master-template.yaml
+      --stack-name "$STACK_NAME"
+      --s3-bucket "$DEPLOYMENT_BUCKET"
+      --s3-prefix cfn
+      --parameter-overrides
+        ProjectName="$PROJECT_NAME"
+        Environment="$ENVIRONMENT"
+        SourceBucket="$DEPLOYMENT_BUCKET"
+        AdminEmail="${ADMIN_EMAIL}"
+        EnableNotifications="${ENABLE_NOTIFICATIONS:-true}"
+        DeployFrontend="${DEPLOY_FRONTEND:-true}"
+        OrchestrationRoleArn="${ORCHESTRATION_ROLE_ARN:-}"
+        LambdaCodeVersion="$LAMBDA_CODE_VERSION"
+        FrontendBuildVersion="$FRONTEND_VERSION"
+      --capabilities CAPABILITY_NAMED_IAM
+      --no-fail-on-empty-changeset
+      --region "$AWS_REGION"
+    # Force Lambda code update from S3
+    - |
+      for func in data-management-handler execution-handler query-handler dr-orch-sf frontend-deployer; do
+        FUNCTION_NAME="${PROJECT_NAME}-${func}-${ENVIRONMENT}"
+        S3_KEY="${func}"
+        if [ "$func" = "dr-orch-sf" ]; then
+          S3_KEY="dr-orchestration-stepfunction"
+        fi
+        aws lambda update-function-code \
+          --function-name "$FUNCTION_NAME" \
+          --s3-bucket "$DEPLOYMENT_BUCKET" \
+          --s3-key "lambda/${S3_KEY}.zip" \
+          --output json > /dev/null 2>&1 \
+          && echo "✓ ${func}" \
+          || echo "⚠ ${func} (skipped)"
+      done
+    # Print stack outputs
+    - >
+      aws cloudformation describe-stacks
+      --stack-name "$STACK_NAME"
+      --query 'Stacks[0].Outputs'
+      --output table
+
+deploy-full-dev:
+  <<: *deploy-full-base
+  variables:
+    ENVIRONMENT: dev
+  environment:
+    name: dev
+  rules:
+    # Mixed changes across multiple areas -> full deploy
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - lambda/**/*
+        - cfn/**/*
+      when: on_success
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - lambda/**/*
+        - frontend/**/*
+      when: on_success
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - cfn/**/*
+        - frontend/**/*
+      when: on_success
+    # Also run for scripts/config changes that affect deployment
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - scripts/**/*
+        - package_lambda.py
+        - pyproject.toml
+        - requirements*.txt
+      when: on_success
+
+# --- Staging: always full deploy on release branches ---
+deploy-full-staging:
+  <<: *deploy-full-base
+  variables:
+    ENVIRONMENT: staging
+  environment:
+    name: staging
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^release\/.*/
+      when: on_success
+
+# --- Production: manual full deploy on tags ---
+deploy-full-prod:
+  <<: *deploy-full-base
+  variables:
+    ENVIRONMENT: prod
+  environment:
+    name: production
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+  allow_failure: false

@@ -56,7 +56,7 @@ Parameters:
   ProjectName:
     Type: String
     Description: Project name passed from master template
-    Default: aws-drs-orchestration
+    Default: hrp-drs-tech-adapter
 
   Environment:
     Type: String

@@ -52,7 +52,7 @@ Description: |
 Parameters:
   ProjectName:
     Type: String
-    Default: 'aws-elasticdrs-orchestrator'
+    Default: 'hrp-drs-tech-adapter'
     Description: 'Project name used for resource naming'
 
   Environment:

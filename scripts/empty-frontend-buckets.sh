@@ -72,8 +72,8 @@ empty_bucket() {
 }
 
 # Empty both frontend buckets
-empty_bucket "aws-drs-orchestration-fe-${AWS_ACCOUNT_ID}-test"
-empty_bucket "aws-drs-orchestration-fe-${AWS_ACCOUNT_ID}-dev"
+empty_bucket "hrp-drs-tech-adapter-fe-${AWS_ACCOUNT_ID}-test"
+empty_bucket "hrp-drs-tech-adapter-fe-${AWS_ACCOUNT_ID}-dev"
 
 echo "=================================================="
 echo "✓ All frontend buckets emptied"

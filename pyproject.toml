@@ -3,11 +3,11 @@ requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aws-drs-orchestration"
+name = "hrp-drs-tech-adapter"
 version = "6.0.0"
-description = "AWS Elastic Disaster Recovery Orchestration Platform"
+description = "HRP DRS Tech Adapter - Disaster Recovery Orchestration Platform"
 authors = [
-    {name = "AWS DRS Orchestration Team", email = "aws-drs-orchestration@amazon.com"}
+    {name = "HRP DRS Tech Adapter Team"}
 ]
 license = {text = "MIT"}
 readme = "README.md"

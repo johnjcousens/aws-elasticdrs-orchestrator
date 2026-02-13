@@ -1,0 +1,28 @@
+# HRP DRS Tech Adapter - Code Owners
+# https://docs.gitlab.com/ee/user/project/codeowners/
+#
+# These owners are automatically added as required approvers
+# on merge requests that touch matching paths.
+#
+# Syntax: pattern @username or @group
+
+# Default: owner approves everything not covered below
+* @jocousen
+
+# Infrastructure (CloudFormation templates)
+cfn/ @jocousen
+
+# Lambda function code
+lambda/ @jocousen
+
+# Deployment scripts and CI/CD
+scripts/ @jocousen
+.gitlab-ci.yml @jocousen
+
+# Steering and project config
+.kiro/ @jocousen
+pyproject.toml @jocousen
+requirements*.txt @jocousen
+
+# Frontend
+frontend/src/ @jocousen

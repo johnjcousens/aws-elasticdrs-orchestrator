@@ -27,8 +27,8 @@ aws cloudformation deploy ...
 
 ```bash
 # ❌ BANNED - Frontend deployment
-aws s3 sync dist/ s3://aws-drs-orchestration-fe-*
-aws s3 cp dist/ s3://aws-drs-orchestration-fe-*
+aws s3 sync dist/ s3://hrp-drs-tech-adapter-fe-*
+aws s3 cp dist/ s3://hrp-drs-tech-adapter-fe-*
 aws cloudfront create-invalidation --distribution-id *
 
 # ❌ BANNED - Lambda deployment  
@@ -41,8 +41,8 @@ aws cloudformation create-stack --stack-name *
 aws cloudformation update-stack --stack-name *
 
 # ❌ BANNED - Any deployment bucket operations
-aws s3 sync * s3://aws-drs-orchestration-*
-aws s3 cp * s3://aws-drs-orchestration-*
+aws s3 sync * s3://hrp-drs-tech-adapter-*
+aws s3 cp * s3://hrp-drs-tech-adapter-*
 ```
 
 **ONLY ALLOWED COMMAND:**
@@ -314,7 +314,7 @@ cat build.log  # Review full output
 ### Concurrency Conflict
 ```bash
 # Wait for current deployment to complete
-aws cloudformation describe-stacks --stack-name aws-drs-orchestration-dev --query 'Stacks[0].StackStatus'
+aws cloudformation describe-stacks --stack-name hrp-drs-tech-adapter-dev --query 'Stacks[0].StackStatus'
 
 # Then retry
 ./scripts/deploy.sh dev
@@ -323,7 +323,7 @@ aws cloudformation describe-stacks --stack-name aws-drs-orchestration-dev --quer
 ### Deployment Failure
 ```bash
 # Check CloudFormation events
-aws cloudformation describe-stack-events --stack-name aws-drs-orchestration-dev --max-items 10
+aws cloudformation describe-stack-events --stack-name hrp-drs-tech-adapter-dev --max-items 10
 
 # Fix issue and retry
 ./scripts/deploy.sh dev
@@ -353,12 +353,12 @@ For public repository users without access to the deploy script:
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev \
+    DeploymentBucket=hrp-drs-tech-adapter-dev \
     AdminEmail=admin@example.com
 ```
 

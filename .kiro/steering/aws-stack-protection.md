@@ -6,26 +6,26 @@ inclusion: always
 
 ## Stack Naming Convention
 
-**Primary Working Stack**: `aws-drs-orchestration-test`
-- Stack ARN: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-drs-orchestration-test/e1e00cb0-fe49-11f0-a956-0ef4995d315b`
-- Created: January 31, 2026
+**Primary Working Stack**: `hrp-drs-tech-adapter-dev`
+- AWS Account: `891376951562`
+- Stack ARN: TBD (after first deployment)
 - This is the main working environment
 - All development and testing happens here
-- S3 Deployment Bucket: `aws-drs-orchestration-test`
-- S3 Frontend Bucket: `aws-drs-orchestration-fe-438465159935-test`
-- API Endpoint: `https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test`
-- CloudFront URL: `https://d319nadlgk4oj.cloudfront.net`
+- S3 Deployment Bucket: `hrp-drs-tech-adapter-dev`
+- S3 Frontend Bucket: `hrp-drs-tech-adapter-fe-891376951562-dev`
+- API Endpoint: TBD (after first deployment)
+- CloudFront URL: TBD (after first deployment)
 
 Other environments (if they exist):
-- `aws-drs-orchestration-dev` - Alternative development environment
-- `aws-drs-orchestration-staging` - Staging environment
-- `aws-drs-orchestration-prod` - Production environment
+- `hrp-drs-tech-adapter-test` - Test environment
+- `hrp-drs-tech-adapter-staging` - Staging environment
+- `hrp-drs-tech-adapter-prod` - Production environment
 
 ## Current Working Environment
 
-**Always deploy to**: `test` environment
+**Always deploy to**: `dev` environment
 ```bash
-./scripts/deploy.sh test
+./scripts/deploy.sh dev
 ```
 
 ## Best Practices
@@ -46,9 +46,9 @@ Other environments (if they exist):
 ### Environment Isolation
 
 Each environment should have:
-- Separate S3 deployment bucket: `aws-drs-orchestration-{environment}`
-- Separate DynamoDB tables: `aws-drs-orchestration-*-{environment}`
-- Separate Lambda functions: `aws-drs-orchestration-*-{environment}`
+- Separate S3 deployment bucket: `hrp-drs-tech-adapter-{environment}`
+- Separate DynamoDB tables: `hrp-drs-tech-adapter-*-{environment}`
+- Separate Lambda functions: `hrp-drs-tech-adapter-*-{environment}`
 - Separate CloudFront distribution
 - Separate Cognito User Pool
 

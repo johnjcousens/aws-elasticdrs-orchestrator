@@ -4,7 +4,7 @@
 # Usage: ./scripts/deploy.sh [environment] [options]
 #
 # Environment Variables (all optional):
-#   PROJECT_NAME              - Project name (default: aws-drs-orchestration)
+#   PROJECT_NAME              - Project name (default: hrp-drs-tech-adapter)
 #   STACK_NAME                - CloudFormation stack name (default: ${PROJECT_NAME}-${ENVIRONMENT})
 #   DEPLOYMENT_BUCKET         - S3 bucket for artifacts (default: ${PROJECT_NAME}-${ENVIRONMENT})
 #   ADMIN_EMAIL               - Admin email for Cognito (default: jocousen@amazon.com)
@@ -68,8 +68,8 @@ NC='\033[0m'
 
 # Required Parameters
 ENVIRONMENT="${1:-dev}"
-AWS_REGION="us-east-1"
-PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestration}"
+AWS_REGION="us-east-2"
+PROJECT_NAME="${PROJECT_NAME:-hrp-drs-tech-adapter}"
 STACK_NAME="${STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
 DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-${PROJECT_NAME}-${ENVIRONMENT}}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-jocousen@amazon.com}"

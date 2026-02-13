@@ -34,9 +34,9 @@ Description: >-
 # ---------------------------------------------------------------------------
 # Required secrets:
 #   AWS_ROLE_ARN        : (from stack output GitHubActionsRoleArn)
-#   AWS_REGION          : us-east-1 (or your deployment region)
-#   DEPLOYMENT_BUCKET   : aws-drs-orchestration-test (your S3 bucket)
-#   STACK_NAME          : aws-drs-orchestration-test (your CloudFormation stack)
+#   AWS_REGION          : us-east-2 (or your deployment region)
+#   DEPLOYMENT_BUCKET   : hrp-drs-tech-adapter-dev (your S3 bucket)
+#   STACK_NAME          : hrp-drs-tech-adapter-dev (your CloudFormation stack)
 #
 # Optional secrets:
 #   ADMIN_EMAIL         : admin@example.com (for SNS notifications)
@@ -134,7 +134,7 @@ Parameters:
   GitHubRepo:
     Type: String
     Description: 'GitHub repository name'
-    Default: 'aws-elasticdrs-orchestrator'
+    Default: 'hrp-drs-tech-adapter'
 
   DeploymentBucket:
     Type: String

@@ -53,7 +53,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Lambda function names
-PROJECT_NAME="aws-drs-orchestration"
+PROJECT_NAME="hrp-drs-tech-adapter"
 QUERY_HANDLER="${PROJECT_NAME}-query-handler-${ENVIRONMENT}"
 EXECUTION_HANDLER="${PROJECT_NAME}-execution-handler-${ENVIRONMENT}"
 DATA_MGMT_HANDLER="${PROJECT_NAME}-data-management-handler-${ENVIRONMENT}"

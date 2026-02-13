@@ -1,4 +1,4 @@
-# Pre-commit hooks for AWS DRS Orchestration security scanning
+# Pre-commit hooks for HRP DRS Tech Adapter security scanning
 # Install: pre-commit install
 # Run manually: pre-commit run --all-files
 
@@ -68,8 +68,8 @@ repos:
         pass_filenames: false
 
   # General code quality (supporting security)
-  - repo: pre-commit/pre-commit-hooks
-    rev: v4.4.0
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
     hooks:
       - id: check-yaml
         name: Check YAML syntax
@@ -107,15 +107,16 @@ default_stages: [commit]
 fail_fast: false
 minimum_pre_commit_version: '3.0.0'
 
-# CI configuration
-ci:
-  autofix_commit_msg: |
-    [pre-commit.ci] auto fixes from pre-commit hooks
-
-    for more information, see https://pre-commit.ci
-  autofix_prs: true
-  autoupdate_branch: ''
-  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
-  autoupdate_schedule: weekly
-  skip: [safety, npm-audit, eslint-security]  # Skip system-dependent hooks in CI
-  submodules: false
+# GitLab CI configuration
+# Add the following to your .gitlab-ci.yml:
+#
+#   pre-commit:
+#     stage: lint
+#     image: python:3.12
+#     before_script:
+#       - pip install pre-commit
+#     script:
+#       - pre-commit run --all-files
+#     cache:
+#       paths:
+#         - ~/.cache/pre-commit

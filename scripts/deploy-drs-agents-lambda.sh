@@ -20,7 +20,7 @@ ACCOUNT_ID="${1}"
 SOURCE_REGION="${2:-us-east-1}"
 TARGET_REGION="${3:-us-west-2}"
 ENVIRONMENT="${ENVIRONMENT:-dev}"
-PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestration}"
+PROJECT_NAME="${PROJECT_NAME:-hrp-drs-tech-adapter}"
 
 # Show help if no account ID provided
 if [ -z "$ACCOUNT_ID" ]; then
@@ -33,7 +33,7 @@ if [ -z "$ACCOUNT_ID" ]; then
   echo ""
   echo "Environment variables:"
   echo "  ENVIRONMENT - Environment name (default: dev)"
-  echo "  PROJECT_NAME - Project name (default: aws-drs-orchestration)"
+  echo "  PROJECT_NAME - Project name (default: hrp-drs-tech-adapter)"
   exit 1
 fi
 
