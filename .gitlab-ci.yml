@@ -39,8 +39,6 @@ stages:
 # ---------------------------------------------------------------------------
 default:
   image: python:3.12-slim
-  tags:
-    - docker
 
 variables:
   AWS_REGION: us-east-2
