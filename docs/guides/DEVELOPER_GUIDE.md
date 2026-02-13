@@ -209,7 +209,7 @@ export SECURITY_THRESHOLD_TOTAL=50
 
 **Important**: 
 - `.env.dev` is gitignored and should NOT be committed
-- Always use `aws-drs-orchestration-dev` stack for development (NEVER `aws-elasticdrs-orchestrator-test`)
+- Always use `aws-drs-orchestration-dev` stack for development (NEVER `aws-drs-orchestration-dev`)
 
 ### Frontend Configuration (CRITICAL)
 
@@ -223,7 +223,7 @@ The `frontend/public/aws-config.json` file contains environment-specific Cognito
 **Local Development Setup:**
 ```bash
 # Get current values from your deployed stack
-STACK_NAME="aws-elasticdrs-orchestrator-{environment}"
+STACK_NAME="aws-drs-orchestration-{environment}"
 
 # Create local aws-config.json from stack outputs
 cat > frontend/public/aws-config.json << EOF
@@ -903,7 +903,7 @@ npm run lint
 The S3 bucket serves as the source of truth for all deployable artifacts:
 
 ```
-s3://aws-elasticdrs-orchestrator/
+s3://aws-drs-orchestration/
 ├── cfn/                          # CloudFormation templates
 ├── lambda/                       # Lambda deployment packages (7 functions)
 │   ├── api-handler.zip
@@ -924,13 +924,13 @@ After deployment, verify the correct resources are updated:
 ```bash
 # Check CloudFront URL matches your environment
 aws cloudformation describe-stacks \
-  --stack-name aws-elasticdrs-orchestrator-{environment} \
+  --stack-name aws-drs-orchestration-{environment} \
   --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
   --output text
 
 # Verify Lambda function was updated
 aws lambda get-function \
-  --function-name aws-elasticdrs-orchestrator-api-handler-{environment} \
+  --function-name aws-drs-orchestration-api-handler-{environment} \
   --query 'Configuration.LastModified' \
   --output text
 
@@ -939,8 +939,8 @@ curl https://{api-id}.execute-api.{region}.amazonaws.com/{environment}/health
 
 # Verify all Lambda functions are deployed
 for func in api-handler orchestration-stepfunctions execution-finder execution-poller frontend-builder bucket-cleaner notification-formatter; do
-  echo "Checking aws-elasticdrs-orchestrator-${func}-{environment}..."
-  aws lambda get-function --function-name aws-elasticdrs-orchestrator-${func}-{environment} --query 'Configuration.LastModified' --output text
+  echo "Checking aws-drs-orchestration-${func}-{environment}..."
+  aws lambda get-function --function-name aws-drs-orchestration-${func}-{environment} --query 'Configuration.LastModified' --output text
 done
 ```
 
@@ -982,7 +982,7 @@ This error occurs when `aws-config.json` contains old Cognito values from a prev
 **Solution:**
 ```bash
 # Regenerate aws-config.json from current stack
-STACK_NAME="aws-elasticdrs-orchestrator-{environment}"
+STACK_NAME="aws-drs-orchestration-{environment}"
 
 cat > frontend/public/aws-config.json << EOF
 {
@@ -1011,7 +1011,7 @@ If OPTIONS requests return 403 instead of 200, the API Gateway deployment may no
 **Solution:**
 ```bash
 # Redeploy API Gateway
-./scripts/redeploy-api-gateway.sh aws-elasticdrs-orchestrator-{environment} {region}
+./scripts/redeploy-api-gateway.sh aws-drs-orchestration-{environment} {region}
 ```
 
 This script:

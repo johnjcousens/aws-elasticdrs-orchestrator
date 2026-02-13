@@ -295,7 +295,7 @@ aws iam get-role-policy \
   --policy-name DRSOrchestrationPolicy
 
 # Save role ARN for CDK import
-export ORCHESTRATION_ROLE_ARN="arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test"
+export ORCHESTRATION_ROLE_ARN="arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test"
 export ORCHESTRATION_ROLE_NAME="aws-drs-orchestration-orchestration-role-test"
 ```
 
@@ -518,7 +518,7 @@ aws lambda get-function \
   --function-name aws-drs-orchestration-query-handler-test \
   --query 'Configuration.Role'
 
-# Should output: arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test
+# Should output: arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test
 
 # Test Lambda function invocation
 aws lambda invoke \
@@ -709,7 +709,7 @@ export class ImportWithPermissionsStack extends cdk.Stack {
     const orchestrationRole = iam.Role.fromRoleArn(
       this,
       'OrchestrationRole',
-      'arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test',
+      'arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test',
       {
         mutable: true,  // Allow CDK to add inline policies
         addGrantsToResources: true,  // Enable grant methods
@@ -965,7 +965,7 @@ export class ManagedPolicyStack extends cdk.Stack {
     const orchestrationRole = iam.Role.fromRoleArn(
       this,
       'OrchestrationRole',
-      'arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test',
+      'arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test',
       {
         mutable: true,
       }
@@ -1281,7 +1281,7 @@ aws iam get-role \
 const permissionBoundary = iam.ManagedPolicy.fromManagedPolicyArn(
   this,
   'PermissionBoundary',
-  'arn:aws:iam::210987654321:policy/DRSOrchestrationBoundary'
+  'arn:aws:iam::123456789012:policy/DRSOrchestrationBoundary'
 );
 
 // Apply to role
@@ -1407,7 +1407,7 @@ const orchestrationRole = new iam.Role(this, 'OrchestrationRole', {
 // In target account: Create role that can be assumed
 const crossAccountRole = new iam.Role(this, 'CrossAccountRole', {
   roleName: 'DRSOrchestrationRole',
-  assumedBy: new iam.AccountPrincipal('210987654321'),  // Source account
+  assumedBy: new iam.AccountPrincipal('123456789012'),  // Source account
   externalIds: ['unique-external-id'],  // Prevent confused deputy
 });
 
@@ -1478,7 +1478,7 @@ const assumeRoleAlarm = new cloudwatch.Alarm(this, 'AssumeRoleFailureAlarm', {
 ## OrchestrationRole
 
 - **Purpose:** Unified IAM role for DR Orchestration Lambda functions and Step Functions
-- **ARN:** `arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test`
+- **ARN:** `arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test`
 - **Trust Policy:** Lambda, Step Functions
 - **Managed Policies:** AWSLambdaBasicExecutionRole
 - **Inline Policies:** DRSOrchestrationPolicy (DRS, DynamoDB, EC2, STS permissions)
@@ -1496,7 +1496,7 @@ const assumeRoleAlarm = new cloudwatch.Alarm(this, 'AssumeRoleFailureAlarm', {
 ```bash
 # Test role assumption
 aws sts assume-role \
-  --role-arn arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test \
+  --role-arn arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test \
   --role-session-name test-session
 
 # Test specific permissions
@@ -1506,7 +1506,7 @@ aws drs describe-source-servers \
 
 # Use IAM Policy Simulator
 aws iam simulate-principal-policy \
-  --policy-source-arn arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test \
+  --policy-source-arn arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test \
   --action-names drs:StartRecovery \
   --resource-arns "*"
 ```
@@ -1562,7 +1562,7 @@ const orchestrationRole = iam.Role.fromRoleName(
 
 **Error:**
 ```
-AccessDeniedException: User: arn:aws:sts::210987654321:assumed-role/aws-drs-orchestration-orchestration-role-test/aws-drs-orchestration-query-handler-test is not authorized to perform: drs:DescribeSourceServers
+AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/aws-drs-orchestration-orchestration-role-test/aws-drs-orchestration-query-handler-test is not authorized to perform: drs:DescribeSourceServers
 ```
 
 **Causes:**
@@ -1593,7 +1593,7 @@ aws iam get-role \
 
 # 4. Test with IAM Policy Simulator
 aws iam simulate-principal-policy \
-  --policy-source-arn arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test \
+  --policy-source-arn arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test \
   --action-names drs:DescribeSourceServers \
   --resource-arns "*"
 ```
@@ -1616,7 +1616,7 @@ orchestrationRole.addToPolicy(new iam.PolicyStatement({
 
 **Error:**
 ```
-AccessDenied: User: arn:aws:lambda:us-east-1:210987654321:function:aws-drs-orchestration-query-handler-test is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test
+AccessDenied: User: arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-query-handler-test is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test
 ```
 
 **Cause:** Trust policy doesn't allow Lambda to assume the role
@@ -1712,7 +1712,7 @@ cdk deploy
 
 **Error:**
 ```
-AccessDenied: User: arn:aws:sts::210987654321:assumed-role/aws-drs-orchestration-orchestration-role-test/aws-drs-orchestration-execution-handler-test is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::123456789012:role/DRSOrchestrationRole
+AccessDenied: User: arn:aws:sts::123456789012:assumed-role/aws-drs-orchestration-orchestration-role-test/aws-drs-orchestration-execution-handler-test is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::123456789012:role/DRSOrchestrationRole
 ```
 
 **Causes:**
@@ -1748,7 +1748,7 @@ aws iam get-role \
     {
       "Effect": "Allow",
       "Principal": {
-        "AWS": "arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test"
+        "AWS": "arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test"
       },
       "Action": "sts:AssumeRole",
       "Condition": {
@@ -1873,7 +1873,7 @@ aws iam get-role \
 const orchestrationRole = iam.Role.fromRoleArn(
   this,
   'OrchestrationRole',
-  'arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test'
+  'arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test'
 );
 ```
 
@@ -1893,7 +1893,7 @@ Error: Cannot modify imported role
 const orchestrationRole = iam.Role.fromRoleArn(
   this,
   'OrchestrationRole',
-  'arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test',
+  'arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test',
   {
     mutable: true,  // Allow modifications
     addGrantsToResources: true,  // Enable grant methods
@@ -2124,7 +2124,7 @@ export class ServiceLinkedRoleStack extends cdk.Stack {
     const drsServiceLinkedRole = iam.Role.fromRoleArn(
       this,
       'DRSServiceLinkedRole',
-      'arn:aws:iam::210987654321:role/aws-service-role/drs.amazonaws.com/AWSServiceRoleForElasticDisasterRecovery'
+      'arn:aws:iam::123456789012:role/aws-service-role/drs.amazonaws.com/AWSServiceRoleForElasticDisasterRecovery'
     );
     
     // Create orchestration role that works with service-linked role
@@ -2372,7 +2372,7 @@ aws logs tail /aws/lambda/aws-drs-orchestration-query-handler-test --since 5m
 
 # Verify role permissions with Policy Simulator
 aws iam simulate-principal-policy \
-  --policy-source-arn arn:aws:iam::210987654321:role/aws-drs-orchestration-orchestration-role-test \
+  --policy-source-arn arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test \
   --action-names drs:StartRecovery \
   --resource-arns "*"
 ```

@@ -359,8 +359,8 @@ Below is an example configuration showing a 3-tier application recovery plan wit
 
 ```bash
 # Clone repository
-git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
-cd aws-elasticdrs-orchestrator
+git clone https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator.git
+cd aws-drs-orchestration
 
 # Setup Python virtual environment (optional but recommended)
 python3 -m venv .venv
@@ -427,7 +427,7 @@ aws cloudformation deploy \
     SourceBucket=aws-drs-orchestration-dev \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-1
+  --region us-east-2
 ```
 
 ### Get Stack Outputs
@@ -587,7 +587,7 @@ The solution includes AWS WAF protection for the CloudFront distribution with de
 AWS_PAGER="" aws cloudwatch get-metric-statistics \
   --namespace AWS/WAFV2 \
   --metric-name BlockedRequests \
-  --dimensions Name=WebACL,Value=aws-drs-orchestration-waf-test \
+  --dimensions Name=WebACL,Value=aws-drs-orchestration-waf-dev \
   --start-time $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) \
   --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ) \
   --period 300 \
@@ -653,7 +653,7 @@ aws cloudformation deploy \
     SourceBucket=aws-drs-orchestration-dev \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-1
+  --region us-east-2
 ```
 
 ### Built-in Protections
@@ -784,8 +784,8 @@ Complete working examples for AWS service integration:
 
 ```bash
 # Clone repository
-git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
-cd aws-elasticdrs-orchestrator
+git clone https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator.git
+cd aws-drs-orchestration
 
 # Setup Python virtual environment
 python3 -m venv .venv
@@ -833,7 +833,7 @@ A comprehensive implementation of AWS DRS AllowLaunchingIntoThisInstance pattern
 ## Directory Structure
 
 ```text
-aws-elasticdrs-orchestrator/
+aws-drs-orchestration/
 ├── cfn/                          # CloudFormation IaC (16 templates)
 │   ├── master-template.yaml      # Root orchestrator for nested stacks
 │   └── github-oidc-stack.yaml    # OIDC integration (optional)
@@ -877,9 +877,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/issues)
+- **Issues**: [GitHub Issues](https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator/issues)
 - **Documentation**: [docs/](docs/)
-- **Discussions**: [GitHub Discussions](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/discussions)
+- **Discussions**: [GitHub Discussions](https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator/discussions)
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Date**: February 2, 2026  
 **Status**: ✅ COMPLETE  
-**Deployment**: aws-drs-orchestration-test (build 20260202-0800)
+**Deployment**: aws-drs-orchestration-dev (build 20260202-0800)
 
 ## Changes Implemented
 
@@ -132,8 +132,8 @@ Dashboard
 ## Deployment Info
 
 - **Environment**: test
-- **Stack**: aws-drs-orchestration-test
-- **CloudFront URL**: https://d319nadlgk4oj.cloudfront.net
+- **Stack**: aws-drs-orchestration-dev
+- **CloudFront URL**: https://d1kqe40a9vwn47.cloudfront.net
 - **Build Version**: 20260202-0800
 - **Deployed**: 2026-02-02 13:01:02 UTC
 - **CloudFront Invalidation**: Completed 13:01:02 UTC

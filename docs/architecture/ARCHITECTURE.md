@@ -245,7 +245,7 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 
 #### 1. Protection Groups Table
 
-**Table Name**: `aws-elasticdrs-orchestrator-protection-groups-{env}`
+**Table Name**: `aws-drs-orchestration-protection-groups-{env}`
 
 **Primary Key**:
 - Partition Key: `groupId` (String) - UUID v4
@@ -293,7 +293,7 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 
 #### 2. Recovery Plans Table
 
-**Table Name**: `aws-elasticdrs-orchestrator-recovery-plans-{env}`
+**Table Name**: `aws-drs-orchestration-recovery-plans-{env}`
 
 **Primary Key**:
 - Partition Key: `planId` (String) - UUID v4
@@ -355,7 +355,7 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 
 #### 3. Execution History Table
 
-**Table Name**: `aws-elasticdrs-orchestrator-execution-history-{env}`
+**Table Name**: `aws-drs-orchestration-execution-history-{env}`
 
 **Primary Key**:
 - Partition Key: `executionId` (String) - UUID v4
@@ -431,7 +431,7 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 
 #### 4. Target Accounts Table
 
-**Table Name**: `aws-elasticdrs-orchestrator-target-accounts-{env}`
+**Table Name**: `aws-drs-orchestration-target-accounts-{env}`
 
 **Primary Key**:
 - Partition Key: `accountId` (String) - 12-digit AWS account ID
@@ -492,14 +492,14 @@ import boto3
 from boto3.dynamodb.conditions import Key, Attr
 
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('aws-elasticdrs-orchestrator-protection-groups-test')
+table = dynamodb.Table('aws-drs-orchestration-protection-groups-dev')
 
 # Get item by primary key
 response = table.get_item(Key={'groupId': 'pg-uuid'})
 item = response.get('Item')
 
 # Query with GSI
-table = dynamodb.Table('aws-elasticdrs-orchestrator-execution-history-test')
+table = dynamodb.Table('aws-drs-orchestration-execution-history-dev')
 response = table.query(
     IndexName='StatusIndex',
     KeyConditionExpression=Key('status').eq('POLLING')
@@ -800,14 +800,14 @@ def resume_execution(execution_id: str):
 **Service Role**: Static website hosting and deployment artifacts
 
 **Frontend Hosting Bucket**:
-- **Name**: `aws-elasticdrs-orchestrator-fe-{account-id}-{env}`
+- **Name**: `aws-drs-orchestration-fe-{account-id}-{env}`
 - **Purpose**: React application hosting
 - **Encryption**: SSE-S3
 - **Versioning**: Enabled
 - **Public Access**: Blocked (CloudFront OAC only)
 
 **Deployment Artifacts Bucket**:
-- **Name**: `aws-elasticdrs-orchestrator`
+- **Name**: `aws-drs-orchestration`
 - **Purpose**: CloudFormation templates and Lambda packages
 - **Encryption**: SSE-KMS
 - **Versioning**: Enabled
