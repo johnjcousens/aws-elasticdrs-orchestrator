@@ -72,12 +72,13 @@ def failure_details(base_details):
 
 @pytest.fixture()
 def pause_details(base_details):
-    """Details for a pause notification with action URLs."""
+    """Details for a pause notification with task token."""
     return {
         **base_details,
         "pauseReason": "Pre-wave approval required",
-        "resumeUrl": ("https://api.example.com/execution-callback" "?action=resume&taskToken=tok123"),
-        "cancelUrl": ("https://api.example.com/execution-callback" "?action=cancel&taskToken=tok123"),
+        "taskToken": "tok123",
+        "region": "us-east-1",
+        "pausedBeforeWave": "2",
     }
 
 
@@ -233,27 +234,27 @@ class TestFormatPauseNotification:
         html = format_pause_notification(pause_details)
         _assert_contains_info_box_fields(html, pause_details)
 
-    def test_contains_resume_url(self, pause_details):
-        """Pause email contains the resume action URL."""
+    def test_contains_resume_command(self, pause_details):
+        """Pause email contains the resume CLI command."""
         html = format_pause_notification(pause_details)
-        assert pause_details["resumeUrl"] in html
+        assert "send-task-success" in html
 
-    def test_contains_cancel_url(self, pause_details):
-        """Pause email contains the cancel action URL."""
+    def test_contains_cancel_command(self, pause_details):
+        """Pause email contains the cancel CLI command."""
         html = format_pause_notification(pause_details)
-        assert pause_details["cancelUrl"] in html
+        assert "send-task-failure" in html
 
-    def test_resume_button_has_correct_href(self, pause_details):
-        """Resume button href points to the resume URL."""
+    def test_resume_command_has_task_token(self, pause_details):
+        """Resume command includes the task token."""
         html = format_pause_notification(pause_details)
-        expected = f'href="{pause_details["resumeUrl"]}"'
-        assert expected in html
+        assert pause_details["taskToken"] in html
+        assert "send-task-success" in html
 
-    def test_cancel_button_has_correct_href(self, pause_details):
-        """Cancel button href points to the cancel URL."""
+    def test_cancel_command_has_task_token(self, pause_details):
+        """Cancel command includes the task token."""
         html = format_pause_notification(pause_details)
-        expected = f'href="{pause_details["cancelUrl"]}"'
-        assert expected in html
+        assert pause_details["taskToken"] in html
+        assert "send-task-failure" in html
 
     def test_contains_pause_reason(self, pause_details):
         """Pause email shows the pause reason."""
