@@ -600,19 +600,27 @@ def store_task_token(event: Dict) -> Dict:
         print("ERROR: No task token provided")
         raise ValueError("No task token provided for callback")
 
-    # Store task token in DynamoDB for later resume
+    # Store task token and full state snapshot in DynamoDB
+    # resume_wave reconstructs state from this snapshot since
+    # SendTaskSuccess output may be minimal (e.g. '{}')
     try:
+        state_snapshot = json.dumps(state, default=str)
         get_execution_history_table().update_item(
             Key={"executionId": execution_id, "planId": plan_id},
-            UpdateExpression="SET #status = :status, taskToken = :token, pausedBeforeWave = :wave",
+            UpdateExpression=(
+                "SET #status = :status, taskToken = :token,"
+                " pausedBeforeWave = :wave,"
+                " pausedStateSnapshot = :snapshot"
+            ),
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={
                 ":status": "PAUSED",
                 ":token": task_token,
                 ":wave": paused_before_wave,
+                ":snapshot": state_snapshot,
             },
         )
-        print(f"✅ Task token stored for execution {execution_id}")
+        print(f"✅ Task token and state stored for execution {execution_id}")
     except Exception as e:
         print(f"ERROR storing task token: {e}")
         raise
@@ -859,10 +867,9 @@ def resume_wave(event: Dict) -> Dict:
     """
     Resume execution by starting the paused wave.
 
-    Called after SendTaskSuccess provides the callback token. Resets execution
-    status to running and starts the wave that was paused.
-
-    State Ownership Pattern: State passed directly, returns complete state object.
+    Called after SendTaskSuccess provides the callback token.
+    Reconstructs full state from DynamoDB snapshot if the
+    callback output was minimal (e.g. '{}' from CLI).
 
     Args:
         event: Contains state (application) with paused_before_wave
@@ -870,13 +877,38 @@ def resume_wave(event: Dict) -> Dict:
     Returns:
         Complete state object with wave started
     """
-    # State passed directly (state ownership pattern)
     state = event.get("application", event)
     execution_id = state.get("execution_id")
     plan_id = state.get("plan_id")
+
+    # If state is empty/minimal (CLI resume with '{}'), restore
+    # from the snapshot saved by store_task_token
+    if not execution_id or not plan_id:
+        logger.info("Minimal callback output — reconstructing state from DynamoDB")
+        # Try to find execution_id/plan_id from the raw event
+        execution_id = execution_id or event.get("execution_id", "")
+        plan_id = plan_id or event.get("plan_id", "")
+
+    if execution_id and plan_id:
+        try:
+            item = (
+                get_execution_history_table()
+                .get_item(Key={"executionId": execution_id, "planId": plan_id})
+                .get("Item", {})
+            )
+            snapshot_json = item.get("pausedStateSnapshot", "")
+            if snapshot_json and (not state.get("waves")):
+                restored = json.loads(snapshot_json)
+                logger.info("Restored state from DynamoDB snapshot")
+                state = restored
+        except Exception as restore_err:
+            logger.warning("Could not restore state snapshot: %s", restore_err)
+
+    # Re-read in case restored
+    execution_id = state.get("execution_id", execution_id)
+    plan_id = state.get("plan_id", plan_id)
     paused_before_wave = state.get("paused_before_wave", 0)
 
-    # DynamoDB returns Decimal, convert to int
     if isinstance(paused_before_wave, Decimal):
         paused_before_wave = int(paused_before_wave)
 
@@ -887,11 +919,11 @@ def resume_wave(event: Dict) -> Dict:
     state["wave_completed"] = False
     state["paused_before_wave"] = None
 
-    # Update DynamoDB - remove task token and pause metadata
+    # Update DynamoDB — remove token, snapshot, and pause metadata
     try:
         get_execution_history_table().update_item(
             Key={"executionId": execution_id, "planId": plan_id},
-            UpdateExpression="SET #status = :status REMOVE taskToken, pausedBeforeWave",
+            UpdateExpression=("SET #status = :status" " REMOVE taskToken, pausedBeforeWave, pausedStateSnapshot"),
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={":status": "RUNNING"},
         )
@@ -913,7 +945,6 @@ def resume_wave(event: Dict) -> Dict:
             ),
         )
 
-        # Check for function error
         if response.get("FunctionError"):
             raise Exception(f"Handler error: {response}")
 

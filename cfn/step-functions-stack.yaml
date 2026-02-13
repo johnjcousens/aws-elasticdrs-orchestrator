@@ -218,7 +218,8 @@ Resources:
                 Next: 'PlanTimeout'
           
           # Resume after manual approval - start the paused wave
-          # Lambda returns complete state with wave started
+          # Lambda reconstructs full state from DynamoDB since
+          # SendTaskSuccess output may be minimal (e.g. '{}')
           ResumeWavePlan:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
@@ -227,7 +228,6 @@ Resources:
               Payload:
                 action: 'resume_wave'
                 application.$: '$'
-                accountContext.$: '$.accountContext'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
             Retry:
