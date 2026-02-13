@@ -184,9 +184,28 @@ def test_property_notification_delivery_all_event_types(
                 )
                 assert attrs["eventType"]["DataType"] == "String"
 
-                # Verify message body is JSON with details
+                # Verify message body is structured JSON
+                # with "default" and "email" keys
+                # (MessageStructure="json" format)
                 body = json.loads(call_kwargs["Message"])
-                assert body["planName"] == plan_name
+                assert "default" in body, (
+                    "Message body must contain 'default' key"
+                )
+                assert "email" in body, (
+                    "Message body must contain 'email' key"
+                )
+                assert plan_name in body["default"], (
+                    f"Plan name '{plan_name}' should appear "
+                    f"in default message"
+                )
+                assert plan_name in body["email"], (
+                    f"Plan name '{plan_name}' should appear "
+                    f"in email HTML body"
+                )
+                assert (
+                    call_kwargs.get("MessageStructure")
+                    == "json"
+                )
         finally:
             notif_mod.EXECUTION_TOPIC_ARN = original_arn
 

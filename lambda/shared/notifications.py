@@ -1341,24 +1341,24 @@ def format_pause_notification(
     details: Dict[str, Any],
 ) -> str:
     """
-    Format HTML email for pause events with action buttons.
+    Format HTML email for pause events with Resume/Cancel buttons.
 
-    The email includes Resume and Cancel buttons that link
-    to the API Gateway callback endpoint using the embedded
-    task token. Resume continues execution from the pause
-    point; Cancel stops it permanently.
+    Buttons link to the Lambda Function URL callback endpoint
+    which calls SendTaskSuccess/SendTaskFailure on Step Functions.
+    Works without API Gateway or frontend deployment.
 
     Args:
         details: Event details including planName, executionId,
-            accountId, timestamp, consoleLink, resumeUrl,
-            cancelUrl, pauseReason
+            accountId, timestamp, resumeUrl, cancelUrl,
+            pauseReason, pausedBeforeWave
 
     Returns:
-        HTML email body with interactive action buttons
+        HTML email body with clickable action buttons
     """
     pause_reason = details.get("pauseReason", "Manual pause requested")
     resume_url = details.get("resumeUrl", "")
     cancel_url = details.get("cancelUrl", "")
+    paused_before = details.get("pausedBeforeWave", "")
 
     body = (
         "<p>The disaster recovery execution has been "
@@ -1366,6 +1366,9 @@ def format_pause_notification(
         "</p>"
         f"<p><strong>Reason:</strong> {pause_reason}</p>"
     )
+
+    if paused_before:
+        body += f"<p><strong>Waiting to start:</strong> Wave {paused_before}</p>"
 
     if resume_url and cancel_url:
         body += (
@@ -1379,11 +1382,37 @@ def format_pause_notification(
             "</div>"
             '<p style="text-align:center;color:#5f6b7a;'
             'font-size:12px;">'
-            "<strong>Resume</strong> continues the "
-            "execution from where it paused.<br>"
-            "<strong>Cancel</strong> stops the execution "
-            "permanently.</p>"
+            "Click <strong>Resume</strong> to continue "
+            "the next wave.<br>"
+            "Click <strong>Cancel</strong> to stop the "
+            "execution permanently.</p>"
         )
+    else:
+        # Fallback: no callback URL configured
+        task_token = details.get("taskToken", "")
+        region = details.get("region", "us-east-1")
+        if task_token:
+            body += (
+                '<div class="info-box">'
+                "<p><strong>To resume</strong>, run:</p>"
+                '<pre style="background:#f2f3f3;padding:8px;'
+                "border-radius:4px;font-size:12px;"
+                'overflow-x:auto;">'
+                f"aws stepfunctions send-task-success \\\n"
+                f"  --task-token '{task_token}' \\\n"
+                f"  --task-output '{{}}' \\\n"
+                f"  --region {region}</pre>"
+                "<p><strong>To cancel</strong>, run:</p>"
+                '<pre style="background:#f2f3f3;padding:8px;'
+                "border-radius:4px;font-size:12px;"
+                'overflow-x:auto;">'
+                f"aws stepfunctions send-task-failure \\\n"
+                f"  --task-token '{task_token}' \\\n"
+                f'  --error "UserCancelled" \\\n'
+                f'  --cause "Cancelled via email" \\\n'
+                f"  --region {region}</pre>"
+                "</div>"
+            )
 
     return _wrap_html_email("\U0001f6d1 DR Execution Paused", body, details)
 

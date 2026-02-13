@@ -174,6 +174,24 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # Lambda Function URL for execution callback (pause/resume/cancel)
+  # Provides a direct HTTPS endpoint independent of API Gateway
+  # Used in pause notification emails for one-click resume/cancel
+  ExecutionHandlerFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      AuthType: NONE
+      TargetFunctionArn: !GetAtt ExecutionHandlerFunction.Arn
+
+  # Permission for public invocation via Function URL
+  ExecutionHandlerFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ExecutionHandlerFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
   # Query Handler for read-only DRS and EC2 infrastructure queries
   # Handles source servers, quotas, capacity, EC2 resources, and configuration export
   QueryHandlerFunction:
@@ -236,6 +254,7 @@ Resources:
           EXECUTION_HANDLER_ARN: !GetAtt ExecutionHandlerFunction.Arn
           QUERY_HANDLER_ARN: !GetAtt QueryHandlerFunction.Arn
           API_GATEWAY_URL: !Ref ApiGatewayUrl
+          CALLBACK_URL: !GetAtt ExecutionHandlerFunctionUrl.FunctionUrl
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -432,6 +451,12 @@ Outputs:
     Value: !Ref ExecutionHandlerFunction
     Export:
       Name: !Sub "${AWS::StackName}-ExecutionHandlerName"
+
+  ExecutionCallbackUrl:
+    Description: "Lambda Function URL for execution pause/resume callbacks"
+    Value: !GetAtt ExecutionHandlerFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub "${AWS::StackName}-ExecutionCallbackUrl"
 
   QueryHandlerFunctionArn:
     Description: "Query Handler Lambda Function ARN"
