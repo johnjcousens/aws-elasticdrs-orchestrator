@@ -16,10 +16,8 @@
 # -------------------------
 # AI ASSISTANT CONFIGURATIONS
 # -------------------------
-.amazonq/
 .cline_memory/
 .kiro/memory/
-.kiro/specs/
 history/
 
 # -------------------------
@@ -196,7 +194,7 @@ tmp/
 aws_logo.png
 
 
-# Kiro IDE settings (steering is tracked)
+# Kiro IDE settings (steering and specs are tracked)
 .kiro/settings/
 
 # -------------------------

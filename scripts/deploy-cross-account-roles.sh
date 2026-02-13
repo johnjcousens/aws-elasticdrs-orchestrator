@@ -9,7 +9,7 @@ ORCHESTRATION_ACCOUNT="777788889999"
 TARGET_ACCOUNT="111122223333"
 STAGING_ACCOUNT="444455556666"
 ENVIRONMENT="${1:-dev}"
-PROJECT_NAME="drs-orchestration"
+PROJECT_NAME="hrp-drs-tech-adapter"
 REGION="us-west-2"  # Default region for cross-account roles
 
 # Auto-generate External IDs based on account

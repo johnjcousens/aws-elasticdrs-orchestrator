@@ -6,7 +6,7 @@
 #
 # Examples:
 #   ./deploy-drs-lambda.sh dev
-#   ./deploy-drs-lambda.sh test --sns-topic arn:aws:sns:us-east-1:123456789012:drs-notifications
+#   ./deploy-drs-lambda.sh test --sns-topic arn:aws:sns:us-east-2:891376951562:drs-notifications
 
 set -e
 
@@ -28,7 +28,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-PROJECT_NAME="drs-orchestration"
+PROJECT_NAME="hrp-drs-tech-adapter"
 STACK_NAME="${PROJECT_NAME}-drs-agent-deployer-${ENVIRONMENT}"
 LAMBDA_DIR="lambda/drs-agent-deployer"
 BUILD_DIR="build/drs-agent-deployer"
