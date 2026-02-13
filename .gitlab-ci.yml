@@ -2,13 +2,15 @@
 # HRP DRS Tech Adapter - GitLab CI/CD Pipeline
 # =============================================================================
 # Mirrors the 5-stage pipeline from scripts/deploy.sh:
-#   [1/5] Validation  - cfn-lint, flake8, black, TypeScript
-#   [2/5] Security    - bandit, cfn_nag, detect-secrets, shellcheck, npm audit,
-#                        checkov, semgrep, grype, syft
-#                      + GitLab built-in: Secret Detection, SAST, Dependency Scanning
-#   [3/5] Tests       - pytest, vitest
-#   [4/5] Build       - Lambda packages, frontend build
-#   [5/5] Deploy      - S3 sync, CloudFormation deploy, Lambda code update
+#   [1/5] Scan      - cfn-lint, flake8, black, TypeScript, bandit, cfn_nag,
+#                      detect-secrets, shellcheck, npm audit, checkov, semgrep,
+#                      grype, syft
+#   [2/5] Test      - pytest, vitest
+#   [3/5] Build     - Lambda packages, frontend build
+#   [4/5] Deploy    - S3 sync, CloudFormation deploy, Lambda code update
+#
+# Stage names aligned with instance security policy:
+#   .pre → scan → build → test → deploy → .post
 # =============================================================================
 
 # ---------------------------------------------------------------------------
@@ -26,11 +28,9 @@
 
 stages:
   - .pre
-  - validate
   - scan
-  - security
-  - test
   - build
+  - test
   - deploy
   - .post
 
@@ -93,7 +93,7 @@ variables:
 # =============================================================================
 
 cfn-lint:
-  stage: validate
+  stage: scan
   <<: *python-cache
   <<: *setup-python
   script:
@@ -102,7 +102,7 @@ cfn-lint:
   allow_failure: false
 
 flake8:
-  stage: validate
+  stage: scan
   <<: *python-cache
   <<: *setup-python
   script:
@@ -111,7 +111,7 @@ flake8:
   allow_failure: true
 
 black:
-  stage: validate
+  stage: scan
   <<: *python-cache
   <<: *setup-python
   script:
@@ -120,7 +120,7 @@ black:
   allow_failure: false
 
 typescript-check:
-  stage: validate
+  stage: scan
   <<: *node-cache
   <<: *setup-node
   script:
@@ -135,7 +135,7 @@ typescript-check:
 # =============================================================================
 
 bandit:
-  stage: security
+  stage: scan
   <<: *python-cache
   <<: *setup-python
   script:
@@ -144,7 +144,7 @@ bandit:
   allow_failure: true
 
 detect-secrets:
-  stage: security
+  stage: scan
   <<: *python-cache
   <<: *setup-python
   script:
@@ -153,7 +153,7 @@ detect-secrets:
   allow_failure: true
 
 checkov:
-  stage: security
+  stage: scan
   <<: *python-cache
   <<: *setup-python
   script:
@@ -162,7 +162,7 @@ checkov:
   allow_failure: true
 
 semgrep:
-  stage: security
+  stage: scan
   image: semgrep/semgrep:latest
   script:
     - semgrep scan --config=p/ci --quiet lambda/ frontend/src/
@@ -172,7 +172,7 @@ semgrep:
         - lambda/**/*.py
 
 cfn-nag:
-  stage: security
+  stage: scan
   image: ruby:3.3-slim
   before_script:
     - gem install cfn-nag --quiet --no-document
@@ -181,14 +181,14 @@ cfn-nag:
   allow_failure: true
 
 shellcheck:
-  stage: security
+  stage: scan
   image: koalaman/shellcheck-alpine:stable
   script:
     - find lambda/ -name "*.sh" -exec shellcheck -S warning {} + 2>/dev/null || echo "No shell scripts in lambda/"
   allow_failure: true
 
 npm-audit:
-  stage: security
+  stage: scan
   <<: *node-cache
   <<: *setup-node
   script:
@@ -199,7 +199,7 @@ npm-audit:
         - frontend/package.json
 
 grype-scan:
-  stage: security
+  stage: scan
   image:
     name: anchore/grype:latest
     entrypoint: [""]
@@ -208,7 +208,7 @@ grype-scan:
   allow_failure: true
 
 syft-sbom:
-  stage: security
+  stage: scan
   image:
     name: anchore/syft:latest
     entrypoint: [""]
