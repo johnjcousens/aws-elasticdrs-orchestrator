@@ -974,6 +974,30 @@ def resume_wave(event: Dict) -> Dict:
         result = json.loads(response["Payload"].read())
         state.update(result)
 
+        # Persist all wave_results to DynamoDB so the frontend
+        # sees Wave 2 immediately (prevents enrichment code from
+        # overwriting with stale single-wave data)
+        try:
+            get_execution_history_table().update_item(
+                Key={
+                    "executionId": execution_id,
+                    "planId": plan_id,
+                },
+                UpdateExpression=(
+                    "SET waves = :waves," " #status = :status," " drsJobId = :job," " drsRegion = :region"
+                ),
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":waves": state.get("wave_results", []),
+                    ":status": "POLLING",
+                    ":job": state.get("job_id", ""),
+                    ":region": state.get("region", ""),
+                },
+            )
+            print(f"✅ Persisted {len(state.get('wave_results', []))} " f"waves to DynamoDB for {execution_id}")
+        except Exception as persist_err:
+            print(f"Error persisting waves: {persist_err}")
+
     except Exception as e:
         logger.error(f"Error invoking execution-handler: {e}")
         state["wave_completed"] = True
