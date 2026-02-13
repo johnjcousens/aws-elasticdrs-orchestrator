@@ -499,8 +499,8 @@ class TestPublishHtmlFormattedMessages:
         "event_type",
         ["start", "complete", "fail", "pause"],
     )
-    def test_email_key_contains_html(self, mock_sns, event_type):
-        """Email key contains HTML produced by formatter."""
+    def test_email_key_contains_formatted_text(self, mock_sns, event_type):
+        """Email key contains formatted plain text from formatter."""
         from shared.notifications import (
             publish_recovery_plan_notification,
         )
@@ -516,7 +516,7 @@ class TestPublishHtmlFormattedMessages:
 
         kwargs = mock_sns.publish.call_args[1]
         body = json.loads(kwargs["Message"])
-        assert "<!DOCTYPE html>" in body["email"]
+        assert "=" * 20 in body["email"]
 
     @pytest.mark.parametrize(
         "event_type",
@@ -542,7 +542,7 @@ class TestPublishHtmlFormattedMessages:
         assert "My DR Plan" in body["default"]
 
     def test_formatter_exception_falls_back_to_raw_json(self, mock_sns):
-        """Formatter error publishes raw JSON without MessageStructure."""
+        """Formatter error publishes raw JSON wrapped in default key."""
         from shared.notifications import (
             publish_recovery_plan_notification,
         )
@@ -565,12 +565,12 @@ class TestPublishHtmlFormattedMessages:
         mock_sns.publish.assert_called_once()
         kwargs = mock_sns.publish.call_args[1]
 
-        # MessageStructure should NOT be present
-        assert "MessageStructure" not in kwargs
+        # MessageStructure is always present (SNS JSON routing)
+        assert kwargs["MessageStructure"] == "json"
 
-        # Message body should be raw JSON of details
+        # Message body wraps raw details JSON in default key
         body = json.loads(kwargs["Message"])
-        assert body == details
+        assert json.loads(body["default"]) == details
 
     def test_formatter_exception_still_includes_attributes(self, mock_sns):
         """Fallback publish still includes MessageAttributes."""
