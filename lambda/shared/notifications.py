@@ -1240,21 +1240,39 @@ def format_start_notification(
     """
     nl = "\r\n"
     sep = "=" * 56
+    dash = "-" * 56
     return nl.join(
         [
             sep,
-            "  DR EXECUTION STARTED",
+            "  AWS DRS ORCHESTRATION - RECOVERY STARTED",
             sep,
+            "",
+            "  A disaster recovery execution has been initiated",
+            "  using AWS Elastic Disaster Recovery (DRS).",
+            "",
+            dash,
+            "  EXECUTION DETAILS",
+            dash,
             "",
             f"  Recovery Plan:    {details.get('planName', 'Unknown')}",
             f"  Execution ID:     {details.get('executionId', '')}",
-            f"  Account ID:       {details.get('accountId', '')}",
+            f"  Target Account:   {details.get('accountId', '')}",
+            f"  Region:           {details.get('region', 'us-east-1')}",
             f"  Execution Type:   {details.get('executionType', 'RECOVERY')}",
             f"  Total Waves:      {details.get('waveCount', 'N/A')}",
             f"  Started At:       {details.get('timestamp', '')}",
             "",
-            "  You will receive updates as the execution",
-            "  progresses through each wave.",
+            dash,
+            "  WHAT HAPPENS NEXT",
+            dash,
+            "",
+            "  DRS will recover source servers wave by wave.",
+            "  You will receive an email notification when:",
+            "",
+            "  - Each wave completes",
+            "  - The execution pauses for approval (if configured)",
+            "  - The execution completes or fails",
+            "",
             sep,
         ]
     )
@@ -1282,22 +1300,36 @@ def format_complete_notification(
 
     nl = "\r\n"
     sep = "=" * 56
+    dash = "-" * 56
     return nl.join(
         [
             sep,
-            "  DR EXECUTION COMPLETED",
+            "  AWS DRS ORCHESTRATION - RECOVERY COMPLETED",
             sep,
+            "",
+            "  The disaster recovery execution has completed",
+            "  successfully. All waves finished without errors.",
+            "",
+            dash,
+            "  EXECUTION SUMMARY",
+            dash,
             "",
             f"  Recovery Plan:    {details.get('planName', 'Unknown')}",
             f"  Execution ID:     {details.get('executionId', '')}",
-            f"  Account ID:       {details.get('accountId', '')}",
+            f"  Target Account:   {details.get('accountId', '')}",
             f"  Completed Waves:  {details.get('completedWaves', details.get('wavesCompleted', 'N/A'))}",
             f"  Total Waves:      {details.get('totalWaves', 'N/A')}",
             f"  Duration:         {duration}",
             f"  Completed At:     {details.get('timestamp', '')}",
             "",
-            "  Please verify the recovered infrastructure",
-            "  in the target account.",
+            dash,
+            "  NEXT STEPS",
+            dash,
+            "",
+            "  - Verify recovered instances in the target account",
+            "  - Validate application connectivity and data integrity",
+            "  - Update DNS records if required",
+            "",
             sep,
         ]
     )
@@ -1317,21 +1349,36 @@ def format_failure_notification(
     """
     nl = "\r\n"
     sep = "=" * 56
+    dash = "-" * 56
     return nl.join(
         [
             sep,
-            "  DR EXECUTION FAILED",
+            "  AWS DRS ORCHESTRATION - RECOVERY FAILED",
             sep,
+            "",
+            "  The disaster recovery execution has FAILED.",
+            "  Immediate attention is required.",
+            "",
+            dash,
+            "  FAILURE DETAILS",
+            dash,
             "",
             f"  Recovery Plan:    {details.get('planName', 'Unknown')}",
             f"  Execution ID:     {details.get('executionId', '')}",
-            f"  Account ID:       {details.get('accountId', '')}",
+            f"  Target Account:   {details.get('accountId', '')}",
             f"  Failed Wave:      {details.get('failedWave', details.get('failedWaves', 'N/A'))}",
             f"  Error:            {details.get('errorMessage', 'Unknown error')}",
             f"  Failed At:        {details.get('timestamp', '')}",
             "",
-            "  Please review the execution logs and take",
-            "  appropriate action to resolve the issue.",
+            dash,
+            "  RECOMMENDED ACTIONS",
+            dash,
+            "",
+            "  - Check the DRS console for job details and errors",
+            "  - Review CloudWatch logs for the orchestration Lambda",
+            "  - Verify IAM permissions in the target account",
+            "  - Check DRS source server replication status",
+            "",
             sep,
         ]
     )
