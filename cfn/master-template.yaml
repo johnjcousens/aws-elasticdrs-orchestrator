@@ -510,6 +510,23 @@ Resources:
                   - cloudwatch:GetMetricStatistics
                   - cloudwatch:GetMetricData
                 Resource: "*"
+
+        # CloudWatch Logs for API Gateway access logging
+        # Required by AWS::ApiGateway::Account to enable stage access logs
+        - PolicyName: CloudWatchLogsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                Resource: "*"
         
         # License Manager access for DRS license configuration queries
         # Required for DRS console operations and license tracking
