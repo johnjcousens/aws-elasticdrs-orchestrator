@@ -1341,78 +1341,83 @@ def format_pause_notification(
     details: Dict[str, Any],
 ) -> str:
     """
-    Format HTML email for pause events with Resume/Cancel buttons.
+    Format HTML email for pause events with CloudShell instructions.
 
-    Buttons link to the Lambda Function URL callback endpoint
-    which calls SendTaskSuccess/SendTaskFailure on Step Functions.
-    Works without API Gateway or frontend deployment.
+    Includes ready-to-run AWS CLI commands and a direct link to
+    CloudShell in the correct region. The operator can open
+    CloudShell, paste the command, and resume or cancel the
+    execution with zero local tooling required.
 
     Args:
         details: Event details including planName, executionId,
-            accountId, timestamp, resumeUrl, cancelUrl,
+            accountId, timestamp, taskToken, region,
             pauseReason, pausedBeforeWave
 
     Returns:
-        HTML email body with clickable action buttons
+        HTML email body with CloudShell link and CLI commands
     """
     pause_reason = details.get("pauseReason", "Manual pause requested")
-    resume_url = details.get("resumeUrl", "")
-    cancel_url = details.get("cancelUrl", "")
     paused_before = details.get("pausedBeforeWave", "")
+    task_token = details.get("taskToken", "")
+    region = details.get("region", "us-east-1")
+    execution_id = details.get("executionId", "")
+
+    cloudshell_url = f"https://{region}.console.aws.amazon.com/cloudshell/home?region={region}"
 
     body = (
         "<p>The disaster recovery execution has been "
-        "<strong>paused</strong> and requires your action."
-        "</p>"
+        "<strong>paused</strong> and requires your action.</p>"
         f"<p><strong>Reason:</strong> {pause_reason}</p>"
     )
 
     if paused_before:
         body += f"<p><strong>Waiting to start:</strong> Wave {paused_before}</p>"
 
-    if resume_url and cancel_url:
+    if task_token:
+        # Instructions
         body += (
-            '<div class="actions">'
-            f'<a href="{resume_url}" class="button '
-            'button-resume">'
-            "\u25b6 Resume Execution</a>"
-            f'<a href="{cancel_url}" class="button '
-            'button-cancel">'
-            "\u2715 Cancel Execution</a>"
+            '<div style="background:#f2f3f3;padding:16px;margin:16px 0;'
+            'border-radius:4px;">'
+            "<p><strong>How to resume or cancel:</strong></p>"
+            "<ol>"
+            f'<li>Open <a href="{cloudshell_url}" style="color:#0972d3;">'
+            "AWS CloudShell</a> (opens in the correct region)</li>"
+            "<li>Copy one of the commands below</li>"
+            "<li>Paste into CloudShell and press Enter</li>"
+            "</ol>"
             "</div>"
-            '<p style="text-align:center;color:#5f6b7a;'
-            'font-size:12px;">'
-            "Click <strong>Resume</strong> to continue "
-            "the next wave.<br>"
-            "Click <strong>Cancel</strong> to stop the "
-            "execution permanently.</p>"
         )
-    else:
-        # Fallback: no callback URL configured
-        task_token = details.get("taskToken", "")
-        region = details.get("region", "us-east-1")
-        if task_token:
-            body += (
-                '<div class="info-box">'
-                "<p><strong>To resume</strong>, run:</p>"
-                '<pre style="background:#f2f3f3;padding:8px;'
-                "border-radius:4px;font-size:12px;"
-                'overflow-x:auto;">'
-                f"aws stepfunctions send-task-success \\\n"
-                f"  --task-token '{task_token}' \\\n"
-                f"  --task-output '{{}}' \\\n"
-                f"  --region {region}</pre>"
-                "<p><strong>To cancel</strong>, run:</p>"
-                '<pre style="background:#f2f3f3;padding:8px;'
-                "border-radius:4px;font-size:12px;"
-                'overflow-x:auto;">'
-                f"aws stepfunctions send-task-failure \\\n"
-                f"  --task-token '{task_token}' \\\n"
-                f'  --error "UserCancelled" \\\n'
-                f'  --cause "Cancelled via email" \\\n'
-                f"  --region {region}</pre>"
-                "</div>"
-            )
+
+        # Resume command
+        body += (
+            '<div class="info-box">'
+            '<p style="font-size:16px;font-weight:700;margin-bottom:12px;">'
+            "\u25b6 Resume Execution</p>"
+            '<pre style="background:#232f3e;color:#f2f3f3;padding:12px;'
+            "border-radius:4px;font-size:13px;overflow-x:auto;"
+            'white-space:pre-wrap;word-break:break-all;">'
+            "aws stepfunctions send-task-success \\\n"
+            f"  --task-token '{task_token}' \\\n"
+            "  --task-output '{}' \\\n"
+            f"  --region {region}</pre>"
+            "</div>"
+        )
+
+        # Cancel command
+        body += (
+            '<div class="info-box" style="border-left-color:#d13212;">'
+            '<p style="font-size:16px;font-weight:700;margin-bottom:12px;">'
+            "\u2715 Cancel Execution</p>"
+            '<pre style="background:#232f3e;color:#f2f3f3;padding:12px;'
+            "border-radius:4px;font-size:13px;overflow-x:auto;"
+            'white-space:pre-wrap;word-break:break-all;">'
+            "aws stepfunctions send-task-failure \\\n"
+            f"  --task-token '{task_token}' \\\n"
+            '  --error "UserCancelled" \\\n'
+            '  --cause "Cancelled via email notification" \\\n'
+            f"  --region {region}</pre>"
+            "</div>"
+        )
 
     return _wrap_html_email("\U0001f6d1 DR Execution Paused", body, details)
 

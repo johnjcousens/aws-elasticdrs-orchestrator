@@ -172,7 +172,6 @@ import json
 import logging
 import os
 import time
-import urllib.parse
 from decimal import Decimal
 from typing import Dict
 
@@ -618,20 +617,11 @@ def store_task_token(event: Dict) -> Dict:
         print(f"ERROR storing task token: {e}")
         raise
 
-    # Send pause notification so operator knows to resume
+    # Send pause notification with CLI commands for resume/cancel
     plan_name = state.get("plan_name", "")
     pause_reason = state.get("pause_reason", "Manual approval required")
     region = os.environ.get("AWS_REGION", "us-east-1")
     account_ctx = get_account_context(state)
-
-    # Build callback URLs using Lambda Function URL (always available)
-    callback_base = os.environ.get("CALLBACK_URL", "").rstrip("/")
-    resume_url = ""
-    cancel_url = ""
-    if callback_base:
-        encoded_token = urllib.parse.quote(task_token, safe="")
-        resume_url = f"{callback_base}?action=resume&taskToken={encoded_token}"
-        cancel_url = f"{callback_base}?action=cancel&taskToken={encoded_token}"
 
     try:
         publish_recovery_plan_notification(
@@ -645,8 +635,6 @@ def store_task_token(event: Dict) -> Dict:
                 "pauseReason": pause_reason,
                 "pausedBeforeWave": paused_before_wave,
                 "taskToken": task_token,
-                "resumeUrl": resume_url,
-                "cancelUrl": cancel_url,
                 "region": region,
                 "timestamp": time.strftime(
                     "%Y-%m-%dT%H:%M:%SZ",
