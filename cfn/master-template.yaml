@@ -129,6 +129,11 @@ Conditions:
   DeployFrontendAndApiGatewayCondition: !And
     - !Equals [!Ref DeployApiGateway, 'true']
     - !Equals [!Ref DeployFrontend, 'true']
+  # WAF CLOUDFRONT scope requires us-east-1; skip WAF in other regions
+  DeployWAFCondition: !And
+    - !Equals [!Ref DeployApiGateway, 'true']
+    - !Equals [!Ref DeployFrontend, 'true']
+    - !Equals [!Ref 'AWS::Region', 'us-east-1']
   EnableNotificationsCondition: !Equals [!Ref EnableNotifications, 'true']
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
 
@@ -982,7 +987,7 @@ Resources:
   # Must be deployed in us-east-1 for CloudFront association
   WAFStack:
     Type: AWS::CloudFormation::Stack
-    Condition: DeployFrontendAndApiGatewayCondition
+    Condition: DeployWAFCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
@@ -1008,7 +1013,6 @@ Resources:
     DependsOn:
       - LambdaStack
       - ApiGatewayDeploymentStack
-      - WAFStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/frontend-stack.yaml'
       Parameters:
@@ -1021,7 +1025,7 @@ Resources:
         FrontendDeployerFunctionArn: !GetAtt LambdaStack.Outputs.FrontendDeployerFunctionArn
         SourceBucket: !Ref SourceBucket
         FrontendBuildVersion: !Ref FrontendBuildVersion
-        WebACLArn: !GetAtt WAFStack.Outputs.WebACLArn
+        WebACLArn: !If [DeployWAFCondition, !GetAtt WAFStack.Outputs.WebACLArn, '']
       Tags:
         - Key: Project
           Value: !Ref ProjectName
