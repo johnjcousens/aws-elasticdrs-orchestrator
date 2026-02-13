@@ -220,6 +220,7 @@ Resources:
           # Resume after manual approval - start the paused wave
           # Lambda reconstructs full state from DynamoDB since
           # SendTaskSuccess output may be minimal (e.g. '{}')
+          # executionName is the execution ID (always available from SF context)
           ResumeWavePlan:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
@@ -228,6 +229,7 @@ Resources:
               Payload:
                 action: 'resume_wave'
                 application.$: '$'
+                executionName.$: '$$.Execution.Name'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
             Retry:
