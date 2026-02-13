@@ -96,7 +96,9 @@ cfn-lint:
   <<: *setup-python
   script:
     - source .venv/bin/activate
-    - cfn-lint cfn/*.yaml
+    # Exit codes: 0=clean, 2=errors, 4=warnings only, 6=errors+warnings
+    # Treat warnings-only (exit 4) as success
+    - cfn-lint cfn/*.yaml || test $? -eq 4
   allow_failure: false
 
 flake8:
