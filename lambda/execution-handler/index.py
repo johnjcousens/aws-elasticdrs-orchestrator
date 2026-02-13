@@ -3872,15 +3872,8 @@ def lambda_handler(event, context):
     try:
         print(f"Event: {json.dumps(event)}")
 
-        # 1. Check if this is a Lambda Function URL callback invocation
-        # Function URLs use requestContext.http (not httpMethod like API GW)
-        if isinstance(event, dict) and "requestContext" in event and "http" in event.get("requestContext", {}):
-            print("Function URL invocation detected")
-            params = event.get("queryStringParameters") or {}
-            return handle_execution_callback({"queryStringParameters": params})
-
-        # 2. Check if this is an API Gateway invocation
-        elif isinstance(event, dict) and "requestContext" in event:
+        # 1. Check if this is an API Gateway invocation
+        if isinstance(event, dict) and "requestContext" in event:
             print("API Gateway invocation detected")
             # Continue to API Gateway routing logic below
             pass  # Fall through to API Gateway routing
