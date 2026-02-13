@@ -8,13 +8,13 @@ inclusion: always
 
 **Primary Working Stack**: `hrp-drs-tech-adapter-dev`
 - AWS Account: `891376951562`
-- Stack ARN: TBD (after first deployment)
+- Stack ARN: `arn:aws:cloudformation:us-east-2:891376951562:stack/hrp-drs-tech-adapter-dev/1af4c630-090d-11f1-a65c-0a00ca3e2d9f`
 - This is the main working environment
 - All development and testing happens here
 - S3 Deployment Bucket: `hrp-drs-tech-adapter-dev`
 - S3 Frontend Bucket: `hrp-drs-tech-adapter-fe-891376951562-dev`
-- API Endpoint: TBD (after first deployment)
-- CloudFront URL: TBD (after first deployment)
+- API Endpoint: `https://cbpdf7d52d.execute-api.us-east-2.amazonaws.com/dev`
+- CloudFront URL: `https://d1kqe40a9vwn47.cloudfront.net`
 
 Other environments (if they exist):
 - `hrp-drs-tech-adapter-test` - Test environment
