@@ -871,8 +871,12 @@ def resume_wave(event: Dict) -> Dict:
     Reconstructs full state from DynamoDB snapshot if the
     callback output was minimal (e.g. '{}' from CLI).
 
+    Uses executionName from Step Functions context ($$.Execution.Name)
+    to look up the execution when the callback output is empty.
+
     Args:
-        event: Contains state (application) with paused_before_wave
+        event: Contains application state, and executionName
+            from Step Functions context
 
     Returns:
         Complete state object with wave started
@@ -881,15 +885,32 @@ def resume_wave(event: Dict) -> Dict:
     execution_id = state.get("execution_id")
     plan_id = state.get("plan_id")
 
-    # If state is empty/minimal (CLI resume with '{}'), restore
-    # from the snapshot saved by store_task_token
-    if not execution_id or not plan_id:
-        logger.info("Minimal callback output — reconstructing state from DynamoDB")
-        # Try to find execution_id/plan_id from the raw event
-        execution_id = execution_id or event.get("execution_id", "")
-        plan_id = plan_id or event.get("plan_id", "")
+    # If state is empty (CLI resume with '{}'), use executionName
+    # from Step Functions context to find the execution in DynamoDB
+    if not execution_id:
+        execution_id = event.get("executionName", "")
+        logger.info(
+            "Empty callback output — using executionName: %s",
+            execution_id,
+        )
 
-    if execution_id and plan_id:
+    # Query DynamoDB to get plan_id and restore state snapshot
+    if execution_id and not plan_id:
+        try:
+            result = get_execution_history_table().query(
+                KeyConditionExpression="executionId = :eid",
+                ExpressionAttributeValues={":eid": execution_id},
+                Limit=1,
+            )
+            items = result.get("Items", [])
+            if items:
+                plan_id = items[0].get("planId", "")
+                logger.info("Found planId from DynamoDB: %s", plan_id)
+        except Exception as query_err:
+            logger.warning("Could not query execution: %s", query_err)
+
+    # Restore full state from snapshot
+    if execution_id and plan_id and not state.get("waves"):
         try:
             item = (
                 get_execution_history_table()
@@ -897,12 +918,14 @@ def resume_wave(event: Dict) -> Dict:
                 .get("Item", {})
             )
             snapshot_json = item.get("pausedStateSnapshot", "")
-            if snapshot_json and (not state.get("waves")):
-                restored = json.loads(snapshot_json)
+            if snapshot_json:
+                state = json.loads(snapshot_json)
                 logger.info("Restored state from DynamoDB snapshot")
-                state = restored
         except Exception as restore_err:
-            logger.warning("Could not restore state snapshot: %s", restore_err)
+            logger.warning(
+                "Could not restore state snapshot: %s",
+                restore_err,
+            )
 
     # Re-read in case restored
     execution_id = state.get("execution_id", execution_id)
