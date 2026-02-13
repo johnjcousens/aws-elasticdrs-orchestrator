@@ -3,7 +3,7 @@
 Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, dependency management, and automated health checks.
 
 [![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
-[![Version](https://img.shields.io/badge/version-5.0.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-6.0.0-blue)](CHANGELOG.md)
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019.1.1-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
@@ -32,10 +32,28 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Flexible Configuration Model**: Servers inherit group defaults by default, override only what's needed
 - **UI-Driven Management**: Configure per-server settings through intuitive Server Configurations tab in Protection Group dialog
 
+### Direct Lambda Invocation Mode (v5.0.0)
+- **Dual Invocation Support**: All three Lambda handlers (Query, Data Management, Execution) support both API Gateway and direct Lambda invocation
+- **44 Operations via CLI/SDK**: Complete DR automation without API Gateway — invoke Lambda directly from AWS CLI, SDK, Step Functions, or EventBridge
+- **60% Cost Reduction**: Eliminates API Gateway request charges for automation workloads ($8-30/month vs $12-40/month full stack)
+- **Native AWS Authentication**: IAM roles replace Cognito tokens for machine-to-machine communication
+- **Backward Compatible**: All existing API Gateway endpoints and frontend integrations continue to work unchanged
+- **CI/CD Pipeline Ready**: Bash and Python integration examples for automated DR workflows
+
+### SNS Email Notifications & Callback (v6.0.0)
+- **Pause/Resume via Email**: When execution pauses between waves, operators receive an SNS email with ready-to-run AWS CLI commands to resume or cancel — no frontend or API Gateway required
+- **CloudShell Integration**: Email includes a direct link to AWS CloudShell in the correct region for one-click access
+- **Infrastructure Status Feedback**: After resume/cancel, a DynamoDB query runs automatically in CloudShell showing real execution status
+- **State Reconstruction**: CLI resume with `--task-output '{}'` works seamlessly — full execution state (waves, account context, server IDs) restored from DynamoDB snapshot
+- **Wave Merge Persistence**: Race condition fix ensures all waves are visible in the UI immediately after CLI resume, keeping frontend, API, and CLI in sync
+- **Plain-Text Email Format**: All notification types (start, complete, fail, pause) use clean plain-text formatting compatible with any email client
+
 ### Wave-Based Orchestration Engine
 - **Step Functions Integration**: `waitForTaskToken` pattern enables pause/resume with up to 1-year timeouts
 - **Dependency Management**: Waves execute only after dependencies complete successfully
 - **Manual Validation Points**: Pause before critical waves for human approval
+- **Email Pause/Resume Notifications**: SNS email with CloudShell link and copy-paste CLI commands to resume or cancel directly from email — no frontend or API Gateway required
+- **DynamoDB State Reconstruction**: Resume from CLI with `--task-output '{}'` — full execution state restored from DynamoDB snapshot
 - **Real-Time Control**: Resume, cancel, or terminate operations during execution
 - **Parallel Execution**: Servers within waves launch in parallel with DRS-safe 15-second delays
 - **Launch Config Sync**: Protection Group settings (subnet, security groups, instance type) applied to DRS before recovery

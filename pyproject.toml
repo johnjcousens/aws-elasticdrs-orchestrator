@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aws-drs-orchestration"
-version = "1.2.2"
+version = "6.0.0"
 description = "AWS Elastic Disaster Recovery Orchestration Platform"
 authors = [
     {name = "AWS DRS Orchestration Team", email = "aws-drs-orchestration@amazon.com"}
