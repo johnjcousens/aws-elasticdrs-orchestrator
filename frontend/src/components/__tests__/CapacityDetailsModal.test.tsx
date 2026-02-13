@@ -322,7 +322,8 @@ describe("CapacityDetailsModal", () => {
       expect(screen.getByText("CRITICAL")).toBeInTheDocument();
     });
 
-    it("should display account warnings", () => {
+    it("should display account warnings", async () => {
+      const user = userEvent.setup();
       const capacityData = createMockCapacityData();
 
       render(
@@ -337,7 +338,7 @@ describe("CapacityDetailsModal", () => {
       const targetSection = screen.getByText(
         /DEMO_TARGET \(111122223333\)/i
       );
-      userEvent.click(targetSection);
+      await user.click(targetSection);
 
       // Warning should be visible (it's auto-expanded for WARNING status)
       expect(
