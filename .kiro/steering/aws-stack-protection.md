@@ -8,13 +8,13 @@ inclusion: always
 
 **Primary Working Stack**: `aws-drs-orchestration-dev`
 - AWS Account: `123456789012`
-- Stack ARN: TBD (after first deployment)
+- Stack ARN: `arn:aws:cloudformation:us-east-2:123456789012:stack/aws-drs-orchestration-dev/1af4c630-090d-11f1-a65c-0a00ca3e2d9f`
 - This is the main working environment
 - All development and testing happens here
 - S3 Deployment Bucket: `aws-drs-orchestration-dev`
 - S3 Frontend Bucket: `aws-drs-orchestration-fe-123456789012-dev`
-- API Endpoint: TBD (after first deployment)
-- CloudFront URL: TBD (after first deployment)
+- API Endpoint: `https://cbpdf7d52d.execute-api.us-east-2.amazonaws.com/dev`
+- CloudFront URL: `https://d1kqe40a9vwn47.cloudfront.net`
 
 Other environments (if they exist):
 - `aws-drs-orchestration-test` - Test environment
