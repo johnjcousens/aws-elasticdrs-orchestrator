@@ -1390,15 +1390,13 @@ def format_pause_notification(
     """
     Format plain-text email for pause events with CloudShell instructions.
 
-    SNS email subscriptions deliver plain text only. Uses single-line
-    CLI commands (no backslash continuations) so they copy-paste
-    cleanly from any email client. Includes feedback echo so the
-    operator sees confirmation in CloudShell.
+    Includes real AWS CLI commands that query infrastructure for
+    status feedback after resume/cancel.
 
     Args:
         details: Event details including planName, executionId,
             accountId, timestamp, taskToken, region,
-            pauseReason, pausedBeforeWave
+            pauseReason, pausedBeforeWave, executionHistoryTable
 
     Returns:
         Plain-text email body with CloudShell link and CLI commands
@@ -1411,6 +1409,15 @@ def format_pause_notification(
     plan_name = details.get("planName", "Unknown")
     account_id = details.get("accountId", "")
     timestamp = details.get("timestamp", "")
+    table_name = details.get("executionHistoryTable", "")
+
+    # pausedBeforeWave is 0-based index; convert to 1-based
+    wave_display = ""
+    if paused_before != "" and paused_before is not None:
+        try:
+            wave_display = str(int(paused_before) + 1)
+        except (ValueError, TypeError):
+            wave_display = str(paused_before)
 
     cloudshell_url = f"https://{region}.console.aws.amazon.com" f"/cloudshell/home?region={region}"
 
@@ -1432,20 +1439,37 @@ def format_pause_notification(
         f"  Reason:           {pause_reason}",
     ]
 
-    if paused_before:
-        lines.append(f"  Waiting to start: Wave {paused_before}")
+    if wave_display:
+        lines.append(f"  Waiting to start: Wave {wave_display}")
 
     if task_token:
-        wave_label = f"Wave {paused_before}" if paused_before else "next wave"
+        wave_label = f"Wave {wave_display}" if wave_display else "next wave"
+
+        # Build status query that runs after resume/cancel
+        status_query = ""
+        if table_name and execution_id:
+            status_query = (
+                f" && sleep 3"
+                f" && aws dynamodb query"
+                f" --table-name {table_name}"
+                f" --key-condition-expression"
+                f" 'executionId = :eid'"
+                f" --expression-attribute-values"
+                f' \'{{":eid":{{"S":"{execution_id}"}}}}\''
+                f" --projection-expression"
+                f" '#s,waves'"
+                f" --expression-attribute-names"
+                f' \'{{"#s":"status"}}\''
+                f" --region {region}"
+                f" --output table"
+            )
 
         resume_cmd = (
             f"aws stepfunctions send-task-success"
             f" --task-token '{task_token}'"
             f" --task-output '{{}}'"
             f" --region {region}"
-            f' && echo "SUCCESS: Execution resumed.'
-            f" {wave_label} is now starting for"
-            f' recovery plan {plan_name}."'
+            f"{status_query}"
         )
         cancel_cmd = (
             f"aws stepfunctions send-task-failure"
@@ -1453,9 +1477,7 @@ def format_pause_notification(
             f' --error "UserCancelled"'
             f' --cause "Cancelled via email"'
             f" --region {region}"
-            f' && echo "CANCELLED: Execution has been'
-            f" stopped. No further waves will run for"
-            f' recovery plan {plan_name}."'
+            f"{status_query}"
         )
 
         lines.extend(
@@ -1471,6 +1493,7 @@ def format_pause_notification(
                 "",
                 "  2. Copy ONE of the commands below and paste",
                 "     into CloudShell, then press Enter.",
+                "     The command will show execution status after.",
                 "",
                 "",
                 sep,
