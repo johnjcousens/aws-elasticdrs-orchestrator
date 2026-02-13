@@ -6,26 +6,26 @@ inclusion: always
 
 ## Stack Naming Convention
 
-**Primary Working Stack**: `aws-drs-orchestration-test`
-- Stack ARN: `arn:aws:cloudformation:us-east-1:210987654321:stack/aws-drs-orchestration-test/e1e00cb0-fe49-11f0-a956-0ef4995d315b`
-- Created: January 31, 2026
+**Primary Working Stack**: `aws-drs-orchestration-dev`
+- AWS Account: `123456789012`
+- Stack ARN: TBD (after first deployment)
 - This is the main working environment
 - All development and testing happens here
-- S3 Deployment Bucket: `aws-drs-orchestration-test`
-- S3 Frontend Bucket: `aws-drs-orchestration-fe-210987654321-test`
-- API Endpoint: `https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test`
-- CloudFront URL: `https://d319nadlgk4oj.cloudfront.net`
+- S3 Deployment Bucket: `aws-drs-orchestration-dev`
+- S3 Frontend Bucket: `aws-drs-orchestration-fe-123456789012-dev`
+- API Endpoint: TBD (after first deployment)
+- CloudFront URL: TBD (after first deployment)
 
 Other environments (if they exist):
-- `aws-drs-orchestration-dev` - Alternative development environment
+- `aws-drs-orchestration-test` - Test environment
 - `aws-drs-orchestration-staging` - Staging environment
 - `aws-drs-orchestration-prod` - Production environment
 
 ## Current Working Environment
 
-**Always deploy to**: `test` environment
+**Always deploy to**: `dev` environment
 ```bash
-./scripts/deploy.sh test
+./scripts/deploy.sh dev
 ```
 
 ## Best Practices

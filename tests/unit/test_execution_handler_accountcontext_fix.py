@@ -156,7 +156,7 @@ class TestAccountContextExtraction:
             "planId": "plan-789",
             "status": "RUNNING",
             "accountContext": {
-                "accountId": "210987654321",
+                "accountId": "123456789012",
                 "assumeRoleName": None,
                 "isCurrentAccount": True,
             },

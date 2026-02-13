@@ -52,7 +52,7 @@ Description: |
 Parameters:
   ProjectName:
     Type: String
-    Default: 'aws-elasticdrs-orchestrator'
+    Default: 'aws-drs-orchestration'
     Description: 'Project name used for resource naming'
 
   Environment:

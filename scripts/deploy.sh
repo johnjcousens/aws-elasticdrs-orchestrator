@@ -67,7 +67,7 @@ NC='\033[0m'
 
 # Required Parameters
 ENVIRONMENT="${1:-dev}"
-AWS_REGION="us-east-1"
+AWS_REGION="us-east-2"
 PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestration}"
 STACK_NAME="${STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
 DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-${PROJECT_NAME}-${ENVIRONMENT}}"
@@ -206,9 +206,9 @@ echo ""
 if [ -z "$AWS_PROFILE" ]; then
     # Check if credentials file exists
     if [ -f ~/.aws/credentials ]; then
-        # Look for profile matching orchestration account (210987654321)
-        if grep -q '\[210987654321_AdministratorAccess\]' ~/.aws/credentials; then
-            export AWS_PROFILE="210987654321_AdministratorAccess"
+        # Look for profile matching orchestration account (123456789012)
+        if grep -q '\[123456789012_AdministratorAccess\]' ~/.aws/credentials; then
+            export AWS_PROFILE="123456789012_AdministratorAccess"
             echo -e "${BLUE}Using AWS profile: $AWS_PROFILE${NC}"
         fi
     fi
@@ -218,7 +218,7 @@ fi
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
 if [[ "$ACCOUNT_ID" == *"SSO session"* ]] || [[ "$ACCOUNT_ID" == *"expired"* ]]; then
     echo -e "${YELLOW}⚠ SSO session expired - logging in...${NC}"
-    aws sso login --profile ${AWS_PROFILE:-210987654321_AdministratorAccess}
+    aws sso login --profile ${AWS_PROFILE:-123456789012_AdministratorAccess}
     ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
 fi
 

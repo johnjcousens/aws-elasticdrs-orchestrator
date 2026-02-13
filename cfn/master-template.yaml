@@ -56,7 +56,7 @@ Parameters:
 
   SourceBucket:
     Type: String
-    Default: 'aws-elasticdrs-orchestrator'
+    Default: 'aws-drs-orchestration'
     Description: 'S3 bucket containing nested CloudFormation templates and Lambda code at root level'
 
   AdminEmail:
