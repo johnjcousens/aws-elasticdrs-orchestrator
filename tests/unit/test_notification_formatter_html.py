@@ -14,36 +14,15 @@ Tests cover:
 Validates: Requirements 5.4, 5.10, 6.2, 6.3
 """
 
-import os
-import sys
 import pytest
 
-# Ensure lambda directory is on the path
-sys.path.insert(
-    0,
-    os.path.join(
-        os.path.dirname(__file__), "..", "..", "lambda"
-    ),
+from shared.notifications import (
+    format_complete_notification,
+    format_failure_notification,
+    format_notification_message,
+    format_pause_notification,
+    format_start_notification,
 )
-
-# Set required env vars before importing the module
-os.environ.setdefault(
-    "EXECUTION_NOTIFICATIONS_TOPIC_ARN",
-    "arn:aws:sns:us-east-1:123456789012:test-topic",
-)
-os.environ.setdefault("PROJECT_NAME", "test-project")
-os.environ.setdefault("ENVIRONMENT", "test")
-os.environ.setdefault("AWS_REGION", "us-east-1")
-
-from importlib import import_module
-
-_mod = import_module("notification-formatter.index")
-
-format_start_notification = _mod.format_start_notification
-format_complete_notification = _mod.format_complete_notification
-format_failure_notification = _mod.format_failure_notification
-format_pause_notification = _mod.format_pause_notification
-format_notification_message = _mod.format_notification_message
 
 
 # ── Shared test fixtures ────────────────────────────────────────
