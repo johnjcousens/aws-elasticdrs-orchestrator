@@ -599,14 +599,12 @@ def publish_recovery_plan_notification(
     """
     Publish a notification for a Recovery Plan execution event.
 
-    Sends a message to the execution notifications SNS topic
-    with ``recoveryPlanId`` and ``eventType`` as MessageAttributes.
-    SNS filter policies use these attributes to route the message
-    only to subscribers of the given Recovery Plan.
+    Sends a plain-text message to the execution notifications
+    SNS topic. SNS email protocol does not render HTML, so all
+    notifications are sent as plain text directly.
 
-    For all event types, uses JSON MessageStructure with the
-    formatted text in both ``default`` and ``email`` keys to
-    ensure delivery to email protocol subscribers.
+    Uses ``recoveryPlanId`` and ``eventType`` as MessageAttributes
+    for SNS filter policy routing.
 
     Failures are logged but never raised so that notification
     issues do not block DR execution.
@@ -626,14 +624,13 @@ def publish_recovery_plan_notification(
     if len(subject) > 100:
         subject = subject[:97] + "..."
 
-    message_structure = "json"
     try:
         formatted = format_notification_message(event_type, details)
-        # Use formatted text in both keys so email protocol
-        # subscribers receive the full content
+        # SNS email protocol delivers the 'default' key from
+        # JSON MessageStructure. Put the full formatted text there.
         message_body = json.dumps(
             {
-                "default": formatted["default"],
+                "default": formatted["email"],
                 "email": formatted["email"],
             }
         )
@@ -643,15 +640,15 @@ def publish_recovery_plan_notification(
             event_type,
             fmt_exc,
         )
-        message_body = json.dumps(details)
-        message_structure = None
+        message_body = json.dumps({"default": json.dumps(details)})
 
     try:
-        publish_kwargs = {
-            "TopicArn": EXECUTION_TOPIC_ARN,
-            "Message": message_body,
-            "Subject": subject,
-            "MessageAttributes": {
+        sns.publish(
+            TopicArn=EXECUTION_TOPIC_ARN,
+            Message=message_body,
+            Subject=subject,
+            MessageStructure="json",
+            MessageAttributes={
                 "recoveryPlanId": {
                     "DataType": "String",
                     "StringValue": plan_id,
@@ -661,10 +658,7 @@ def publish_recovery_plan_notification(
                     "StringValue": event_type,
                 },
             },
-        }
-        if message_structure is not None:
-            publish_kwargs["MessageStructure"] = message_structure
-        sns.publish(**publish_kwargs)
+        )
         logger.info(
             "Published notification for Recovery Plan " "%s, event %s",
             plan_id,
@@ -1236,97 +1230,111 @@ def format_start_notification(
     details: Dict[str, Any],
 ) -> str:
     """
-    Format HTML email for execution start events.
+    Format plain-text email for execution start events.
 
     Args:
-        details: Event details including planName, executionId,
-            accountId, timestamp, consoleLink, waveCount,
-            executionType
+        details: Event details dict
 
     Returns:
-        HTML email body string
+        Plain-text email body
     """
-    wave_count = details.get("waveCount", "N/A")
-    execution_type = details.get("executionType", "RECOVERY")
-
-    body = (
-        "<p>A disaster recovery execution has been "
-        "<strong>started</strong>.</p>"
-        "<p>"
-        f"<strong>Execution Type:</strong> {execution_type}"
-        "<br>"
-        f"<strong>Total Waves:</strong> {wave_count}"
-        "</p>"
-        "<p>You will receive updates as the execution "
-        "progresses through each wave.</p>"
+    nl = "\r\n"
+    sep = "=" * 56
+    return nl.join(
+        [
+            sep,
+            "  DR EXECUTION STARTED",
+            sep,
+            "",
+            f"  Recovery Plan:    {details.get('planName', 'Unknown')}",
+            f"  Execution ID:     {details.get('executionId', '')}",
+            f"  Account ID:       {details.get('accountId', '')}",
+            f"  Execution Type:   {details.get('executionType', 'RECOVERY')}",
+            f"  Total Waves:      {details.get('waveCount', 'N/A')}",
+            f"  Started At:       {details.get('timestamp', '')}",
+            "",
+            "  You will receive updates as the execution",
+            "  progresses through each wave.",
+            sep,
+        ]
     )
-
-    return _wrap_html_email("\U0001f680 DR Execution Started", body, details)
 
 
 def format_complete_notification(
     details: Dict[str, Any],
 ) -> str:
     """
-    Format HTML email for execution completion events.
+    Format plain-text email for execution completion events.
 
     Args:
-        details: Event details including planName, executionId,
-            accountId, timestamp, consoleLink, duration,
-            wavesCompleted
+        details: Event details dict
 
     Returns:
-        HTML email body string
+        Plain-text email body
     """
-    duration = details.get("duration", "N/A")
-    waves_completed = details.get("wavesCompleted", "N/A")
+    duration_s = details.get("durationSeconds")
+    if duration_s:
+        mins = int(duration_s) // 60
+        secs = int(duration_s) % 60
+        duration = f"{mins}m {secs}s"
+    else:
+        duration = details.get("duration", "N/A")
 
-    body = (
-        "<p>The disaster recovery execution has "
-        "<strong>completed successfully</strong>.</p>"
-        "<p>"
-        f"<strong>Duration:</strong> {duration}"
-        "<br>"
-        f"<strong>Waves Completed:</strong>"
-        f" {waves_completed}"
-        "</p>"
-        "<p>Please verify the recovered infrastructure "
-        "in the target account.</p>"
+    nl = "\r\n"
+    sep = "=" * 56
+    return nl.join(
+        [
+            sep,
+            "  DR EXECUTION COMPLETED",
+            sep,
+            "",
+            f"  Recovery Plan:    {details.get('planName', 'Unknown')}",
+            f"  Execution ID:     {details.get('executionId', '')}",
+            f"  Account ID:       {details.get('accountId', '')}",
+            f"  Completed Waves:  {details.get('completedWaves', details.get('wavesCompleted', 'N/A'))}",
+            f"  Total Waves:      {details.get('totalWaves', 'N/A')}",
+            f"  Duration:         {duration}",
+            f"  Completed At:     {details.get('timestamp', '')}",
+            "",
+            "  Please verify the recovered infrastructure",
+            "  in the target account.",
+            sep,
+        ]
     )
-
-    return _wrap_html_email("\u2705 DR Execution Completed", body, details)
 
 
 def format_failure_notification(
     details: Dict[str, Any],
 ) -> str:
     """
-    Format HTML email for execution failure events.
+    Format plain-text email for execution failure events.
 
     Args:
-        details: Event details including planName, executionId,
-            accountId, timestamp, consoleLink, errorMessage,
-            failedWave
+        details: Event details dict
 
     Returns:
-        HTML email body string
+        Plain-text email body
     """
-    error_message = details.get("errorMessage", "Unknown error")
-    failed_wave = details.get("failedWave", "N/A")
-
-    body = (
-        "<p>The disaster recovery execution has "
-        "<strong>failed</strong>.</p>"
-        "<p>"
-        f"<strong>Failed Wave:</strong> {failed_wave}"
-        "<br>"
-        f"<strong>Error:</strong> {error_message}"
-        "</p>"
-        "<p>Please review the execution logs and take "
-        "appropriate action to resolve the issue.</p>"
+    nl = "\r\n"
+    sep = "=" * 56
+    return nl.join(
+        [
+            sep,
+            "  DR EXECUTION FAILED",
+            sep,
+            "",
+            f"  Recovery Plan:    {details.get('planName', 'Unknown')}",
+            f"  Execution ID:     {details.get('executionId', '')}",
+            f"  Account ID:       {details.get('accountId', '')}",
+            f"  Failed Wave:      {details.get('failedWave', details.get('failedWaves', 'N/A'))}",
+            f"  Error:            {details.get('errorMessage', 'Unknown error')}",
+            f"  Failed At:        {details.get('timestamp', '')}",
+            "",
+            "  Please review the execution logs and take",
+            "  appropriate action to resolve the issue.",
+            sep,
+        ]
     )
-
-    return _wrap_html_email("\u274c DR Execution Failed", body, details)
 
 
 def format_pause_notification(
