@@ -160,28 +160,27 @@ checkov:
   allow_failure: true
 
 semgrep:
+semgrep:
   stage: scan
-  image: semgrep/semgrep:latest
+  <<: *python-cache
+  <<: *setup-python
   script:
+    - source .venv/bin/activate
     - semgrep scan --config=p/ci --quiet lambda/ frontend/src/
   allow_failure: true
   rules:
     - exists:
         - lambda/**/*.py
 
-cfn-nag:
-  stage: scan
-  image: ruby:3.3-slim
-  before_script:
-    - gem install cfn-nag --quiet --no-document
-  script:
-    - cfn_nag_scan --input-path cfn/
-  allow_failure: true
+# cfn-nag: skipped in CI (requires Ruby image, Docker Hub rate limits)
+# Coverage provided by checkov IaC scanning instead
 
 shellcheck:
   stage: scan
-  image: koalaman/shellcheck-alpine:stable
+  <<: *python-cache
+  <<: *setup-python
   script:
+    - apt-get update -qq && apt-get install -y -qq shellcheck > /dev/null
     - find lambda/ -name "*.sh" -exec shellcheck -S warning {} + 2>/dev/null || echo "No shell scripts in lambda/"
   allow_failure: true
 
@@ -196,27 +195,9 @@ npm-audit:
     - exists:
         - frontend/package.json
 
-grype-scan:
-  stage: scan
-  image:
-    name: anchore/grype:latest
-    entrypoint: [""]
-  script:
-    - grype dir:. --fail-on critical --exclude './archive/**' --exclude './.venv/**'
-  allow_failure: true
-
-syft-sbom:
-  stage: scan
-  image:
-    name: anchore/syft:latest
-    entrypoint: [""]
-  script:
-    - syft dir:. -o spdx-json --exclude './archive/**' --exclude './.venv/**' > sbom.json
-  artifacts:
-    paths:
-      - sbom.json
-    expire_in: 30 days
-  allow_failure: true
+# grype/syft: skipped in CI (require Docker Hub images, hit rate limits)
+# Coverage provided by npm audit + checkov + safety for dependency scanning
+# Run locally via: grype dir:. and syft dir:.
 
 # =============================================================================
 # STAGE 3: TESTS
