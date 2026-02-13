@@ -256,7 +256,7 @@ All 6 extended source servers in us-west-2 are now using staging account **77778
 ### Frontend Refresh Verification
 
 **What to Test:**
-1. Log into the dashboard at https://d319nadlgk4oj.cloudfront.net
+1. Log into the dashboard at https://d1kqe40a9vwn47.cloudfront.net
 2. Select target account **111122223333** (DEMO_TARGET)
 3. Verify the dashboard shows:
    - New staging account: **DEMO_ONPREM777788889999** (777788889999)
@@ -277,7 +277,7 @@ All 6 extended source servers in us-west-2 are now using staging account **77778
 ```bash
 # Add new staging account
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "add_staging_account",
     "body": {
@@ -293,7 +293,7 @@ aws lambda invoke \
 
 # Remove old staging account
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "remove_staging_account",
     "body": {
@@ -304,6 +304,6 @@ aws lambda invoke \
 
 # Verify current state
 aws dynamodb get-item \
-  --table-name aws-drs-orchestration-target-accounts-test \
+  --table-name hrp-drs-tech-adapter-target-accounts-dev \
   --key '{"accountId": {"S": "111122223333"}}'
 ```

@@ -1,6 +1,6 @@
 # Quick Start Guide - AWS DRS Orchestration
 
-**Stack**: aws-drs-orchestration-dev  
+**Stack**: hrp-drs-tech-adapter-dev  
 **Environment**: dev  
 **Region**: us-east-1
 
@@ -68,7 +68,7 @@ After deployment completes, get the stack outputs:
 
 ```bash
 AWS_PAGER="" aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query 'Stacks[0].Outputs' \
   --output table \
   --region us-east-1
@@ -87,7 +87,7 @@ Key outputs:
 ```bash
 # Get User Pool ID from stack outputs
 USER_POOL_ID=$(aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
   --output text --region us-east-1)
 
@@ -156,22 +156,22 @@ AWS_PAGER="" aws stepfunctions list-executions \
 ### View Lambda Logs
 ```bash
 # API Handler
-AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestration-data-management-handler-dev --follow --region us-east-1
+AWS_PAGER="" aws logs tail /aws/lambda/hrp-drs-tech-adapter-data-management-handler-dev --follow --region us-east-1
 
 # Orchestration
-AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestration-orchestration-stepfunctions-dev --follow --region us-east-1
+AWS_PAGER="" aws logs tail /aws/lambda/hrp-drs-tech-adapter-orchestration-stepfunctions-dev --follow --region us-east-1
 ```
 
 ### Query DynamoDB Tables
 ```bash
 # Protection Groups
 AWS_PAGER="" aws dynamodb scan \
-  --table-name aws-drs-orchestration-protection-groups-dev \
+  --table-name hrp-drs-tech-adapter-protection-groups-dev \
   --region us-east-1
 
 # Recovery Plans
 AWS_PAGER="" aws dynamodb scan \
-  --table-name aws-drs-orchestration-recovery-plans-dev \
+  --table-name hrp-drs-tech-adapter-recovery-plans-dev \
   --region us-east-1
 ```
 
@@ -185,8 +185,8 @@ make build-lambda
 
 # Update Lambda functions
 AWS_PAGER="" aws lambda update-function-code \
-  --function-name aws-drs-orchestration-data-management-handler-dev \
-  --s3-bucket aws-drs-orchestration-dev \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
+  --s3-bucket hrp-drs-tech-adapter-dev \
   --s3-key lambda/data-management-handler.zip \
   --region us-east-1
 ```

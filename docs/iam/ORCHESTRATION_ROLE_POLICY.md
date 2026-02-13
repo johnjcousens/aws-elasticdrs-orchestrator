@@ -780,7 +780,7 @@ cat > orchestration-policy.json << 'EOF'
         "lambda:InvokeFunction"
       ],
       "Resource": [
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-*"
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-*"
       ]
     },
     {
@@ -797,7 +797,7 @@ cat > orchestration-policy.json << 'EOF'
         "dynamodb:BatchWriteItem"
       ],
       "Resource": [
-        "arn:aws:dynamodb:*:*:table/aws-drs-orchestration-*"
+        "arn:aws:dynamodb:*:*:table/hrp-drs-tech-adapter-*"
       ]
     },
     {
@@ -812,8 +812,8 @@ cat > orchestration-policy.json << 'EOF'
         "states:SendTaskHeartbeat"
       ],
       "Resource": [
-        "arn:aws:states:*:*:stateMachine:aws-drs-orchestration-*",
-        "arn:aws:states:*:*:execution:aws-drs-orchestration-*:*"
+        "arn:aws:states:*:*:stateMachine:hrp-drs-tech-adapter-*",
+        "arn:aws:states:*:*:execution:hrp-drs-tech-adapter-*:*"
       ]
     },
     {
@@ -1007,8 +1007,8 @@ cat > orchestration-policy.json << 'EOF'
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::aws-drs-orchestration-*/*",
-        "arn:aws:s3:::aws-drs-orchestration-*"
+        "arn:aws:s3:::hrp-drs-tech-adapter-*/*",
+        "arn:aws:s3:::hrp-drs-tech-adapter-*"
       ]
     }
   ]
@@ -1145,7 +1145,7 @@ User: arn:aws:iam::123456789012:role/OrchestrationRole is not authorized to perf
 ```bash
 # Verify role has Lambda invocation permissions
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --policy-name LambdaInvocationAccess
 
 # If missing, update CloudFormation stack or add inline policy
@@ -1165,11 +1165,11 @@ User: arn:aws:iam::123456789012:role/OrchestrationRole is not authorized to perf
 **Solution**:
 ```bash
 # Check table name matches pattern
-aws dynamodb list-tables --query 'TableNames[?contains(@, `aws-drs-orchestration`)]'
+aws dynamodb list-tables --query 'TableNames[?contains(@, `hrp-drs-tech-adapter`)]'
 
 # Verify IAM policy resource pattern
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --policy-name DynamoDBAccess
 ```
 
@@ -1189,7 +1189,7 @@ User: arn:aws:iam::123456789012:role/OrchestrationRole is not authorized to perf
 **Step 1**: Verify OrchestrationRole has AssumeRole permission
 ```bash
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --policy-name STSAccess
 ```
 
@@ -1211,7 +1211,7 @@ aws iam get-role --role-name DRSOrchestrationRole \
     {
       "Effect": "Allow",
       "Principal": {
-        "AWS": "arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-test"
+        "AWS": "arn:aws:iam::123456789012:role/hrp-drs-tech-adapter-orchestration-role-dev"
       },
       "Action": "sts:AssumeRole"
     }
@@ -1234,7 +1234,7 @@ User: arn:aws:iam::123456789012:role/OrchestrationRole is not authorized to perf
 ```bash
 # Verify DRS write permissions include CreateRecoveryInstanceForDrs
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --policy-name DRSWriteAccess \
   --query 'PolicyDocument.Statement[?contains(Action, `drs:CreateRecoveryInstanceForDrs`)]'
 
@@ -1256,7 +1256,7 @@ User: arn:aws:iam::123456789012:role/OrchestrationRole is not authorized to perf
 ```bash
 # Verify EC2 permissions include launch template operations
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --policy-name EC2Access \
   --query 'PolicyDocument.Statement[?contains(Action, `ec2:CreateLaunchTemplate`)]'
 ```
@@ -1276,7 +1276,7 @@ User: arn:aws:iam::123456789012:role/OrchestrationRole is not authorized to perf
 ```bash
 # Verify KMS permissions exist
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --policy-name KMSAccess
 
 # Ensure kms:ViaService condition includes ec2 and drs services
@@ -1290,7 +1290,7 @@ aws iam get-role-policy \
 
 ```bash
 # Check if OrchestrationRole exists
-aws iam get-role --role-name aws-drs-orchestration-orchestration-role-test
+aws iam get-role --role-name hrp-drs-tech-adapter-orchestration-role-dev
 
 # Expected output: Role details with ARN
 ```
@@ -1299,7 +1299,7 @@ aws iam get-role --role-name aws-drs-orchestration-orchestration-role-test
 
 ```bash
 # Check trust policy allows Lambda and Step Functions
-aws iam get-role --role-name aws-drs-orchestration-orchestration-role-test \
+aws iam get-role --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --query 'Role.AssumeRolePolicyDocument'
 
 # Expected: Trust policy includes lambda.amazonaws.com and states.amazonaws.com
@@ -1309,7 +1309,7 @@ aws iam get-role --role-name aws-drs-orchestration-orchestration-role-test \
 
 ```bash
 # List all inline policies
-aws iam list-role-policies --role-name aws-drs-orchestration-orchestration-role-test
+aws iam list-role-policies --role-name hrp-drs-tech-adapter-orchestration-role-dev
 
 # Expected output: List of policy names (LambdaInvocationAccess, DynamoDBAccess, etc.)
 ```
@@ -1318,7 +1318,7 @@ aws iam list-role-policies --role-name aws-drs-orchestration-orchestration-role-
 
 ```bash
 # List attached managed policies
-aws iam list-attached-role-policies --role-name aws-drs-orchestration-orchestration-role-test
+aws iam list-attached-role-policies --role-name hrp-drs-tech-adapter-orchestration-role-dev
 
 # Expected: AWSLambdaBasicExecutionRole at minimum
 ```
@@ -1328,7 +1328,7 @@ aws iam list-attached-role-policies --role-name aws-drs-orchestration-orchestrat
 ```bash
 # Attempt to invoke Lambda function using OrchestrationRole credentials
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation": "list_protection_groups"}' \
   response.json
 
@@ -1340,7 +1340,7 @@ aws lambda invoke \
 ```bash
 # Attempt to scan DynamoDB table
 aws dynamodb scan \
-  --table-name aws-drs-orchestration-protection-groups-test \
+  --table-name hrp-drs-tech-adapter-protection-groups-dev \
   --limit 1
 
 # Expected: Successful scan with items or empty result
@@ -1381,7 +1381,7 @@ aws ec2 describe-instances --max-results 1
 #!/bin/bash
 # comprehensive-permission-check.sh
 
-ROLE_NAME="aws-drs-orchestration-orchestration-role-test"
+ROLE_NAME="hrp-drs-tech-adapter-orchestration-role-dev"
 REGION="us-east-1"
 
 echo "=== OrchestrationRole Permission Validation ==="
@@ -1444,7 +1444,7 @@ fi
 
 # 5. Test Lambda invocation (if function exists)
 echo "5. Testing Lambda invocation permission..."
-FUNCTION_NAME="aws-drs-orchestration-query-handler-test"
+FUNCTION_NAME="hrp-drs-tech-adapter-query-handler-dev"
 if aws lambda get-function --function-name "$FUNCTION_NAME" &>/dev/null; then
   if aws lambda invoke --function-name "$FUNCTION_NAME" --payload '{"operation":"list_protection_groups"}' /tmp/response.json &>/dev/null; then
     echo "   ✓ Lambda invocation successful"
@@ -1457,7 +1457,7 @@ fi
 
 # 6. Test DynamoDB access (if table exists)
 echo "6. Testing DynamoDB access..."
-TABLE_NAME="aws-drs-orchestration-protection-groups-test"
+TABLE_NAME="hrp-drs-tech-adapter-protection-groups-dev"
 if aws dynamodb describe-table --table-name "$TABLE_NAME" &>/dev/null; then
   if aws dynamodb scan --table-name "$TABLE_NAME" --limit 1 &>/dev/null; then
     echo "   ✓ DynamoDB access successful"
@@ -1502,7 +1502,7 @@ chmod +x comprehensive-permission-check.sh
 
 ```bash
 # Set variables
-PROJECT_NAME="aws-drs-orchestration"
+PROJECT_NAME="hrp-drs-tech-adapter"
 ENVIRONMENT="test"
 ROLE_NAME="${PROJECT_NAME}-orchestration-role-${ENVIRONMENT}"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -1547,13 +1547,13 @@ aws iam attach-role-policy \
 ```bash
 # Update inline policy
 aws iam put-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --policy-name LambdaInvocationAccess \
   --policy-document file://lambda-invocation-policy.json
 
 # Update trust policy
 aws iam update-assume-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --policy-document file://trust-policy.json
 ```
 
@@ -1561,17 +1561,17 @@ aws iam update-assume-role-policy \
 
 ```bash
 # List and detach managed policies
-aws iam list-attached-role-policies --role-name aws-drs-orchestration-orchestration-role-test \
+aws iam list-attached-role-policies --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --query 'AttachedPolicies[*].PolicyArn' --output text | \
-  xargs -I {} aws iam detach-role-policy --role-name aws-drs-orchestration-orchestration-role-test --policy-arn {}
+  xargs -I {} aws iam detach-role-policy --role-name hrp-drs-tech-adapter-orchestration-role-dev --policy-arn {}
 
 # Delete inline policies
-aws iam list-role-policies --role-name aws-drs-orchestration-orchestration-role-test \
+aws iam list-role-policies --role-name hrp-drs-tech-adapter-orchestration-role-dev \
   --query 'PolicyNames' --output text | \
-  xargs -I {} aws iam delete-role-policy --role-name aws-drs-orchestration-orchestration-role-test --policy-name {}
+  xargs -I {} aws iam delete-role-policy --role-name hrp-drs-tech-adapter-orchestration-role-dev --policy-name {}
 
 # Delete role
-aws iam delete-role --role-name aws-drs-orchestration-orchestration-role-test
+aws iam delete-role --role-name hrp-drs-tech-adapter-orchestration-role-dev
 ```
 
 ---
@@ -1622,7 +1622,7 @@ aws accessanalyzer list-findings \
 ```bash
 # Query CloudWatch Logs for authorization failures
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-query-handler-test \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-query-handler-dev \
   --filter-pattern "AUTHORIZATION_FAILED" \
   --start-time $(date -u -d '1 hour ago' +%s)000
 ```

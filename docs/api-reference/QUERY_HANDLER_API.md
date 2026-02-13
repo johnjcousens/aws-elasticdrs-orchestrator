@@ -67,7 +67,7 @@ result = json.loads(response['Payload'].read())
     {
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
-      "Resource": "arn:aws:lambda:*:*:function:aws-drs-orchestration-query-handler-*"
+      "Resource": "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-query-handler-*"
     }
   ]
 }
@@ -161,7 +161,7 @@ Query DRS source servers in a specific region with optional filtering.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_drs_source_servers","queryParams":{"region":"us-east-1"}}' \
   response.json && cat response.json | jq .
 ```
@@ -174,7 +174,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_drs_source_servers",
@@ -265,7 +265,7 @@ Get DRS account capacity aggregated across all 15 DRS-enabled regions.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_drs_account_capacity_all_regions"}' \
   response.json && cat response.json | jq .
 ```
@@ -278,7 +278,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_drs_account_capacity_all_regions"
@@ -338,7 +338,7 @@ List all configured target accounts for cross-account DR operations.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_target_accounts"}' \
   response.json && cat response.json | jq .
 ```
@@ -351,7 +351,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_target_accounts"
@@ -414,7 +414,7 @@ List EC2 subnets in a specific VPC and region.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_ec2_subnets","queryParams":{"region":"us-east-1","vpcId":"vpc-0123456789abcdef0"}}' \
   response.json && cat response.json | jq .
 ```
@@ -427,7 +427,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_ec2_subnets",
@@ -489,7 +489,7 @@ List EC2 security groups in a specific VPC and region.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_ec2_security_groups","queryParams":{"region":"us-east-1","vpcId":"vpc-0123456789abcdef0"}}' \
   response.json && cat response.json | jq .
 ```
@@ -502,7 +502,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_ec2_security_groups",
@@ -570,7 +570,7 @@ List available EC2 instance types in a region.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_ec2_instance_types","queryParams":{"region":"us-east-1"}}' \
   response.json && cat response.json | jq .
 ```
@@ -583,7 +583,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_ec2_instance_types",
@@ -641,7 +641,7 @@ List IAM instance profiles available in a region.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_ec2_instance_profiles","queryParams":{"region":"us-east-1"}}' \
   response.json && cat response.json | jq .
 ```
@@ -654,7 +654,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_ec2_instance_profiles",
@@ -702,7 +702,7 @@ Get the current AWS account ID.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_current_account_id"}' \
   response.json && cat response.json | jq .
 ```
@@ -715,7 +715,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_current_account_id"
@@ -785,7 +785,7 @@ Export all Protection Groups and Recovery Plans for backup or migration.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"export_configuration"}' \
   response.json && cat response.json | jq . > config-backup.json
 ```
@@ -799,7 +799,7 @@ from datetime import datetime
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "export_configuration"
@@ -869,7 +869,7 @@ Get individual server launch configuration within a Protection Group.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_server_launch_config","groupId":"pg-abc123","serverId":"s-1234567890abcdef0"}' \
   response.json && cat response.json | jq .
 ```
@@ -882,7 +882,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_server_launch_config",
@@ -964,7 +964,7 @@ Get configuration change audit history for a specific server.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_server_config_history","groupId":"pg-abc123","serverId":"s-1234567890abcdef0"}' \
   response.json && cat response.json | jq .
 ```
@@ -977,7 +977,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_server_config_history",
@@ -1040,7 +1040,7 @@ Get staging accounts configured for a target account.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_staging_accounts","targetAccountId":"123456789012"}' \
   response.json && cat response.json | jq .
 ```
@@ -1053,7 +1053,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_staging_accounts",
@@ -1118,7 +1118,7 @@ Get current tag synchronization status.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_tag_sync_status"}' \
   response.json && cat response.json | jq .
 ```
@@ -1131,7 +1131,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_tag_sync_status"
@@ -1203,7 +1203,7 @@ Get tag synchronization configuration settings.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_tag_sync_settings"}' \
   response.json && cat response.json | jq .
 ```
@@ -1216,7 +1216,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_tag_sync_settings"
@@ -1284,7 +1284,7 @@ Get detected DRS capacity conflicts across accounts.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_drs_capacity_conflicts"}' \
   response.json && cat response.json | jq .
 ```
@@ -1297,7 +1297,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "get_drs_capacity_conflicts"
@@ -1414,7 +1414,7 @@ Set environment variable `DEBUG=true` on the Lambda function to enable detailed 
 
 ```bash
 aws lambda update-function-configuration \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --environment Variables={DEBUG=true}
 ```
 
@@ -1423,7 +1423,7 @@ aws lambda update-function-configuration \
 View Lambda execution logs:
 
 ```bash
-aws logs tail /aws/lambda/aws-drs-orchestration-query-handler-test --follow
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-query-handler-dev --follow
 ```
 
 ### Test IAM Permissions
@@ -1432,7 +1432,7 @@ Verify your IAM principal can invoke the function:
 
 ```bash
 aws lambda get-policy \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --query 'Policy' \
   --output text | jq .
 ```
@@ -1443,7 +1443,7 @@ Test with a simple operation first:
 
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_current_account_id"}' \
   response.json && cat response.json
 ```
@@ -1491,7 +1491,7 @@ def query_region(lambda_client, region):
     """Query DRS servers in a single region."""
     try:
         response = lambda_client.invoke(
-            FunctionName='aws-drs-orchestration-query-handler-test',
+            FunctionName='hrp-drs-tech-adapter-query-handler-dev',
             InvocationType='RequestResponse',
             Payload=json.dumps({
                 "operation": "get_drs_source_servers",
@@ -1555,7 +1555,7 @@ if __name__ == '__main__':
 
 set -euo pipefail
 
-FUNCTION_NAME="aws-drs-orchestration-query-handler-test"
+FUNCTION_NAME="hrp-drs-tech-adapter-query-handler-dev"
 OUTPUT_FILE="capacity-report-$(date +%Y%m%d-%H%M%S).json"
 
 echo "Querying DRS capacity..."
@@ -1606,7 +1606,7 @@ fi
 ```hcl
 # Query DRS source servers using Lambda invocation
 data "aws_lambda_invocation" "drs_servers" {
-  function_name = "aws-drs-orchestration-query-handler-test"
+  function_name = "hrp-drs-tech-adapter-query-handler-dev"
 
   input = jsonencode({
     operation = "get_drs_source_servers"
@@ -1653,7 +1653,7 @@ aws events put-rule \
 
 aws events put-targets \
   --rule drs-capacity-check \
-  --targets "Id"="1","Arn"="arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-query-handler-test"
+  --targets "Id"="1","Arn"="arn:aws:lambda:us-east-1:123456789012:function:hrp-drs-tech-adapter-query-handler-dev"
 ```
 
 ---

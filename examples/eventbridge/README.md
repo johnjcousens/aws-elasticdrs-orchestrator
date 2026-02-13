@@ -147,7 +147,7 @@ The Query Handler performs read-only operations to retrieve data from DynamoDB a
 ```json
 {
   "Id": "QueryHandler",
-  "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-query-handler-test",
+  "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-query-handler-test",
   "Input": "{\"source\":\"aws.events\",\"operation\":\"get_drs_capacity_conflicts\"}"
 }
 ```
@@ -181,7 +181,7 @@ The Execution Handler manages recovery execution lifecycle operations.
 ```json
 {
   "Id": "ExecutionHandler",
-  "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+  "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-test",
   "Input": "{\"source\":\"aws.events\",\"operation\":\"poll_executions\"}"
 }
 ```
@@ -210,7 +210,7 @@ The Data Management Handler performs create, update, and delete operations.
 ```json
 {
   "Id": "DataManagementHandler",
-  "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test",
+  "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test",
   "Input": "{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}"
 }
 ```
@@ -466,9 +466,9 @@ sed -i 's/-test/-dev/g' lambda-invocation-example.json
 ```
 
 Or manually update each `Arn` field:
-- `arn:aws:lambda:REGION:ACCOUNT_ID:function:aws-drs-orchestration-query-handler-{environment}`
-- `arn:aws:lambda:REGION:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-{environment}`
-- `arn:aws:lambda:REGION:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-{environment}`
+- `arn:aws:lambda:REGION:ACCOUNT_ID:function:hrp-drs-tech-adapter-query-handler-{environment}`
+- `arn:aws:lambda:REGION:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-{environment}`
+- `arn:aws:lambda:REGION:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-{environment}`
 
 ### Step 2: Create EventBridge Rules
 
@@ -485,7 +485,7 @@ aws events put-rule \
 # Add Lambda target
 aws events put-targets \
   --rule DROrchestration-DailyTagSync \
-  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}'"
+  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}'"
 
 # Hourly Execution Polling Rule
 aws events put-rule \
@@ -496,7 +496,7 @@ aws events put-rule \
 
 aws events put-targets \
   --rule DROrchestration-HourlyExecutionPolling \
-  --targets "Id=ExecutionHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"poll_executions\"}'"
+  --targets "Id=ExecutionHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"poll_executions\"}'"
 
 # Weekly Compliance Check Rule
 aws events put-rule \
@@ -507,7 +507,7 @@ aws events put-rule \
 
 aws events put-targets \
   --rule DROrchestration-WeeklyComplianceCheck \
-  --targets "Id=QueryHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-query-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"get_drs_capacity_conflicts\"}'"
+  --targets "Id=QueryHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-query-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"get_drs_capacity_conflicts\"}'"
 
 # Every 5 Minutes Execution Monitoring Rule
 aws events put-rule \
@@ -518,7 +518,7 @@ aws events put-rule \
 
 aws events put-targets \
   --rule DROrchestration-Every5MinutesExecutionMonitoring \
-  --targets "Id=ExecutionHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"check_execution_status\"}'"
+  --targets "Id=ExecutionHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"check_execution_status\"}'"
 
 # Hourly Tag Sync Rate Rule
 aws events put-rule \
@@ -529,7 +529,7 @@ aws events put-rule \
 
 aws events put-targets \
   --rule DROrchestration-HourlyTagSyncRate \
-  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"trigger_tag_sync\"}'"
+  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"trigger_tag_sync\"}'"
 ```
 
 ### Step 3: Create Event-Driven Rules
@@ -544,7 +544,7 @@ aws events put-rule \
 
 aws events put-targets \
   --rule DROrchestration-DRSSourceServerStateChange \
-  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"log_event\",\"eventType\":\"DRS_SERVER_STATE_CHANGE\"}'"
+  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"log_event\",\"eventType\":\"DRS_SERVER_STATE_CHANGE\"}'"
 
 # EC2 Instance State Change Rule
 aws events put-rule \
@@ -555,7 +555,7 @@ aws events put-rule \
 
 aws events put-targets \
   --rule DROrchestration-EC2InstanceStateChange \
-  --targets "Id=ExecutionHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"handle_instance_state_change\"}'"
+  --targets "Id=ExecutionHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"handle_instance_state_change\"}'"
 
 # Custom Application Event Rule
 aws events put-rule \
@@ -576,7 +576,7 @@ Create `custom-event-target.json`:
 [
   {
     "Id": "ExecutionHandler",
-    "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+    "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-test",
     "InputTransformer": {
       "InputPathsMap": {
         "planId": "$.detail.planId",
@@ -596,7 +596,7 @@ Grant EventBridge permission to invoke Lambda functions:
 ```bash
 # Query Handler
 aws lambda add-permission \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --statement-id AllowEventBridgeInvoke \
   --action lambda:InvokeFunction \
   --principal events.amazonaws.com \
@@ -604,7 +604,7 @@ aws lambda add-permission \
 
 # Execution Handler
 aws lambda add-permission \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-test \
   --statement-id AllowEventBridgeInvoke \
   --action lambda:InvokeFunction \
   --principal events.amazonaws.com \
@@ -612,7 +612,7 @@ aws lambda add-permission \
 
 # Data Management Handler
 aws lambda add-permission \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-test \
   --statement-id AllowEventBridgeInvoke \
   --action lambda:InvokeFunction \
   --principal events.amazonaws.com \
@@ -661,7 +661,7 @@ EOF
 
 # Invoke Lambda directly with EventBridge format
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-test \
   --payload file://test-event.json \
   response.json
 
@@ -715,7 +715,7 @@ aws events put-events \
   ]'
 
 # Check if event was delivered
-AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestration-execution-handler-test --since 1m
+AWS_PAGER="" aws logs tail /aws/lambda/hrp-drs-tech-adapter-execution-handler-test --since 1m
 ```
 
 ### Test 6: Monitor Rule Invocations
@@ -746,11 +746,11 @@ aws cloudwatch get-metric-statistics \
 
 ```bash
 # Tail Lambda logs to see EventBridge invocations
-AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestration-data-management-handler-test --follow --format short
+AWS_PAGER="" aws logs tail /aws/lambda/hrp-drs-tech-adapter-data-management-handler-test --follow --format short
 
 # Search for specific operation
 AWS_PAGER="" aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-data-management-handler-test \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-data-management-handler-test \
   --filter-pattern "sync_tags" \
   --start-time $(date -u -v-1H +%s)000
 ```
@@ -945,12 +945,12 @@ if (props.enableEventDrivenRules) {
 
 3. Verify Lambda permission:
    ```bash
-   aws lambda get-policy --function-name aws-drs-orchestration-data-management-handler-test
+   aws lambda get-policy --function-name hrp-drs-tech-adapter-data-management-handler-test
    ```
 
 4. Check CloudWatch Logs for errors:
    ```bash
-   AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestration-data-management-handler-test --since 1h
+   AWS_PAGER="" aws logs tail /aws/lambda/hrp-drs-tech-adapter-data-management-handler-test --since 1h
    ```
 
 ### Issue 2: Lambda Permission Denied
@@ -966,7 +966,7 @@ Add Lambda resource-based policy:
 
 ```bash
 aws lambda add-permission \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-test \
   --statement-id AllowEventBridgeInvoke \
   --action lambda:InvokeFunction \
   --principal events.amazonaws.com \
@@ -1067,7 +1067,7 @@ Task timed out after 3.00 seconds
 1. Increase Lambda timeout:
    ```bash
    aws lambda update-function-configuration \
-     --function-name aws-drs-orchestration-data-management-handler-test \
+     --function-name hrp-drs-tech-adapter-data-management-handler-test \
      --timeout 300
    ```
 
@@ -1087,15 +1087,15 @@ KeyError: 'EXECUTIONS_TABLE'
 1. Verify Lambda environment variables:
    ```bash
    AWS_PAGER="" aws lambda get-function-configuration \
-     --function-name aws-drs-orchestration-execution-handler-test \
+     --function-name hrp-drs-tech-adapter-execution-handler-test \
      --query 'Environment.Variables'
    ```
 
 2. Update environment variables if missing:
    ```bash
    aws lambda update-function-configuration \
-     --function-name aws-drs-orchestration-execution-handler-test \
-     --environment "Variables={EXECUTIONS_TABLE=aws-drs-orchestration-executions-test,PROJECT_NAME=aws-drs-orchestration,ENVIRONMENT=test}"
+     --function-name hrp-drs-tech-adapter-execution-handler-test \
+     --environment "Variables={EXECUTIONS_TABLE=hrp-drs-tech-adapter-executions-test,PROJECT_NAME=hrp-drs-tech-adapter,ENVIRONMENT=test}"
    ```
 
 ### Issue 8: DynamoDB Table Not Found
@@ -1115,7 +1115,7 @@ ResourceNotFoundException: Requested resource not found
 2. Check Lambda execution role has DynamoDB permissions:
    ```bash
    aws iam get-role-policy \
-     --role-name aws-drs-orchestration-orchestration-role-test \
+     --role-name hrp-drs-tech-adapter-orchestration-role-test \
      --policy-name DynamoDBPolicy
    ```
 
@@ -1142,7 +1142,7 @@ DLQ_ARN=$(aws sqs get-queue-attributes \
 # Update EventBridge target with DLQ
 aws events put-targets \
   --rule DROrchestration-DailyTagSync \
-  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}',DeadLetterConfig={Arn=$DLQ_ARN}"
+  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}',DeadLetterConfig={Arn=$DLQ_ARN}"
 ```
 
 ### Pattern 2: Retry Policy
@@ -1153,7 +1153,7 @@ Configure retry policy for Lambda invocations:
 # Update target with retry policy
 aws events put-targets \
   --rule DROrchestration-DailyTagSync \
-  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}',RetryPolicy={MaximumRetryAttempts=3,MaximumEventAge=3600}"
+  --targets "Id=DataManagementHandler,Arn=arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test,Input='{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}',RetryPolicy={MaximumRetryAttempts=3,MaximumEventAge=3600}"
 ```
 
 **Retry Policy Parameters**:
@@ -1170,12 +1170,12 @@ cat > multiple-targets.json << 'EOF'
 [
   {
     "Id": "DataManagementHandler",
-    "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test",
+    "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test",
     "Input": "{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}"
   },
   {
     "Id": "QueryHandler",
-    "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-query-handler-test",
+    "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-query-handler-test",
     "Input": "{\"source\":\"aws.events\",\"operation\":\"get_drs_capacity_conflicts\"}"
   }
 ]

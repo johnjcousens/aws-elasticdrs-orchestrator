@@ -85,9 +85,9 @@ Your IAM principal needs permission to invoke the DRS Orchestration Lambda funct
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
       "Resource": [
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-query-handler-*",
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-execution-handler-*",
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-data-management-handler-*"
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-query-handler-*",
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-execution-handler-*",
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-data-management-handler-*"
       ]
     }
   ]
@@ -824,7 +824,7 @@ export AWS_ROLE_ARN=arn:aws:iam::123456789012:role/YourRole
 
 ```bash
 aws lambda get-policy \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --query 'Policy' --output text | jq .
 ```
 
@@ -853,7 +853,7 @@ aws lambda list-functions \
 
 # Or check execution status manually
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --payload '{"operation":"get_execution","executionId":"<execution-id>"}' \
   response.json
 cat response.json | jq .

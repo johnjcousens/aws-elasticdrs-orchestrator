@@ -74,7 +74,7 @@ result = json.loads(response['Payload'].read())
     {
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
-      "Resource": "arn:aws:lambda:*:*:function:aws-drs-orchestration-data-management-handler-*"
+      "Resource": "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-data-management-handler-*"
     }
   ]
 }
@@ -199,7 +199,7 @@ Create a new Protection Group with tag-based or explicit server selection.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "create_protection_group",
     "body": {
@@ -223,7 +223,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-data-management-handler-test',
+    FunctionName='hrp-drs-tech-adapter-data-management-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "create_protection_group",
@@ -303,7 +303,7 @@ Update an existing Protection Group with optimistic locking.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "update_protection_group",
     "body": {
@@ -353,7 +353,7 @@ Delete a Protection Group. Blocked if used in any Recovery Plan.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "delete_protection_group",
     "body": {
@@ -435,7 +435,7 @@ Update per-server launch configuration within a Protection Group.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "update_server_launch_config",
     "body": {
@@ -491,7 +491,7 @@ Delete per-server launch configuration and revert to group defaults.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "delete_server_launch_config",
     "body": {
@@ -562,7 +562,7 @@ Bulk update launch configurations for multiple servers.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "bulk_update_server_configs",
     "body": {
@@ -619,7 +619,7 @@ Validate static private IP address for a server.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "validate_static_ip",
     "body": {
@@ -736,7 +736,7 @@ Create a new Recovery Plan with multi-wave configuration.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "create_recovery_plan",
     "body": {
@@ -762,7 +762,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-data-management-handler-test',
+    FunctionName='hrp-drs-tech-adapter-data-management-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "create_recovery_plan",
@@ -866,7 +866,7 @@ Update an existing Recovery Plan with optimistic locking.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "update_recovery_plan",
     "body": {
@@ -916,7 +916,7 @@ Delete a Recovery Plan. Blocked if any active execution exists.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "delete_recovery_plan",
     "body": {
@@ -980,7 +980,7 @@ Register a new target account for cross-account DR operations.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "add_target_account",
     "body": {
@@ -1040,7 +1040,7 @@ Update target account configuration.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "update_target_account",
     "body": {
@@ -1088,7 +1088,7 @@ Delete target account configuration.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "delete_target_account",
     "body": {
@@ -1152,7 +1152,7 @@ Add staging account to target account configuration.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "add_staging_account",
     "body": {
@@ -1206,7 +1206,7 @@ Remove staging account from target account configuration.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "remove_staging_account",
     "body": {
@@ -1256,7 +1256,7 @@ Synchronize extended source servers from staging accounts.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "sync_extended_source_servers",
     "body": {
@@ -1312,7 +1312,7 @@ Trigger EC2-to-DRS tag synchronization across all regions.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "trigger_tag_sync",
     "body": {
@@ -1330,7 +1330,7 @@ import json
 lambda_client = boto3.client('lambda')
 
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-data-management-handler-test',
+    FunctionName='hrp-drs-tech-adapter-data-management-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "trigger_tag_sync",
@@ -1397,7 +1397,7 @@ Update tag synchronization configuration settings.
 **AWS CLI Example**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "update_tag_sync_settings",
     "body": {
@@ -1480,7 +1480,7 @@ Import Protection Groups and Recovery Plans from JSON configuration.
 ```bash
 # First, validate the manifest
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "import_configuration",
     "body": {
@@ -1492,7 +1492,7 @@ aws lambda invoke \
 
 # Then import if validation passes
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "import_configuration",
     "body": {
@@ -1516,7 +1516,7 @@ with open('drs-config-backup.json', 'r') as f:
 
 # Validate first
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-data-management-handler-test',
+    FunctionName='hrp-drs-tech-adapter-data-management-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "import_configuration",
@@ -1537,7 +1537,7 @@ else:
     
     # Import configuration
     response = lambda_client.invoke(
-        FunctionName='aws-drs-orchestration-data-management-handler-test',
+        FunctionName='hrp-drs-tech-adapter-data-management-handler-dev',
         InvocationType='RequestResponse',
         Payload=json.dumps({
             "operation": "import_configuration",
@@ -1696,7 +1696,7 @@ Set environment variable `DEBUG=true` on the Lambda function to enable detailed 
 
 ```bash
 aws lambda update-function-configuration \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --environment Variables={DEBUG=true}
 ```
 
@@ -1705,7 +1705,7 @@ aws lambda update-function-configuration \
 View Lambda execution logs:
 
 ```bash
-aws logs tail /aws/lambda/aws-drs-orchestration-data-management-handler-test --follow
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-data-management-handler-dev --follow
 ```
 
 ### Test IAM Permissions
@@ -1714,7 +1714,7 @@ Verify your IAM principal can invoke the function:
 
 ```bash
 aws lambda get-policy \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --query 'Policy' \
   --output text | jq .
 ```
@@ -1725,7 +1725,7 @@ Test with a simple operation first:
 
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{"operation":"get_tag_sync_settings"}' \
   response.json && cat response.json
 ```
@@ -1785,7 +1785,7 @@ def create_protection_group(lambda_client, config):
     if config.get('serverSelectionMode') == 'tags':
         print("Resolving tag-based server selection...")
         response = lambda_client.invoke(
-            FunctionName='aws-drs-orchestration-data-management-handler-test',
+            FunctionName='hrp-drs-tech-adapter-data-management-handler-dev',
             InvocationType='RequestResponse',
             Payload=json.dumps({
                 "operation": "resolve_protection_group_tags",
@@ -1817,7 +1817,7 @@ def create_protection_group(lambda_client, config):
     # Step 2: Create Protection Group
     print("\nCreating Protection Group...")
     response = lambda_client.invoke(
-        FunctionName='aws-drs-orchestration-data-management-handler-test',
+        FunctionName='hrp-drs-tech-adapter-data-management-handler-dev',
         InvocationType='RequestResponse',
         Payload=json.dumps({
             "operation": "create_protection_group",
@@ -1880,7 +1880,7 @@ if __name__ == '__main__':
 
 set -euo pipefail
 
-FUNCTION_NAME="aws-drs-orchestration-data-management-handler-test"
+FUNCTION_NAME="hrp-drs-tech-adapter-data-management-handler-dev"
 GROUP_ID="pg-abc123def456"
 
 # Server configurations
@@ -1948,7 +1948,7 @@ fi
 ```hcl
 # Create Protection Group using Lambda invocation
 data "aws_lambda_invocation" "create_protection_group" {
-  function_name = "aws-drs-orchestration-data-management-handler-test"
+  function_name = "hrp-drs-tech-adapter-data-management-handler-dev"
 
   input = jsonencode({
     operation = "create_protection_group"
@@ -1979,7 +1979,7 @@ locals {
 
 # Create Recovery Plan
 data "aws_lambda_invocation" "create_recovery_plan" {
-  function_name = "aws-drs-orchestration-data-management-handler-test"
+  function_name = "hrp-drs-tech-adapter-data-management-handler-dev"
 
   input = jsonencode({
     operation = "create_recovery_plan"
@@ -2041,11 +2041,11 @@ aws events put-rule \
 # Add Lambda target
 aws events put-targets \
   --rule drs-tag-sync \
-  --targets "Id"="1","Arn"="arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-data-management-handler-test","Input"='{"synch_tags":true}'
+  --targets "Id"="1","Arn"="arn:aws:lambda:us-east-1:123456789012:function:hrp-drs-tech-adapter-data-management-handler-dev","Input"='{"synch_tags":true}'
 
 # Grant EventBridge permission to invoke Lambda
 aws lambda add-permission \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --statement-id AllowEventBridgeInvoke \
   --action lambda:InvokeFunction \
   --principal events.amazonaws.com \

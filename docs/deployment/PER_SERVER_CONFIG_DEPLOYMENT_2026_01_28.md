@@ -27,13 +27,13 @@ Successfully deployed the per-server launch template customization feature to th
 ## Deployment Details
 
 ### Test Environment
-- **Stack ARN**: `arn:aws:cloudformation:us-east-1:777788889999:stack/aws-drs-orchestration-test/e1e00cb0-fe49-11f0-a956-0ef4995d315b`
+- **Stack ARN**: `arn:aws:cloudformation:us-east-1:777788889999:stack/hrp-drs-tech-adapter-dev/e1e00cb0-fe49-11f0-a956-0ef4995d315b`
 - **Created**: January 31, 2026
-- **Deployment Bucket**: `s3://aws-drs-orchestration-test/`
-- **Frontend Bucket**: `s3://aws-drs-orchestration-fe-777788889999-test/`
+- **Deployment Bucket**: `s3://hrp-drs-tech-adapter-dev/`
+- **Frontend Bucket**: `s3://hrp-drs-tech-adapter-fe-891376951562-dev/`
 - **CloudFront Distribution**: `E2O7E88PDE3KNX`
-- **CloudFront URL**: `https://d319nadlgk4oj.cloudfront.net`
-- **API Endpoint**: `https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test`
+- **CloudFront URL**: `https://d1kqe40a9vwn47.cloudfront.net`
+- **API Endpoint**: `https://cbpdf7d52d.execute-api.us-east-2.amazonaws.com/dev`
 - **API Gateway ID**: `mgqims9lj1`
 
 ### Files Modified
@@ -45,7 +45,7 @@ Successfully deployed the per-server launch template customization feature to th
 
 ### Deployment Steps Executed
 1. ✅ Built frontend: `npm run build` (frontend directory)
-2. ✅ Synced to S3: `aws s3 sync dist/ s3://aws-drs-orchestration-fe-777788889999-test/ --delete`
+2. ✅ Synced to S3: `aws s3 sync dist/ s3://hrp-drs-tech-adapter-fe-891376951562-dev/ --delete`
 3. ✅ Created CloudFront invalidation: `aws cloudfront create-invalidation --distribution-id E1BBNSHA96QXQ4 --paths "/*"`
 4. ✅ Committed changes to git: `git commit -m "fix: populate resolvedServers for explicit server selection mode"`
 
@@ -131,14 +131,14 @@ If issues are discovered in test environment:
    
    # Rebuild and redeploy
    cd frontend && npm run build
-   aws s3 sync dist/ s3://aws-drs-orchestration-fe-777788889999-test/ --delete
+   aws s3 sync dist/ s3://hrp-drs-tech-adapter-fe-891376951562-dev/ --delete
    aws cloudfront create-invalidation --distribution-id E1BBNSHA96QXQ4 --paths "/*"
    ```
 
 2. **Backend Rollback** (if needed):
    ```bash
    # Use CloudFormation rollback
-   aws cloudformation cancel-update-stack --stack-name aws-drs-orchestration-test
+   aws cloudformation cancel-update-stack --stack-name hrp-drs-tech-adapter-dev
    ```
 
 ## Technical Notes

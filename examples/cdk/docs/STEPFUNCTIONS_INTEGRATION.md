@@ -101,7 +101,7 @@ import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
 const drOrchestrationStateMachine = sfn.StateMachine.fromStateMachineName(
   this,
   'DROrchestrationStateMachine',
-  'aws-drs-orchestration-state-machine-test'
+  'hrp-drs-tech-adapter-state-machine-test'
 );
 
 // Use imported state machine
@@ -128,7 +128,7 @@ For cross-account or cross-region scenarios:
 const drOrchestrationStateMachine = sfn.StateMachine.fromStateMachineArn(
   this,
   'DROrchestrationStateMachine',
-  'arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test'
+  'arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test'
 );
 
 // Use imported state machine
@@ -156,8 +156,8 @@ const drOrchestrationStateMachine = sfn.StateMachine.fromStateMachineAttributes(
   this,
   'DROrchestrationStateMachine',
   {
-    stateMachineArn: 'arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test',
-    stateMachineName: 'aws-drs-orchestration-state-machine-test',
+    stateMachineArn: 'arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test',
+    stateMachineName: 'hrp-drs-tech-adapter-state-machine-test',
     stateMachineType: sfn.StateMachineType.STANDARD,
   }
 );
@@ -233,12 +233,12 @@ if (props.importExistingStateMachine && props.existingStateMachineArn) {
 ```bash
 # List all Step Functions state machines in your stack
 aws cloudformation describe-stack-resources \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --query 'StackResources[?ResourceType==`AWS::StepFunctions::StateMachine`].[LogicalResourceId,PhysicalResourceId]' \
   --output table
 
 # Example output:
-# DROrchestrationStateMachine    aws-drs-orchestration-state-machine-test
+# DROrchestrationStateMachine    hrp-drs-tech-adapter-state-machine-test
 ```
 
 **2. Document State Machine Configuration**
@@ -246,18 +246,18 @@ aws cloudformation describe-stack-resources \
 ```bash
 # Get state machine details
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --query '{Name:name,ARN:stateMachineArn,Type:type,Status:status,RoleArn:roleArn}' \
   --output json
 
 # Get state machine definition
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --query 'definition' \
   --output text > state-machine-definition.json
 
 # Save state machine ARN for CDK import
-export STATE_MACHINE_ARN="arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test"
+export STATE_MACHINE_ARN="arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test"
 ```
 
 **3. Analyze State Machine Dependencies**
@@ -267,8 +267,8 @@ export STATE_MACHINE_ARN="arn:aws:states:us-east-1:438465159935:stateMachine:aws
 cat state-machine-definition.json | jq -r '.. | .Resource? | select(. != null) | select(contains("lambda"))'
 
 # Example output:
-# arn:aws:lambda:us-east-1:438465159935:function:aws-drs-orchestration-dr-orchestration-lambda-test
-# arn:aws:lambda:us-east-1:438465159935:function:aws-drs-orchestration-execution-handler-test
+# arn:aws:lambda:us-east-1:891376951562:function:hrp-drs-tech-adapter-dr-orchestration-lambda-test
+# arn:aws:lambda:us-east-1:891376951562:function:hrp-drs-tech-adapter-execution-handler-test
 
 # List DynamoDB tables accessed
 cat state-machine-definition.json | jq -r '.. | .Parameters? | select(. != null) | .TableName? | select(. != null)'
@@ -315,13 +315,13 @@ Resources:
 ```bash
 # Deploy with RETAIN policy
 aws cloudformation update-stack \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --template-body file://cfn/master-template.yaml \
   --capabilities CAPABILITY_NAMED_IAM
 
 # Wait for update to complete
 aws cloudformation wait stack-update-complete \
-  --stack-name aws-drs-orchestration-test
+  --stack-name hrp-drs-tech-adapter-test
 ```
 
 **3. Verify RETAIN Policy**
@@ -329,7 +329,7 @@ aws cloudformation wait stack-update-complete \
 ```bash
 # Verify DeletionPolicy is set
 aws cloudformation describe-stack-resources \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --query 'StackResources[?ResourceType==`AWS::StepFunctions::StateMachine`].[LogicalResourceId,PhysicalResourceId]'
 ```
 
@@ -384,7 +384,7 @@ import { DROrchestrationImportStack } from '../lib/dr-orchestration-import-stack
 const app = new cdk.App();
 
 const environment = process.env.ENVIRONMENT || 'test';
-const projectName = process.env.PROJECT_NAME || 'aws-drs-orchestration';
+const projectName = process.env.PROJECT_NAME || 'hrp-drs-tech-adapter';
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
 
 // Import existing state machine from CloudFormation deployment
@@ -421,10 +421,10 @@ if (importExistingStateMachine && existingStateMachineArn) {
 ```bash
 # Set environment variables
 export ENVIRONMENT=test
-export PROJECT_NAME=aws-drs-orchestration
+export PROJECT_NAME=hrp-drs-tech-adapter
 export ADMIN_EMAIL=admin@example.com
 export IMPORT_EXISTING_STATE_MACHINE=true
-export EXISTING_STATE_MACHINE_ARN="arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test"
+export EXISTING_STATE_MACHINE_ARN="arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test"
 
 # Build and deploy
 cd examples/cdk
@@ -438,12 +438,12 @@ cdk deploy --require-approval never
 ```bash
 # Check CDK stack status
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --query 'Stacks[0].StackStatus'
 
 # Verify Lambda functions can start executions
 aws lambda invoke \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-test \
   --payload '{"operation":"start_execution","planId":"plan-test-123","executionType":"DRILL"}' \
   response.json
 
@@ -467,7 +467,7 @@ aws stepfunctions describe-execution \
 
 # Verify data is accessible
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --payload '{"operation":"list_executions"}' \
   response.json
 
@@ -479,11 +479,11 @@ cat response.json | jq .
 ```bash
 # Delete CloudFormation stack (state machine will be retained)
 aws cloudformation delete-stack \
-  --stack-name aws-drs-orchestration-test-old
+  --stack-name hrp-drs-tech-adapter-test-old
 
 # Wait for deletion to complete
 aws cloudformation wait stack-delete-complete \
-  --stack-name aws-drs-orchestration-test-old
+  --stack-name hrp-drs-tech-adapter-test-old
 ```
 
 **3. Verify State Machine Still Exists**
@@ -509,14 +509,14 @@ cdk destroy --force
 
 # Redeploy original CloudFormation stack
 aws cloudformation create-stack \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --template-body file://cfn/master-template.yaml \
   --parameters file://cfn/parameters-test.json \
   --capabilities CAPABILITY_NAMED_IAM
 
 # Wait for stack creation
 aws cloudformation wait stack-create-complete \
-  --stack-name aws-drs-orchestration-test
+  --stack-name hrp-drs-tech-adapter-test
 ```
 
 **2. Verify Rollback**
@@ -561,7 +561,7 @@ export class SimpleImportStack extends cdk.Stack {
     const drOrchestrationStateMachine = sfn.StateMachine.fromStateMachineName(
       this,
       'DROrchestrationStateMachine',
-      'aws-drs-orchestration-state-machine-test'
+      'hrp-drs-tech-adapter-state-machine-test'
     );
     
     // Create Lambda function that starts executions
@@ -598,12 +598,12 @@ export class ImportWithEventBridgeStack extends cdk.Stack {
     const drOrchestrationStateMachine = sfn.StateMachine.fromStateMachineArn(
       this,
       'DROrchestrationStateMachine',
-      'arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test'
+      'arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test'
     );
     
     // Create EventBridge rule for scheduled executions
     const scheduledRule = new events.Rule(this, 'ScheduledDRDrill', {
-      ruleName: 'aws-drs-orchestration-scheduled-drill-test',
+      ruleName: 'hrp-drs-tech-adapter-scheduled-drill-test',
       description: 'Trigger DR drill execution every Sunday at 2 AM UTC',
       schedule: events.Schedule.cron({
         minute: '0',
@@ -643,7 +643,7 @@ export class CrossAccountImportStack extends cdk.Stack {
     const drOrchestrationStateMachine = sfn.StateMachine.fromStateMachineArn(
       this,
       'DROrchestrationStateMachine',
-      'arn:aws:states:us-east-1:123456789012:stateMachine:aws-drs-orchestration-state-machine-prod'
+      'arn:aws:states:us-east-1:123456789012:stateMachine:hrp-drs-tech-adapter-state-machine-prod'
     );
     
     // Create Lambda execution role with cross-account permissions
@@ -848,7 +848,7 @@ cdk deploy
 
 # Import existing state machine
 export IMPORT_EXISTING_STATE_MACHINE=true
-export EXISTING_STATE_MACHINE_ARN="arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test"
+export EXISTING_STATE_MACHINE_ARN="arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test"
 cdk deploy
 ```
 
@@ -871,14 +871,14 @@ export class ImportWithLambdaStack extends cdk.Stack {
     const drOrchestrationStateMachine = sfn.StateMachine.fromStateMachineName(
       this,
       'DROrchestrationStateMachine',
-      'aws-drs-orchestration-state-machine-test'
+      'hrp-drs-tech-adapter-state-machine-test'
     );
     
     // Import existing DynamoDB tables
     const executionsTable = dynamodb.Table.fromTableName(
       this,
       'ExecutionsTable',
-      'aws-drs-orchestration-executions-test'
+      'hrp-drs-tech-adapter-executions-test'
     );
     
     // Create Execution Handler Lambda
@@ -939,18 +939,18 @@ export class ImportWithAlarmsStack extends cdk.Stack {
     const drOrchestrationStateMachine = sfn.StateMachine.fromStateMachineArn(
       this,
       'DROrchestrationStateMachine',
-      'arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test'
+      'arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test'
     );
     
     // Create SNS topic for alarms
     const alarmTopic = new sns.Topic(this, 'AlarmTopic', {
-      topicName: 'aws-drs-orchestration-alarms-test',
+      topicName: 'hrp-drs-tech-adapter-alarms-test',
       displayName: 'DR Orchestration Alarms',
     });
     
     // Alarm for failed executions
     const failedExecutionsAlarm = new cloudwatch.Alarm(this, 'FailedExecutionsAlarm', {
-      alarmName: 'aws-drs-orchestration-failed-executions-test',
+      alarmName: 'hrp-drs-tech-adapter-failed-executions-test',
       alarmDescription: 'Alert when state machine executions fail',
       metric: drOrchestrationStateMachine.metricFailed({
         statistic: 'Sum',
@@ -966,7 +966,7 @@ export class ImportWithAlarmsStack extends cdk.Stack {
     
     // Alarm for execution duration
     const longExecutionAlarm = new cloudwatch.Alarm(this, 'LongExecutionAlarm', {
-      alarmName: 'aws-drs-orchestration-long-execution-test',
+      alarmName: 'hrp-drs-tech-adapter-long-execution-test',
       alarmDescription: 'Alert when executions take longer than expected',
       metric: drOrchestrationStateMachine.metricTime({
         statistic: 'Average',
@@ -982,7 +982,7 @@ export class ImportWithAlarmsStack extends cdk.Stack {
     
     // Alarm for throttled executions
     const throttledExecutionsAlarm = new cloudwatch.Alarm(this, 'ThrottledExecutionsAlarm', {
-      alarmName: 'aws-drs-orchestration-throttled-executions-test',
+      alarmName: 'hrp-drs-tech-adapter-throttled-executions-test',
       alarmDescription: 'Alert when executions are throttled',
       metric: drOrchestrationStateMachine.metricThrottled({
         statistic: 'Sum',
@@ -1028,9 +1028,9 @@ export class ImportWithAlarmsStack extends cdk.Stack {
 {project-name}-state-machine-{environment}
 
 Examples:
-- aws-drs-orchestration-state-machine-test
-- aws-drs-orchestration-state-machine-prod
-- aws-drs-orchestration-state-machine-dev
+- hrp-drs-tech-adapter-state-machine-test
+- hrp-drs-tech-adapter-state-machine-prod
+- hrp-drs-tech-adapter-state-machine-dev
 ```
 
 **Benefits:**
@@ -1046,20 +1046,20 @@ Examples:
 ```bash
 # Export state machine definition
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --query 'definition' \
   --output text > backups/state-machine-definition-$(date +%Y%m%d-%H%M%S).json
 
 # Export execution history
 aws stepfunctions list-executions \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --max-results 1000 \
   --query 'executions[*].{Name:name,Status:status,StartDate:startDate,StopDate:stopDate}' \
   --output json > backups/execution-history-$(date +%Y%m%d-%H%M%S).json
 
 # Export CloudWatch Logs configuration
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --query 'loggingConfiguration' \
   --output json > backups/logging-config-$(date +%Y%m%d-%H%M%S).json
 ```
@@ -1134,16 +1134,16 @@ grep "arn:aws:states" template.yaml
 ```bash
 # 1. Verify Lambda can start executions
 aws lambda invoke \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-test \
   --payload '{"operation":"start_execution","planId":"plan-test-123","executionType":"DRILL"}' \
   response.json
 
 # 2. Check CloudWatch Logs for errors
-aws logs tail /aws/lambda/aws-drs-orchestration-execution-handler-test --since 5m
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-execution-handler-test --since 5m
 
 # 3. Verify execution started
 aws stepfunctions list-executions \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --max-results 5
 
 # 4. Check execution details
@@ -1179,7 +1179,7 @@ const stateMachine = sfn.StateMachine.fromStateMachineName(
 ```bash
 # Update state machine configuration outside CDK
 aws stepfunctions update-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --definition file://updated-definition.json
 
 # CDK will not detect or revert these changes
@@ -1189,7 +1189,7 @@ aws stepfunctions update-state-machine \
 ```typescript
 // Create new version with updated definition
 const stateMachineV2 = new sfn.StateMachine(this, 'StateMachineV2', {
-  stateMachineName: 'aws-drs-orchestration-state-machine-v2-test',
+  stateMachineName: 'hrp-drs-tech-adapter-state-machine-v2-test',
   definition: updatedDefinition,
   // ... other properties
 });
@@ -1207,7 +1207,7 @@ import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 
 // Create dashboard for imported state machine
 const dashboard = new cloudwatch.Dashboard(this, 'StateMachineDashboard', {
-  dashboardName: 'aws-drs-orchestration-state-machine-test',
+  dashboardName: 'hrp-drs-tech-adapter-state-machine-test',
 });
 
 // Add execution metrics
@@ -1276,19 +1276,19 @@ dashboard.addWidgets(
 ## Imported Step Functions State Machines
 
 ### DR Orchestration State Machine
-- **Source:** CloudFormation stack `aws-drs-orchestration-test`
-- **ARN:** `arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test`
+- **Source:** CloudFormation stack `hrp-drs-tech-adapter-test`
+- **ARN:** `arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test`
 - **Type:** STANDARD
-- **IAM Role:** `arn:aws:iam::438465159935:role/aws-drs-orchestration-orchestration-role-test`
+- **IAM Role:** `arn:aws:iam::891376951562:role/hrp-drs-tech-adapter-orchestration-role-test`
 - **Logging:** CloudWatch Logs enabled, ALL level
 - **Tracing:** X-Ray enabled
 - **Timeout:** 2 hours
 - **Lambda Functions:**
-  - `aws-drs-orchestration-dr-orchestration-lambda-test`
-  - `aws-drs-orchestration-execution-handler-test`
+  - `hrp-drs-tech-adapter-dr-orchestration-lambda-test`
+  - `hrp-drs-tech-adapter-execution-handler-test`
 - **DynamoDB Tables:**
-  - `aws-drs-orchestration-executions-test`
-  - `aws-drs-orchestration-recovery-plans-test`
+  - `hrp-drs-tech-adapter-executions-test`
+  - `hrp-drs-tech-adapter-recovery-plans-test`
 - **Execution Pattern:** On-demand via Lambda, scheduled via EventBridge (weekly)
 - **Average Duration:** 15-30 minutes
 - **Typical Executions:** 5-10 per week
@@ -1304,7 +1304,7 @@ mkdir -p state-machines/definitions
 
 # Export current definition
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --query 'definition' \
   --output text | jq . > state-machines/definitions/dr-orchestration-v1.json
 
@@ -1334,20 +1334,20 @@ jq '.States | to_entries[] | select(.value.Next == null and .value.End != true) 
 ```bash
 # Export execution history before migration
 aws stepfunctions list-executions \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --max-results 1000 \
   --query 'executions[*]' \
   --output json > execution-history-pre-migration.json
 
 # After migration, verify executions are still accessible
 aws stepfunctions list-executions \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --max-results 10
 
 # Compare execution counts
 BEFORE=$(jq 'length' execution-history-pre-migration.json)
 AFTER=$(aws stepfunctions list-executions \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --max-results 1000 \
   --query 'executions | length(@)')
 
@@ -1367,7 +1367,7 @@ echo "Executions after migration: $AFTER"
 
 **Symptom:**
 ```
-Error: State machine not found: aws-drs-orchestration-state-machine-test
+Error: State machine not found: hrp-drs-tech-adapter-state-machine-test
 ```
 
 **Causes:**
@@ -1389,16 +1389,16 @@ for region in us-east-1 us-west-2 eu-west-1; do
   echo "Checking region: $region"
   aws stepfunctions list-state-machines \
     --region $region \
-    --query "stateMachines[?contains(name, 'aws-drs-orchestration')]"
+    --query "stateMachines[?contains(name, 'hrp-drs-tech-adapter')]"
 done
 
 # 3. Verify IAM permissions
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test
 
 # 4. Check CloudFormation stack resources
 aws cloudformation describe-stack-resources \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --query 'StackResources[?ResourceType==`AWS::StepFunctions::StateMachine`]'
 ```
 
@@ -1406,9 +1406,9 @@ aws cloudformation describe-stack-resources \
 
 **Symptom:**
 ```
-AccessDeniedException: User: arn:aws:sts::438465159935:assumed-role/lambda-role/function-name 
+AccessDeniedException: User: arn:aws:sts::891376951562:assumed-role/lambda-role/function-name 
 is not authorized to perform: states:StartExecution on resource: 
-arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test
+arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test
 ```
 
 **Causes:**
@@ -1433,12 +1433,12 @@ lambdaRole.addToPolicy(new iam.PolicyStatement({
 ```bash
 # 3. Verify IAM policy
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-test \
   --policy-name StateMachinePolicy
 
 # 4. Test permissions
 aws stepfunctions start-execution \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --name test-execution-$(date +%s) \
   --input '{}'
 ```
@@ -1460,7 +1460,7 @@ Error: Cannot modify state machine definition for imported state machine
 ```bash
 # Update state machine definition outside CDK
 aws stepfunctions update-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --definition file://updated-definition.json
 ```
 
@@ -1468,7 +1468,7 @@ aws stepfunctions update-state-machine \
 ```typescript
 // Create new state machine with updated definition
 const stateMachineV2 = new sfn.StateMachine(this, 'StateMachineV2', {
-  stateMachineName: 'aws-drs-orchestration-state-machine-v2-test',
+  stateMachineName: 'hrp-drs-tech-adapter-state-machine-v2-test',
   definition: updatedDefinition,
   role: orchestrationRole,
 });
@@ -1484,7 +1484,7 @@ executionHandler.addEnvironment(
 ```bash
 # 1. Export current definition
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --query 'definition' \
   --output text > current-definition.json
 
@@ -1509,17 +1509,17 @@ aws stepfunctions describe-state-machine \
 ```bash
 # 1. Verify state machine ARN hasn't changed
 aws cloudformation describe-stack-resources \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --query 'StackResources[?ResourceType==`AWS::StepFunctions::StateMachine`].PhysicalResourceId'
 
 # 2. List executions with correct ARN
 aws stepfunctions list-executions \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --max-results 100
 
 # 3. Check CloudWatch Logs for execution history
 aws logs filter-log-events \
-  --log-group-name /aws/vendedlogs/states/aws-drs-orchestration-state-machine-test \
+  --log-group-name /aws/vendedlogs/states/hrp-drs-tech-adapter-state-machine-test \
   --start-time $(date -d '7 days ago' +%s)000 \
   --filter-pattern "execution_arn"
 ```
@@ -1534,7 +1534,7 @@ aws logs filter-log-events \
 **Symptom:**
 ```
 States.TaskFailed: Lambda function failed to execute
-AccessDeniedException: User: arn:aws:sts::438465159935:assumed-role/state-machine-role 
+AccessDeniedException: User: arn:aws:sts::891376951562:assumed-role/state-machine-role 
 is not authorized to perform: lambda:InvokeFunction
 ```
 
@@ -1561,11 +1561,11 @@ drOrchestrationLambda.addPermission('AllowStateMachineInvoke', {
 ```bash
 # 3. Verify Lambda resource policy
 aws lambda get-policy \
-  --function-name aws-drs-orchestration-dr-orchestration-lambda-test
+  --function-name hrp-drs-tech-adapter-dr-orchestration-lambda-test
 
 # 4. Verify state machine role permissions
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-test \
   --policy-name LambdaInvokePolicy
 ```
 
@@ -1632,7 +1632,7 @@ aws stepfunctions describe-execution \
 ```typescript
 // 1. Enable logging for new state machines
 const logGroup = new logs.LogGroup(this, 'StateMachineLogGroup', {
-  logGroupName: '/aws/vendedlogs/states/aws-drs-orchestration-state-machine-test',
+  logGroupName: '/aws/vendedlogs/states/hrp-drs-tech-adapter-state-machine-test',
   retention: logs.RetentionDays.ONE_MONTH,
   removalPolicy: cdk.RemovalPolicy.RETAIN,
 });
@@ -1650,13 +1650,13 @@ const stateMachine = new sfn.StateMachine(this, 'StateMachine', {
 ```bash
 # 2. Update logging configuration for existing state machine
 aws stepfunctions update-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --logging-configuration '{
     "level": "ALL",
     "includeExecutionData": true,
     "destinations": [{
       "cloudWatchLogsLogGroup": {
-        "logGroupArn": "arn:aws:logs:us-east-1:438465159935:log-group:/aws/vendedlogs/states/aws-drs-orchestration-state-machine-test:*"
+        "logGroupArn": "arn:aws:logs:us-east-1:891376951562:log-group:/aws/vendedlogs/states/hrp-drs-tech-adapter-state-machine-test:*"
       }
     }]
   }'
@@ -1667,7 +1667,7 @@ aws logs describe-log-groups \
 
 # 4. Check IAM permissions
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-test \
   --policy-name CloudWatchLogsPolicy
 ```
 
@@ -1694,7 +1694,7 @@ aws stepfunctions update-state-machine \
     "Statement": [{
       "Effect": "Allow",
       "Principal": {
-        "AWS": "arn:aws:iam::438465159935:role/target-account-role"
+        "AWS": "arn:aws:iam::891376951562:role/target-account-role"
       },
       "Action": [
         "states:StartExecution",
@@ -1741,15 +1741,15 @@ InvalidArn: State machine ARN format is invalid
 # arn:aws:states:{region}:{account-id}:stateMachine:{state-machine-name}
 
 # Example:
-# arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test
+# arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test
 
 # 1. Get correct ARN
 aws stepfunctions list-state-machines \
-  --query "stateMachines[?name=='aws-drs-orchestration-state-machine-test'].stateMachineArn" \
+  --query "stateMachines[?name=='hrp-drs-tech-adapter-state-machine-test'].stateMachineArn" \
   --output text
 
 # 2. Validate ARN format
-echo "arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test" | \
+echo "arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test" | \
   grep -E '^arn:aws:states:[a-z0-9-]+:[0-9]{12}:stateMachine:[a-zA-Z0-9-_]+$'
 ```
 
@@ -1813,7 +1813,7 @@ If issues persist:
 
 2. **Review CloudWatch Logs:**
    ```bash
-   aws logs tail /aws/vendedlogs/states/aws-drs-orchestration-state-machine-test --follow
+   aws logs tail /aws/vendedlogs/states/hrp-drs-tech-adapter-state-machine-test --follow
    ```
 
 3. **Enable X-Ray Tracing:**
@@ -1844,17 +1844,17 @@ aws stepfunctions list-state-machines \
 
 # Describe specific state machine
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test
 
 # Get state machine definition
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --query 'definition' \
   --output text | jq .
 
 # Get state machine IAM role
 aws stepfunctions describe-state-machine \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --query 'roleArn' \
   --output text
 ```
@@ -1864,13 +1864,13 @@ aws stepfunctions describe-state-machine \
 ```bash
 # Start execution
 aws stepfunctions start-execution \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --name test-execution-$(date +%s) \
   --input '{"planId":"plan-test-123","executionType":"DRILL","waves":[{"waveNumber":1,"servers":["s-1234567890abcdef0"]}]}'
 
 # List recent executions
 aws stepfunctions list-executions \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --max-results 10 \
   --query 'executions[*].{Name:name,Status:status,StartDate:startDate}' \
   --output table
@@ -1900,7 +1900,7 @@ aws stepfunctions stop-execution \
 aws cloudwatch get-metric-statistics \
   --namespace AWS/States \
   --metric-name ExecutionsFailed \
-  --dimensions Name=StateMachineArn,Value=arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --dimensions Name=StateMachineArn,Value=arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
   --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
   --period 300 \
@@ -1910,18 +1910,18 @@ aws cloudwatch get-metric-statistics \
 aws cloudwatch get-metric-statistics \
   --namespace AWS/States \
   --metric-name ExecutionTime \
-  --dimensions Name=StateMachineArn,Value=arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --dimensions Name=StateMachineArn,Value=arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
   --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
   --period 300 \
   --statistics Average,Maximum
 
 # View CloudWatch Logs
-aws logs tail /aws/vendedlogs/states/aws-drs-orchestration-state-machine-test --follow
+aws logs tail /aws/vendedlogs/states/hrp-drs-tech-adapter-state-machine-test --follow
 
 # Filter logs for specific execution
 aws logs filter-log-events \
-  --log-group-name /aws/vendedlogs/states/aws-drs-orchestration-state-machine-test \
+  --log-group-name /aws/vendedlogs/states/hrp-drs-tech-adapter-state-machine-test \
   --filter-pattern "<execution-arn>"
 ```
 
@@ -1930,23 +1930,23 @@ aws logs filter-log-events \
 ```bash
 # Check Lambda function policy
 aws lambda get-policy \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-test \
   | jq .
 
 # Check state machine role permissions
 aws iam get-role \
-  --role-name aws-drs-orchestration-orchestration-role-test
+  --role-name hrp-drs-tech-adapter-orchestration-role-test
 
 aws iam list-role-policies \
-  --role-name aws-drs-orchestration-orchestration-role-test
+  --role-name hrp-drs-tech-adapter-orchestration-role-test
 
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-orchestration-role-test \
+  --role-name hrp-drs-tech-adapter-orchestration-role-test \
   --policy-name <policy-name>
 
 # Test permissions with dry-run
 aws stepfunctions start-execution \
-  --state-machine-arn arn:aws:states:us-east-1:438465159935:stateMachine:aws-drs-orchestration-state-machine-test \
+  --state-machine-arn arn:aws:states:us-east-1:891376951562:stateMachine:hrp-drs-tech-adapter-state-machine-test \
   --name dry-run-test-$(date +%s) \
   --input '{}' \
   --dry-run

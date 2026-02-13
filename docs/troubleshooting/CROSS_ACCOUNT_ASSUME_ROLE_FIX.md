@@ -94,8 +94,8 @@ AssumeRolePolicyDocument:
 
 ## Why This Happens
 
-1. Lambda function runs with execution role: `arn:aws:iam::777788889999:role/aws-drs-orchestration-orchestration-role-test`
-2. When Lambda calls `sts:AssumeRole`, it creates a session: `arn:aws:sts::777788889999:assumed-role/aws-drs-orchestration-orchestration-role-test/test-drs-query`
+1. Lambda function runs with execution role: `arn:aws:iam::777788889999:role/hrp-drs-tech-adapter-orchestration-role-dev`
+2. When Lambda calls `sts:AssumeRole`, it creates a session: `arn:aws:sts::777788889999:assumed-role/hrp-drs-tech-adapter-orchestration-role-dev/test-drs-query`
 3. The cross-account role's trust policy checks if this session is allowed
 4. Current policy only allows `arn:aws:iam::777788889999:root`, not assumed role sessions
 5. AssumeRole fails with AccessDenied
@@ -183,7 +183,7 @@ aws cloudformation deploy \
 
 ```bash
 aws dynamodb get-item \
-  --table-name aws-drs-orchestration-protection-groups-test \
+  --table-name hrp-drs-tech-adapter-protection-groups-dev \
   --key '{"groupId": {"S": "your-pg-id"}}'
 ```
 
@@ -220,7 +220,7 @@ EXTERNAL_ID=$(aws cloudformation describe-stacks \
 
 # Add to TARGET_ACCOUNTS_TABLE
 aws dynamodb put-item \
-  --table-name aws-drs-orchestration-target-accounts-test \
+  --table-name hrp-drs-tech-adapter-target-accounts-dev \
   --item "{
     \"accountId\": {\"S\": \"${TARGET_ACCOUNT}\"},
     \"assumeRoleName\": {\"S\": \"DRSOrchestrationRole\"},

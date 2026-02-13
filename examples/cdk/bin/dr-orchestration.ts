@@ -28,7 +28,7 @@ const app = new cdk.App();
 
 // Get configuration from CDK context or environment variables
 const environment = app.node.tryGetContext('environment') || process.env.ENVIRONMENT || 'dev';
-const projectName = app.node.tryGetContext('projectName') || process.env.PROJECT_NAME || 'aws-drs-orchestration';
+const projectName = app.node.tryGetContext('projectName') || process.env.PROJECT_NAME || 'hrp-drs-tech-adapter';
 const adminEmail = app.node.tryGetContext('adminEmail') || process.env.ADMIN_EMAIL || 'admin@example.com';
 
 // Create the DR Orchestration stack

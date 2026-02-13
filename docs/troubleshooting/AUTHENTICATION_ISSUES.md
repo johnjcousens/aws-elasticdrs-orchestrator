@@ -127,14 +127,14 @@ Check API Gateway configuration:
 ```bash
 # Get User Pool ID from CloudFormation
 aws cloudformation describe-stacks \
-  --stack-name aws-elasticdrs-orchestrator-api-auth-dev \
+  --stack-name hrp-drs-tech-adapter-api-auth-dev \
   --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
   --output text
 
 # Verify API Gateway authorizer
 aws apigateway get-authorizers \
   --rest-api-id <API_ID> \
-  --query 'items[?name==`aws-elasticdrs-orchestrator-cognito-authorizer-dev`]'
+  --query 'items[?name==`hrp-drs-tech-adapter-cognito-authorizer-dev`]'
 ```
 
 Verify:

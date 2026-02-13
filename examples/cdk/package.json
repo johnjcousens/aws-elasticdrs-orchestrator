@@ -1,5 +1,5 @@
 {
-  "name": "aws-drs-orchestration-cdk-example",
+  "name": "hrp-drs-tech-adapter-cdk-example",
   "version": "1.0.0",
   "description": "AWS CDK example for deploying AWS DRS Orchestration Platform in headless mode",
   "main": "lib/dr-orchestration-stack.js",

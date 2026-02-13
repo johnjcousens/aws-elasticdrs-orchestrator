@@ -359,21 +359,21 @@ Routes to **Data Management Handler**:
 ### Lambda Functions
 
 ```
-aws-drs-orchestration-query-handler-dev
+hrp-drs-tech-adapter-query-handler-dev
 ├── Runtime: python3.12
 ├── Memory: 256 MB
 ├── Timeout: 60 seconds
 ├── Package: query-handler.zip (43.2 KB)
 └── IAM Role: UnifiedOrchestrationRole
 
-aws-drs-orchestration-execution-handler-dev
+hrp-drs-tech-adapter-execution-handler-dev
 ├── Runtime: python3.12
 ├── Memory: 512 MB
 ├── Timeout: 300 seconds
 ├── Package: execution-handler.zip (~85 KB)
 └── IAM Role: UnifiedOrchestrationRole
 
-aws-drs-orchestration-data-management-handler-dev
+hrp-drs-tech-adapter-data-management-handler-dev
 ├── Runtime: python3.12
 ├── Memory: 512 MB
 ├── Timeout: 120 seconds
@@ -384,7 +384,7 @@ aws-drs-orchestration-data-management-handler-dev
 ### API Gateway
 
 ```
-REST API: aws-drs-orchestration-dev
+REST API: hrp-drs-tech-adapter-dev
 ├── Stage: dev
 ├── Endpoint: https://g0ojnzzfh1.execute-api.us-east-1.amazonaws.com/dev
 ├── Authorizer: Cognito User Pool
@@ -509,9 +509,9 @@ pytest tests/e2e/ -v
 ### CloudWatch Logs
 
 **Log Groups**:
-- `/aws/lambda/aws-drs-orchestration-query-handler-dev`
-- `/aws/lambda/aws-drs-orchestration-execution-handler-dev`
-- `/aws/lambda/aws-drs-orchestration-data-management-handler-dev`
+- `/aws/lambda/hrp-drs-tech-adapter-query-handler-dev`
+- `/aws/lambda/hrp-drs-tech-adapter-execution-handler-dev`
+- `/aws/lambda/hrp-drs-tech-adapter-data-management-handler-dev`
 
 **Log Insights Queries**:
 ```sql

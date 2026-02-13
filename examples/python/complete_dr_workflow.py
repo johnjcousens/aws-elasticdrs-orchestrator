@@ -62,7 +62,7 @@ class DROrchestrationClient:
         self.environment = environment
         self.region = region
         self.lambda_client = boto3.client('lambda', region_name=region)
-        self.project_name = 'aws-drs-orchestration'
+        self.project_name = 'hrp-drs-tech-adapter'
         
         # Function names
         self.query_handler = f'{self.project_name}-query-handler-{environment}'

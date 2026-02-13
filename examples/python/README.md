@@ -59,9 +59,9 @@ Your IAM principal (user, role, or service) needs permission to invoke the DRS O
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
       "Resource": [
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-query-handler-*",
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-execution-handler-*",
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-data-management-handler-*"
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-query-handler-*",
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-execution-handler-*",
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-data-management-handler-*"
       ]
     }
   ]
@@ -337,7 +337,7 @@ import json
 
 client = boto3.client('lambda', region_name='us-east-1')
 response = client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-test',
     Payload=json.dumps({"operation": "list_recovery_plans"})
 )
 
@@ -359,7 +359,7 @@ def lambda_handler(event, context):
     
     # Start DR drill
     response = lambda_client.invoke(
-        FunctionName='aws-drs-orchestration-execution-handler-prod',
+        FunctionName='hrp-drs-tech-adapter-execution-handler-prod',
         InvocationType='RequestResponse',
         Payload=json.dumps({
             "operation": "start_execution",
@@ -395,7 +395,7 @@ def lambda_handler(event, context):
 
 ```bash
 aws lambda get-policy \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --query 'Policy' --output text | jq .
 ```
 

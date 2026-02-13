@@ -87,7 +87,7 @@ make security-scan
 If you discover a security vulnerability, please report it responsibly:
 
 ### Preferred Method: GitHub Security Advisories
-1. Go to the [Security tab](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/security/advisories)
+1. Go to the [Security tab](https://github.com/johnjcousens/hrp-drs-tech-adapter/security/advisories)
 2. Click "Report a vulnerability"
 3. Provide detailed information about the vulnerability
 4. Allow reasonable time for investigation and remediation
@@ -154,9 +154,9 @@ If you discover a security vulnerability, please report it responsibly:
 
 ## Contact Information
 
-- **Security Issues**: Use [GitHub Security Advisories](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/security/advisories)
-- **General Issues**: [GitHub Issues](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/issues)
-- **Project Repository**: [github.com/johnjcousens/aws-elasticdrs-orchestrator](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
+- **Security Issues**: Use [GitHub Security Advisories](https://github.com/johnjcousens/hrp-drs-tech-adapter/security/advisories)
+- **General Issues**: [GitHub Issues](https://github.com/johnjcousens/hrp-drs-tech-adapter/issues)
+- **Project Repository**: [github.com/johnjcousens/hrp-drs-tech-adapter](https://github.com/johnjcousens/hrp-drs-tech-adapter)
 
 ## Acknowledgments
 

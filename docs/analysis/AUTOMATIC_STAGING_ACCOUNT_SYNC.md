@@ -146,11 +146,11 @@ This will:
 **CloudWatch Logs:**
 ```bash
 # View sync logs
-aws logs tail /aws/lambda/aws-drs-orchestration-query-handler-test --follow
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-query-handler-dev --follow
 
 # Filter for sync operations
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-query-handler-test \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-query-handler-dev \
   --filter-pattern "staging account sync"
 ```
 
@@ -158,13 +158,13 @@ aws logs filter-log-events \
 ```bash
 # Check if rule is enabled
 aws events describe-rule \
-  --name aws-drs-orchestration-staging-account-sync-test
+  --name hrp-drs-tech-adapter-staging-account-sync-dev
 
 # View recent invocations
 aws cloudwatch get-metric-statistics \
   --namespace AWS/Events \
   --metric-name Invocations \
-  --dimensions Name=RuleName,Value=aws-drs-orchestration-staging-account-sync-test \
+  --dimensions Name=RuleName,Value=hrp-drs-tech-adapter-staging-account-sync-dev \
   --start-time $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) \
   --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ) \
   --period 900 \
@@ -178,7 +178,7 @@ To disable automatic sync:
 ```bash
 # Update stack with sync disabled
 aws cloudformation update-stack \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-dev \
   --use-previous-template \
   --parameters ParameterKey=EnableStagingAccountSync,ParameterValue=false \
   --capabilities CAPABILITY_NAMED_IAM
@@ -188,7 +188,7 @@ Or disable the EventBridge rule directly:
 
 ```bash
 aws events disable-rule \
-  --name aws-drs-orchestration-staging-account-sync-test
+  --name hrp-drs-tech-adapter-staging-account-sync-dev
 ```
 
 ## Testing
@@ -197,7 +197,7 @@ aws events disable-rule \
 ```bash
 # Invoke sync operation directly
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation": "sync_staging_accounts"}' \
   response.json
 

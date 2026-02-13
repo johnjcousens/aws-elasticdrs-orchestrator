@@ -178,7 +178,7 @@ curl -X GET "https://your-api-gateway-url/export" \
 **Using Direct Invocation (new method)**:
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"export_configuration"}' \
   config-backup-$(date +%Y%m%d).json
 ```
@@ -189,11 +189,11 @@ Create an inventory of all systems using the API:
 
 ```bash
 # List all API Gateway integrations
-aws apigateway get-rest-apis --query 'items[?name==`aws-drs-orchestration-api-test`]'
+aws apigateway get-rest-apis --query 'items[?name==`hrp-drs-tech-adapter-api-dev`]'
 
 # Check CloudWatch Logs for API usage patterns
 aws logs filter-log-events \
-  --log-group-name /aws/apigateway/aws-drs-orchestration-api-test \
+  --log-group-name /aws/apigateway/hrp-drs-tech-adapter-api-dev \
   --start-time $(date -d '30 days ago' +%s)000 \
   --filter-pattern '[ip, user, timestamp, request, status_code = 2*, ...]'
 ```
@@ -258,7 +258,7 @@ Test basic operations using direct invocation:
 ```bash
 # Test query operation
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-dev \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_target_accounts"}' \
   response.json
 
@@ -275,13 +275,13 @@ Update your stack to support both modes:
 
 ```bash
 aws cloudformation update-stack \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-dev \
   --template-url https://s3.amazonaws.com/your-bucket/cfn/master-template.yaml \
   --parameters \
-    ParameterKey=ProjectName,ParameterValue=aws-drs-orchestration \
+    ParameterKey=ProjectName,ParameterValue=hrp-drs-tech-adapter \
     ParameterKey=Environment,ParameterValue=test \
     ParameterKey=DeployApiGateway,ParameterValue=true \
-    ParameterKey=DeploymentBucket,ParameterValue=aws-drs-orchestration-test \
+    ParameterKey=DeploymentBucket,ParameterValue=hrp-drs-tech-adapter-dev \
     ParameterKey=AdminEmail,ParameterValue=admin@example.com \
   --capabilities CAPABILITY_NAMED_IAM
 ```
@@ -295,17 +295,17 @@ The CloudFormation update automatically adds resource-based policies to Lambda f
 ```bash
 # Check query-handler policy
 aws lambda get-policy \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   | jq -r '.Policy' | jq .
 
 # Check execution-handler policy
 aws lambda get-policy \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-dev \
   | jq -r '.Policy' | jq .
 
 # Check data-management-handler policy
 aws lambda get-policy \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   | jq -r '.Policy' | jq .
 ```
 
@@ -314,10 +314,10 @@ Expected policy statement:
 {
   "Effect": "Allow",
   "Principal": {
-    "AWS": "arn:aws:iam::YOUR_ACCOUNT_ID:role/aws-drs-orchestration-orchestration-role-test"
+    "AWS": "arn:aws:iam::YOUR_ACCOUNT_ID:role/hrp-drs-tech-adapter-orchestration-role-dev"
   },
   "Action": "lambda:InvokeFunction",
-  "Resource": "arn:aws:lambda:us-east-1:YOUR_ACCOUNT_ID:function:aws-drs-orchestration-query-handler-test"
+  "Resource": "arn:aws:lambda:us-east-1:YOUR_ACCOUNT_ID:function:hrp-drs-tech-adapter-query-handler-dev"
 }
 ```
 
@@ -355,7 +355,7 @@ lambda_client = boto3.client('lambda')
 
 # Invoke Lambda directly
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "list_protection_groups"
@@ -388,7 +388,7 @@ Update your CI/CD pipelines to use direct invocation:
 - name: Trigger DR Drill
   run: |
     aws lambda invoke \
-      --function-name aws-drs-orchestration-execution-handler-test \
+      --function-name hrp-drs-tech-adapter-execution-handler-dev \
       --payload '{"operation":"start_execution","parameters":{"planId":"uuid","executionType":"DRILL","initiatedBy":"github-actions"}}' \
       response.json
     cat response.json
@@ -406,7 +406,7 @@ curl -X GET "https://api-gateway-url/protection-groups" \
 
 # Test with direct invocation
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"list_protection_groups"}' \
   direct-invocation-result.json
 
@@ -426,7 +426,7 @@ Before removing API Gateway, validate all operations work via direct invocation:
 #!/bin/bash
 # validate-direct-invocation.sh
 
-FUNCTION_PREFIX="aws-drs-orchestration"
+FUNCTION_PREFIX="hrp-drs-tech-adapter"
 ENV="test"
 
 echo "=== Validating Direct Lambda Invocation ==="
@@ -464,13 +464,13 @@ Update CloudFormation stack to disable API Gateway:
 
 ```bash
 aws cloudformation update-stack \
-  --stack-name aws-drs-orchestration-test \
-  --template-url https://s3.amazonaws.com/aws-drs-orchestration-test/cfn/master-template.yaml \
+  --stack-name hrp-drs-tech-adapter-dev \
+  --template-url https://s3.amazonaws.com/hrp-drs-tech-adapter-dev/cfn/master-template.yaml \
   --parameters \
-    ParameterKey=ProjectName,ParameterValue=aws-drs-orchestration \
+    ParameterKey=ProjectName,ParameterValue=hrp-drs-tech-adapter \
     ParameterKey=Environment,ParameterValue=test \
     ParameterKey=DeployApiGateway,ParameterValue=false \
-    ParameterKey=DeploymentBucket,ParameterValue=aws-drs-orchestration-test \
+    ParameterKey=DeploymentBucket,ParameterValue=hrp-drs-tech-adapter-dev \
     ParameterKey=AdminEmail,ParameterValue=admin@example.com \
   --capabilities CAPABILITY_NAMED_IAM
 ```
@@ -496,18 +496,18 @@ Monitor the stack update:
 ```bash
 # Watch stack events
 aws cloudformation describe-stack-events \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-dev \
   --max-items 20 \
   --query 'StackEvents[*].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' \
   --output table
 
 # Wait for completion
 aws cloudformation wait stack-update-complete \
-  --stack-name aws-drs-orchestration-test
+  --stack-name hrp-drs-tech-adapter-dev
 
 # Verify final status
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query 'Stacks[0].StackStatus'
 ```
 
@@ -567,7 +567,7 @@ lambda_client = boto3.client('lambda')
 
 # Invoke Lambda directly (IAM authentication automatic)
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "list_protection_groups"
@@ -602,7 +602,7 @@ aws lambda invoke ...
 
 # No credentials needed in code - automatic from instance metadata
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"list_protection_groups"}' \
   response.json
 ```
@@ -643,7 +643,7 @@ lambda_client = boto3.client(
 
 # Invoke Lambda
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({"operation": "list_protection_groups"})
 )
@@ -671,7 +671,7 @@ cognito.authenticate(password='password')
 # Call API
 headers = {"Authorization": f"Bearer {cognito.id_token}"}
 response = requests.get(
-    "https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test/protection-groups",
+    "https://cbpdf7d52d.execute-api.us-east-2.amazonaws.com/dev/protection-groups",
     headers=headers
 )
 
@@ -691,7 +691,7 @@ lambda_client = boto3.client('lambda', region_name='us-east-1')
 
 # Invoke Lambda
 response = lambda_client.invoke(
-    FunctionName='aws-drs-orchestration-query-handler-test',
+    FunctionName='hrp-drs-tech-adapter-query-handler-dev',
     InvocationType='RequestResponse',
     Payload=json.dumps({
         "operation": "list_protection_groups"
@@ -724,7 +724,7 @@ TOKEN=$(curl -X POST https://cognito-idp.us-east-1.amazonaws.com/ \
   }' | jq -r '.AuthenticationResult.IdToken')
 
 # Start execution
-curl -X POST https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test/executions \
+curl -X POST https://cbpdf7d52d.execute-api.us-east-2.amazonaws.com/dev/executions \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -740,7 +740,7 @@ curl -X POST https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test/executi
 
 # Start execution (AWS credentials from environment/profile)
 aws lambda invoke \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-dev \
   --payload '{
     "operation": "start_execution",
     "parameters": {
@@ -778,7 +778,7 @@ const token = authResult.AuthenticationResult.IdToken;
 
 // Create protection group
 const response = await axios.post(
-  'https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test/protection-groups',
+  'https://cbpdf7d52d.execute-api.us-east-2.amazonaws.com/dev/protection-groups',
   {
     name: 'Production Servers',
     region: 'us-east-1',
@@ -805,7 +805,7 @@ const lambda = new AWS.Lambda({ region: 'us-east-1' });
 
 // Invoke Lambda
 const response = await lambda.invoke({
-  FunctionName: 'aws-drs-orchestration-data-management-handler-test',
+  FunctionName: 'hrp-drs-tech-adapter-data-management-handler-dev',
   InvocationType: 'RequestResponse',
   Payload: JSON.stringify({
     operation: 'create_protection_group',
@@ -833,13 +833,13 @@ console.log('Created:', result.groupId);
 
 ```bash
 aws cloudformation create-stack \
-  --stack-name aws-drs-orchestration-test \
-  --template-url https://s3.amazonaws.com/aws-drs-orchestration-test/cfn/master-template.yaml \
+  --stack-name hrp-drs-tech-adapter-dev \
+  --template-url https://s3.amazonaws.com/hrp-drs-tech-adapter-dev/cfn/master-template.yaml \
   --parameters \
-    ParameterKey=ProjectName,ParameterValue=aws-drs-orchestration \
+    ParameterKey=ProjectName,ParameterValue=hrp-drs-tech-adapter \
     ParameterKey=Environment,ParameterValue=test \
     ParameterKey=DeployApiGateway,ParameterValue=true \
-    ParameterKey=DeploymentBucket,ParameterValue=aws-drs-orchestration-test \
+    ParameterKey=DeploymentBucket,ParameterValue=hrp-drs-tech-adapter-dev \
     ParameterKey=AdminEmail,ParameterValue=admin@example.com \
   --capabilities CAPABILITY_NAMED_IAM \
   --tags \
@@ -866,13 +866,13 @@ aws cloudformation create-stack \
 
 ```bash
 aws cloudformation create-stack \
-  --stack-name aws-drs-orchestration-test \
-  --template-url https://s3.amazonaws.com/aws-drs-orchestration-test/cfn/master-template.yaml \
+  --stack-name hrp-drs-tech-adapter-dev \
+  --template-url https://s3.amazonaws.com/hrp-drs-tech-adapter-dev/cfn/master-template.yaml \
   --parameters \
-    ParameterKey=ProjectName,ParameterValue=aws-drs-orchestration \
+    ParameterKey=ProjectName,ParameterValue=hrp-drs-tech-adapter \
     ParameterKey=Environment,ParameterValue=test \
     ParameterKey=DeployApiGateway,ParameterValue=false \
-    ParameterKey=DeploymentBucket,ParameterValue=aws-drs-orchestration-test \
+    ParameterKey=DeploymentBucket,ParameterValue=hrp-drs-tech-adapter-dev \
     ParameterKey=AdminEmail,ParameterValue=admin@example.com \
   --capabilities CAPABILITY_NAMED_IAM \
   --tags \
@@ -912,8 +912,8 @@ To migrate an existing stack from Full Mode to Headless Mode:
 ```bash
 # Update stack with DeployApiGateway=false
 aws cloudformation update-stack \
-  --stack-name aws-drs-orchestration-test \
-  --template-url https://s3.amazonaws.com/aws-drs-orchestration-test/cfn/master-template.yaml \
+  --stack-name hrp-drs-tech-adapter-dev \
+  --template-url https://s3.amazonaws.com/hrp-drs-tech-adapter-dev/cfn/master-template.yaml \
   --parameters \
     ParameterKey=ProjectName,UsePreviousValue=true \
     ParameterKey=Environment,UsePreviousValue=true \
@@ -924,7 +924,7 @@ aws cloudformation update-stack \
 
 # Monitor update progress
 aws cloudformation wait stack-update-complete \
-  --stack-name aws-drs-orchestration-test
+  --stack-name hrp-drs-tech-adapter-dev
 ```
 
 **What Happens During Update**:
@@ -961,7 +961,7 @@ class DirectInvocationValidator:
     def __init__(self, environment='test'):
         self.lambda_client = boto3.client('lambda', region_name='us-east-1')
         self.environment = environment
-        self.project = 'aws-drs-orchestration'
+        self.project = 'hrp-drs-tech-adapter'
         self.passed = 0
         self.failed = 0
         
@@ -1146,8 +1146,8 @@ If you need to restore API Gateway after removing it:
 ```bash
 # Step 1: Update CloudFormation stack to re-enable API Gateway
 aws cloudformation update-stack \
-  --stack-name aws-drs-orchestration-test \
-  --template-url https://s3.amazonaws.com/aws-drs-orchestration-test/cfn/master-template.yaml \
+  --stack-name hrp-drs-tech-adapter-dev \
+  --template-url https://s3.amazonaws.com/hrp-drs-tech-adapter-dev/cfn/master-template.yaml \
   --parameters \
     ParameterKey=ProjectName,UsePreviousValue=true \
     ParameterKey=Environment,UsePreviousValue=true \
@@ -1158,11 +1158,11 @@ aws cloudformation update-stack \
 
 # Step 2: Wait for stack update to complete
 aws cloudformation wait stack-update-complete \
-  --stack-name aws-drs-orchestration-test
+  --stack-name hrp-drs-tech-adapter-dev
 
 # Step 3: Verify API Gateway is accessible
 API_URL=$(aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
   --output text)
 
@@ -1193,7 +1193,7 @@ If critical issues require immediate rollback:
 
 set -e
 
-STACK_NAME="aws-drs-orchestration-test"
+STACK_NAME="hrp-drs-tech-adapter-dev"
 BACKUP_DATE=$(date +%Y%m%d-%H%M%S)
 
 echo "=== Emergency Rollback Started ==="
@@ -1202,7 +1202,7 @@ echo "Timestamp: $BACKUP_DATE"
 # Step 1: Export current configuration
 echo "Step 1: Backing up current configuration..."
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"export_configuration"}' \
   "config-backup-${BACKUP_DATE}.json"
 
@@ -1258,7 +1258,7 @@ After rollback, verify:
 ```
 An error occurred (AccessDeniedException) when calling the Invoke operation: 
 User: arn:aws:iam::123456789012:user/automation is not authorized to perform: 
-lambda:InvokeFunction on resource: arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-query-handler-test
+lambda:InvokeFunction on resource: arn:aws:lambda:us-east-1:123456789012:function:hrp-drs-tech-adapter-query-handler-dev
 ```
 
 **Solution**:
@@ -1273,7 +1273,7 @@ cat > lambda-invoke-policy.json << 'EOF'
     {
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
-      "Resource": "arn:aws:lambda:*:*:function:aws-drs-orchestration-*"
+      "Resource": "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-*"
     }
   ]
 }
@@ -1310,13 +1310,13 @@ Ensure your payload includes the `operation` field:
 ```bash
 # ❌ Wrong - missing operation field
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"queryParams":{"region":"us-east-1"}}' \
   response.json
 
 # ✅ Correct - includes operation field
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"get_target_accounts"}' \
   response.json
 ```
@@ -1372,7 +1372,7 @@ Delete API Gateway deployments manually before stack update:
 ```bash
 # Get API Gateway ID
 API_ID=$(aws cloudformation describe-stack-resources \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-dev \
   --logical-resource-id ApiGateway \
   --query 'StackResources[0].PhysicalResourceId' \
   --output text)
@@ -1383,7 +1383,7 @@ aws apigateway get-deployments --rest-api-id $API_ID \
   xargs -I {} aws apigateway delete-deployment --rest-api-id $API_ID --deployment-id {}
 
 # Retry stack update
-aws cloudformation update-stack --stack-name aws-drs-orchestration-test ...
+aws cloudformation update-stack --stack-name hrp-drs-tech-adapter-dev ...
 ```
 
 ---
@@ -1448,7 +1448,7 @@ aws iam get-role \
 #   "Statement": [{
 #     "Effect": "Allow",
 #     "Principal": {
-#       "AWS": "arn:aws:iam::ORCHESTRATION_ACCOUNT:role/aws-drs-orchestration-orchestration-role-test"
+#       "AWS": "arn:aws:iam::ORCHESTRATION_ACCOUNT:role/hrp-drs-tech-adapter-orchestration-role-dev"
 #     },
 #     "Action": "sts:AssumeRole"
 #   }]
@@ -1525,8 +1525,8 @@ Grant only the minimum permissions required:
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
       "Resource": [
-        "arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-query-handler-test",
-        "arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-execution-handler-test"
+        "arn:aws:lambda:us-east-1:123456789012:function:hrp-drs-tech-adapter-query-handler-dev",
+        "arn:aws:lambda:us-east-1:123456789012:function:hrp-drs-tech-adapter-execution-handler-dev"
       ]
     }
   ]
@@ -1576,7 +1576,7 @@ aws cloudtrail put-event-selectors \
     "IncludeManagementEvents": true,
     "DataResources": [{
       "Type": "AWS::Lambda::Function",
-      "Values": ["arn:aws:lambda:*:*:function:aws-drs-orchestration-*"]
+      "Values": ["arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-*"]
     }]
   }]'
 ```
@@ -1592,7 +1592,7 @@ Require MFA for production operations:
     {
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
-      "Resource": "arn:aws:lambda:*:*:function:aws-drs-orchestration-*-prod",
+      "Resource": "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-*-prod",
       "Condition": {
         "Bool": {
           "aws:MultiFactorAuthPresent": "true"
@@ -1620,13 +1620,13 @@ All Lambda invocations are automatically logged to CloudWatch Logs with:
 ```bash
 # Search for specific user's invocations
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-query-handler-test \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-query-handler-dev \
   --filter-pattern '{ $.principal.arn = "arn:aws:iam::123456789012:user/automation" }' \
   --start-time $(date -d '7 days ago' +%s)000
 
 # Search for failed operations
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-execution-handler-test \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-execution-handler-dev \
   --filter-pattern '{ $.result = "ERROR" }' \
   --start-time $(date -d '24 hours ago' +%s)000
 ```
@@ -1647,7 +1647,7 @@ aws cloudwatch put-metric-alarm \
   --evaluation-periods 2 \
   --threshold 10 \
   --comparison-operator GreaterThanThreshold \
-  --dimensions Name=FunctionName,Value=aws-drs-orchestration-execution-handler-test
+  --dimensions Name=FunctionName,Value=hrp-drs-tech-adapter-execution-handler-dev
 ```
 
 

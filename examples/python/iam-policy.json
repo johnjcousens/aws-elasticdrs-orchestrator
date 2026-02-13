@@ -6,9 +6,9 @@
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
       "Resource": [
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-query-handler-*",
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-execution-handler-*",
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-data-management-handler-*"
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-query-handler-*",
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-execution-handler-*",
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-data-management-handler-*"
       ],
       "Condition": {
         "StringEquals": {

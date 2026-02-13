@@ -157,7 +157,7 @@ aws cloudformation describe-stacks \
   --query 'Stacks[0].StackStatus'
 
 # Check S3 artifacts are current
-aws s3 ls s3://aws-drs-orchestration/lambda/ --region us-east-1
+aws s3 ls s3://hrp-drs-tech-adapter/lambda/ --region us-east-1
 
 # Test API endpoint
 API_ENDPOINT=$(aws cloudformation describe-stacks \

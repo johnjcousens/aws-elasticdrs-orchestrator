@@ -65,7 +65,7 @@
 
 ### Expected UI Behavior
 
-The System Status page at https://d319nadlgk4oj.cloudfront.net should now display all three gauges in the "DRS Job Limits" section:
+The System Status page at https://d1kqe40a9vwn47.cloudfront.net should now display all three gauges in the "DRS Job Limits" section:
 
 1. **Concurrent Jobs**: 0/20 (0%)
 2. **Servers in Jobs**: 0/500 (0%)

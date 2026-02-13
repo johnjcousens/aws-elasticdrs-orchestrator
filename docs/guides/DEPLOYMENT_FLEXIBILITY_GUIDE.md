@@ -55,12 +55,12 @@ This guide covers:
 # Default deployment (no parameter overrides needed)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev
+    DeploymentBucket=hrp-drs-tech-adapter-dev
 ```
 
 **Benefits:**
@@ -97,12 +97,12 @@ aws cloudformation deploy \
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev \
+    DeploymentBucket=hrp-drs-tech-adapter-dev \
     DeployFrontend=false
 ```
 
@@ -181,12 +181,12 @@ result = json.loads(response['Payload'].read())
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-lambda-only \
+  --stack-name hrp-drs-tech-adapter-lambda-only \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev \
+    DeploymentBucket=hrp-drs-tech-adapter-dev \
     OrchestrationRoleArn=arn:aws:iam::ACCOUNT_ID:role/ExternalOrchestrationRole \
     DynamoDBTableArns=arn:aws:dynamodb:REGION:ACCOUNT_ID:table/protection-groups,arn:aws:dynamodb:REGION:ACCOUNT_ID:table/recovery-plans,arn:aws:dynamodb:REGION:ACCOUNT_ID:table/execution-history,arn:aws:dynamodb:REGION:ACCOUNT_ID:table/target-accounts \
     StateMachineArn=arn:aws:states:REGION:ACCOUNT_ID:stateMachine:drs-orchestration \
@@ -358,12 +358,12 @@ If you have an existing deployment with individual IAM roles per Lambda, you can
 # Update stack with unified role (no parameter overrides needed)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev
+    DeploymentBucket=hrp-drs-tech-adapter-dev
 ```
 
 **Migration Timeline:**
@@ -532,12 +532,12 @@ If frontend is needed, update stack with DeployFrontend='true':
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev \
+    DeploymentBucket=hrp-drs-tech-adapter-dev \
     DeployFrontend=true
 ```
 
@@ -555,7 +555,7 @@ Migration failed (e.g., permission issue, resource limit).
 1. Check CloudFormation events:
 ```bash
 aws cloudformation describe-stack-events \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --max-items 20
 ```
 
@@ -565,12 +565,12 @@ aws cloudformation describe-stack-events \
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    DeploymentBucket=aws-drs-orchestration-dev
+    DeploymentBucket=hrp-drs-tech-adapter-dev
 ```
 
 **Note:** Stack automatically returns to previous state (individual roles) on rollback.
@@ -593,7 +593,7 @@ Cognito authentication not configured correctly.
 **Get Stack Outputs:**
 ```bash
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query 'Stacks[0].Outputs'
 ```
 

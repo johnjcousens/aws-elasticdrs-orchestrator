@@ -277,14 +277,14 @@ echo "Validating Terminate Button Infrastructure..."
 # Check API Gateway resources
 echo "✓ Checking API Gateway resources..."
 aws cloudformation describe-stack-resources \
-  --stack-name aws-elasticdrs-orchestrator-test \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query "StackResources[?contains(LogicalResourceId, 'RecoveryInstances')].LogicalResourceId" \
   --output table
 
 # Check Lambda permissions
 echo "✓ Checking Lambda IAM permissions..."
 LAMBDA_ROLE=$(aws cloudformation describe-stacks \
-  --stack-name aws-elasticdrs-orchestrator-test \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query "Stacks[0].Outputs[?OutputKey=='ApiHandlerRoleArn'].OutputValue" \
   --output text)
 

@@ -2,7 +2,7 @@
 
 **Date**: February 1, 2026  
 **Status**: ✅ RESOLVED  
-**Environment**: test (aws-drs-orchestration-test)
+**Environment**: test (hrp-drs-tech-adapter-dev)
 
 ## Issue Summary
 
@@ -136,16 +136,16 @@ git commit -m "fix: Recovery Capacity now counts total servers (replicating + ex
 
 1. **Check Lambda logs** for correct calculation:
    ```bash
-   AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestration-query-handler-test --since 5m
+   AWS_PAGER="" aws logs tail /aws/lambda/hrp-drs-tech-adapter-query-handler-dev --since 5m
    ```
 
 2. **Test API endpoint**:
    ```bash
    curl -H "Authorization: Bearer $TOKEN" \
-     "https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test/accounts/targets/111122223333/capacity"
+     "https://cbpdf7d52d.execute-api.us-east-2.amazonaws.com/dev/accounts/targets/111122223333/capacity"
    ```
 
-3. **Verify UI** at https://d319nadlgk4oj.cloudfront.net:
+3. **Verify UI** at https://d1kqe40a9vwn47.cloudfront.net:
    - Recovery Capacity should show 12 / 4000
    - Max Servers Per Job gauge should be visible (with debug logs in console)
 

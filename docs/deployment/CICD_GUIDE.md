@@ -40,10 +40,10 @@ source .venv/bin/activate
 | Component | Value | Purpose |
 |-----------|-------|---------|
 | **Deploy Script** | `./scripts/deploy.sh` | Unified deployment orchestration |
-| **Project Name** | `aws-drs-orchestration` | Standardized project naming |
+| **Project Name** | `hrp-drs-tech-adapter` | Standardized project naming |
 | **Environment** | `dev` | Current development environment |
-| **Stack Name** | `aws-drs-orchestration-dev` | Active CloudFormation stack |
-| **Deployment Bucket** | `aws-drs-orchestration-dev` | Artifact storage with versioning |
+| **Stack Name** | `hrp-drs-tech-adapter-dev` | Active CloudFormation stack |
+| **Deployment Bucket** | `hrp-drs-tech-adapter-dev` | Artifact storage with versioning |
 | **AWS Region** | `us-east-1` | Primary deployment region |
 | **Protected Stacks** | `*-test`, `*elasticdrs*` | Production stacks (never touch) |
 
@@ -250,12 +250,12 @@ pytest tests/  # Run tests locally
 
 ## S3 Deployment Repository
 
-The deployment repository at `s3://aws-drs-orchestration-dev` stores all deployment artifacts with versioning enabled.
+The deployment repository at `s3://hrp-drs-tech-adapter-dev` stores all deployment artifacts with versioning enabled.
 
 ### Repository Structure
 
 ```text
-s3://aws-drs-orchestration-dev/
+s3://hrp-drs-tech-adapter-dev/
 ├── cfn/                          # CloudFormation templates
 │   ├── master-template.yaml
 │   ├── database-stack.yaml
@@ -294,13 +294,13 @@ s3://aws-drs-orchestration-dev/
 ```bash
 # View object metadata
 aws s3api head-object \
-  --bucket aws-drs-orchestration-dev \
+  --bucket hrp-drs-tech-adapter-dev \
   --key cfn/master-template.yaml \
   --query "Metadata"
 
 # List all versions of a file
 aws s3api list-object-versions \
-  --bucket aws-drs-orchestration-dev \
+  --bucket hrp-drs-tech-adapter-dev \
   --prefix cfn/master-template.yaml
 ```
 
@@ -318,13 +318,13 @@ source .venv/bin/activate
 ```bash
 # List versions
 aws s3api list-object-versions \
-  --bucket aws-drs-orchestration-dev \
+  --bucket hrp-drs-tech-adapter-dev \
   --prefix cfn/master-template.yaml
 
 # Restore specific version
 aws s3api copy-object \
-  --copy-source "aws-drs-orchestration-dev/cfn/master-template.yaml?versionId=VERSION_ID" \
-  --bucket aws-drs-orchestration-dev \
+  --copy-source "hrp-drs-tech-adapter-dev/cfn/master-template.yaml?versionId=VERSION_ID" \
+  --bucket hrp-drs-tech-adapter-dev \
   --key cfn/master-template.yaml
 
 # Redeploy
@@ -336,13 +336,13 @@ source .venv/bin/activate
 ```bash
 # List Lambda package versions
 aws s3api list-object-versions \
-  --bucket aws-drs-orchestration-dev \
+  --bucket hrp-drs-tech-adapter-dev \
   --prefix lambda/data-management-handler.zip
 
 # Update Lambda with previous version
 aws lambda update-function-code \
-  --function-name aws-drs-orchestration-data-management-handler-dev \
-  --s3-bucket aws-drs-orchestration-dev \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
+  --s3-bucket hrp-drs-tech-adapter-dev \
   --s3-key lambda/data-management-handler.zip \
   --s3-object-version <previous-version-id>
 ```
@@ -395,7 +395,7 @@ concurrency:
 
 env:
   AWS_REGION: us-east-1
-  PROJECT_NAME: aws-drs-orchestration
+  PROJECT_NAME: hrp-drs-tech-adapter
 
 permissions:
   id-token: write
@@ -584,9 +584,9 @@ Create `.gitlab-ci.yml`:
 
 variables:
   AWS_REGION: us-east-1
-  PROJECT_NAME: aws-drs-orchestration
-  STACK_NAME: aws-drs-orchestration-dev
-  DEPLOYMENT_BUCKET: aws-drs-orchestration-dev
+  PROJECT_NAME: hrp-drs-tech-adapter
+  STACK_NAME: hrp-drs-tech-adapter-dev
+  DEPLOYMENT_BUCKET: hrp-drs-tech-adapter-dev
 
 # Prevent concurrent deployments
 default:
@@ -725,14 +725,14 @@ source .venv/bin/activate
 **Check CloudFormation status:**
 ```bash
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query 'Stacks[0].StackStatus'
 ```
 
 **View recent stack events:**
 ```bash
 aws cloudformation describe-stack-events \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --max-items 10
 ```
 
@@ -792,14 +792,14 @@ npm test -- --run  # Run tests locally
 # deploy.sh automatically attempts recovery
 # If manual intervention needed:
 aws cloudformation continue-update-rollback \
-  --stack-name aws-drs-orchestration-dev
+  --stack-name hrp-drs-tech-adapter-dev
 ```
 
 **Concurrency conflict:**
 ```bash
 # Wait for current deployment to complete
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query 'Stacks[0].StackStatus'
 
 # Then retry
@@ -813,7 +813,7 @@ source .venv/bin/activate
 ```bash
 # Verify function exists
 aws lambda get-function \
-  --function-name aws-drs-orchestration-data-management-handler-dev
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev
 
 # If missing, run full deployment (not --lambda-only)
 ./scripts/deploy.sh dev
@@ -824,7 +824,7 @@ aws lambda get-function \
 **S3 sync failures:**
 ```bash
 # Verify bucket exists
-aws s3 ls s3://aws-drs-orchestration-dev/
+aws s3 ls s3://hrp-drs-tech-adapter-dev/
 
 # Check IAM permissions
 aws sts get-caller-identity
@@ -853,7 +853,7 @@ source .venv/bin/activate
 
 # Option 3: CloudFormation rollback
 aws cloudformation cancel-update-stack \
-  --stack-name aws-drs-orchestration-dev
+  --stack-name hrp-drs-tech-adapter-dev
 ```
 
 ---

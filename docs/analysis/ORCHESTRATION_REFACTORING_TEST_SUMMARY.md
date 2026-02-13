@@ -12,25 +12,25 @@
 
 | Function | Status | Last Modified | Purpose |
 |----------|--------|---------------|---------|
-| `aws-drs-orchestration-dr-orch-sf-test` | ✅ Deployed | 2026-02-03T23:11:01 | New refactored orchestration (no DRS code) |
-| `aws-drs-orchestration-execution-handler-test` | ✅ Updated | 2026-02-03T04:29:48 | Contains `start_wave_recovery()` |
-| `aws-drs-orchestration-query-handler-test` | ✅ Updated | 2026-02-03T23:10:51 | Contains `poll_wave_status()` |
+| `hrp-drs-tech-adapter-dr-orch-sf-dev` | ✅ Deployed | 2026-02-03T23:11:01 | New refactored orchestration (no DRS code) |
+| `hrp-drs-tech-adapter-execution-handler-dev` | ✅ Updated | 2026-02-03T04:29:48 | Contains `start_wave_recovery()` |
+| `hrp-drs-tech-adapter-query-handler-dev` | ✅ Updated | 2026-02-03T23:10:51 | Contains `poll_wave_status()` |
 
 ### 2. Environment Variables Verified
 
 **New Orchestration Lambda**:
-- ✅ `EXECUTION_HANDLER_ARN`: `arn:aws:lambda:us-east-1:777788889999:function:aws-drs-orchestration-execution-handler-test`
-- ✅ `QUERY_HANDLER_ARN`: `arn:aws:lambda:us-east-1:777788889999:function:aws-drs-orchestration-query-handler-test`
+- ✅ `EXECUTION_HANDLER_ARN`: `arn:aws:lambda:us-east-1:777788889999:function:hrp-drs-tech-adapter-execution-handler-dev`
+- ✅ `QUERY_HANDLER_ARN`: `arn:aws:lambda:us-east-1:777788889999:function:hrp-drs-tech-adapter-query-handler-dev`
 
 ### 3. Step Functions State Machine Updated
 
 - ✅ State machine now references new orchestration Lambda
-- ✅ All 4 invocations point to `aws-drs-orchestration-dr-orch-sf-test`
-- ✅ Original Lambda (`aws-drs-orchestration-orch-sf-test`) kept as reference
+- ✅ All 4 invocations point to `hrp-drs-tech-adapter-dr-orch-sf-dev`
+- ✅ Original Lambda (`hrp-drs-tech-adapter-dr-orch-sf-dev`) kept as reference
 
 ### 4. CloudFormation Stack Status
 
-- ✅ Stack: `aws-drs-orchestration-test`
+- ✅ Stack: `hrp-drs-tech-adapter-dev`
 - ✅ Status: `UPDATE_COMPLETE`
 - ✅ All nested stacks updated successfully
 
@@ -44,7 +44,7 @@
 
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-dr-orch-sf-test \
+  --function-name hrp-drs-tech-adapter-dr-orch-sf-dev \
   --payload file://test-event.json \
   response.json
 ```
@@ -96,7 +96,7 @@ aws lambda invoke \
    - Lambda ARNs properly referenced
 
 4. ✅ **Original Lambda preserved**
-   - `aws-drs-orchestration-orch-sf-test` still exists
+   - `hrp-drs-tech-adapter-dr-orch-sf-dev` still exists
    - Easy rollback available (switch Step Functions ARN)
 
 ### Separation of Concerns

@@ -9,7 +9,7 @@
       "Targets": [
         {
           "Id": "DataManagementHandler",
-          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test",
           "Input": "{\"source\":\"aws.events\",\"operation\":\"sync_tags\"}"
         }
       ]
@@ -22,7 +22,7 @@
       "Targets": [
         {
           "Id": "ExecutionHandler",
-          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-test",
           "Input": "{\"source\":\"aws.events\",\"operation\":\"poll_executions\"}"
         }
       ]
@@ -35,7 +35,7 @@
       "Targets": [
         {
           "Id": "QueryHandler",
-          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-query-handler-test",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-query-handler-test",
           "Input": "{\"source\":\"aws.events\",\"operation\":\"get_drs_capacity_conflicts\"}"
         }
       ]
@@ -48,7 +48,7 @@
       "Targets": [
         {
           "Id": "ExecutionHandler",
-          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-test",
           "Input": "{\"source\":\"aws.events\",\"operation\":\"check_execution_status\"}"
         }
       ]
@@ -61,7 +61,7 @@
       "Targets": [
         {
           "Id": "DataManagementHandler",
-          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test",
           "Input": "{\"source\":\"aws.events\",\"operation\":\"trigger_tag_sync\"}"
         }
       ]
@@ -80,7 +80,7 @@
       "Targets": [
         {
           "Id": "DataManagementHandler",
-          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-data-management-handler-test",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-data-management-handler-test",
           "Input": "{\"source\":\"aws.events\",\"operation\":\"log_event\",\"eventType\":\"DRS_SERVER_STATE_CHANGE\"}"
         }
       ]
@@ -99,7 +99,7 @@
       "Targets": [
         {
           "Id": "ExecutionHandler",
-          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-test",
           "Input": "{\"source\":\"aws.events\",\"operation\":\"handle_instance_state_change\"}"
         }
       ]
@@ -118,7 +118,7 @@
       "Targets": [
         {
           "Id": "ExecutionHandler",
-          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:aws-drs-orchestration-execution-handler-test",
+          "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hrp-drs-tech-adapter-execution-handler-test",
           "InputTransformer": {
             "InputPathsMap": {
               "planId": "$.detail.planId",

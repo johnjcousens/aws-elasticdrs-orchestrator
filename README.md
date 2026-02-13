@@ -148,35 +148,35 @@ All Lambda functions use a **single unified IAM role** that consolidates permiss
 # Mode 1: Default Standalone (Full Stack with Frontend)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    SourceBucket=aws-drs-orchestration-dev \
+    SourceBucket=hrp-drs-tech-adapter-dev \
     AdminEmail=admin@example.com
 
 # Mode 2: API-Only Standalone (No Frontend)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    SourceBucket=aws-drs-orchestration-dev \
+    SourceBucket=hrp-drs-tech-adapter-dev \
     AdminEmail=admin@example.com \
     DeployFrontend=false
 
 # Mode 3: External IAM Role Integration
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    SourceBucket=aws-drs-orchestration-dev \
+    SourceBucket=hrp-drs-tech-adapter-dev \
     AdminEmail=admin@example.com \
     OrchestrationRoleArn=arn:aws:iam::111122223333:role/ExternalOrchestrationRole \
     DeployFrontend=false
@@ -185,7 +185,7 @@ aws cloudformation deploy \
 ### CloudFormation Parameters
 
 **Core Parameters:**
-- `ProjectName` (String, default: 'aws-drs-orchestration') - Project identifier for resource naming
+- `ProjectName` (String, default: 'hrp-drs-tech-adapter') - Project identifier for resource naming
 - `Environment` (String, default: 'dev') - Environment name (dev, test, prod)
 - `SourceBucket` (String, required) - S3 bucket containing nested CloudFormation templates and Lambda code
 - `AdminEmail` (String, required) - Admin email for Cognito user pool
@@ -198,12 +198,12 @@ aws cloudformation deploy \
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    SourceBucket=aws-drs-orchestration-dev \
+    SourceBucket=hrp-drs-tech-adapter-dev \
     AdminEmail=admin@example.com \
     DeployFrontend=true
 ```
@@ -359,8 +359,8 @@ Below is an example configuration showing a 3-tier application recovery plan wit
 
 ```bash
 # Clone repository
-git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
-cd aws-elasticdrs-orchestrator
+git clone https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator.git
+cd hrp-drs-tech-adapter
 
 # Setup Python virtual environment (optional but recommended)
 python3 -m venv .venv
@@ -420,21 +420,21 @@ curl -X POST https://api-endpoint/accounts/target \
 # CloudFormation deployment
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    SourceBucket=aws-drs-orchestration-dev \
+    SourceBucket=hrp-drs-tech-adapter-dev \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-1
+  --region us-east-2
 ```
 
 ### Get Stack Outputs
 
 ```bash
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query 'Stacks[0].Outputs' \
   --output table
 ```
@@ -587,7 +587,7 @@ The solution includes AWS WAF protection for the CloudFront distribution with de
 AWS_PAGER="" aws cloudwatch get-metric-statistics \
   --namespace AWS/WAFV2 \
   --metric-name BlockedRequests \
-  --dimensions Name=WebACL,Value=aws-drs-orchestration-waf-test \
+  --dimensions Name=WebACL,Value=hrp-drs-tech-adapter-waf-dev \
   --start-time $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) \
   --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ) \
   --period 300 \
@@ -646,14 +646,14 @@ Deploy the complete solution using AWS CloudFormation:
 # Full deployment
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    SourceBucket=aws-drs-orchestration-dev \
+    SourceBucket=hrp-drs-tech-adapter-dev \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-1
+  --region us-east-2
 ```
 
 ### Built-in Protections
@@ -784,8 +784,8 @@ Complete working examples for AWS service integration:
 
 ```bash
 # Clone repository
-git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
-cd aws-elasticdrs-orchestrator
+git clone https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator.git
+cd hrp-drs-tech-adapter
 
 # Setup Python virtual environment
 python3 -m venv .venv
@@ -800,11 +800,11 @@ npm run dev  # Development server at localhost:5173
 # CloudFormation deployment
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
+    ProjectName=hrp-drs-tech-adapter \
     Environment=dev \
-    SourceBucket=aws-drs-orchestration-dev \
+    SourceBucket=hrp-drs-tech-adapter-dev \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
 ```
@@ -833,7 +833,7 @@ A comprehensive implementation of AWS DRS AllowLaunchingIntoThisInstance pattern
 ## Directory Structure
 
 ```text
-aws-elasticdrs-orchestrator/
+hrp-drs-tech-adapter/
 ├── cfn/                          # CloudFormation IaC (16 templates)
 │   ├── master-template.yaml      # Root orchestrator for nested stacks
 │   └── github-oidc-stack.yaml    # OIDC integration (optional)
@@ -877,9 +877,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/issues)
+- **Issues**: [GitHub Issues](https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator/issues)
 - **Documentation**: [docs/](docs/)
-- **Discussions**: [GitHub Discussions](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/discussions)
+- **Discussions**: [GitHub Discussions](https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator/discussions)
 
 ---
 

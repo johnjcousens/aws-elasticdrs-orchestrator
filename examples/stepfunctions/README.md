@@ -62,7 +62,7 @@ The Query Handler performs read-only operations to retrieve data from DynamoDB a
   "Type": "Task",
   "Resource": "arn:aws:states:::lambda:invoke",
   "Parameters": {
-    "FunctionName": "aws-drs-orchestration-query-handler-test",
+    "FunctionName": "hrp-drs-tech-adapter-query-handler-test",
     "Payload": {
       "operation": "get_recovery_plan",
       "planId.$": "$.planId"
@@ -117,7 +117,7 @@ The Execution Handler manages recovery execution lifecycle operations.
   "Type": "Task",
   "Resource": "arn:aws:states:::lambda:invoke",
   "Parameters": {
-    "FunctionName": "aws-drs-orchestration-execution-handler-test",
+    "FunctionName": "hrp-drs-tech-adapter-execution-handler-test",
     "Payload": {
       "operation": "start_wave_recovery",
       "executionId.$": "$.executionId",
@@ -165,7 +165,7 @@ The Data Management Handler performs create, update, and delete operations.
   "Type": "Task",
   "Resource": "arn:aws:states:::lambda:invoke",
   "Parameters": {
-    "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+    "FunctionName": "hrp-drs-tech-adapter-data-management-handler-test",
     "Payload": {
       "operation": "initialize_execution",
       "executionId.$": "$.executionId",
@@ -255,7 +255,7 @@ Error handling states log errors and provide meaningful failure messages:
   "Type": "Task",
   "Resource": "arn:aws:states:::lambda:invoke",
   "Parameters": {
-    "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+    "FunctionName": "hrp-drs-tech-adapter-data-management-handler-test",
     "Payload": {
       "operation": "log_error",
       "executionId.$": "$.executionId",
@@ -288,9 +288,9 @@ sed -i 's/-test/-dev/g' lambda-invocation-example.json
 ```
 
 Or manually update each `FunctionName` parameter:
-- `aws-drs-orchestration-query-handler-{environment}`
-- `aws-drs-orchestration-execution-handler-{environment}`
-- `aws-drs-orchestration-data-management-handler-{environment}`
+- `hrp-drs-tech-adapter-query-handler-{environment}`
+- `hrp-drs-tech-adapter-execution-handler-{environment}`
+- `hrp-drs-tech-adapter-data-management-handler-{environment}`
 
 ### Step 2: Create IAM Role for State Machine
 
@@ -329,7 +329,7 @@ cat > lambda-invoke-policy.json << 'EOF'
         "lambda:InvokeFunction"
       ],
       "Resource": [
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-*"
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-*"
       ]
     }
   ]
@@ -354,7 +354,7 @@ ROLE_ARN=$(aws iam get-role \
 
 # Create state machine
 aws stepfunctions create-state-machine \
-  --name aws-drs-orchestration-lambda-invocation-example \
+  --name hrp-drs-tech-adapter-lambda-invocation-example \
   --definition file://lambda-invocation-example.json \
   --role-arn $ROLE_ARN \
   --type STANDARD \
@@ -363,7 +363,7 @@ aws stepfunctions create-state-machine \
 
 # Save the state machine ARN
 STATE_MACHINE_ARN=$(aws stepfunctions list-state-machines \
-  --query "stateMachines[?name=='aws-drs-orchestration-lambda-invocation-example'].stateMachineArn" \
+  --query "stateMachines[?name=='hrp-drs-tech-adapter-lambda-invocation-example'].stateMachineArn" \
   --output text)
 
 echo "State Machine ARN: $STATE_MACHINE_ARN"
@@ -376,7 +376,7 @@ Ensure Lambda functions have resource-based policies allowing Step Functions inv
 ```bash
 # Query Handler
 aws lambda add-permission \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --statement-id AllowStepFunctionsInvoke \
   --action lambda:InvokeFunction \
   --principal states.amazonaws.com \
@@ -384,7 +384,7 @@ aws lambda add-permission \
 
 # Execution Handler
 aws lambda add-permission \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-test \
   --statement-id AllowStepFunctionsInvoke \
   --action lambda:InvokeFunction \
   --principal states.amazonaws.com \
@@ -392,7 +392,7 @@ aws lambda add-permission \
 
 # Data Management Handler
 aws lambda add-permission \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-test \
   --statement-id AllowStepFunctionsInvoke \
   --action lambda:InvokeFunction \
   --principal states.amazonaws.com \
@@ -459,19 +459,19 @@ Test each Lambda handler independently before running the full state machine:
 ```bash
 # Test Query Handler
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --payload '{"operation":"list_protection_groups"}' \
   response.json && cat response.json | jq .
 
 # Test Execution Handler
 aws lambda invoke \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-test \
   --payload '{"operation":"get_recovery_instances","executionId":"exec-test-001"}' \
   response.json && cat response.json | jq .
 
 # Test Data Management Handler
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-test \
   --payload '{"operation":"initialize_execution","executionId":"exec-test-001","planId":"plan-test-123","executionType":"DRILL"}' \
   response.json && cat response.json | jq .
 ```
@@ -518,7 +518,7 @@ If you've already deployed the state machine using AWS CLI, import it into CDK:
 const stateMachine = sfn.StateMachine.fromStateMachineName(
   this,
   'ImportedStateMachine',
-  'aws-drs-orchestration-lambda-invocation-example'
+  'hrp-drs-tech-adapter-lambda-invocation-example'
 );
 
 // Grant Lambda functions permission to be invoked by state machine
@@ -588,7 +588,7 @@ Lambda.ResourceNotFoundException: Function not found
 **Solution:**
 1. Verify Lambda function exists:
    ```bash
-   aws lambda get-function --function-name aws-drs-orchestration-query-handler-test
+   aws lambda get-function --function-name hrp-drs-tech-adapter-query-handler-test
    ```
 
 2. Check function name matches environment:
@@ -616,7 +616,7 @@ Lambda.AccessDeniedException: User is not authorized to perform: lambda:InvokeFu
 2. Add Lambda resource-based policy:
    ```bash
    aws lambda add-permission \
-     --function-name aws-drs-orchestration-query-handler-test \
+     --function-name hrp-drs-tech-adapter-query-handler-test \
      --statement-id AllowStepFunctionsInvoke \
      --action lambda:InvokeFunction \
      --principal states.amazonaws.com
@@ -661,7 +661,7 @@ States.Timeout: State machine execution timed out
 3. Check Lambda function timeout settings:
    ```bash
    aws lambda get-function-configuration \
-     --function-name aws-drs-orchestration-execution-handler-test \
+     --function-name hrp-drs-tech-adapter-execution-handler-test \
      --query 'Timeout'
    ```
 
@@ -683,13 +683,13 @@ WaveRecoveryFailed: Wave recovery failed - check logs for details
 
 2. Review Lambda function logs:
    ```bash
-   aws logs tail /aws/lambda/aws-drs-orchestration-execution-handler-test --follow
+   aws logs tail /aws/lambda/hrp-drs-tech-adapter-execution-handler-test --follow
    ```
 
 3. Verify DRS source servers are in correct state:
    ```bash
    aws lambda invoke \
-     --function-name aws-drs-orchestration-query-handler-test \
+     --function-name hrp-drs-tech-adapter-query-handler-test \
      --payload '{"operation":"get_drs_source_servers"}' \
      response.json && cat response.json | jq .
    ```
@@ -728,14 +728,14 @@ WaveRecoveryFailed: Wave recovery failed - check logs for details
 2. Check Lambda environment variables:
    ```bash
    aws lambda get-function-configuration \
-     --function-name aws-drs-orchestration-query-handler-test \
+     --function-name hrp-drs-tech-adapter-query-handler-test \
      --query 'Environment.Variables'
    ```
 
 3. Ensure Lambda execution role has DynamoDB permissions:
    ```bash
    aws iam get-role-policy \
-     --role-name aws-drs-orchestration-orchestration-role-test \
+     --role-name hrp-drs-tech-adapter-orchestration-role-test \
      --policy-name DynamoDBPolicy
    ```
 
@@ -770,7 +770,7 @@ Use calculated wait times based on wave size:
   "Type": "Task",
   "Resource": "arn:aws:states:::lambda:invoke",
   "Parameters": {
-    "FunctionName": "aws-drs-orchestration-query-handler-test",
+    "FunctionName": "hrp-drs-tech-adapter-query-handler-test",
     "Payload": {
       "operation": "calculate_wait_time",
       "serverCount.$": "$.currentWave.serverCount"

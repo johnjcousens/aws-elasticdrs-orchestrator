@@ -7,7 +7,7 @@
       "Resource": "arn:aws:states:::lambda:invoke",
       "Comment": "Initialize recovery execution using Data Management Handler",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "FunctionName": "hrp-drs-tech-adapter-data-management-handler-test",
         "Payload": {
           "operation": "initialize_execution",
           "executionId.$": "$.executionId",
@@ -46,7 +46,7 @@
       "Resource": "arn:aws:states:::lambda:invoke",
       "Comment": "Retrieve recovery plan details using Query Handler",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestration-query-handler-test",
+        "FunctionName": "hrp-drs-tech-adapter-query-handler-test",
         "Payload": {
           "operation": "get_recovery_plan",
           "planId.$": "$.planId"
@@ -91,7 +91,7 @@
             "Resource": "arn:aws:states:::lambda:invoke",
             "Comment": "Start recovery for a specific wave using Execution Handler",
             "Parameters": {
-              "FunctionName": "aws-drs-orchestration-execution-handler-test",
+              "FunctionName": "hrp-drs-tech-adapter-execution-handler-test",
               "Payload": {
                 "operation": "start_wave_recovery",
                 "executionId.$": "$.executionId",
@@ -136,7 +136,7 @@
             "Resource": "arn:aws:states:::lambda:invoke",
             "Comment": "Check wave recovery status using Query Handler",
             "Parameters": {
-              "FunctionName": "aws-drs-orchestration-query-handler-test",
+              "FunctionName": "hrp-drs-tech-adapter-query-handler-test",
               "Payload": {
                 "operation": "get_wave_status",
                 "executionId.$": "$.executionId",
@@ -204,7 +204,7 @@
       "Resource": "arn:aws:states:::lambda:invoke",
       "Comment": "Retrieve recovery instance details using Execution Handler",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestration-execution-handler-test",
+        "FunctionName": "hrp-drs-tech-adapter-execution-handler-test",
         "Payload": {
           "operation": "get_recovery_instances",
           "executionId.$": "$.executionId"
@@ -234,7 +234,7 @@
       "Resource": "arn:aws:states:::lambda:invoke",
       "Comment": "Finalize execution and update status using Data Management Handler",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "FunctionName": "hrp-drs-tech-adapter-data-management-handler-test",
         "Payload": {
           "operation": "finalize_execution",
           "executionId.$": "$.executionId",
@@ -277,7 +277,7 @@
       "Resource": "arn:aws:states:::lambda:invoke",
       "Comment": "Handle initialization error",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "FunctionName": "hrp-drs-tech-adapter-data-management-handler-test",
         "Payload": {
           "operation": "log_error",
           "executionId.$": "$.executionId",
@@ -293,7 +293,7 @@
       "Resource": "arn:aws:states:::lambda:invoke",
       "Comment": "Handle plan retrieval error",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "FunctionName": "hrp-drs-tech-adapter-data-management-handler-test",
         "Payload": {
           "operation": "log_error",
           "executionId.$": "$.executionId",
@@ -309,7 +309,7 @@
       "Resource": "arn:aws:states:::lambda:invoke",
       "Comment": "Handle finalization error",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestration-data-management-handler-test",
+        "FunctionName": "hrp-drs-tech-adapter-data-management-handler-test",
         "Payload": {
           "operation": "log_error",
           "executionId.$": "$.executionId",

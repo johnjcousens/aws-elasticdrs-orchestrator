@@ -153,7 +153,7 @@ Target Account (111122223333)
 
 To test the fix:
 
-1. Navigate to CloudFront URL: https://d319nadlgk4oj.cloudfront.net
+1. Navigate to CloudFront URL: https://d1kqe40a9vwn47.cloudfront.net
 2. Create a protection group with servers from target account (111122223333)
 3. Verify in Lambda logs that role assumption succeeds
 4. Check for successful server validation

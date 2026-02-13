@@ -2,7 +2,7 @@
 
 **Date**: February 2, 2026  
 **Status**: ✅ COMPLETE  
-**Deployment**: aws-drs-orchestration-test (build 20260202-0102)
+**Deployment**: hrp-drs-tech-adapter-dev (build 20260202-0102)
 
 ## Critical Bug Fixed
 
@@ -251,8 +251,8 @@ Both routes now return React Router's catch-all redirect to `/`.
 ## Deployment Info
 
 - **Environment**: test
-- **Stack**: aws-drs-orchestration-test
-- **CloudFront URL**: https://d319nadlgk4oj.cloudfront.net
+- **Stack**: hrp-drs-tech-adapter-dev
+- **CloudFront URL**: https://d1kqe40a9vwn47.cloudfront.net
 - **Build Version**: 20260202-0102
 - **Backend Deployed**: 2026-02-02 02:10:53 UTC
 - **Frontend Deployed**: 2026-02-02 06:03:26 UTC

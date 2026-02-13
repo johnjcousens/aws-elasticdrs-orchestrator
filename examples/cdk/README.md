@@ -156,11 +156,11 @@ Configure deployment using environment variables or CDK context:
 ```bash
 # Set environment variables
 export ENVIRONMENT=dev
-export PROJECT_NAME=aws-drs-orchestration
+export PROJECT_NAME=hrp-drs-tech-adapter
 export ADMIN_EMAIL=admin@example.com
 
 # Or use CDK context
-cdk deploy -c environment=dev -c projectName=aws-drs-orchestration -c adminEmail=admin@example.com
+cdk deploy -c environment=dev -c projectName=hrp-drs-tech-adapter -c adminEmail=admin@example.com
 ```
 
 ### Configuration Options
@@ -168,7 +168,7 @@ cdk deploy -c environment=dev -c projectName=aws-drs-orchestration -c adminEmail
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `ENVIRONMENT` | Environment name (dev, test, staging, prod) | dev | No |
-| `PROJECT_NAME` | Project name for resource naming | aws-drs-orchestration | No |
+| `PROJECT_NAME` | Project name for resource naming | hrp-drs-tech-adapter | No |
 | `ADMIN_EMAIL` | Email for notifications | admin@example.com | Yes |
 | `CDK_DEFAULT_REGION` | AWS region for deployment | us-east-1 | No |
 
@@ -258,7 +258,7 @@ After deployment, invoke Lambda functions using AWS CLI or SDK:
 
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-dev \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --payload '{"operation":"list_protection_groups"}' \
   response.json
 
@@ -269,7 +269,7 @@ cat response.json | jq .
 
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-execution-handler-dev \
+  --function-name hrp-drs-tech-adapter-execution-handler-dev \
   --payload '{
     "operation": "start_execution",
     "parameters": {
@@ -287,7 +287,7 @@ cat response.json | jq .
 
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-dev \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{
     "operation": "create_protection_group",
     "body": {
@@ -313,7 +313,7 @@ const lambda = new LambdaClient({ region: 'us-east-1' });
 
 // List protection groups
 const response = await lambda.send(new InvokeCommand({
-  FunctionName: 'aws-drs-orchestration-query-handler-dev',
+  FunctionName: 'hrp-drs-tech-adapter-query-handler-dev',
   Payload: JSON.stringify({
     operation: 'list_protection_groups'
   })
@@ -364,7 +364,7 @@ jobs:
       - name: Run DR Drill
         run: |
           aws lambda invoke \
-            --function-name aws-drs-orchestration-execution-handler-dev \
+            --function-name hrp-drs-tech-adapter-execution-handler-dev \
             --payload '{"operation":"start_execution","parameters":{"planId":"${{ secrets.DR_PLAN_ID }}","executionType":"DRILL","initiatedBy":"github-actions"}}' \
             response.json
           cat response.json
@@ -377,7 +377,7 @@ After deployment, the stack outputs important resource information:
 ```bash
 # View stack outputs
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-dev \
+  --stack-name hrp-drs-tech-adapter-dev \
   --query 'Stacks[0].Outputs'
 ```
 
@@ -385,10 +385,10 @@ aws cloudformation describe-stacks \
 
 | Output | Description | Example Value |
 |--------|-------------|---------------|
-| `QueryHandlerArn` | Query Handler Lambda ARN | arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-query-handler-dev |
-| `ExecutionHandlerArn` | Execution Handler Lambda ARN | arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-execution-handler-dev |
-| `DataManagementHandlerArn` | Data Management Handler Lambda ARN | arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-data-management-handler-dev |
-| `OrchestrationRoleArn` | Orchestration IAM Role ARN | arn:aws:iam::123456789012:role/aws-drs-orchestration-orchestration-role-dev |
+| `QueryHandlerArn` | Query Handler Lambda ARN | arn:aws:lambda:us-east-1:123456789012:function:hrp-drs-tech-adapter-query-handler-dev |
+| `ExecutionHandlerArn` | Execution Handler Lambda ARN | arn:aws:lambda:us-east-1:123456789012:function:hrp-drs-tech-adapter-execution-handler-dev |
+| `DataManagementHandlerArn` | Data Management Handler Lambda ARN | arn:aws:lambda:us-east-1:123456789012:function:hrp-drs-tech-adapter-data-management-handler-dev |
+| `OrchestrationRoleArn` | Orchestration IAM Role ARN | arn:aws:iam::123456789012:role/hrp-drs-tech-adapter-orchestration-role-dev |
 | `ExampleInvocationCommand` | Example AWS CLI command | aws lambda invoke --function-name ... |
 
 ## Updating the Stack
@@ -459,11 +459,11 @@ npm install
 ```bash
 # Continue rollback
 aws cloudformation continue-update-rollback \
-  --stack-name aws-drs-orchestration-dev
+  --stack-name hrp-drs-tech-adapter-dev
 
 # Wait for rollback to complete
 aws cloudformation wait stack-rollback-complete \
-  --stack-name aws-drs-orchestration-dev
+  --stack-name hrp-drs-tech-adapter-dev
 
 # Retry deployment
 npm run deploy
@@ -507,7 +507,7 @@ Add IAM policy to your user/role:
     {
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
-      "Resource": "arn:aws:lambda:*:*:function:aws-drs-orchestration-*"
+      "Resource": "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-*"
     }
   ]
 }
@@ -555,12 +555,12 @@ Store environment-specific configuration in `cdk.context.json`:
 ```json
 {
   "dev": {
-    "projectName": "aws-drs-orchestration",
+    "projectName": "hrp-drs-tech-adapter",
     "adminEmail": "dev-team@example.com",
     "enableNotifications": false
   },
   "prod": {
-    "projectName": "aws-drs-orchestration",
+    "projectName": "hrp-drs-tech-adapter",
     "adminEmail": "ops-team@example.com",
     "enableNotifications": true
   }
@@ -581,7 +581,7 @@ cdk.Tags.of(this).add('Project', 'DROrchestration');
 Lambda functions automatically log to CloudWatch. View logs:
 
 ```bash
-aws logs tail /aws/lambda/aws-drs-orchestration-query-handler-dev --follow
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-query-handler-dev --follow
 ```
 
 ### 6. Test Before Production
@@ -593,7 +593,7 @@ Always test in dev/test environments before deploying to production:
 cdk deploy -c environment=dev
 
 # Test operations
-aws lambda invoke --function-name aws-drs-orchestration-query-handler-dev ...
+aws lambda invoke --function-name hrp-drs-tech-adapter-query-handler-dev ...
 
 # Deploy to prod only after validation
 cdk deploy -c environment=prod

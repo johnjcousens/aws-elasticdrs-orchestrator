@@ -92,7 +92,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 const protectionGroupsTable = dynamodb.Table.fromTableName(
   this,
   'ProtectionGroupsTable',
-  'aws-drs-orchestration-protection-groups-test'
+  'hrp-drs-tech-adapter-protection-groups-test'
 );
 
 // Use imported table
@@ -118,7 +118,7 @@ For cross-account or cross-region scenarios:
 const protectionGroupsTable = dynamodb.Table.fromTableArn(
   this,
   'ProtectionGroupsTable',
-  'arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test'
+  'arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test'
 );
 
 // Use imported table
@@ -146,11 +146,11 @@ const executionsTable = dynamodb.Table.fromTableAttributes(
   this,
   'ExecutionsTable',
   {
-    tableName: 'aws-drs-orchestration-executions-test',
-    tableArn: 'arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-executions-test',
+    tableName: 'hrp-drs-tech-adapter-executions-test',
+    tableArn: 'arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-executions-test',
     globalIndexes: ['StatusIndex', 'PlanIndex'],
     localIndexes: [],
-    tableStreamArn: 'arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-executions-test/stream/2025-01-31T00:00:00.000',
+    tableStreamArn: 'arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-executions-test/stream/2025-01-31T00:00:00.000',
   }
 );
 
@@ -220,15 +220,15 @@ if (props.importExistingTables && props.existingTableNames?.protectionGroups) {
 ```bash
 # List all DynamoDB tables in your stack
 aws cloudformation describe-stack-resources \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --query 'StackResources[?ResourceType==`AWS::DynamoDB::Table`].[LogicalResourceId,PhysicalResourceId]' \
   --output table
 
 # Example output:
-# ProtectionGroupsTable    aws-drs-orchestration-protection-groups-test
-# RecoveryPlansTable       aws-drs-orchestration-recovery-plans-test
-# ExecutionsTable          aws-drs-orchestration-executions-test
-# TargetAccountsTable      aws-drs-orchestration-target-accounts-test
+# ProtectionGroupsTable    hrp-drs-tech-adapter-protection-groups-test
+# RecoveryPlansTable       hrp-drs-tech-adapter-recovery-plans-test
+# ExecutionsTable          hrp-drs-tech-adapter-executions-test
+# TargetAccountsTable      hrp-drs-tech-adapter-target-accounts-test
 ```
 
 **2. Document Table Configuration**
@@ -236,15 +236,15 @@ aws cloudformation describe-stack-resources \
 ```bash
 # Get table details
 aws dynamodb describe-table \
-  --table-name aws-drs-orchestration-protection-groups-test \
+  --table-name hrp-drs-tech-adapter-protection-groups-test \
   --query 'Table.{Name:TableName,ARN:TableArn,BillingMode:BillingModeSummary.BillingMode,Encryption:SSEDescription.SSEType,GSIs:GlobalSecondaryIndexes[].IndexName}' \
   --output json
 
 # Save table ARNs for CDK import
-export PROTECTION_GROUPS_TABLE_ARN="arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test"
-export RECOVERY_PLANS_TABLE_ARN="arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-recovery-plans-test"
-export EXECUTIONS_TABLE_ARN="arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-executions-test"
-export TARGET_ACCOUNTS_TABLE_ARN="arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-target-accounts-test"
+export PROTECTION_GROUPS_TABLE_ARN="arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test"
+export RECOVERY_PLANS_TABLE_ARN="arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-recovery-plans-test"
+export EXECUTIONS_TABLE_ARN="arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-executions-test"
+export TARGET_ACCOUNTS_TABLE_ARN="arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-target-accounts-test"
 ```
 
 **3. Backup Data (Recommended)**
@@ -252,19 +252,19 @@ export TARGET_ACCOUNTS_TABLE_ARN="arn:aws:dynamodb:us-east-1:123456789012:table/
 ```bash
 # Create on-demand backups
 aws dynamodb create-backup \
-  --table-name aws-drs-orchestration-protection-groups-test \
+  --table-name hrp-drs-tech-adapter-protection-groups-test \
   --backup-name protection-groups-pre-migration-$(date +%Y%m%d)
 
 aws dynamodb create-backup \
-  --table-name aws-drs-orchestration-recovery-plans-test \
+  --table-name hrp-drs-tech-adapter-recovery-plans-test \
   --backup-name recovery-plans-pre-migration-$(date +%Y%m%d)
 
 aws dynamodb create-backup \
-  --table-name aws-drs-orchestration-executions-test \
+  --table-name hrp-drs-tech-adapter-executions-test \
   --backup-name executions-pre-migration-$(date +%Y%m%d)
 
 aws dynamodb create-backup \
-  --table-name aws-drs-orchestration-target-accounts-test \
+  --table-name hrp-drs-tech-adapter-target-accounts-test \
   --backup-name target-accounts-pre-migration-$(date +%Y%m%d)
 ```
 
@@ -314,13 +314,13 @@ Resources:
 ```bash
 # Deploy with RETAIN policy
 aws cloudformation update-stack \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --template-body file://cfn/master-template.yaml \
   --capabilities CAPABILITY_NAMED_IAM
 
 # Wait for update to complete
 aws cloudformation wait stack-update-complete \
-  --stack-name aws-drs-orchestration-test
+  --stack-name hrp-drs-tech-adapter-test
 ```
 
 **3. Verify RETAIN Policy**
@@ -328,7 +328,7 @@ aws cloudformation wait stack-update-complete \
 ```bash
 # Verify DeletionPolicy is set
 aws cloudformation describe-stack-resources \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --query 'StackResources[?ResourceType==`AWS::DynamoDB::Table`].[LogicalResourceId,PhysicalResourceId]'
 ```
 
@@ -415,7 +415,7 @@ import { DROrchestrationImportStack } from '../lib/dr-orchestration-import-stack
 const app = new cdk.App();
 
 const environment = process.env.ENVIRONMENT || 'dev';
-const projectName = process.env.PROJECT_NAME || 'aws-drs-orchestration';
+const projectName = process.env.PROJECT_NAME || 'hrp-drs-tech-adapter';
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
 
 // Import existing tables from CloudFormation deployment
@@ -457,7 +457,7 @@ if (importExistingTables) {
 ```bash
 # Set environment variables
 export ENVIRONMENT=test
-export PROJECT_NAME=aws-drs-orchestration
+export PROJECT_NAME=hrp-drs-tech-adapter
 export ADMIN_EMAIL=admin@example.com
 export IMPORT_EXISTING_TABLES=true
 
@@ -473,12 +473,12 @@ cdk deploy --require-approval never
 ```bash
 # Check CDK stack status
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --query 'Stacks[0].StackStatus'
 
 # Verify Lambda functions can access tables
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --payload '{"operation":"list_protection_groups"}' \
   response.json
 
@@ -492,12 +492,12 @@ cat response.json | jq .
 ```bash
 # Test all Lambda functions
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --payload '{"operation":"list_protection_groups"}' \
   response.json
 
 aws lambda invoke \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-test \
   --payload '{"operation":"list_executions"}' \
   response.json
 
@@ -510,11 +510,11 @@ cat response.json | jq .
 ```bash
 # Delete CloudFormation stack (tables will be retained)
 aws cloudformation delete-stack \
-  --stack-name aws-drs-orchestration-test-old
+  --stack-name hrp-drs-tech-adapter-test-old
 
 # Wait for deletion to complete
 aws cloudformation wait stack-delete-complete \
-  --stack-name aws-drs-orchestration-test-old
+  --stack-name hrp-drs-tech-adapter-test-old
 ```
 
 **3. Verify Tables Still Exist**
@@ -522,7 +522,7 @@ aws cloudformation wait stack-delete-complete \
 ```bash
 # Verify tables were not deleted
 aws dynamodb list-tables \
-  --query 'TableNames[?contains(@, `aws-drs-orchestration`)]'
+  --query 'TableNames[?contains(@, `hrp-drs-tech-adapter`)]'
 
 # Should show all 4 tables still exist
 ```
@@ -540,14 +540,14 @@ cdk destroy --force
 
 # Redeploy original CloudFormation stack
 aws cloudformation create-stack \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name hrp-drs-tech-adapter-test \
   --template-body file://cfn/master-template.yaml \
   --parameters file://cfn/parameters-test.json \
   --capabilities CAPABILITY_NAMED_IAM
 
 # Wait for stack creation
 aws cloudformation wait stack-create-complete \
-  --stack-name aws-drs-orchestration-test
+  --stack-name hrp-drs-tech-adapter-test
 ```
 
 **2. Verify Rollback**
@@ -555,7 +555,7 @@ aws cloudformation wait stack-create-complete \
 ```bash
 # Test Lambda functions
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --payload '{"operation":"list_protection_groups"}' \
   response.json
 
@@ -590,7 +590,7 @@ export class SimpleImportStack extends cdk.Stack {
     const protectionGroupsTable = dynamodb.Table.fromTableName(
       this,
       'ProtectionGroupsTable',
-      'aws-drs-orchestration-protection-groups-test'
+      'hrp-drs-tech-adapter-protection-groups-test'
     );
     
     // Create Lambda function
@@ -626,7 +626,7 @@ export class ImportWithGSIStack extends cdk.Stack {
       this,
       'ExecutionsTable',
       {
-        tableName: 'aws-drs-orchestration-executions-test',
+        tableName: 'hrp-drs-tech-adapter-executions-test',
         globalIndexes: ['StatusIndex', 'PlanIndex'],
       }
     );
@@ -665,7 +665,7 @@ export class CrossAccountImportStack extends cdk.Stack {
     const protectionGroupsTable = dynamodb.Table.fromTableArn(
       this,
       'ProtectionGroupsTable',
-      'arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test'
+      'arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test'
     );
     
     // Create Lambda execution role with cross-account permissions
@@ -827,9 +827,9 @@ cdk deploy
 {project-name}-{resource-type}-{environment}
 
 Examples:
-- aws-drs-orchestration-protection-groups-test
-- aws-drs-orchestration-recovery-plans-prod
-- aws-drs-orchestration-executions-dev
+- hrp-drs-tech-adapter-protection-groups-test
+- hrp-drs-tech-adapter-recovery-plans-prod
+- hrp-drs-tech-adapter-executions-dev
 ```
 
 **Benefits:**
@@ -845,12 +845,12 @@ Examples:
 ```bash
 # On-demand backup (recommended)
 aws dynamodb create-backup \
-  --table-name aws-drs-orchestration-protection-groups-test \
+  --table-name hrp-drs-tech-adapter-protection-groups-test \
   --backup-name pre-migration-$(date +%Y%m%d-%H%M%S)
 
 # Point-in-time recovery (enable if not already)
 aws dynamodb update-continuous-backups \
-  --table-name aws-drs-orchestration-protection-groups-test \
+  --table-name hrp-drs-tech-adapter-protection-groups-test \
   --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true
 ```
 
@@ -906,16 +906,16 @@ grep -A 5 "DynamoDB" template.yaml
 ```bash
 # 1. Verify Lambda can access tables
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --payload '{"operation":"list_protection_groups"}' \
   response.json
 
 # 2. Check CloudWatch Logs for errors
-aws logs tail /aws/lambda/aws-drs-orchestration-query-handler-test --since 5m
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-query-handler-test --since 5m
 
 # 3. Verify data integrity
 aws dynamodb scan \
-  --table-name aws-drs-orchestration-protection-groups-test \
+  --table-name hrp-drs-tech-adapter-protection-groups-test \
   --select COUNT
 ```
 
@@ -944,7 +944,7 @@ const table = dynamodb.Table.fromTableName(this, 'Table', 'existing-table');
 ```bash
 # Update table configuration outside CDK
 aws dynamodb update-table \
-  --table-name aws-drs-orchestration-protection-groups-test \
+  --table-name hrp-drs-tech-adapter-protection-groups-test \
   --billing-mode PAY_PER_REQUEST
 
 # CDK will not detect or revert these changes
@@ -989,8 +989,8 @@ const readThrottleAlarm = new cloudwatch.Alarm(this, 'ReadThrottleAlarm', {
 ## Imported DynamoDB Tables
 
 ### Protection Groups Table
-- **Source:** CloudFormation stack `aws-drs-orchestration-test`
-- **ARN:** `arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test`
+- **Source:** CloudFormation stack `hrp-drs-tech-adapter-test`
+- **ARN:** `arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test`
 - **Billing Mode:** PAY_PER_REQUEST
 - **Encryption:** AWS_MANAGED
 - **GSIs:** None
@@ -1006,7 +1006,7 @@ const readThrottleAlarm = new cloudwatch.Alarm(this, 'ReadThrottleAlarm', {
 
 **Error:**
 ```
-ResourceNotFoundException: Requested resource not found: Table: aws-drs-orchestration-protection-groups-test not found
+ResourceNotFoundException: Requested resource not found: Table: hrp-drs-tech-adapter-protection-groups-test not found
 ```
 
 **Causes:**
@@ -1020,7 +1020,7 @@ ResourceNotFoundException: Requested resource not found: Table: aws-drs-orchestr
 ```bash
 # 1. Verify table exists
 aws dynamodb describe-table \
-  --table-name aws-drs-orchestration-protection-groups-test
+  --table-name hrp-drs-tech-adapter-protection-groups-test
 
 # 2. List all tables in region
 aws dynamodb list-tables
@@ -1038,7 +1038,7 @@ aws sts get-caller-identity
 const table = dynamodb.Table.fromTableName(
   this,
   'ProtectionGroupsTable',
-  'aws-drs-orchestration-protection-groups-test'  // Verify this name
+  'hrp-drs-tech-adapter-protection-groups-test'  // Verify this name
 );
 ```
 
@@ -1046,7 +1046,7 @@ const table = dynamodb.Table.fromTableName(
 
 **Error:**
 ```
-AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/aws-drs-orchestration-query-handler-test-role/aws-drs-orchestration-query-handler-test is not authorized to perform: dynamodb:GetItem on resource: arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test
+AccessDeniedException: User: arn:aws:sts::123456789012:assumed-role/hrp-drs-tech-adapter-query-handler-test-role/hrp-drs-tech-adapter-query-handler-test is not authorized to perform: dynamodb:GetItem on resource: arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test
 ```
 
 **Causes:**
@@ -1072,8 +1072,8 @@ lambdaRole.addToPolicy(new iam.PolicyStatement({
     'dynamodb:Scan',
   ],
   resources: [
-    'arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test',
-    'arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test/index/*',
+    'arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test',
+    'arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test/index/*',
   ],
 }));
 ```
@@ -1082,12 +1082,12 @@ lambdaRole.addToPolicy(new iam.PolicyStatement({
 ```bash
 # Check Lambda execution role
 aws iam get-role-policy \
-  --role-name aws-drs-orchestration-query-handler-test-role \
+  --role-name hrp-drs-tech-adapter-query-handler-test-role \
   --policy-name DynamoDBAccess
 
 # Test Lambda invocation
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --payload '{"operation":"list_protection_groups"}' \
   response.json
 ```
@@ -1110,7 +1110,7 @@ const executionsTable = dynamodb.Table.fromTableAttributes(
   this,
   'ExecutionsTable',
   {
-    tableName: 'aws-drs-orchestration-executions-test',
+    tableName: 'hrp-drs-tech-adapter-executions-test',
     globalIndexes: ['StatusIndex', 'PlanIndex'],  // Must list all GSIs
   }
 );
@@ -1123,7 +1123,7 @@ executionsTable.grantReadWriteData(lambdaRole);
 ```bash
 # List all GSIs for a table
 aws dynamodb describe-table \
-  --table-name aws-drs-orchestration-executions-test \
+  --table-name hrp-drs-tech-adapter-executions-test \
   --query 'Table.GlobalSecondaryIndexes[].IndexName'
 ```
 
@@ -1131,7 +1131,7 @@ aws dynamodb describe-table \
 
 **Error:**
 ```
-Resource of type 'AWS::DynamoDB::Table' with identifier 'aws-drs-orchestration-protection-groups-test' already exists
+Resource of type 'AWS::DynamoDB::Table' with identifier 'hrp-drs-tech-adapter-protection-groups-test' already exists
 ```
 
 **Cause:** Trying to create a table that already exists (not importing it)
@@ -1141,7 +1141,7 @@ Resource of type 'AWS::DynamoDB::Table' with identifier 'aws-drs-orchestration-p
 ```typescript
 // Change from creating new table:
 const table = new dynamodb.Table(this, 'ProtectionGroupsTable', {
-  tableName: 'aws-drs-orchestration-protection-groups-test',
+  tableName: 'hrp-drs-tech-adapter-protection-groups-test',
   // ...
 });
 
@@ -1149,7 +1149,7 @@ const table = new dynamodb.Table(this, 'ProtectionGroupsTable', {
 const table = dynamodb.Table.fromTableName(
   this,
   'ProtectionGroupsTable',
-  'aws-drs-orchestration-protection-groups-test'
+  'hrp-drs-tech-adapter-protection-groups-test'
 );
 ```
 
@@ -1164,7 +1164,7 @@ const table = dynamodb.Table.fromTableName(
 ```typescript
 // Always set RETAIN for production tables
 const table = new dynamodb.Table(this, 'ProtectionGroupsTable', {
-  tableName: 'aws-drs-orchestration-protection-groups-test',
+  tableName: 'hrp-drs-tech-adapter-protection-groups-test',
   // ... other properties ...
   removalPolicy: cdk.RemovalPolicy.RETAIN,  // Critical!
 });
@@ -1175,17 +1175,17 @@ const table = new dynamodb.Table(this, 'ProtectionGroupsTable', {
 ```bash
 # 1. Check if backups exist
 aws dynamodb list-backups \
-  --table-name aws-drs-orchestration-protection-groups-test
+  --table-name hrp-drs-tech-adapter-protection-groups-test
 
 # 2. Restore from backup
 aws dynamodb restore-table-from-backup \
-  --target-table-name aws-drs-orchestration-protection-groups-test \
-  --backup-arn arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test/backup/01234567890123-abcdefgh
+  --target-table-name hrp-drs-tech-adapter-protection-groups-test \
+  --backup-arn arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test/backup/01234567890123-abcdefgh
 
 # 3. Or restore from point-in-time
 aws dynamodb restore-table-to-point-in-time \
-  --source-table-name aws-drs-orchestration-protection-groups-test \
-  --target-table-name aws-drs-orchestration-protection-groups-test-restored \
+  --source-table-name hrp-drs-tech-adapter-protection-groups-test \
+  --target-table-name hrp-drs-tech-adapter-protection-groups-test-restored \
   --restore-date-time 2025-01-31T12:00:00Z
 ```
 
@@ -1206,14 +1206,14 @@ AccessDeniedException: User is not authorized to perform: dynamodb:GetItem on re
 ```bash
 # In source account (where table exists)
 aws dynamodb update-table \
-  --table-name aws-drs-orchestration-protection-groups-test \
+  --table-name hrp-drs-tech-adapter-protection-groups-test \
   --resource-policy '{
     "Version": "2012-10-17",
     "Statement": [
       {
         "Effect": "Allow",
         "Principal": {
-          "AWS": "arn:aws:iam::987654321098:role/aws-drs-orchestration-query-handler-role"
+          "AWS": "arn:aws:iam::987654321098:role/hrp-drs-tech-adapter-query-handler-role"
         },
         "Action": [
           "dynamodb:GetItem",
@@ -1221,8 +1221,8 @@ aws dynamodb update-table \
           "dynamodb:Scan"
         ],
         "Resource": [
-          "arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test",
-          "arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test/index/*"
+          "arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test",
+          "arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test/index/*"
         ]
       }
     ]
@@ -1241,8 +1241,8 @@ lambdaRole.addToPolicy(new iam.PolicyStatement({
     'dynamodb:Scan',
   ],
   resources: [
-    'arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test',
-    'arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test/index/*',
+    'arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test',
+    'arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test/index/*',
   ],
 }));
 ```
@@ -1272,7 +1272,7 @@ const queryHandler = new lambda.Function(this, 'QueryHandler', {
 ```bash
 # Check Lambda environment variables
 aws lambda get-function-configuration \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-test \
   --query 'Environment.Variables'
 ```
 
@@ -1292,12 +1292,12 @@ export class DualStackMigration extends cdk.Stack {
     const oldProtectionGroupsTable = dynamodb.Table.fromTableName(
       this,
       'OldProtectionGroupsTable',
-      'aws-drs-orchestration-protection-groups-test'
+      'hrp-drs-tech-adapter-protection-groups-test'
     );
     
     // Create new Lambda functions pointing to old tables
     const newQueryHandler = new lambda.Function(this, 'NewQueryHandler', {
-      functionName: 'aws-drs-orchestration-query-handler-test-v2',
+      functionName: 'hrp-drs-tech-adapter-query-handler-test-v2',
       runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromAsset('../../lambda/query-handler'),
       handler: 'index.lambda_handler',
@@ -1318,7 +1318,7 @@ export class DualStackMigration extends cdk.Stack {
           version: lambda.Version.fromVersionArn(
             this,
             'OldVersion',
-            'arn:aws:lambda:us-east-1:123456789012:function:aws-drs-orchestration-query-handler-test:1'
+            'arn:aws:lambda:us-east-1:123456789012:function:hrp-drs-tech-adapter-query-handler-test:1'
           ),
           weight: 0.9,  // 90% to old version
         },
@@ -1347,14 +1347,14 @@ export class MultiRegionImportStack extends cdk.Stack {
     const primaryTable = dynamodb.Table.fromTableArn(
       this,
       'PrimaryTable',
-      'arn:aws:dynamodb:us-east-1:123456789012:table/aws-drs-orchestration-protection-groups-test'
+      'arn:aws:dynamodb:us-east-1:123456789012:table/hrp-drs-tech-adapter-protection-groups-test'
     );
     
     // Replica region table (DynamoDB Global Tables)
     const replicaTable = dynamodb.Table.fromTableArn(
       this,
       'ReplicaTable',
-      'arn:aws:dynamodb:us-west-2:123456789012:table/aws-drs-orchestration-protection-groups-test'
+      'arn:aws:dynamodb:us-west-2:123456789012:table/hrp-drs-tech-adapter-protection-groups-test'
     );
     
     // Lambda function with failover logic
@@ -1395,7 +1395,7 @@ export class DataStack extends cdk.Stack {
     
     // Create all DynamoDB tables
     this.protectionGroupsTable = new dynamodb.Table(this, 'ProtectionGroupsTable', {
-      tableName: 'aws-drs-orchestration-protection-groups-shared',
+      tableName: 'hrp-drs-tech-adapter-protection-groups-shared',
       partitionKey: { name: 'groupId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -1428,7 +1428,7 @@ export class ComputeStackDev extends cdk.Stack {
     
     // Create dev Lambda functions
     const queryHandler = new lambda.Function(this, 'QueryHandlerDev', {
-      functionName: 'aws-drs-orchestration-query-handler-dev',
+      functionName: 'hrp-drs-tech-adapter-query-handler-dev',
       runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromAsset('../../lambda/query-handler'),
       handler: 'index.lambda_handler',
@@ -1458,7 +1458,7 @@ export class ComputeStackTest extends cdk.Stack {
     
     // Create test Lambda functions
     const queryHandler = new lambda.Function(this, 'QueryHandlerTest', {
-      functionName: 'aws-drs-orchestration-query-handler-test',
+      functionName: 'hrp-drs-tech-adapter-query-handler-test',
       runtime: lambda.Runtime.PYTHON_3_11,
       code: lambda.Code.fromAsset('../../lambda/query-handler'),
       handler: 'index.lambda_handler',

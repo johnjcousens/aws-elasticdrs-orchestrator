@@ -644,7 +644,7 @@ Comprehensive documentation included:
 
 ## Future Releases
 
-See [GitHub Issues](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/issues) for planned features and enhancements.
+See [GitLab Issues](https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator/-/issues) for planned features and enhancements.
 
 ---
 

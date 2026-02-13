@@ -88,7 +88,7 @@ curl -X PUT https://api-endpoint/accounts/target/123456789012 \
 ```bash
 # Update DynamoDB item
 aws dynamodb update-item \
-  --table-name aws-drs-orchestration-target-accounts-dev \
+  --table-name hrp-drs-tech-adapter-target-accounts-dev \
   --key '{"accountId": {"S": "123456789012"}}' \
   --update-expression "SET roleArn = :arn" \
   --expression-attribute-values '{":arn": {"S": "arn:aws:iam::123456789012:role/DRSOrchestrationRole"}}'

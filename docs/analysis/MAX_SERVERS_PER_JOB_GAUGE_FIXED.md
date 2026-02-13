@@ -2,7 +2,7 @@
 
 **Date**: February 1, 2026  
 **Status**: RESOLVED  
-**Environment**: test (aws-drs-orchestration-test)
+**Environment**: test (hrp-drs-tech-adapter-dev)
 
 ## Issue Summary
 
@@ -109,9 +109,9 @@ All 6 gauges now displaying correctly:
 ## Deployment Details
 
 - **Environment**: test
-- **Stack**: aws-drs-orchestration-test
-- **CloudFront URL**: https://d319nadlgk4oj.cloudfront.net
-- **API Endpoint**: https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test
+- **Stack**: hrp-drs-tech-adapter-dev
+- **CloudFront URL**: https://d1kqe40a9vwn47.cloudfront.net
+- **API Endpoint**: https://cbpdf7d52d.execute-api.us-east-2.amazonaws.com/dev
 - **Deployment Time**: 21:27:15 UTC
 - **Frontend Version**: 20260201-2127
 

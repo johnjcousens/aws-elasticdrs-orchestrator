@@ -261,15 +261,15 @@ Violations of this policy will result in:
 
 The following CloudFormation stacks are **PRODUCTION CRITICAL**:
 
-- `aws-elasticdrs-orchestrator-test` (master stack)
-- `aws-elasticdrs-orchestrator-test-*` (all nested stacks)
-- `aws-elasticdrs-orchestrator-github-oidc-test` (OIDC authentication)
+- `hrp-drs-tech-adapter-dev` (master stack)
+- `hrp-drs-tech-adapter-dev-*` (all nested stacks)
+- `hrp-drs-tech-adapter-github-oidc-dev` (OIDC authentication)
 
 ### Development Stack (USE THIS)
 
-- Stack name: `aws-drs-orchestration-dev`
+- Stack name: `hrp-drs-tech-adapter-dev`
 - Environment: `dev`
-- Deployment bucket: `aws-drs-orchestration-dev`
+- Deployment bucket: `hrp-drs-tech-adapter-dev`
 
 ## Verification Before Operations
 

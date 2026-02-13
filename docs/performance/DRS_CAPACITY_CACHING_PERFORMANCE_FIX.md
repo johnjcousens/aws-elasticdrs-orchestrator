@@ -279,7 +279,7 @@ This fix addresses the performance issue reported by the user:
 
 To verify the fix is working:
 
-1. Open CloudWatch Logs for `aws-drs-orchestration-query-handler-test`
+1. Open CloudWatch Logs for `hrp-drs-tech-adapter-query-handler-dev`
 2. Load the dashboard
 3. Look for log message: `Cache SET for all_accounts_capacity`
 4. Refresh the page

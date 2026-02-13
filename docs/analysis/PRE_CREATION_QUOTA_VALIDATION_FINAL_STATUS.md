@@ -238,4 +238,4 @@ All 245 backend tests pass with zero failures and zero warnings. The implementat
 **Implemented by**: Kiro AI Assistant  
 **Date**: February 1, 2026  
 **Test Results**: 245/245 passing (100%)  
-**Deployment Target**: `aws-drs-orchestration-test`
+**Deployment Target**: `hrp-drs-tech-adapter-dev`

@@ -4,9 +4,9 @@
 
 The **Unified Orchestration Role** is a consolidated IAM role that provides all necessary permissions for the DR Orchestration Platform to execute disaster recovery operations across AWS services. This role is used by all Lambda functions in the platform.
 
-**Role Name**: `aws-drs-orchestration-orchestration-role-{environment}`
+**Role Name**: `hrp-drs-tech-adapter-orchestration-role-{environment}`
 
-**Example ARN**: `arn:aws:iam::777788889999:role/aws-drs-orchestration-orchestration-role-dev`
+**Example ARN**: `arn:aws:iam::777788889999:role/hrp-drs-tech-adapter-orchestration-role-dev`
 
 ## Lambda Handler Architecture
 
@@ -107,7 +107,7 @@ The role requires 16 custom inline policies with specific permissions:
         "dynamodb:BatchWriteItem"
       ],
       "Resource": [
-        "arn:aws:dynamodb:*:*:table/aws-drs-orchestration-*"
+        "arn:aws:dynamodb:*:*:table/hrp-drs-tech-adapter-*"
       ]
     }
   ]
@@ -115,9 +115,9 @@ The role requires 16 custom inline policies with specific permissions:
 ```
 
 **Tables accessed**:
-- `aws-drs-orchestration-executions-{env}` - DR execution tracking
-- `aws-drs-orchestration-resources-{env}` - Resource inventory cache
-- `aws-drs-orchestration-config-{env}` - Configuration settings
+- `hrp-drs-tech-adapter-executions-{env}` - DR execution tracking
+- `hrp-drs-tech-adapter-resources-{env}` - Resource inventory cache
+- `hrp-drs-tech-adapter-config-{env}` - Configuration settings
 
 ---
 
@@ -144,8 +144,8 @@ The role requires 16 custom inline policies with specific permissions:
         "states:SendTaskHeartbeat"
       ],
       "Resource": [
-        "arn:aws:states:*:*:stateMachine:aws-drs-orchestration-*",
-        "arn:aws:states:*:*:execution:aws-drs-orchestration-*:*"
+        "arn:aws:states:*:*:stateMachine:hrp-drs-tech-adapter-*",
+        "arn:aws:states:*:*:execution:hrp-drs-tech-adapter-*:*"
       ]
     }
   ]
@@ -153,7 +153,7 @@ The role requires 16 custom inline policies with specific permissions:
 ```
 
 **State machines accessed**:
-- `aws-drs-orchestration-orchestrator-{env}` - Main DR orchestration workflow
+- `hrp-drs-tech-adapter-orchestrator-{env}` - Main DR orchestration workflow
 
 ---
 
@@ -337,14 +337,14 @@ The role requires 16 custom inline policies with specific permissions:
         "sts:AssumeRole"
       ],
       "Resource": [
-        "arn:aws:iam::*:role/aws-drs-orchestration-cross-account-*"
+        "arn:aws:iam::*:role/hrp-drs-tech-adapter-cross-account-*"
       ]
     }
   ]
 }
 ```
 
-**Cross-account pattern**: Assumes roles in workload accounts with naming pattern `aws-drs-orchestration-cross-account-{env}`.
+**Cross-account pattern**: Assumes roles in workload accounts with naming pattern `hrp-drs-tech-adapter-cross-account-{env}`.
 
 ---
 
@@ -431,8 +431,8 @@ The role requires 16 custom inline policies with specific permissions:
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::aws-drs-orchestration-*",
-        "arn:aws:s3:::aws-drs-orchestration-*/*"
+        "arn:aws:s3:::hrp-drs-tech-adapter-*",
+        "arn:aws:s3:::hrp-drs-tech-adapter-*/*"
       ]
     }
   ]
@@ -486,7 +486,7 @@ The role requires 16 custom inline policies with specific permissions:
         "lambda:InvokeFunction"
       ],
       "Resource": [
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-*"
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-*"
       ]
     }
   ]
@@ -494,7 +494,7 @@ The role requires 16 custom inline policies with specific permissions:
 ```
 
 **Functions invoked**:
-- `aws-drs-orchestration-execution-poller-{env}` - Invoked by ExecutionFinder
+- `hrp-drs-tech-adapter-execution-poller-{env}` - Invoked by ExecutionFinder
 
 ---
 
@@ -520,7 +520,7 @@ The role requires 16 custom inline policies with specific permissions:
         "events:RemoveTargets"
       ],
       "Resource": [
-        "arn:aws:events:*:*:rule/aws-drs-orchestration-*"
+        "arn:aws:events:*:*:rule/hrp-drs-tech-adapter-*"
       ]
     }
   ]
@@ -585,7 +585,7 @@ The role requires 16 custom inline policies with specific permissions:
         "sns:Publish"
       ],
       "Resource": [
-        "arn:aws:sns:*:*:aws-drs-orchestration-*"
+        "arn:aws:sns:*:*:hrp-drs-tech-adapter-*"
       ]
     }
   ]
@@ -593,9 +593,9 @@ The role requires 16 custom inline policies with specific permissions:
 ```
 
 **Topics accessed**:
-- `aws-drs-orchestration-execution-notifications-{env}` - Execution status updates
-- `aws-drs-orchestration-drs-alerts-{env}` - DRS operational alerts
-- `aws-drs-orchestration-execution-pause-{env}` - Execution pause notifications
+- `hrp-drs-tech-adapter-execution-notifications-{env}` - Execution status updates
+- `hrp-drs-tech-adapter-drs-alerts-{env}` - DRS operational alerts
+- `hrp-drs-tech-adapter-execution-pause-{env}` - Execution pause notifications
 
 ---
 
@@ -640,7 +640,7 @@ Description: 'HRP Orchestration Role for DRS Orchestration Platform'
 Parameters:
   ProjectName:
     Type: String
-    Default: 'aws-drs-orchestration'
+    Default: 'hrp-drs-tech-adapter'
     Description: 'Project name for resource naming'
 
   Environment:
@@ -963,7 +963,7 @@ aws cloudformation create-stack \
   --stack-name drs-orchestration-dev \
   --template-url https://s3.amazonaws.com/BUCKET/cfn/master-template.yaml \
   --parameters \
-    ParameterKey=ProjectName,ParameterValue=aws-drs-orchestration \
+    ParameterKey=ProjectName,ParameterValue=hrp-drs-tech-adapter \
     ParameterKey=Environment,ParameterValue=dev \
     ParameterKey=OrchestrationRoleArn,ParameterValue=arn:aws:iam::ACCOUNT:role/ROLE_NAME \
     ParameterKey=AdminEmail,ParameterValue=admin@example.com \
@@ -1065,7 +1065,7 @@ When deprecating features:
 ---
 
 **Last Updated**: January 16, 2026  
-**Role ARN**: `arn:aws:iam::777788889999:role/aws-drs-orchestration-orchestration-role-dev`  
+**Role ARN**: `arn:aws:iam::777788889999:role/hrp-drs-tech-adapter-orchestration-role-dev`  
 **Status**: Production Ready
         "kms:CreateGrant"
       ],
@@ -1135,8 +1135,8 @@ When deprecating features:
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::aws-drs-orchestration-*",
-        "arn:aws:s3:::aws-drs-orchestration-*/*"
+        "arn:aws:s3:::hrp-drs-tech-adapter-*",
+        "arn:aws:s3:::hrp-drs-tech-adapter-*/*"
       ]
     }
   ]
@@ -1144,8 +1144,8 @@ When deprecating features:
 ```
 
 **Buckets accessed**:
-- `aws-drs-orchestration-frontend-{env}` - Frontend hosting bucket
-- `aws-drs-orchestration-{env}` - Deployment artifacts bucket
+- `hrp-drs-tech-adapter-frontend-{env}` - Frontend hosting bucket
+- `hrp-drs-tech-adapter-{env}` - Deployment artifacts bucket
 
 ---
 
@@ -1190,7 +1190,7 @@ When deprecating features:
         "lambda:InvokeFunction"
       ],
       "Resource": [
-        "arn:aws:lambda:*:*:function:aws-drs-orchestration-*"
+        "arn:aws:lambda:*:*:function:hrp-drs-tech-adapter-*"
       ]
     }
   ]
@@ -1221,7 +1221,7 @@ When deprecating features:
         "events:RemoveTargets"
       ],
       "Resource": [
-        "arn:aws:events:*:*:rule/aws-drs-orchestration-*"
+        "arn:aws:events:*:*:rule/hrp-drs-tech-adapter-*"
       ]
     }
   ]
@@ -1286,7 +1286,7 @@ When deprecating features:
         "sns:Publish"
       ],
       "Resource": [
-        "arn:aws:sns:*:*:aws-drs-orchestration-*"
+        "arn:aws:sns:*:*:hrp-drs-tech-adapter-*"
       ]
     }
   ]
@@ -1294,7 +1294,7 @@ When deprecating features:
 ```
 
 **Topics accessed**:
-- `aws-drs-orchestration-notifications-{env}` - DR execution notifications
+- `hrp-drs-tech-adapter-notifications-{env}` - DR execution notifications
 
 ---
 
@@ -1338,13 +1338,13 @@ The following permissions are **CRITICAL** for core DR functionality and must no
 
 ## Resource Naming Conventions
 
-All resources follow the naming pattern: `aws-drs-orchestration-{resource-type}-{environment}`
+All resources follow the naming pattern: `hrp-drs-tech-adapter-{resource-type}-{environment}`
 
 **Examples**:
-- Role: `aws-drs-orchestration-orchestration-role-dev`
-- State Machine: `aws-drs-orchestration-orchestrator-dev`
-- DynamoDB Table: `aws-drs-orchestration-executions-dev`
-- Lambda Function: `aws-drs-orchestration-api-handler-dev`
+- Role: `hrp-drs-tech-adapter-orchestration-role-dev`
+- State Machine: `hrp-drs-tech-adapter-orchestrator-dev`
+- DynamoDB Table: `hrp-drs-tech-adapter-executions-dev`
+- Lambda Function: `hrp-drs-tech-adapter-api-handler-dev`
 
 ## HRP Integration Checklist
 
@@ -1377,7 +1377,7 @@ aws dynamodb list-tables --region us-east-1
 
 1. **Least Privilege**: The role follows least privilege principles with resource-scoped permissions where possible
 2. **Service Restrictions**: IAM PassRole and KMS access are restricted to specific services via conditions
-3. **Resource Scoping**: Most permissions are scoped to resources with `aws-drs-orchestration-*` naming pattern
+3. **Resource Scoping**: Most permissions are scoped to resources with `hrp-drs-tech-adapter-*` naming pattern
 4. **Cross-Account**: Cross-account access requires explicit role assumption with specific naming pattern
 
 ## Related Documentation
@@ -1390,5 +1390,5 @@ aws dynamodb list-tables --region us-east-1
 
 For questions about the orchestration role or HRP integration:
 - Review the CloudFormation template: `cfn/master-template.yaml`
-- Check deployment logs: CloudWatch Logs `/aws/lambda/aws-drs-orchestration-*`
+- Check deployment logs: CloudWatch Logs `/aws/lambda/hrp-drs-tech-adapter-*`
 - Contact: DR Orchestration Platform Team

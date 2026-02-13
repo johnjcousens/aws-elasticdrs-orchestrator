@@ -67,8 +67,8 @@
 ### 1. Initialize Project
 ```bash
 # Create new Vite React TypeScript project
-npm create vite@latest aws-drs-orchestration -- --template react-ts
-cd aws-drs-orchestration
+npm create vite@latest hrp-drs-tech-adapter -- --template react-ts
+cd hrp-drs-tech-adapter
 
 # Install all dependencies
 npm install

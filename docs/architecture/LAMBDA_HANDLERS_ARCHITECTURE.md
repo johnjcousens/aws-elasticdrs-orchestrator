@@ -288,7 +288,7 @@ DRSOrchestrationRole:
 ```bash
 # Using AWS CLI with orchestration role
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --invocation-type RequestResponse \
   --payload '{
     "operation": "create_protection_group",
@@ -318,7 +318,7 @@ cat response.json
 ```bash
 # Create recovery plan with multiple waves
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --invocation-type RequestResponse \
   --payload '{
     "operation": "create_recovery_plan",
@@ -364,7 +364,7 @@ cat response.json
 ```bash
 # Query DRS source servers in region
 aws lambda invoke \
-  --function-name aws-drs-orchestration-query-handler-test \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --invocation-type RequestResponse \
   --payload '{
     "operation": "get_drs_source_servers",
@@ -400,7 +400,7 @@ cat response.json
 ```bash
 # Start recovery plan execution
 aws lambda invoke \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-dev \
   --invocation-type RequestResponse \
   --payload '{
     "operation": "execute_recovery_plan",
@@ -427,7 +427,7 @@ cat response.json
 ```bash
 # Check execution status
 aws lambda invoke \
-  --function-name aws-drs-orchestration-execution-handler-test \
+  --function-name hrp-drs-tech-adapter-execution-handler-dev \
   --invocation-type RequestResponse \
   --payload '{
     "operation": "get_execution_details",
@@ -487,9 +487,9 @@ import time
 lambda_client = boto3.client('lambda')
 
 # Function names from CloudFormation stack
-DATA_MGMT_FUNCTION = 'aws-drs-orchestration-data-management-handler-test'
-EXECUTION_FUNCTION = 'aws-drs-orchestration-execution-handler-test'
-QUERY_FUNCTION = 'aws-drs-orchestration-query-handler-test'
+DATA_MGMT_FUNCTION = 'hrp-drs-tech-adapter-data-management-handler-dev'
+EXECUTION_FUNCTION = 'hrp-drs-tech-adapter-execution-handler-dev'
+QUERY_FUNCTION = 'hrp-drs-tech-adapter-query-handler-dev'
 
 def invoke_lambda(function_name, operation, body=None, query_params=None):
     """Invoke Lambda function with operation-based routing"""
@@ -606,9 +606,9 @@ print("\nOrchestration complete!")
 set -e
 
 # Function names from CloudFormation stack
-DATA_MGMT_FUNCTION="aws-drs-orchestration-data-management-handler-test"
-EXECUTION_FUNCTION="aws-drs-orchestration-execution-handler-test"
-QUERY_FUNCTION="aws-drs-orchestration-query-handler-test"
+DATA_MGMT_FUNCTION="hrp-drs-tech-adapter-data-management-handler-dev"
+EXECUTION_FUNCTION="hrp-drs-tech-adapter-execution-handler-dev"
+QUERY_FUNCTION="hrp-drs-tech-adapter-query-handler-dev"
 
 # Helper function to invoke Lambda
 invoke_lambda() {
@@ -1338,11 +1338,11 @@ with patch('boto3.client') as mock_client:
 
 ```bash
 # DynamoDB Tables
-PROTECTION_GROUPS_TABLE=aws-drs-orchestration-protection-groups-test
-RECOVERY_PLANS_TABLE=aws-drs-orchestration-recovery-plans-test
-EXECUTION_HISTORY_TABLE=aws-drs-orchestration-execution-history-test
-TARGET_ACCOUNTS_TABLE=aws-drs-orchestration-target-accounts-test
-TAG_SYNC_CONFIG_TABLE=aws-drs-orchestration-tag-sync-config-test
+PROTECTION_GROUPS_TABLE=hrp-drs-tech-adapter-protection-groups-dev
+RECOVERY_PLANS_TABLE=hrp-drs-tech-adapter-recovery-plans-dev
+EXECUTION_HISTORY_TABLE=hrp-drs-tech-adapter-execution-history-dev
+TARGET_ACCOUNTS_TABLE=hrp-drs-tech-adapter-target-accounts-dev
+TAG_SYNC_CONFIG_TABLE=hrp-drs-tech-adapter-tag-sync-config-dev
 
 # Step Functions
 STEP_FUNCTIONS_STATE_MACHINE_ARN=arn:aws:states:us-east-1:...

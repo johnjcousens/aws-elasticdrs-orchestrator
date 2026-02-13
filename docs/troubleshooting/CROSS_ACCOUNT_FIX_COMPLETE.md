@@ -7,7 +7,7 @@
 
 Lambda functions were failing to assume cross-account roles when creating protection groups with servers in target accounts. The error was:
 ```
-User: arn:aws:sts::777788889999:assumed-role/aws-drs-orchestration-orchestration-role-test/aws-drs-orchestration-data-management-handler-test 
+User: arn:aws:sts::777788889999:assumed-role/hrp-drs-tech-adapter-orchestration-role-dev/hrp-drs-tech-adapter-data-management-handler-dev 
 is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::111122223333:role/DRSOrchestrationRole
 ```
 
@@ -68,7 +68,7 @@ aws cloudformation deploy \
 
 ```bash
 aws dynamodb update-item \
-  --table-name aws-drs-orchestration-target-accounts-test \
+  --table-name hrp-drs-tech-adapter-target-accounts-dev \
   --key '{"accountId": {"S": "111122223333"}}' \
   --update-expression "SET externalId = :newExternalId" \
   --expression-attribute-values '{":newExternalId": {"S": "drs-orchestration-cross-account"}}'
@@ -88,7 +88,7 @@ aws dynamodb update-item \
 
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload file://test-create-pg-cross-account.json \
   response-pg-create.json
 ```

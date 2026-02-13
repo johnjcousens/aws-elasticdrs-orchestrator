@@ -22,9 +22,9 @@ Run this command first to check overall system health:
 ./scripts/test-end-to-end.sh
 
 # Check CloudWatch Logs
-aws logs tail /aws/lambda/aws-drs-orchestration-query-handler-dev --since 5m
-aws logs tail /aws/lambda/aws-drs-orchestration-execution-handler-dev --since 5m
-aws logs tail /aws/lambda/aws-drs-orchestration-data-management-handler-dev --since 5m
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-query-handler-dev --since 5m
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-execution-handler-dev --since 5m
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-data-management-handler-dev --since 5m
 ```
 
 ### Common Symptoms
@@ -112,7 +112,7 @@ aws drs describe-source-servers --region us-east-1 \
 
 # Check Query Handler logs
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-query-handler-dev \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-query-handler-dev \
   --filter-pattern "get_drs_account_capacity" \
   --start-time $(date -u -d '1 hour ago' +%s)000 \
   --limit 10
@@ -129,12 +129,12 @@ aws logs filter-log-events \
 ```bash
 # Update Lambda environment variable to force refresh
 aws lambda update-function-configuration \
-  --function-name aws-drs-orchestration-query-handler-dev \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --environment Variables={FORCE_REFRESH=true}
 
 # Wait for update
 aws lambda wait function-updated \
-  --function-name aws-drs-orchestration-query-handler-dev
+  --function-name hrp-drs-tech-adapter-query-handler-dev
 
 # Test again
 curl -X GET "${API_ENDPOINT}/drs/quotas?region=us-east-1"
@@ -227,7 +227,7 @@ aws organizations describe-policy --policy-id POLICY_ID
 ```bash
 # Check Execution Handler logs
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-execution-handler-dev \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-execution-handler-dev \
   --filter-pattern "ERROR" \
   --start-time $(date -u -d '1 hour ago' +%s)000 \
   --limit 10
@@ -325,7 +325,7 @@ aws dynamodb get-item \
 
 # Check Execution Handler logs
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-execution-handler-dev \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-execution-handler-dev \
   --filter-pattern "get_execution_details" \
   --start-time $(date -u -d '1 hour ago' +%s)000 \
   --limit 10
@@ -399,7 +399,7 @@ aws drs describe-jobs --region us-east-1 \
 
 # Check Execution Handler logs
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-execution-handler-dev \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-execution-handler-dev \
   --filter-pattern "terminate_recovery_instances" \
   --start-time $(date -u -d '1 hour ago' +%s)000 \
   --limit 10
@@ -416,12 +416,12 @@ aws logs filter-log-events \
 ```bash
 # Increase timeout to 600 seconds
 aws lambda update-function-configuration \
-  --function-name aws-drs-orchestration-execution-handler-dev \
+  --function-name hrp-drs-tech-adapter-execution-handler-dev \
   --timeout 600
 
 # Wait for update
 aws lambda wait function-updated \
-  --function-name aws-drs-orchestration-execution-handler-dev
+  --function-name hrp-drs-tech-adapter-execution-handler-dev
 ```
 
 **Solution 2: Implement async termination**
@@ -473,7 +473,7 @@ aws drs describe-source-servers --region us-east-1 \
 
 # Check Data Management Handler logs
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-data-management-handler-dev \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-data-management-handler-dev \
   --filter-pattern "resolve_protection_group_tags" \
   --start-time $(date -u -d '1 hour ago' +%s)000 \
   --limit 10
@@ -533,7 +533,7 @@ curl -X GET "${API_ENDPOINT}/executions?status=IN_PROGRESS" \
 
 # Check conflict detection logs
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-data-management-handler-dev \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-data-management-handler-dev \
   --filter-pattern "check_server_conflicts" \
   --start-time $(date -u -d '1 hour ago' +%s)000 \
   --limit 10
@@ -593,7 +593,7 @@ curl -X GET "${API_ENDPOINT}/protection-groups/${PG_ID}" \
 
 # Check Data Management Handler logs
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-data-management-handler-dev \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-data-management-handler-dev \
   --filter-pattern "update_protection_group" \
   --start-time $(date -u -d '1 hour ago' +%s)000 \
   --limit 10
@@ -642,7 +642,7 @@ curl -X PUT "${API_ENDPOINT}/protection-groups/${PG_ID}" \
 ```bash
 # Check cold start times
 aws logs filter-log-events \
-  --log-group-name /aws/lambda/aws-drs-orchestration-query-handler-dev \
+  --log-group-name /aws/lambda/hrp-drs-tech-adapter-query-handler-dev \
   --filter-pattern "REPORT" \
   --start-time $(date -u -d '1 hour ago' +%s)000 \
   --limit 10 | grep "Init Duration"
@@ -674,12 +674,12 @@ ls -lh build/query-handler.zip
 ```bash
 # Increase memory (more CPU allocated)
 aws lambda update-function-configuration \
-  --function-name aws-drs-orchestration-query-handler-dev \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --memory-size 512
 
 # Wait for update
 aws lambda wait function-updated \
-  --function-name aws-drs-orchestration-query-handler-dev
+  --function-name hrp-drs-tech-adapter-query-handler-dev
 
 # Test cold start again
 ./scripts/benchmark-handlers.sh
@@ -689,13 +689,13 @@ aws lambda wait function-updated \
 ```bash
 # Keep 2 instances warm
 aws lambda put-provisioned-concurrency-config \
-  --function-name aws-drs-orchestration-query-handler-dev \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --provisioned-concurrent-executions 2 \
   --qualifier live
 
 # Check status
 aws lambda get-provisioned-concurrency-config \
-  --function-name aws-drs-orchestration-query-handler-dev \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --qualifier live
 ```
 
@@ -713,7 +713,7 @@ aws lambda get-provisioned-concurrency-config \
 aws cloudwatch get-metric-statistics \
   --namespace AWS/Lambda \
   --metric-name Duration \
-  --dimensions Name=FunctionName,Value=aws-drs-orchestration-query-handler-dev \
+  --dimensions Name=FunctionName,Value=hrp-drs-tech-adapter-query-handler-dev \
   --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
   --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
   --period 300 \
@@ -722,7 +722,7 @@ aws cloudwatch get-metric-statistics \
 
 # Enable X-Ray tracing
 aws lambda update-function-configuration \
-  --function-name aws-drs-orchestration-query-handler-dev \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --tracing-config Mode=Active
 ```
 
@@ -843,15 +843,15 @@ aws cognito-idp admin-set-user-password \
 ```bash
 # Enable DEBUG logging for all handlers
 aws lambda update-function-configuration \
-  --function-name aws-drs-orchestration-query-handler-dev \
+  --function-name hrp-drs-tech-adapter-query-handler-dev \
   --environment Variables={LOG_LEVEL=DEBUG}
 
 aws lambda update-function-configuration \
-  --function-name aws-drs-orchestration-execution-handler-dev \
+  --function-name hrp-drs-tech-adapter-execution-handler-dev \
   --environment Variables={LOG_LEVEL=DEBUG}
 
 aws lambda update-function-configuration \
-  --function-name aws-drs-orchestration-data-management-handler-dev \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --environment Variables={LOG_LEVEL=DEBUG}
 ```
 
@@ -861,7 +861,7 @@ aws lambda update-function-configuration \
 # Enable X-Ray for all handlers
 for HANDLER in query-handler execution-handler data-management-handler; do
   aws lambda update-function-configuration \
-    --function-name aws-drs-orchestration-${HANDLER}-dev \
+    --function-name hrp-drs-tech-adapter-${HANDLER}-dev \
     --tracing-config Mode=Active
 done
 
@@ -869,7 +869,7 @@ done
 aws xray get-trace-summaries \
   --start-time $(date -u -d '1 hour ago' +%s) \
   --end-time $(date -u +%s) \
-  --filter-expression 'service("aws-drs-orchestration-query-handler-dev")'
+  --filter-expression 'service("hrp-drs-tech-adapter-query-handler-dev")'
 ```
 
 ### CloudWatch Insights Queries
@@ -920,15 +920,15 @@ If issue persists after Level 1:
 1. Gather diagnostics:
 ```bash
 # Collect logs
-aws logs tail /aws/lambda/aws-drs-orchestration-query-handler-dev --since 1h > query-handler.log
-aws logs tail /aws/lambda/aws-drs-orchestration-execution-handler-dev --since 1h > execution-handler.log
-aws logs tail /aws/lambda/aws-drs-orchestration-data-management-handler-dev --since 1h > data-management-handler.log
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-query-handler-dev --since 1h > query-handler.log
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-execution-handler-dev --since 1h > execution-handler.log
+aws logs tail /aws/lambda/hrp-drs-tech-adapter-data-management-handler-dev --since 1h > data-management-handler.log
 
 # Collect metrics
 aws cloudwatch get-metric-statistics \
   --namespace AWS/Lambda \
   --metric-name Errors \
-  --dimensions Name=FunctionName,Value=aws-drs-orchestration-query-handler-dev \
+  --dimensions Name=FunctionName,Value=hrp-drs-tech-adapter-query-handler-dev \
   --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
   --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
   --period 300 \

@@ -175,7 +175,7 @@ class TestStandardizedRoleNaming:
 
         Property 3: Account addition round-trip
         """
-        table_name = os.getenv("TARGET_ACCOUNTS_TABLE", "aws-drs-orchestration-target-accounts-test")
+        table_name = os.getenv("TARGET_ACCOUNTS_TABLE", "hrp-drs-tech-adapter-target-accounts-test")
 
         try:
             response = aws_clients["dynamodb"].get_item(

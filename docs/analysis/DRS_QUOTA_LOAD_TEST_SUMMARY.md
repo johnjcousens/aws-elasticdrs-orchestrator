@@ -2,7 +2,7 @@
 
 **Date**: February 1, 2026  
 **Status**: ✅ **ALL 27 LOAD TESTS PASSING - QUOTA VALIDATION VERIFIED**  
-**Environment**: `aws-drs-orchestration-test`  
+**Environment**: `hrp-drs-tech-adapter-dev`  
 **Test Suite**: `tests/load/test_drs_quota_load_testing.py`  
 **Test Results**: ✅ 27 passed, 0 failed, 0 warnings
 
@@ -169,13 +169,13 @@ Total: 4,000 source servers in target account
 
 ### Lambda Function Test (February 1, 2026, 21:13 UTC)
 
-**Environment**: `aws-drs-orchestration-test`  
-**Lambda**: `aws-drs-orchestration-data-management-handler-test`
+**Environment**: `hrp-drs-tech-adapter-dev`  
+**Lambda**: `hrp-drs-tech-adapter-data-management-handler-dev`
 
 **Test 1: 101 Servers (Should Fail)**
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{"operation": "create_protection_group", "body": {..., "sourceServerIds": [101 servers]}}' \
   response.json
 ```
@@ -190,7 +190,7 @@ aws lambda invoke \
 **Test 2: 100 Servers (Should Succeed)**
 ```bash
 aws lambda invoke \
-  --function-name aws-drs-orchestration-data-management-handler-test \
+  --function-name hrp-drs-tech-adapter-data-management-handler-dev \
   --payload '{"operation": "create_protection_group", "body": {..., "sourceServerIds": [100 servers]}}' \
   response.json
 ```
@@ -317,7 +317,7 @@ User: 😊 Happy
 ## Deployment Status
 
 **Deployed**: February 1, 2026, 21:10:19 UTC  
-**Environment**: `aws-drs-orchestration-test`  
+**Environment**: `hrp-drs-tech-adapter-dev`  
 **Lambda Version**: v1.3.1-hotfix  
 **Deployment Method**: `./scripts/deploy.sh test --lambda-only`
 
@@ -341,7 +341,7 @@ $ source .venv/bin/activate && python -m pytest tests/load/test_drs_quota_load_t
 
 ============================= test session starts =============================
 platform darwin -- Python 3.12.12, pytest-8.3.4, pluggy-1.6.0
-rootdir: /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator
+rootdir: /Users/jocousen/Documents/CODE/GITHUB/hrp-drs-tech-adapter
 configfile: pyproject.toml
 plugins: anyio-4.12.1, asyncio-0.24.0, cov-6.0.0, hypothesis-6.122.3, mock-3.14.0
 asyncio: mode=Mode.STRICT, default_loop_scope=function
@@ -448,5 +448,5 @@ The solution successfully:
 
 **Verified by**: Kiro AI Assistant  
 **Date**: February 1, 2026  
-**Environment**: `aws-drs-orchestration-test`  
+**Environment**: `hrp-drs-tech-adapter-dev`  
 **Test Status**: ✅ **ALL 27 TESTS PASSED**

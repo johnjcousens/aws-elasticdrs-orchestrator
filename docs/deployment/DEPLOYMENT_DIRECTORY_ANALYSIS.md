@@ -83,7 +83,7 @@ The deployment directory contains massive duplication with 28 files covering sim
 ### Outdated Configuration Guides (Archive)
 
 6. **AWS_CONFIGURATION.md** ❌
-   - References wrong stack (`aws-elasticdrs-orchestrator-test`)
+   - References wrong stack (`hrp-drs-tech-adapter-dev`)
    - Outdated GitLab CI focus
    - Superseded by CICD_GUIDE.md
 
@@ -103,7 +103,7 @@ The deployment directory contains massive duplication with 28 files covering sim
    - Superseded by QUICK_START_GUIDE.md
 
 10. **DEPLOY_DEV_ENVIRONMENT.md** ❌
-    - References wrong stack (`aws-elasticdrs-orchestrator-dev` instead of `aws-drs-orch-dev`)
+    - References wrong stack (`hrp-drs-tech-adapter-dev` instead of `aws-drs-orch-dev`)
     - Outdated OIDC role references
     - Superseded by QUICK_START_GUIDE.md
 

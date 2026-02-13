@@ -15,7 +15,7 @@ This guide covers setting up your local development environment with all require
 ```bash
 # 1. Clone repository
 git clone <repository-url>
-cd aws-elasticdrs-orchestrator
+cd hrp-drs-tech-adapter
 
 # 2. Setup Python virtual environment
 python3 -m venv .venv
