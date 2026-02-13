@@ -617,6 +617,41 @@ def store_task_token(event: Dict) -> Dict:
         print(f"ERROR storing task token: {e}")
         raise
 
+    # Build callback URLs for email action links
+    api_url = os.environ.get("API_GATEWAY_URL", "")
+    resume_url = f"{api_url}/execution-callback" f"?action=resume&taskToken={task_token}"
+    cancel_url = f"{api_url}/execution-callback" f"?action=cancel&taskToken={task_token}"
+
+    # Send pause notification so operator knows to resume
+    plan_name = state.get("plan_name", "")
+    pause_reason = state.get("pause_reason", "Manual approval required")
+    account_ctx = get_account_context(state)
+    try:
+        publish_recovery_plan_notification(
+            plan_id=plan_id,
+            event_type="pause",
+            details={
+                "executionId": execution_id,
+                "planId": plan_id,
+                "planName": plan_name,
+                "accountId": account_ctx.get("accountId", ""),
+                "pauseReason": pause_reason,
+                "pausedBeforeWave": paused_before_wave,
+                "taskToken": task_token,
+                "resumeUrl": resume_url,
+                "cancelUrl": cancel_url,
+                "timestamp": time.strftime(
+                    "%Y-%m-%dT%H:%M:%SZ",
+                    time.gmtime(),
+                ),
+            },
+        )
+    except Exception as notif_err:
+        logger.error(
+            "Notification failed (pause): %s",
+            notif_err,
+        )
+
     # State Ownership pattern: Return complete state for SendTaskSuccess
     state["paused_before_wave"] = paused_before_wave
     return state

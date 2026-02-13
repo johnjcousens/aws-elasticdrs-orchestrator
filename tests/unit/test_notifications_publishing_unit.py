@@ -87,8 +87,8 @@ class TestPublishRecoveryPlanNotification:
         )
         assert attrs["eventType"]["StringValue"] == "start"
 
-    def test_message_body_is_json_details(self, mock_sns):
-        """Message body is JSON-serialised details dict."""
+    def test_message_body_is_structured_json(self, mock_sns):
+        """Message body has default and email keys."""
         from shared.notifications import (
             publish_recovery_plan_notification,
         )
@@ -107,7 +107,9 @@ class TestPublishRecoveryPlanNotification:
 
         kwargs = mock_sns.publish.call_args[1]
         body = json.loads(kwargs["Message"])
-        assert body == details
+        assert "default" in body
+        assert "email" in body
+        assert "Test Plan" in body["default"]
 
     def test_subject_includes_plan_name_and_event(
         self, mock_sns
@@ -480,3 +482,204 @@ class TestGracefulFailureHandling:
         send_execution_paused(
             "exec-e4", "Plan", 1, "Wave", plan_id="p-4"
         )
+
+
+# ------------------------------------------------------------------ #
+# HTML-formatted publish behaviour (Task 2.2)
+# ------------------------------------------------------------------ #
+
+class TestPublishHtmlFormattedMessages:
+    """Tests for HTML-formatted SNS publishing.
+
+    Validates: Requirements 2.1, 2.2, 2.3, 2.4, 5.3
+    """
+
+    @pytest.mark.parametrize(
+        "event_type",
+        ["start", "complete", "fail", "pause"],
+    )
+    def test_valid_event_publishes_with_message_structure(
+        self, mock_sns, event_type
+    ):
+        """SNS publish uses MessageStructure=json for valid types."""
+        from shared.notifications import (
+            publish_recovery_plan_notification,
+        )
+
+        publish_recovery_plan_notification(
+            plan_id="plan-html-01",
+            event_type=event_type,
+            details={
+                "planName": "HTML Test Plan",
+                "executionId": "exec-html-1",
+            },
+        )
+
+        mock_sns.publish.assert_called_once()
+        kwargs = mock_sns.publish.call_args[1]
+        assert kwargs["MessageStructure"] == "json"
+
+    @pytest.mark.parametrize(
+        "event_type",
+        ["start", "complete", "fail", "pause"],
+    )
+    def test_valid_event_message_has_default_and_email(
+        self, mock_sns, event_type
+    ):
+        """Message body contains default and email keys."""
+        from shared.notifications import (
+            publish_recovery_plan_notification,
+        )
+
+        publish_recovery_plan_notification(
+            plan_id="plan-html-02",
+            event_type=event_type,
+            details={
+                "planName": "Structured Plan",
+                "executionId": "exec-html-2",
+            },
+        )
+
+        kwargs = mock_sns.publish.call_args[1]
+        body = json.loads(kwargs["Message"])
+        assert "default" in body
+        assert "email" in body
+
+    @pytest.mark.parametrize(
+        "event_type",
+        ["start", "complete", "fail", "pause"],
+    )
+    def test_email_key_contains_html(
+        self, mock_sns, event_type
+    ):
+        """Email key contains HTML produced by formatter."""
+        from shared.notifications import (
+            publish_recovery_plan_notification,
+        )
+
+        publish_recovery_plan_notification(
+            plan_id="plan-html-03",
+            event_type=event_type,
+            details={
+                "planName": "HTML Check",
+                "executionId": "exec-html-3",
+            },
+        )
+
+        kwargs = mock_sns.publish.call_args[1]
+        body = json.loads(kwargs["Message"])
+        assert "<!DOCTYPE html>" in body["email"]
+
+    @pytest.mark.parametrize(
+        "event_type",
+        ["start", "complete", "fail", "pause"],
+    )
+    def test_default_key_contains_plan_name(
+        self, mock_sns, event_type
+    ):
+        """Default key contains the plan name as plain text."""
+        from shared.notifications import (
+            publish_recovery_plan_notification,
+        )
+
+        publish_recovery_plan_notification(
+            plan_id="plan-html-04",
+            event_type=event_type,
+            details={
+                "planName": "My DR Plan",
+                "executionId": "exec-html-4",
+            },
+        )
+
+        kwargs = mock_sns.publish.call_args[1]
+        body = json.loads(kwargs["Message"])
+        assert "My DR Plan" in body["default"]
+
+    def test_formatter_exception_falls_back_to_raw_json(
+        self, mock_sns
+    ):
+        """Formatter error publishes raw JSON without MessageStructure."""
+        from shared.notifications import (
+            publish_recovery_plan_notification,
+        )
+
+        details = {
+            "planName": "Fallback Plan",
+            "executionId": "exec-fallback",
+        }
+
+        with patch(
+            "shared.notifications.format_notification_message",
+            side_effect=Exception("format error"),
+        ):
+            publish_recovery_plan_notification(
+                plan_id="plan-fallback-01",
+                event_type="start",
+                details=details,
+            )
+
+        mock_sns.publish.assert_called_once()
+        kwargs = mock_sns.publish.call_args[1]
+
+        # MessageStructure should NOT be present
+        assert "MessageStructure" not in kwargs
+
+        # Message body should be raw JSON of details
+        body = json.loads(kwargs["Message"])
+        assert body == details
+
+    def test_formatter_exception_still_includes_attributes(
+        self, mock_sns
+    ):
+        """Fallback publish still includes MessageAttributes."""
+        from shared.notifications import (
+            publish_recovery_plan_notification,
+        )
+
+        with patch(
+            "shared.notifications.format_notification_message",
+            side_effect=Exception("format error"),
+        ):
+            publish_recovery_plan_notification(
+                plan_id="plan-fallback-02",
+                event_type="fail",
+                details={"planName": "Attr Check"},
+            )
+
+        kwargs = mock_sns.publish.call_args[1]
+        attrs = kwargs["MessageAttributes"]
+        assert attrs["recoveryPlanId"]["StringValue"] == (
+            "plan-fallback-02"
+        )
+        assert attrs["eventType"]["StringValue"] == "fail"
+
+    def test_unrecognized_event_type_produces_fallback(
+        self, mock_sns
+    ):
+        """Unknown event type still publishes with MessageStructure."""
+        from shared.notifications import (
+            publish_recovery_plan_notification,
+        )
+
+        publish_recovery_plan_notification(
+            plan_id="plan-unknown-01",
+            event_type="unknown_event",
+            details={
+                "planName": "Unknown Plan",
+                "executionId": "exec-unknown",
+            },
+        )
+
+        mock_sns.publish.assert_called_once()
+        kwargs = mock_sns.publish.call_args[1]
+
+        # format_notification_message handles unknown types
+        # with a plain-text fallback, so MessageStructure
+        # is still "json"
+        assert kwargs["MessageStructure"] == "json"
+
+        body = json.loads(kwargs["Message"])
+        assert "default" in body
+        assert "email" in body
+        assert "unknown_event" in body["default"]
+        assert "unknown_event" in body["email"]
