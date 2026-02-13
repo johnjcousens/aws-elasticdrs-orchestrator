@@ -25,33 +25,19 @@ from hypothesis import (
 from hypothesis import strategies as st
 
 # Environment variables must be set before importing handler
-os.environ.setdefault(
-    "PROTECTION_GROUPS_TABLE", "test-pg"
-)
-os.environ.setdefault(
-    "RECOVERY_PLANS_TABLE", "test-rp"
-)
-os.environ.setdefault(
-    "EXECUTION_HISTORY_TABLE", "test-exec"
-)
-os.environ.setdefault(
-    "TARGET_ACCOUNTS_TABLE", "test-accounts"
-)
-os.environ.setdefault(
-    "TAG_SYNC_CONFIG_TABLE", "test-tag-sync"
-)
+os.environ.setdefault("PROTECTION_GROUPS_TABLE", "test-pg")
+os.environ.setdefault("RECOVERY_PLANS_TABLE", "test-rp")
+os.environ.setdefault("EXECUTION_HISTORY_TABLE", "test-exec")
+os.environ.setdefault("TARGET_ACCOUNTS_TABLE", "test-accounts")
+os.environ.setdefault("TAG_SYNC_CONFIG_TABLE", "test-tag-sync")
 os.environ.setdefault(
     "EXECUTION_NOTIFICATIONS_TOPIC_ARN",
     "arn:aws:sns:us-east-1:123456789012:test-notif",
 )
 
-sys.path.insert(
-    0, os.path.join(os.path.dirname(__file__), "../../lambda")
-)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
-exec_module = importlib.import_module(
-    "execution-handler.index"
-)
+exec_module = importlib.import_module("execution-handler.index")
 
 
 # ============================================================
@@ -74,6 +60,7 @@ action_strategy = st.sampled_from(["resume", "cancel"])
 # Helpers
 # ============================================================
 
+
 def _build_callback_event(action: str, task_token: str):
     """Build an API Gateway GET event for /execution-callback."""
     return {
@@ -94,6 +81,7 @@ def _build_callback_event(action: str, task_token: str):
 # Property 10: Invalid Task Token Rejection
 # ============================================================
 
+
 @settings(
     max_examples=200,
     deadline=None,
@@ -104,9 +92,7 @@ def _build_callback_event(action: str, task_token: str):
     action=action_strategy,
 )
 @pytest.mark.property
-def test_property_validate_task_token_rejects_short(
-    token, action
-):
+def test_property_validate_task_token_rejects_short(token, action):
     """
     Property 10: Invalid Task Token Rejection
     (_validate_task_token level).
@@ -132,9 +118,7 @@ def test_property_validate_task_token_rejects_short(
     action=action_strategy,
 )
 @pytest.mark.property
-def test_property_callback_handler_rejects_short_token(
-    token, action
-):
+def test_property_callback_handler_rejects_short_token(token, action):
     """
     Property 10: Invalid Task Token Rejection
     (handle_execution_callback level).
@@ -149,16 +133,12 @@ def test_property_callback_handler_rejects_short_token(
     event = _build_callback_event(action, token)
 
     mock_sf = MagicMock()
-    with patch.object(
-        exec_module, "stepfunctions", mock_sf
-    ):
+    with patch.object(exec_module, "stepfunctions", mock_sf):
         result = exec_module.handle_execution_callback(event)
 
     # Must be rejected with 400
     assert result["statusCode"] == 400, (
-        f"Expected 400 for short token (len={len(token)}), "
-        f"got {result['statusCode']}. "
-        f"Action: {action}"
+        f"Expected 400 for short token (len={len(token)}), " f"got {result['statusCode']}. " f"Action: {action}"
     )
     assert result["headers"]["Content-Type"] == "text/html"
 
@@ -184,9 +164,7 @@ def test_property_empty_token_rejected(action):
     event = _build_callback_event(action, "")
 
     mock_sf = MagicMock()
-    with patch.object(
-        exec_module, "stepfunctions", mock_sf
-    ):
+    with patch.object(exec_module, "stepfunctions", mock_sf):
         result = exec_module.handle_execution_callback(event)
 
     assert result["statusCode"] == 400
@@ -215,6 +193,4 @@ def test_property_whitespace_only_token_rejected(action):
 
 
 if __name__ == "__main__":
-    pytest.main([
-        __file__, "-v", "--hypothesis-show-statistics"
-    ])
+    pytest.main([__file__, "-v", "--hypothesis-show-statistics"])

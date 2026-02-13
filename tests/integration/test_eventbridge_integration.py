@@ -38,9 +38,7 @@ def mock_env_vars():
     os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts"
     os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history"
     os.environ["AWS_REGION"] = "us-east-1"
-    os.environ["ORCHESTRATION_ROLE_ARN"] = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    os.environ["ORCHESTRATION_ROLE_ARN"] = "arn:aws:iam::123456789012:role/OrchestrationRole"
     yield
     # Cleanup
     for key in [
@@ -57,9 +55,7 @@ def mock_env_vars():
 def get_mock_context():
     """Create mock Lambda context"""
     context = Mock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test-handler"
     context.request_id = "test-request-123"
     context.function_name = "test-handler"
     context.memory_limit_in_mb = 256
@@ -70,10 +66,10 @@ def get_mock_context():
 def import_handler(handler_name):
     """
     Dynamically import a Lambda handler to avoid path conflicts.
-    
+
     Args:
         handler_name: Name of handler directory (e.g., "query-handler")
-    
+
     Returns:
         Imported handler module
     """
@@ -83,15 +79,16 @@ def import_handler(handler_name):
     for p in paths_to_remove:
         if p in sys.path:
             sys.path.remove(p)
-    
+
     # Add handler path and import
     sys.path.insert(0, handler_path)
-    
+
     # Force reload if already imported
     if "index" in sys.modules:
         del sys.modules["index"]
-    
+
     import index
+
     return index
 
 
@@ -119,9 +116,7 @@ def get_eventbridge_event(detail_type="Scheduled Event", detail=None, **kwargs):
         "account": "123456789012",
         "time": "2025-01-31T12:00:00Z",
         "region": "us-east-1",
-        "resources": [
-            "arn:aws:events:us-east-1:123456789012:rule/test-rule"
-        ],
+        "resources": ["arn:aws:events:us-east-1:123456789012:rule/test-rule"],
         "detail": detail or {},
     }
     event.update(kwargs)
@@ -144,12 +139,8 @@ def assert_eventbridge_response(response):
     assert isinstance(response, dict), "Response must be a dict"
 
     # EventBridge responses should NOT have API Gateway format
-    assert "statusCode" not in response, (
-        "EventBridge response should not have statusCode (API Gateway format)"
-    )
-    assert "headers" not in response, (
-        "EventBridge response should not have headers (API Gateway format)"
-    )
+    assert "statusCode" not in response, "EventBridge response should not have statusCode (API Gateway format)"
+    assert "headers" not in response, "EventBridge response should not have headers (API Gateway format)"
 
     return response
 
@@ -160,9 +151,7 @@ def assert_eventbridge_response(response):
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_query_handler_staging_account_sync(
-    mock_extract_principal, mock_env_vars
-):
+def test_query_handler_staging_account_sync(mock_extract_principal, mock_env_vars):
     """
     Test query-handler handles staging account sync from EventBridge.
 
@@ -176,9 +165,7 @@ def test_query_handler_staging_account_sync(
     """
     query_handler = import_handler("query-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # EventBridge scheduled event for staging account sync
     event = get_eventbridge_event(
@@ -187,8 +174,10 @@ def test_query_handler_staging_account_sync(
     )
     context = get_mock_context()
 
-    with patch.object(query_handler, "target_accounts_table") as mock_table, \
-         patch.object(query_handler, "create_drs_client") as mock_drs_client:
+    with (
+        patch.object(query_handler, "target_accounts_table") as mock_table,
+        patch.object(query_handler, "create_drs_client") as mock_drs_client,
+    ):
 
         # Mock DynamoDB table
         mock_table.scan.return_value = {
@@ -215,9 +204,7 @@ def test_query_handler_staging_account_sync(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_query_handler_detects_eventbridge_invocation(
-    mock_extract_principal, mock_env_vars
-):
+def test_query_handler_detects_eventbridge_invocation(mock_extract_principal, mock_env_vars):
     """
     Test query-handler correctly detects EventBridge invocations.
 
@@ -231,9 +218,7 @@ def test_query_handler_detects_eventbridge_invocation(
     """
     query_handler = import_handler("query-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # EventBridge scheduled event
     event = get_eventbridge_event(
@@ -257,9 +242,7 @@ def test_query_handler_detects_eventbridge_invocation(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_data_management_handler_tag_sync(
-    mock_extract_principal, mock_env_vars
-):
+def test_data_management_handler_tag_sync(mock_extract_principal, mock_env_vars):
     """
     Test data-management-handler handles tag sync from EventBridge.
 
@@ -273,9 +256,7 @@ def test_data_management_handler_tag_sync(
     """
     data_management_handler = import_handler("data-management-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # EventBridge scheduled event for tag sync
     event = get_eventbridge_event(
@@ -287,8 +268,10 @@ def test_data_management_handler_tag_sync(
     )
     context = get_mock_context()
 
-    with patch.object(data_management_handler, "protection_groups_table") as mock_pg_table, \
-         patch.object(data_management_handler, "create_drs_client") as mock_drs_client:
+    with (
+        patch.object(data_management_handler, "protection_groups_table") as mock_pg_table,
+        patch.object(data_management_handler, "create_drs_client") as mock_drs_client,
+    ):
 
         # Mock DynamoDB table
         mock_pg_table.scan.return_value = {
@@ -321,9 +304,7 @@ def test_data_management_handler_tag_sync(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_data_management_handler_detects_eventbridge_invocation(
-    mock_extract_principal, mock_env_vars
-):
+def test_data_management_handler_detects_eventbridge_invocation(mock_extract_principal, mock_env_vars):
     """
     Test data-management-handler correctly detects EventBridge invocations.
 
@@ -337,9 +318,7 @@ def test_data_management_handler_detects_eventbridge_invocation(
     """
     data_management_handler = import_handler("data-management-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # EventBridge scheduled event
     event = get_eventbridge_event(
@@ -363,9 +342,7 @@ def test_data_management_handler_detects_eventbridge_invocation(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_execution_handler_detects_eventbridge_invocation(
-    mock_extract_principal, mock_env_vars
-):
+def test_execution_handler_detects_eventbridge_invocation(mock_extract_principal, mock_env_vars):
     """
     Test execution-handler correctly detects EventBridge invocations.
 
@@ -379,9 +356,7 @@ def test_execution_handler_detects_eventbridge_invocation(
     """
     execution_handler = import_handler("execution-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # EventBridge scheduled event
     event = get_eventbridge_event(
@@ -409,9 +384,7 @@ def test_execution_handler_detects_eventbridge_invocation(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_eventbridge_tag_sync_rule_integration(
-    mock_extract_principal, mock_env_vars
-):
+def test_eventbridge_tag_sync_rule_integration(mock_extract_principal, mock_env_vars):
     """
     Test complete tag sync flow via EventBridge scheduled rule.
 
@@ -427,9 +400,7 @@ def test_eventbridge_tag_sync_rule_integration(
     """
     data_management_handler = import_handler("data-management-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # EventBridge tag sync event (matches CloudFormation template)
     event = get_eventbridge_event(
@@ -439,14 +410,14 @@ def test_eventbridge_tag_sync_rule_integration(
             "synch_tags": True,
             "synch_instance_type": True,
         },
-        resources=[
-            "arn:aws:events:us-east-1:123456789012:rule/drs-orchestration-tag-sync-schedule-test"
-        ],
+        resources=["arn:aws:events:us-east-1:123456789012:rule/drs-orchestration-tag-sync-schedule-test"],
     )
     context = get_mock_context()
 
-    with patch.object(data_management_handler, "protection_groups_table") as mock_pg_table, \
-         patch.object(data_management_handler, "create_drs_client") as mock_drs_client:
+    with (
+        patch.object(data_management_handler, "protection_groups_table") as mock_pg_table,
+        patch.object(data_management_handler, "create_drs_client") as mock_drs_client,
+    ):
 
         # Mock protection groups
         mock_pg_table.scan.return_value = {
@@ -505,9 +476,7 @@ def test_eventbridge_tag_sync_rule_integration(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_eventbridge_staging_account_sync_rule_integration(
-    mock_extract_principal, mock_env_vars
-):
+def test_eventbridge_staging_account_sync_rule_integration(mock_extract_principal, mock_env_vars):
     """
     Test complete staging account sync flow via EventBridge scheduled rule.
 
@@ -524,23 +493,21 @@ def test_eventbridge_staging_account_sync_rule_integration(
     """
     query_handler = import_handler("query-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # EventBridge staging account sync event (matches CloudFormation template)
     event = get_eventbridge_event(
         detail_type="Scheduled Event",
         source="aws.events",
         detail={"operation": "sync_staging_accounts"},
-        resources=[
-            "arn:aws:events:us-east-1:123456789012:rule/drs-orchestration-staging-account-sync-test"
-        ],
+        resources=["arn:aws:events:us-east-1:123456789012:rule/drs-orchestration-staging-account-sync-test"],
     )
     context = get_mock_context()
 
-    with patch.object(query_handler, "target_accounts_table") as mock_table, \
-         patch.object(query_handler, "create_drs_client") as mock_drs_client:
+    with (
+        patch.object(query_handler, "target_accounts_table") as mock_table,
+        patch.object(query_handler, "create_drs_client") as mock_drs_client,
+    ):
 
         # Mock target accounts
         mock_table.scan.return_value = {
@@ -598,9 +565,7 @@ def test_eventbridge_error_handling(mock_extract_principal, mock_env_vars):
     """
     query_handler = import_handler("query-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # EventBridge event with invalid operation
     event = get_eventbridge_event(
@@ -637,9 +602,7 @@ def test_eventbridge_drs_error_handling(mock_extract_principal, mock_env_vars):
     """
     data_management_handler = import_handler("data-management-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # EventBridge tag sync event
     event = get_eventbridge_event(
@@ -648,8 +611,10 @@ def test_eventbridge_drs_error_handling(mock_extract_principal, mock_env_vars):
     )
     context = get_mock_context()
 
-    with patch.object(data_management_handler, "protection_groups_table") as mock_pg_table, \
-         patch.object(data_management_handler, "create_drs_client") as mock_drs_client:
+    with (
+        patch.object(data_management_handler, "protection_groups_table") as mock_pg_table,
+        patch.object(data_management_handler, "create_drs_client") as mock_drs_client,
+    ):
 
         # Mock protection groups
         mock_pg_table.scan.return_value = {
@@ -664,9 +629,7 @@ def test_eventbridge_drs_error_handling(mock_extract_principal, mock_env_vars):
 
         # Mock DRS error
         mock_drs = MagicMock()
-        mock_drs.describe_source_servers.side_effect = Exception(
-            "DRS service unavailable"
-        )
+        mock_drs.describe_source_servers.side_effect = Exception("DRS service unavailable")
         mock_drs_client.return_value = mock_drs
 
         try:
@@ -679,8 +642,9 @@ def test_eventbridge_drs_error_handling(mock_extract_principal, mock_env_vars):
         except Exception as e:
             # Exception is acceptable - EventBridge will handle it
             # Also accept INVALID_INVOCATION errors if handler doesn't detect EventBridge
-            assert ("DRS" in str(e) or "unavailable" in str(e) or 
-                    "INVALID_INVOCATION" in str(e) or "statusCode" in str(e))
+            assert (
+                "DRS" in str(e) or "unavailable" in str(e) or "INVALID_INVOCATION" in str(e) or "statusCode" in str(e)
+            )
 
 
 # ============================================================================
@@ -689,9 +653,7 @@ def test_eventbridge_drs_error_handling(mock_extract_principal, mock_env_vars):
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_eventbridge_backward_compatibility(
-    mock_extract_principal, mock_env_vars
-):
+def test_eventbridge_backward_compatibility(mock_extract_principal, mock_env_vars):
     """
     Test that EventBridge integration remains backward compatible.
 
@@ -706,9 +668,7 @@ def test_eventbridge_backward_compatibility(
     """
     query_handler = import_handler("query-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # Use exact event format that EventBridge currently sends
     event = {
@@ -719,9 +679,7 @@ def test_eventbridge_backward_compatibility(
         "account": "123456789012",
         "time": "2025-01-31T12:00:00Z",
         "region": "us-east-1",
-        "resources": [
-            "arn:aws:events:us-east-1:123456789012:rule/test-rule"
-        ],
+        "resources": ["arn:aws:events:us-east-1:123456789012:rule/test-rule"],
         "detail": {"operation": "sync_staging_accounts"},
     }
     context = get_mock_context()
@@ -741,9 +699,7 @@ def test_eventbridge_backward_compatibility(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_eventbridge_multiple_invocations(
-    mock_extract_principal, mock_env_vars
-):
+def test_eventbridge_multiple_invocations(mock_extract_principal, mock_env_vars):
     """
     Test multiple EventBridge invocations work correctly.
 
@@ -757,9 +713,7 @@ def test_eventbridge_multiple_invocations(
     """
     query_handler = import_handler("query-handler")
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     context = get_mock_context()
 

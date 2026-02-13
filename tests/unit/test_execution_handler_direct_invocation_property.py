@@ -69,9 +69,7 @@ def setup_test_environment():
 
         # Mock IAM utilities
         mock_iam_utils = Mock()
-        mock_iam_utils.extract_iam_principal = Mock(
-            return_value="arn:aws:iam::123456789012:role/test-role"
-        )
+        mock_iam_utils.extract_iam_principal = Mock(return_value="arn:aws:iam::123456789012:role/test-role")
         mock_iam_utils.validate_iam_authorization = Mock(return_value=True)
         mock_iam_utils.log_direct_invocation = Mock()
         mock_iam_utils.create_authorization_error_response = Mock(
@@ -113,9 +111,7 @@ def get_mock_context():
     """Create mock Lambda context"""
     context = Mock()
     context.request_id = "test-request-id-123"
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test-execution-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test-execution-handler"
     return context
 
 
@@ -222,17 +218,15 @@ def test_property_valid_operation_routing_succeeds(operation, data):
         mock_context = get_mock_context()
 
         # Mock all handler functions
-        with patch("index.execute_recovery_plan") as mock_execute, patch(
-            "index.cancel_execution"
-        ) as mock_cancel, patch("index.pause_execution") as mock_pause, patch(
-            "index.resume_execution"
-        ) as mock_resume, patch(
-            "index.terminate_recovery_instances"
-        ) as mock_terminate, patch(
-            "index.get_recovery_instances"
-        ) as mock_get_instances, patch(
-            "index._delegate_to_query_handler"
-        ) as mock_delegate:
+        with (
+            patch("index.execute_recovery_plan") as mock_execute,
+            patch("index.cancel_execution") as mock_cancel,
+            patch("index.pause_execution") as mock_pause,
+            patch("index.resume_execution") as mock_resume,
+            patch("index.terminate_recovery_instances") as mock_terminate,
+            patch("index.get_recovery_instances") as mock_get_instances,
+            patch("index._delegate_to_query_handler") as mock_delegate,
+        ):
 
             # Mock all handler functions to return success responses
             mock_execute.return_value = {
@@ -363,15 +357,14 @@ def test_property_operation_with_required_params_routes_correctly(operation, dat
         mock_context = get_mock_context()
 
         # Mock all handler functions
-        with patch("index.execute_recovery_plan") as mock_execute, patch(
-            "index.cancel_execution"
-        ) as mock_cancel, patch("index.pause_execution") as mock_pause, patch(
-            "index.resume_execution"
-        ) as mock_resume, patch(
-            "index.terminate_recovery_instances"
-        ) as mock_terminate, patch(
-            "index.get_recovery_instances"
-        ) as mock_get_instances:
+        with (
+            patch("index.execute_recovery_plan") as mock_execute,
+            patch("index.cancel_execution") as mock_cancel,
+            patch("index.pause_execution") as mock_pause,
+            patch("index.resume_execution") as mock_resume,
+            patch("index.terminate_recovery_instances") as mock_terminate,
+            patch("index.get_recovery_instances") as mock_get_instances,
+        ):
 
             # Mock all handler functions to return success
             mock_execute.return_value = {
@@ -442,17 +435,15 @@ def test_property_response_format_no_api_gateway_wrapping(operation, data):
         mock_context = get_mock_context()
 
         # Mock all handler functions
-        with patch("index.execute_recovery_plan") as mock_execute, patch(
-            "index.cancel_execution"
-        ) as mock_cancel, patch("index.pause_execution") as mock_pause, patch(
-            "index.resume_execution"
-        ) as mock_resume, patch(
-            "index.terminate_recovery_instances"
-        ) as mock_terminate, patch(
-            "index.get_recovery_instances"
-        ) as mock_get_instances, patch(
-            "index._delegate_to_query_handler"
-        ) as mock_delegate:
+        with (
+            patch("index.execute_recovery_plan") as mock_execute,
+            patch("index.cancel_execution") as mock_cancel,
+            patch("index.pause_execution") as mock_pause,
+            patch("index.resume_execution") as mock_resume,
+            patch("index.terminate_recovery_instances") as mock_terminate,
+            patch("index.get_recovery_instances") as mock_get_instances,
+            patch("index._delegate_to_query_handler") as mock_delegate,
+        ):
 
             # Mock all handler functions to return API Gateway format
             api_gateway_response = {
@@ -592,17 +583,15 @@ def test_property_all_operations_return_dict(operation, data):
         mock_context = get_mock_context()
 
         # Mock all handlers
-        with patch("index.execute_recovery_plan") as mock_execute, patch(
-            "index.cancel_execution"
-        ) as mock_cancel, patch("index.pause_execution") as mock_pause, patch(
-            "index.resume_execution"
-        ) as mock_resume, patch(
-            "index.terminate_recovery_instances"
-        ) as mock_terminate, patch(
-            "index.get_recovery_instances"
-        ) as mock_get_instances, patch(
-            "index._delegate_to_query_handler"
-        ) as mock_delegate:
+        with (
+            patch("index.execute_recovery_plan") as mock_execute,
+            patch("index.cancel_execution") as mock_cancel,
+            patch("index.pause_execution") as mock_pause,
+            patch("index.resume_execution") as mock_resume,
+            patch("index.terminate_recovery_instances") as mock_terminate,
+            patch("index.get_recovery_instances") as mock_get_instances,
+            patch("index._delegate_to_query_handler") as mock_delegate,
+        ):
 
             # Mock all handlers to return various response formats
             mock_execute.return_value = {

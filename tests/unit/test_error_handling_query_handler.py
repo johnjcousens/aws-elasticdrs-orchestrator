@@ -47,50 +47,53 @@ def reset_all_mocks():
     """Reset all mocks between tests to prevent state pollution."""
     # Reset module-level variables in account_utils
     import shared.account_utils
+
     shared.account_utils._dynamodb = None
     shared.account_utils._target_accounts_table = None
-    
+
     # Reset module-level variables in conflict_detection
     import shared.conflict_detection
+
     shared.conflict_detection.dynamodb = None
     shared.conflict_detection._protection_groups_table = None
     shared.conflict_detection._recovery_plans_table = None
     shared.conflict_detection._execution_history_table = None
-    
+
     # Reset module-level variables in query-handler
     query_handler_index.dynamodb = None
     query_handler_index.protection_groups_table = None
     query_handler_index.recovery_plans_table = None
     query_handler_index.target_accounts_table = None
     query_handler_index._execution_history_table = None
-    
+
     # Create mock DynamoDB resource to prevent real AWS calls
     mock_dynamodb_resource = MagicMock()
     mock_table = MagicMock()
     mock_table.scan.return_value = {"Items": []}
     mock_table.get_item.return_value = {}
-    
+
     def get_table(table_name):
         return mock_table
+
     mock_dynamodb_resource.Table.side_effect = get_table
-    
+
     # Patch boto3 in conflict_detection and account_utils
     with patch("shared.conflict_detection.boto3") as mock_conflict_boto3:
         mock_conflict_boto3.resource.return_value = mock_dynamodb_resource
         shared.conflict_detection.dynamodb = mock_dynamodb_resource
-        
+
         with patch("shared.account_utils.boto3") as mock_account_boto3:
             mock_account_boto3.resource.return_value = mock_dynamodb_resource
-            
+
             yield
-    
+
     patch.stopall()
 
 
 def get_lambda_handler():
     """
     Import and return the lambda_handler function from query-handler.
-    
+
     Uses importlib to handle hyphenated directory name.
     """
     return query_handler_index.lambda_handler
@@ -99,16 +102,17 @@ def get_lambda_handler():
 def parse_response(result):
     """
     Parse Lambda response, handling both direct and API Gateway formats.
-    
+
     Args:
         result: Lambda response (dict)
-        
+
     Returns:
         Parsed response body (dict)
     """
     if "statusCode" in result and "body" in result:
         # API Gateway response format - parse body
         import json
+
         return json.loads(result["body"])
     # Direct invocation format - return as-is
     return result
@@ -120,23 +124,23 @@ def mock_aws_services():
     # Mock boto3 clients and resources
     mock_sts = MagicMock()
     mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
-    
+
     mock_iam = MagicMock()
     mock_iam.list_account_aliases.return_value = {"AccountAliases": ["test-account"]}
-    
+
     mock_dynamodb_resource = MagicMock()
-    
+
     # Mock DynamoDB tables
     mock_protection_groups_table = MagicMock()
     mock_protection_groups_table.scan.return_value = {"Items": []}
     mock_protection_groups_table.get_item.return_value = {}
-    
+
     mock_target_accounts_table = MagicMock()
     mock_target_accounts_table.scan.return_value = {"Items": []}
-    
+
     mock_recovery_plans_table = MagicMock()
     mock_recovery_plans_table.scan.return_value = {"Items": []}
-    
+
     # Configure dynamodb resource to return our mock tables
     def get_table(table_name):
         if "protection-groups" in table_name:
@@ -146,9 +150,9 @@ def mock_aws_services():
         elif "recovery-plans" in table_name:
             return mock_recovery_plans_table
         return MagicMock()
-    
+
     mock_dynamodb_resource.Table.side_effect = get_table
-    
+
     # Mock boto3.client and boto3.resource
     def mock_client(service_name, **kwargs):
         if service_name == "sts":
@@ -156,34 +160,49 @@ def mock_aws_services():
         elif service_name == "iam":
             return mock_iam
         return MagicMock()
-    
+
     def mock_resource(service_name, **kwargs):
         if service_name == "dynamodb":
             return mock_dynamodb_resource
         return MagicMock()
-    
+
     # CRITICAL: Patch boto3 in account_utils FIRST before it can make any real AWS calls
     with patch("shared.account_utils.boto3") as mock_account_utils_boto3:
         mock_account_utils_boto3.client.side_effect = mock_client
         mock_account_utils_boto3.resource.side_effect = mock_resource
-        
+
         # Reset module-level variables in account_utils to force re-initialization with mocks
         import shared.account_utils
+
         shared.account_utils._dynamodb = None
         shared.account_utils._target_accounts_table = None
-        
+
         # Patch boto3 in query_handler
         with patch.object(query_handler_index, "boto3") as mock_boto3:
             mock_boto3.client.side_effect = mock_client
             mock_boto3.resource.side_effect = mock_resource
-            
+
             # Mock account_utils functions that make AWS calls or get tables
             with patch("shared.account_utils.get_current_account_id", return_value="123456789012"):
                 with patch("shared.account_utils.get_account_name", return_value="test-account"):
-                    with patch("shared.account_utils._get_target_accounts_table", return_value=mock_target_accounts_table):
-                        with patch.object(query_handler_index, "get_protection_groups_table", return_value=mock_protection_groups_table):
-                            with patch.object(query_handler_index, "get_target_accounts_table", return_value=mock_target_accounts_table):
-                                with patch.object(query_handler_index, "get_recovery_plans_table", return_value=mock_recovery_plans_table):
+                    with patch(
+                        "shared.account_utils._get_target_accounts_table", return_value=mock_target_accounts_table
+                    ):
+                        with patch.object(
+                            query_handler_index,
+                            "get_protection_groups_table",
+                            return_value=mock_protection_groups_table,
+                        ):
+                            with patch.object(
+                                query_handler_index,
+                                "get_target_accounts_table",
+                                return_value=mock_target_accounts_table,
+                            ):
+                                with patch.object(
+                                    query_handler_index,
+                                    "get_recovery_plans_table",
+                                    return_value=mock_recovery_plans_table,
+                                ):
                                     yield {
                                         "boto3": mock_boto3,
                                         "sts": mock_sts,
@@ -205,9 +224,7 @@ class TestMissingParameterErrors:
         # Event without operation field
         event = {"queryParams": {"limit": 50}}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
@@ -225,9 +242,7 @@ class TestMissingParameterErrors:
         # get_drs_source_servers requires region parameter
         event = {"operation": "get_drs_source_servers", "queryParams": {}}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
@@ -249,9 +264,7 @@ class TestMissingParameterErrors:
             "groupId": "pg-123",
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
@@ -274,9 +287,7 @@ class TestInvalidOperationErrors:
 
         event = {"operation": "invalid_operation_name"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
@@ -296,9 +307,7 @@ class TestInvalidOperationErrors:
         # Common typo: list_protection_group (singular instead of plural)
         event = {"operation": "list_protection_group"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
@@ -321,17 +330,14 @@ class TestAuthorizationErrors:
 
         event = {"operation": "list_protection_groups"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
 
         # Should return authorization error - accept both message variants
         assert result["error"] == ERROR_AUTHORIZATION_FAILED
-        assert ("not authorized" in result["message"].lower() or 
-                "insufficient permissions" in result["message"].lower())
+        assert "not authorized" in result["message"].lower() or "insufficient permissions" in result["message"].lower()
 
     @patch("shared.iam_utils.validate_iam_authorization")
     def test_authorization_error_includes_details(self, mock_validate):
@@ -341,9 +347,7 @@ class TestAuthorizationErrors:
 
         event = {"operation": "list_protection_groups"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
@@ -365,9 +369,7 @@ class TestDynamoDBErrors:
     @patch("shared.iam_utils.validate_iam_authorization")
     @patch("shared.account_utils.get_current_account_id")
     @patch("shared.account_utils.get_account_name")
-    def test_dynamodb_throttling_error(
-        self, mock_get_name, mock_get_id, mock_validate, mock_aws_services
-    ):
+    def test_dynamodb_throttling_error(self, mock_get_name, mock_get_id, mock_validate, mock_aws_services):
         """Test error when DynamoDB throttles requests."""
         lambda_handler = get_lambda_handler()
         mock_validate.return_value = True
@@ -385,32 +387,20 @@ class TestDynamoDBErrors:
             },
             "Scan",
         )
-        
+
         # Import conflict_detection to patch its getter functions
         import shared.conflict_detection
-        
+
         # Patch getter functions in both account_utils and conflict_detection
         with patch("shared.account_utils._get_target_accounts_table", return_value=mock_table):
-            with patch.object(
-                shared.conflict_detection,
-                "get_protection_groups_table",
-                return_value=mock_table
-            ):
-                with patch.object(
-                    shared.conflict_detection,
-                    "get_recovery_plans_table",
-                    return_value=mock_table
-                ):
+            with patch.object(shared.conflict_detection, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(shared.conflict_detection, "get_recovery_plans_table", return_value=mock_table):
                     with patch.object(
-                        shared.conflict_detection,
-                        "get_execution_history_table",
-                        return_value=mock_table
+                        shared.conflict_detection, "get_execution_history_table", return_value=mock_table
                     ):
                         event = {"operation": "get_target_accounts"}
                         context = MagicMock()
-                        context.invoked_function_arn = (
-                            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-                        )
+                        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
                         context.aws_request_id = "test-request-id"
                         context.function_name = "query-handler"
                         context.function_version = "$LATEST"
@@ -433,9 +423,7 @@ class TestDynamoDBErrors:
     @patch("shared.iam_utils.validate_iam_authorization")
     @patch("shared.account_utils.get_current_account_id")
     @patch("shared.account_utils.get_account_name")
-    def test_dynamodb_resource_not_found(
-        self, mock_get_name, mock_get_id, mock_validate, mock_aws_services
-    ):
+    def test_dynamodb_resource_not_found(self, mock_get_name, mock_get_id, mock_validate, mock_aws_services):
         """Test error when DynamoDB table doesn't exist."""
         lambda_handler = get_lambda_handler()
         mock_validate.return_value = True
@@ -453,32 +441,20 @@ class TestDynamoDBErrors:
             },
             "Scan",
         )
-        
+
         # Import conflict_detection to patch its getter functions
         import shared.conflict_detection
-        
+
         # Patch getter functions in both account_utils and conflict_detection
         with patch("shared.account_utils._get_target_accounts_table", return_value=mock_table):
-            with patch.object(
-                shared.conflict_detection,
-                "get_protection_groups_table",
-                return_value=mock_table
-            ):
-                with patch.object(
-                    shared.conflict_detection,
-                    "get_recovery_plans_table",
-                    return_value=mock_table
-                ):
+            with patch.object(shared.conflict_detection, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(shared.conflict_detection, "get_recovery_plans_table", return_value=mock_table):
                     with patch.object(
-                        shared.conflict_detection,
-                        "get_execution_history_table",
-                        return_value=mock_table
+                        shared.conflict_detection, "get_execution_history_table", return_value=mock_table
                     ):
                         event = {"operation": "get_target_accounts"}
                         context = MagicMock()
-                        context.invoked_function_arn = (
-                            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-                        )
+                        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
                         context.aws_request_id = "test-request-id"
                         context.function_name = "query-handler"
                         context.function_version = "$LATEST"
@@ -487,10 +463,7 @@ class TestDynamoDBErrors:
 
                         # Should return error response
                         assert "error" in result
-                        assert (
-                            "ResourceNotFoundException" in result["error"]
-                            or "Table not found" in result["error"]
-                        )
+                        assert "ResourceNotFoundException" in result["error"] or "Table not found" in result["error"]
 
 
 class TestDRSAPIErrors:
@@ -504,10 +477,10 @@ class TestDRSAPIErrors:
 
         # Mock DRS service unavailable error
         mock_drs = MagicMock()
-        
+
         # Create a proper paginator mock that raises ClientError
         mock_paginator = MagicMock()
-        
+
         def raise_service_unavailable():
             raise ClientError(
                 {
@@ -518,10 +491,10 @@ class TestDRSAPIErrors:
                 },
                 "DescribeSourceServers",
             )
-        
+
         mock_paginator.paginate.side_effect = raise_service_unavailable
         mock_drs.get_paginator.return_value = mock_paginator
-        
+
         # Mock create_drs_client to return our mock DRS client
         with patch.object(query_handler_index, "create_drs_client", return_value=mock_drs):
             event = {
@@ -529,9 +502,7 @@ class TestDRSAPIErrors:
                 "queryParams": {"region": "us-east-1"},
             }
             context = MagicMock()
-            context.invoked_function_arn = (
-                "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-            )
+            context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
             result = parse_response(lambda_handler(event, context))
 
@@ -551,14 +522,16 @@ class TestDRSAPIErrors:
 
         # Mock DRS uninitialized account error
         mock_drs = MagicMock()
-        
+
         # Create a mock exception class for UninitializedAccountException
         class MockUninitializedAccountException(Exception):
             pass
-        
+
         mock_drs.exceptions.UninitializedAccountException = MockUninitializedAccountException
-        mock_drs.get_paginator.return_value.paginate.side_effect = MockUninitializedAccountException("DRS not initialized")
-        
+        mock_drs.get_paginator.return_value.paginate.side_effect = MockUninitializedAccountException(
+            "DRS not initialized"
+        )
+
         # Mock create_drs_client to return our mock DRS client
         with patch.object(query_handler_index, "create_drs_client", return_value=mock_drs):
             event = {
@@ -566,9 +539,7 @@ class TestDRSAPIErrors:
                 "queryParams": {"region": "us-east-1"},
             }
             context = MagicMock()
-            context.invoked_function_arn = (
-                "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-            )
+            context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
             result = parse_response(lambda_handler(event, context))
 
@@ -595,9 +566,7 @@ class TestUnexpectedExceptions:
 
         event = {"operation": "get_target_accounts"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         result = parse_response(lambda_handler(event, context))
 
@@ -618,9 +587,7 @@ class TestUnexpectedExceptions:
 
         event = {"operation": "get_target_accounts"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         result = parse_response(lambda_handler(event, context))
 
@@ -643,9 +610,7 @@ class TestErrorResponseStructure:
         # Test with invalid operation
         event = {"operation": "invalid_operation"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
@@ -665,9 +630,7 @@ class TestErrorResponseStructure:
         # Test with missing parameter - use query-handler operation
         event = {"operation": "get_drs_source_servers"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
@@ -685,9 +648,7 @@ class TestErrorResponseStructure:
 
         event = {"operation": "invalid_operation"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         with patch.object(query_handler_index, "boto3"):
             result = parse_response(lambda_handler(event, context))
@@ -721,32 +682,20 @@ class TestErrorResponseStructure:
             },
             "Scan",
         )
-        
+
         # Import conflict_detection to patch its getter functions
         import shared.conflict_detection
-        
+
         # Patch getter functions in both account_utils and conflict_detection
         with patch("shared.account_utils._get_target_accounts_table", return_value=mock_table):
-            with patch.object(
-                shared.conflict_detection,
-                "get_protection_groups_table",
-                return_value=mock_table
-            ):
-                with patch.object(
-                    shared.conflict_detection,
-                    "get_recovery_plans_table",
-                    return_value=mock_table
-                ):
+            with patch.object(shared.conflict_detection, "get_protection_groups_table", return_value=mock_table):
+                with patch.object(shared.conflict_detection, "get_recovery_plans_table", return_value=mock_table):
                     with patch.object(
-                        shared.conflict_detection,
-                        "get_execution_history_table",
-                        return_value=mock_table
+                        shared.conflict_detection, "get_execution_history_table", return_value=mock_table
                     ):
                         event = {"operation": "get_target_accounts"}
                         context = MagicMock()
-                        context.invoked_function_arn = (
-                            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-                        )
+                        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
                         context.aws_request_id = "test-request-id"
                         context.function_name = "query-handler"
                         context.function_version = "$LATEST"
@@ -776,9 +725,7 @@ class TestErrorConsistencyAcrossOperations:
         lambda_handler = get_lambda_handler()
         mock_validate.return_value = True
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         # Test multiple query-handler operations with missing parameters
         operations = [
@@ -817,9 +764,7 @@ class TestErrorConsistencyAcrossOperations:
         mock_table.get_item.return_value = {}
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
 
         # Test query-handler operations with non-existent resources
         # Note: Query-handler is read-only, so NOT_FOUND errors come from DynamoDB lookups
@@ -834,7 +779,7 @@ class TestErrorConsistencyAcrossOperations:
                 event = {
                     "operation": operation,
                     "groupId": "pg-123",  # Both operations require groupId
-                    param_name: param_value
+                    param_name: param_value,
                 }
                 result = parse_response(lambda_handler(event, context))
 

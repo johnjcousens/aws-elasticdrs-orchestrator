@@ -38,9 +38,7 @@ def _load_script(script_name: str):
     script_path = os.path.normpath(script_path)
     # Convert hyphens to underscores for valid module name
     module_name = script_name.replace("-", "_").replace(".py", "")
-    spec = importlib.util.spec_from_file_location(
-        module_name, script_path
-    )
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -97,19 +95,13 @@ class TestExtractAccountIdFromSourceServerArn:
 
     def test_valid_drs_arn(self):
         """Valid DRS source server ARN returns account ID."""
-        arn = (
-            "arn:aws:drs:us-east-1:111222333444:"
-            "source-server/s-1234567890abcdef0"
-        )
+        arn = "arn:aws:drs:us-east-1:111222333444:" "source-server/s-1234567890abcdef0"
         result = pg_backfill.extract_account_id_from_source_server_arn(arn)
         assert result == "111222333444"
 
     def test_different_region(self):
         """DRS ARN from different region returns account ID."""
-        arn = (
-            "arn:aws:drs:eu-west-1:555666777888:"
-            "source-server/s-abcdef1234567890a"
-        )
+        arn = "arn:aws:drs:eu-west-1:555666777888:" "source-server/s-abcdef1234567890a"
         result = pg_backfill.extract_account_id_from_source_server_arn(arn)
         assert result == "555666777888"
 
@@ -126,9 +118,7 @@ class TestExtractAccountIdFromSourceServerArn:
 
     def test_plain_server_id_returns_none(self):
         """Plain server ID (not ARN) returns None."""
-        result = pg_backfill.extract_account_id_from_source_server_arn(
-            "s-1234567890abcdef0"
-        )
+        result = pg_backfill.extract_account_id_from_source_server_arn("s-1234567890abcdef0")
         assert result is None
 
 
@@ -153,10 +143,7 @@ class TestDeriveAccountId:
         item = {
             "groupId": "pg-2",
             "assumeRoleName": "PlainRoleName",
-            "sourceServerIds": [
-                "arn:aws:drs:us-east-1:444555666777:"
-                "source-server/s-abc"
-            ],
+            "sourceServerIds": ["arn:aws:drs:us-east-1:444555666777:" "source-server/s-abc"],
         }
         assert pg_backfill.derive_account_id(item) == "444555666777"
 
@@ -165,10 +152,7 @@ class TestDeriveAccountId:
         item = {
             "groupId": "pg-3",
             "assumeRoleName": "arn:aws:iam::111111111111:role/R",
-            "sourceServerIds": [
-                "arn:aws:drs:us-east-1:222222222222:"
-                "source-server/s-x"
-            ],
+            "sourceServerIds": ["arn:aws:drs:us-east-1:222222222222:" "source-server/s-x"],
         }
         assert pg_backfill.derive_account_id(item) == "111111111111"
 
@@ -212,23 +196,17 @@ class TestPGRunBackfill:
 
     @patch.object(pg_backfill, "update_item_account_id")
     @patch.object(pg_backfill, "scan_protection_groups")
-    def test_dry_run_does_not_call_update(
-        self, mock_scan, mock_update
-    ):
+    def test_dry_run_does_not_call_update(self, mock_scan, mock_update):
         """Dry-run mode does NOT call update_item_account_id."""
         mock_scan.return_value = [
             {
                 "groupId": "pg-1",
                 "groupName": "Web",
-                "assumeRoleName": (
-                    "arn:aws:iam::123456789012:role/DR"
-                ),
+                "assumeRoleName": ("arn:aws:iam::123456789012:role/DR"),
             }
         ]
 
-        updated, skipped, errored = pg_backfill.run_backfill(
-            table_name="t", region="us-east-1", apply=False
-        )
+        updated, skipped, errored = pg_backfill.run_backfill(table_name="t", region="us-east-1", apply=False)
 
         mock_update.assert_not_called()
         assert updated == 1
@@ -237,36 +215,26 @@ class TestPGRunBackfill:
 
     @patch.object(pg_backfill, "update_item_account_id")
     @patch.object(pg_backfill, "scan_protection_groups")
-    def test_apply_mode_calls_update(
-        self, mock_scan, mock_update
-    ):
+    def test_apply_mode_calls_update(self, mock_scan, mock_update):
         """Apply mode calls update_item_account_id correctly."""
         mock_scan.return_value = [
             {
                 "groupId": "pg-1",
                 "groupName": "Web",
-                "assumeRoleName": (
-                    "arn:aws:iam::123456789012:role/DR"
-                ),
+                "assumeRoleName": ("arn:aws:iam::123456789012:role/DR"),
             }
         ]
 
-        updated, skipped, errored = pg_backfill.run_backfill(
-            table_name="t", region="us-east-1", apply=True
-        )
+        updated, skipped, errored = pg_backfill.run_backfill(table_name="t", region="us-east-1", apply=True)
 
-        mock_update.assert_called_once_with(
-            "t", "us-east-1", "pg-1", "123456789012"
-        )
+        mock_update.assert_called_once_with("t", "us-east-1", "pg-1", "123456789012")
         assert updated == 1
         assert skipped == 0
         assert errored == 0
 
     @patch.object(pg_backfill, "update_item_account_id")
     @patch.object(pg_backfill, "scan_protection_groups")
-    def test_skips_items_without_derivable_account(
-        self, mock_scan, mock_update
-    ):
+    def test_skips_items_without_derivable_account(self, mock_scan, mock_update):
         """Items where accountId cannot be derived are skipped."""
         mock_scan.return_value = [
             {
@@ -276,9 +244,7 @@ class TestPGRunBackfill:
             }
         ]
 
-        updated, skipped, errored = pg_backfill.run_backfill(
-            table_name="t", region="us-east-1", apply=True
-        )
+        updated, skipped, errored = pg_backfill.run_backfill(table_name="t", region="us-east-1", apply=True)
 
         mock_update.assert_not_called()
         assert updated == 0
@@ -290,9 +256,7 @@ class TestPGRunBackfill:
         """Empty scan result returns all zeros."""
         mock_scan.return_value = []
 
-        updated, skipped, errored = pg_backfill.run_backfill(
-            table_name="t", region="us-east-1", apply=False
-        )
+        updated, skipped, errored = pg_backfill.run_backfill(table_name="t", region="us-east-1", apply=False)
 
         assert updated == 0
         assert skipped == 0
@@ -300,9 +264,7 @@ class TestPGRunBackfill:
 
     @patch.object(pg_backfill, "update_item_account_id")
     @patch.object(pg_backfill, "scan_protection_groups")
-    def test_apply_handles_update_error(
-        self, mock_scan, mock_update
-    ):
+    def test_apply_handles_update_error(self, mock_scan, mock_update):
         """Apply mode counts errors when update_item fails."""
         from botocore.exceptions import ClientError
 
@@ -310,9 +272,7 @@ class TestPGRunBackfill:
             {
                 "groupId": "pg-err",
                 "groupName": "Err",
-                "assumeRoleName": (
-                    "arn:aws:iam::123456789012:role/DR"
-                ),
+                "assumeRoleName": ("arn:aws:iam::123456789012:role/DR"),
             }
         ]
         mock_update.side_effect = ClientError(
@@ -320,9 +280,7 @@ class TestPGRunBackfill:
             "UpdateItem",
         )
 
-        updated, skipped, errored = pg_backfill.run_backfill(
-            table_name="t", region="us-east-1", apply=True
-        )
+        updated, skipped, errored = pg_backfill.run_backfill(table_name="t", region="us-east-1", apply=True)
 
         assert updated == 0
         assert skipped == 0
@@ -408,9 +366,7 @@ class TestDeriveAccountIdFromGroups:
     """Tests for derive_account_id_from_groups in RP backfill."""
 
     @patch.object(rp_backfill, "get_protection_group")
-    def test_single_account_returns_account_id(
-        self, mock_get_pg
-    ):
+    def test_single_account_returns_account_id(self, mock_get_pg):
         """Returns account ID when all groups share one account."""
         mock_get_pg.return_value = {
             "groupId": "pg-1",
@@ -418,46 +374,34 @@ class TestDeriveAccountIdFromGroups:
             "assumeRoleName": "DRSRole",
         }
 
-        account_id, role, warning = (
-            rp_backfill.derive_account_id_from_groups(
-                "groups-table", "us-east-1", ["pg-1"]
-            )
-        )
+        account_id, role, warning = rp_backfill.derive_account_id_from_groups("groups-table", "us-east-1", ["pg-1"])
 
         assert account_id == "111222333444"
         assert role == "DRSRole"
         assert warning is None
 
     @patch.object(rp_backfill, "get_protection_group")
-    def test_mixed_accounts_returns_none_with_warning(
-        self, mock_get_pg
-    ):
+    def test_mixed_accounts_returns_none_with_warning(self, mock_get_pg):
         """Returns None + warning when groups have different accounts."""
         mock_get_pg.side_effect = [
             {"groupId": "pg-1", "accountId": "111111111111"},
             {"groupId": "pg-2", "accountId": "222222222222"},
         ]
 
-        account_id, role, warning = (
-            rp_backfill.derive_account_id_from_groups(
-                "groups-table", "us-east-1", ["pg-1", "pg-2"]
-            )
+        account_id, role, warning = rp_backfill.derive_account_id_from_groups(
+            "groups-table", "us-east-1", ["pg-1", "pg-2"]
         )
 
         assert account_id is None
         assert "mixed accounts" in warning
 
     @patch.object(rp_backfill, "get_protection_group")
-    def test_no_groups_found_returns_none(
-        self, mock_get_pg
-    ):
+    def test_no_groups_found_returns_none(self, mock_get_pg):
         """Returns None when no Protection Groups are found."""
         mock_get_pg.return_value = None
 
-        account_id, role, warning = (
-            rp_backfill.derive_account_id_from_groups(
-                "groups-table", "us-east-1", ["pg-missing"]
-            )
+        account_id, role, warning = rp_backfill.derive_account_id_from_groups(
+            "groups-table", "us-east-1", ["pg-missing"]
         )
 
         assert account_id is None
@@ -471,30 +415,20 @@ class TestDeriveAccountIdFromGroups:
             "accountId": "",
         }
 
-        account_id, role, warning = (
-            rp_backfill.derive_account_id_from_groups(
-                "groups-table", "us-east-1", ["pg-1"]
-            )
-        )
+        account_id, role, warning = rp_backfill.derive_account_id_from_groups("groups-table", "us-east-1", ["pg-1"])
 
         assert account_id is None
         assert "no accountId" in warning
 
     def test_empty_group_ids_returns_none(self):
         """Returns None when group_ids list is empty."""
-        account_id, role, warning = (
-            rp_backfill.derive_account_id_from_groups(
-                "groups-table", "us-east-1", []
-            )
-        )
+        account_id, role, warning = rp_backfill.derive_account_id_from_groups("groups-table", "us-east-1", [])
 
         assert account_id is None
         assert "no Protection Groups found" in warning
 
     @patch.object(rp_backfill, "get_protection_group")
-    def test_grabs_assume_role_from_first_group(
-        self, mock_get_pg
-    ):
+    def test_grabs_assume_role_from_first_group(self, mock_get_pg):
         """Returns assumeRoleName from the first group that has one."""
         mock_get_pg.side_effect = [
             {
@@ -509,12 +443,10 @@ class TestDeriveAccountIdFromGroups:
             },
         ]
 
-        account_id, role, warning = (
-            rp_backfill.derive_account_id_from_groups(
-                "groups-table",
-                "us-east-1",
-                ["pg-1", "pg-2"],
-            )
+        account_id, role, warning = rp_backfill.derive_account_id_from_groups(
+            "groups-table",
+            "us-east-1",
+            ["pg-1", "pg-2"],
         )
 
         assert account_id == "111222333444"
@@ -533,9 +465,7 @@ class TestRPRunBackfill:
     @patch.object(rp_backfill, "update_recovery_plan")
     @patch.object(rp_backfill, "derive_account_id_from_groups")
     @patch.object(rp_backfill, "scan_recovery_plans")
-    def test_dry_run_does_not_call_update(
-        self, mock_scan, mock_derive, mock_update
-    ):
+    def test_dry_run_does_not_call_update(self, mock_scan, mock_derive, mock_update):
         """Dry-run mode does NOT call update_recovery_plan."""
         mock_scan.return_value = [
             {
@@ -565,9 +495,7 @@ class TestRPRunBackfill:
     @patch.object(rp_backfill, "update_recovery_plan")
     @patch.object(rp_backfill, "derive_account_id_from_groups")
     @patch.object(rp_backfill, "scan_recovery_plans")
-    def test_apply_mode_calls_update(
-        self, mock_scan, mock_derive, mock_update
-    ):
+    def test_apply_mode_calls_update(self, mock_scan, mock_derive, mock_update):
         """Apply mode calls update_recovery_plan correctly."""
         mock_scan.return_value = [
             {
@@ -589,18 +517,14 @@ class TestRPRunBackfill:
             apply=True,
         )
 
-        mock_update.assert_called_once_with(
-            "p", "us-east-1", "plan-1", "123456789012", "DRSRole"
-        )
+        mock_update.assert_called_once_with("p", "us-east-1", "plan-1", "123456789012", "DRSRole")
         assert updated == 1
         assert skipped == 0
         assert errored == 0
 
     @patch.object(rp_backfill, "update_recovery_plan")
     @patch.object(rp_backfill, "scan_recovery_plans")
-    def test_skips_plan_with_no_waves(
-        self, mock_scan, mock_update
-    ):
+    def test_skips_plan_with_no_waves(self, mock_scan, mock_update):
         """Plans with no Protection Groups in waves are skipped."""
         mock_scan.return_value = [
             {
@@ -625,9 +549,7 @@ class TestRPRunBackfill:
     @patch.object(rp_backfill, "update_recovery_plan")
     @patch.object(rp_backfill, "derive_account_id_from_groups")
     @patch.object(rp_backfill, "scan_recovery_plans")
-    def test_skips_plan_with_missing_protection_groups(
-        self, mock_scan, mock_derive, mock_update
-    ):
+    def test_skips_plan_with_missing_protection_groups(self, mock_scan, mock_derive, mock_update):
         """Plans whose PGs cannot be found are skipped."""
         mock_scan.return_value = [
             {
@@ -657,9 +579,7 @@ class TestRPRunBackfill:
     @patch.object(rp_backfill, "update_recovery_plan")
     @patch.object(rp_backfill, "derive_account_id_from_groups")
     @patch.object(rp_backfill, "scan_recovery_plans")
-    def test_skips_plan_with_mixed_accounts(
-        self, mock_scan, mock_derive, mock_update
-    ):
+    def test_skips_plan_with_mixed_accounts(self, mock_scan, mock_derive, mock_update):
         """Plans with mixed-account PGs are skipped."""
         mock_scan.return_value = [
             {
@@ -674,8 +594,7 @@ class TestRPRunBackfill:
         mock_derive.return_value = (
             None,
             "",
-            "mixed accounts across Protection Groups: "
-            "111111111111, 222222222222",
+            "mixed accounts across Protection Groups: " "111111111111, 222222222222",
         )
 
         updated, skipped, errored = rp_backfill.run_backfill(
@@ -709,9 +628,7 @@ class TestRPRunBackfill:
     @patch.object(rp_backfill, "update_recovery_plan")
     @patch.object(rp_backfill, "derive_account_id_from_groups")
     @patch.object(rp_backfill, "scan_recovery_plans")
-    def test_apply_handles_update_error(
-        self, mock_scan, mock_derive, mock_update
-    ):
+    def test_apply_handles_update_error(self, mock_scan, mock_derive, mock_update):
         """Apply mode counts errors when update fails."""
         from botocore.exceptions import ClientError
 
@@ -746,9 +663,7 @@ class TestRPRunBackfill:
     @patch.object(rp_backfill, "update_recovery_plan")
     @patch.object(rp_backfill, "derive_account_id_from_groups")
     @patch.object(rp_backfill, "scan_recovery_plans")
-    def test_plan_with_no_waves_key(
-        self, mock_scan, mock_derive, mock_update
-    ):
+    def test_plan_with_no_waves_key(self, mock_scan, mock_derive, mock_update):
         """Plan missing the waves key entirely is skipped."""
         mock_scan.return_value = [
             {

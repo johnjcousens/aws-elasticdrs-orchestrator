@@ -116,7 +116,9 @@ def mock_dynamodb_tables():
 class TestCompleteDRWorkflow:
     """Test complete DR workflow across all handlers"""
 
-    @pytest.mark.skip(reason="Async Lambda invocation with moto causes deepcopy recursion - requires refactoring to mock Lambda invoke")
+    @pytest.mark.skip(
+        reason="Async Lambda invocation with moto causes deepcopy recursion - requires refactoring to mock Lambda invoke"
+    )
     def test_complete_workflow_query_to_execution(
         self,
         mock_env_vars,
@@ -138,7 +140,7 @@ class TestCompleteDRWorkflow:
 
         # Mock DRS client with pre-configured responses
         mock_drs = get_mock_drs_client()
-        
+
         # Mock Step Functions client
         mock_sfn = MagicMock()
         mock_sfn.start_execution.return_value = {
@@ -150,7 +152,7 @@ class TestCompleteDRWorkflow:
             "status": "RUNNING",
             "startDate": "2026-01-24T00:00:00Z",
         }
-        
+
         # Mock Lambda client for async invocation
         mock_lambda = MagicMock()
         mock_lambda.invoke.return_value = {
@@ -168,9 +170,11 @@ class TestCompleteDRWorkflow:
             return MagicMock()
 
         # Patch boto3.client AND the module-level clients in execution-handler
-        with patch("boto3.client", side_effect=mock_client_factory), \
-             patch.object(exec_handler, "lambda_client", mock_lambda), \
-             patch.object(exec_handler, "stepfunctions", mock_sfn):
+        with (
+            patch("boto3.client", side_effect=mock_client_factory),
+            patch.object(exec_handler, "lambda_client", mock_lambda),
+            patch.object(exec_handler, "stepfunctions", mock_sfn),
+        ):
             # Step 1: Query DRS servers
             query_event = get_mock_api_gateway_event("GET", "/drs/source-servers", query_params={"region": "us-east-1"})
             query_response = query_handler.lambda_handler(query_event, {})
@@ -347,7 +351,9 @@ class TestConflictDetection:
 
     @patch("shared.cross_account.create_drs_client")
     @patch("boto3.client")
-    @pytest.mark.skip(reason="Async Lambda invocation with moto causes deepcopy recursion - requires refactoring to mock Lambda invoke")
+    @pytest.mark.skip(
+        reason="Async Lambda invocation with moto causes deepcopy recursion - requires refactoring to mock Lambda invoke"
+    )
     def test_conflict_detection_active_execution(
         self,
         mock_boto_client,
@@ -485,7 +491,9 @@ class TestErrorHandling:
         assert "error" in body or "message" in body
 
     @patch("shared.cross_account.create_drs_client")
-    @pytest.mark.skip(reason="Wave size validation happens at execution time, not recovery plan creation - test needs refactoring")
+    @pytest.mark.skip(
+        reason="Wave size validation happens at execution time, not recovery plan creation - test needs refactoring"
+    )
     def test_wave_size_validation(self, mock_create_drs_client, mock_env_vars, mock_dynamodb_tables):
         """Test DRS service limit validation (100 servers per wave)"""
         dm_handler = load_handler_module("data-management-handler")

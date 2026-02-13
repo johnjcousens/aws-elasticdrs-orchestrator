@@ -65,9 +65,7 @@ def mock_env_vars():
 def get_mock_context():
     """Create mock Lambda context"""
     context = Mock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:111111111111:function:query-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:111111111111:function:query-handler"
     context.request_id = "test-request-123"
     context.function_name = "query-handler"
     context.memory_limit_in_mb = 256
@@ -122,9 +120,7 @@ def test_cross_account_role_assumption_success(mock_boto_client, mock_env_vars):
 
 
 @patch("shared.cross_account.boto3.client")
-def test_cross_account_role_assumption_access_denied(
-    mock_boto_client, mock_env_vars
-):
+def test_cross_account_role_assumption_access_denied(mock_boto_client, mock_env_vars):
     """
     Test cross-account role assumption failure due to access denied.
 
@@ -161,9 +157,7 @@ def test_cross_account_role_assumption_access_denied(
 
 
 @patch("shared.cross_account.boto3.client")
-def test_cross_account_role_assumption_invalid_role(
-    mock_boto_client, mock_env_vars
-):
+def test_cross_account_role_assumption_invalid_role(mock_boto_client, mock_env_vars):
     """
     Test cross-account role assumption failure due to invalid role.
 
@@ -205,9 +199,7 @@ def test_cross_account_role_assumption_invalid_role(
 
 @patch("shared.cross_account.get_cross_account_session")
 @patch("shared.cross_account.get_current_account_id")
-def test_create_drs_client_cross_account(
-    mock_get_account_id, mock_get_session, mock_env_vars
-):
+def test_create_drs_client_cross_account(mock_get_account_id, mock_get_session, mock_env_vars):
     """
     Test DRS client creation for cross-account operations.
 
@@ -249,9 +241,7 @@ def test_create_drs_client_cross_account(
 
 @patch("shared.cross_account.boto3.client")
 @patch("shared.cross_account.get_current_account_id")
-def test_create_drs_client_current_account(
-    mock_get_account_id, mock_boto_client, mock_env_vars
-):
+def test_create_drs_client_current_account(mock_get_account_id, mock_boto_client, mock_env_vars):
     """
     Test DRS client creation for current account (no role assumption).
 
@@ -342,11 +332,7 @@ def test_determine_target_account_context_current_account(
     }
 
     # Recovery plan with one protection group
-    plan = {
-        "waves": [
-            {"waveNumber": 1, "protectionGroupId": "pg-123"}
-        ]
-    }
+    plan = {"waves": [{"waveNumber": 1, "protectionGroupId": "pg-123"}]}
 
     context = determine_target_account_context(plan)
 
@@ -400,11 +386,7 @@ def test_determine_target_account_context_cross_account(
     }
 
     # Recovery plan with cross-account protection group
-    plan = {
-        "waves": [
-            {"waveNumber": 1, "protectionGroupId": "pg-456"}
-        ]
-    }
+    plan = {"waves": [{"waveNumber": 1, "protectionGroupId": "pg-456"}]}
 
     context = determine_target_account_context(plan)
 
@@ -417,9 +399,7 @@ def test_determine_target_account_context_cross_account(
 
 @patch("shared.cross_account._get_protection_groups_table")
 @patch("shared.cross_account.get_current_account_id")
-def test_determine_target_account_context_mixed_accounts(
-    mock_get_account_id, mock_pg_table, mock_env_vars
-):
+def test_determine_target_account_context_mixed_accounts(mock_get_account_id, mock_pg_table, mock_env_vars):
     """
     Test that mixed account recovery plans are rejected.
 
@@ -480,9 +460,7 @@ def test_determine_target_account_context_mixed_accounts(
 
 @patch("shared.cross_account.get_cross_account_session")
 @patch("shared.cross_account.get_current_account_id")
-def test_query_handler_cross_account_drs_client_creation(
-    mock_get_account_id, mock_get_session, mock_env_vars
-):
+def test_query_handler_cross_account_drs_client_creation(mock_get_account_id, mock_get_session, mock_env_vars):
     """
     Test DRS client creation for cross-account query operations.
 
@@ -524,9 +502,7 @@ def test_query_handler_cross_account_drs_client_creation(
 
 @patch("shared.cross_account.get_cross_account_session")
 @patch("shared.cross_account.get_current_account_id")
-def test_query_handler_cross_account_capacity_client(
-    mock_get_account_id, mock_get_session, mock_env_vars
-):
+def test_query_handler_cross_account_capacity_client(mock_get_account_id, mock_get_session, mock_env_vars):
     """
     Test DRS client creation for cross-account capacity queries.
 
@@ -578,9 +554,7 @@ def test_query_handler_cross_account_capacity_client(
 
 @patch("shared.cross_account.get_cross_account_session")
 @patch("shared.cross_account.get_current_account_id")
-def test_sync_extended_source_servers_cross_account(
-    mock_get_account_id, mock_get_session, mock_env_vars
-):
+def test_sync_extended_source_servers_cross_account(mock_get_account_id, mock_get_session, mock_env_vars):
     """
     Test synchronizing extended source servers from staging accounts.
 
@@ -635,9 +609,7 @@ def test_sync_extended_source_servers_cross_account(
 
 @patch("shared.cross_account.get_cross_account_session")
 @patch("shared.cross_account.get_current_account_id")
-def test_cross_account_operation_permission_denied(
-    mock_get_account_id, mock_get_session, mock_env_vars
-):
+def test_cross_account_operation_permission_denied(mock_get_account_id, mock_get_session, mock_env_vars):
     """
     Test error handling when cross-account permissions are denied.
 
@@ -677,9 +649,7 @@ def test_cross_account_operation_permission_denied(
 
 @patch("shared.cross_account.get_cross_account_session")
 @patch("shared.cross_account.get_current_account_id")
-def test_cross_account_operation_role_not_found(
-    mock_get_account_id, mock_get_session, mock_env_vars
-):
+def test_cross_account_operation_role_not_found(mock_get_account_id, mock_get_session, mock_env_vars):
     """
     Test error handling when cross-account role doesn't exist.
 
@@ -718,9 +688,7 @@ def test_cross_account_operation_role_not_found(
 
 @patch("shared.cross_account.get_cross_account_session")
 @patch("shared.cross_account.get_current_account_id")
-def test_cross_account_operation_invalid_credentials(
-    mock_get_account_id, mock_get_session, mock_env_vars
-):
+def test_cross_account_operation_invalid_credentials(mock_get_account_id, mock_get_session, mock_env_vars):
     """
     Test error handling when cross-account credentials are invalid.
 
@@ -797,6 +765,7 @@ def test_cross_account_operation_audit_logging(
 
     # Execute with logging capture
     import logging
+
     with caplog.at_level(logging.INFO):
         client = create_drs_client("us-east-1", account_context)
 

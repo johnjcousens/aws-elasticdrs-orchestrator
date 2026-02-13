@@ -17,14 +17,10 @@ import pytest
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
 os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
 os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history-table"
-os.environ["EXECUTION_HANDLER_ARN"] = (
-    "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-)
+os.environ["EXECUTION_HANDLER_ARN"] = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
 # Load query-handler index using importlib
-_handler_path = os.path.join(
-    os.path.dirname(__file__), "../../lambda/query-handler/index.py"
-)
+_handler_path = os.path.join(os.path.dirname(__file__), "../../lambda/query-handler/index.py")
 _spec = importlib.util.spec_from_file_location("query_handler_index", _handler_path)
 query_handler_index = importlib.util.module_from_spec(_spec)
 sys.modules["query_handler_index"] = query_handler_index
@@ -36,9 +32,7 @@ def lambda_context():
     """Mock Lambda context"""
     context = MagicMock()
     context.function_name = "query-handler"
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
     return context
 
 
@@ -114,6 +108,7 @@ def test_invocation_pattern_invalid_format(lambda_context):
     assert result["statusCode"] == 500
     # Parse body to check error
     import json
+
     body = json.loads(result["body"])
     assert "error" in body
     assert body["error"] == "INVALID_OPERATION"

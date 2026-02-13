@@ -42,9 +42,7 @@ def mock_env_vars():
     os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts"
     os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history"
     os.environ["AWS_REGION"] = "us-east-1"
-    os.environ["ORCHESTRATION_ROLE_ARN"] = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    os.environ["ORCHESTRATION_ROLE_ARN"] = "arn:aws:iam::123456789012:role/OrchestrationRole"
     yield
     # Cleanup
     for key in [
@@ -61,9 +59,7 @@ def mock_env_vars():
 def get_mock_context():
     """Create mock Lambda context"""
     context = Mock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test-handler"
     context.request_id = "test-request-123"
     context.function_name = "test-handler"
     context.memory_limit_in_mb = 256
@@ -107,15 +103,11 @@ def assert_step_functions_response(response):
         AssertionError: If response has API Gateway format
     """
     assert isinstance(response, dict), "Response must be a dict"
-    
+
     # Step Functions responses should NOT have API Gateway format
-    assert "statusCode" not in response, (
-        "Step Functions response should not have statusCode (API Gateway format)"
-    )
-    assert "headers" not in response, (
-        "Step Functions response should not have headers (API Gateway format)"
-    )
-    
+    assert "statusCode" not in response, "Step Functions response should not have statusCode (API Gateway format)"
+    assert "headers" not in response, "Step Functions response should not have headers (API Gateway format)"
+
     # Response should be plain dict with state data
     return response
 
@@ -142,9 +134,7 @@ def test_orchestration_lambda_begin_action(mock_extract_principal, mock_env_vars
     sys.path.insert(0, os.path.join(lambda_base, "dr-orchestration-stepfunction"))
     import index as orchestration_lambda
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     event = get_step_functions_event(
         action="begin",
@@ -170,10 +160,12 @@ def test_orchestration_lambda_begin_action(mock_extract_principal, mock_env_vars
     )
     context = get_mock_context()
 
-    with patch("index.get_execution_history_table") as mock_exec_table_fn, \
-         patch("index.get_protection_groups_table") as mock_pg_table_fn, \
-         patch("index.create_drs_client") as mock_drs_client:
-        
+    with (
+        patch("index.get_execution_history_table") as mock_exec_table_fn,
+        patch("index.get_protection_groups_table") as mock_pg_table_fn,
+        patch("index.create_drs_client") as mock_drs_client,
+    ):
+
         # Mock table accessor functions
         mock_exec_table = MagicMock()
         mock_exec_table.get_item.return_value = {
@@ -184,7 +176,7 @@ def test_orchestration_lambda_begin_action(mock_extract_principal, mock_env_vars
             }
         }
         mock_exec_table_fn.return_value = mock_exec_table
-        
+
         mock_pg_table = MagicMock()
         mock_pg_table.get_item.return_value = {
             "Item": {
@@ -195,19 +187,17 @@ def test_orchestration_lambda_begin_action(mock_extract_principal, mock_env_vars
             }
         }
         mock_pg_table_fn.return_value = mock_pg_table
-        
+
         # Mock DRS client
         mock_drs = MagicMock()
-        mock_drs.start_recovery.return_value = {
-            "job": {"jobID": "job-123"}
-        }
+        mock_drs.start_recovery.return_value = {"job": {"jobID": "job-123"}}
         mock_drs_client.return_value = mock_drs
 
         response = orchestration_lambda.lambda_handler(event, context)
 
     # Verify Step Functions response format
     assert_step_functions_response(response)
-    
+
     # Verify state structure
     assert "status" in response
     assert "current_wave" in response or "currentWave" in response
@@ -215,9 +205,7 @@ def test_orchestration_lambda_begin_action(mock_extract_principal, mock_env_vars
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_orchestration_lambda_poll_wave_status_action(
-    mock_extract_principal, mock_env_vars
-):
+def test_orchestration_lambda_poll_wave_status_action(mock_extract_principal, mock_env_vars):
     """
     Test orchestration Lambda handles 'poll_wave_status' action.
 
@@ -232,9 +220,7 @@ def test_orchestration_lambda_poll_wave_status_action(
     sys.path.insert(0, os.path.join(lambda_base, "dr-orchestration-stepfunction"))
     import index as orchestration_lambda
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     event = get_step_functions_event(
         action="poll_wave_status",
@@ -249,9 +235,11 @@ def test_orchestration_lambda_poll_wave_status_action(
     )
     context = get_mock_context()
 
-    with patch("index.create_drs_client") as mock_drs_client, \
-         patch("index.get_execution_history_table") as mock_exec_table_fn:
-        
+    with (
+        patch("index.create_drs_client") as mock_drs_client,
+        patch("index.get_execution_history_table") as mock_exec_table_fn,
+    ):
+
         # Mock DRS client
         mock_drs = MagicMock()
         mock_drs.describe_jobs.return_value = {
@@ -269,7 +257,7 @@ def test_orchestration_lambda_poll_wave_status_action(
             ]
         }
         mock_drs_client.return_value = mock_drs
-        
+
         mock_exec_table = MagicMock()
         mock_exec_table.get_item.return_value = {
             "Item": {
@@ -283,15 +271,13 @@ def test_orchestration_lambda_poll_wave_status_action(
 
     # Verify Step Functions response format
     assert_step_functions_response(response)
-    
+
     # Verify wave completion flag
     assert "wave_completed" in response or "waveCompleted" in response
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_orchestration_lambda_store_task_token_action(
-    mock_extract_principal, mock_env_vars
-):
+def test_orchestration_lambda_store_task_token_action(mock_extract_principal, mock_env_vars):
     """
     Test orchestration Lambda handles 'store_task_token' action.
 
@@ -306,9 +292,7 @@ def test_orchestration_lambda_store_task_token_action(
     sys.path.insert(0, os.path.join(lambda_base, "dr-orchestration-stepfunction"))
     import index as orchestration_lambda
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     event = get_step_functions_event(
         action="store_task_token",
@@ -336,7 +320,7 @@ def test_orchestration_lambda_store_task_token_action(
 
     # Verify Step Functions response format
     assert_step_functions_response(response)
-    
+
     # Verify task token was stored
     mock_exec_table.update_item.assert_called_once()
 
@@ -347,9 +331,7 @@ def test_orchestration_lambda_store_task_token_action(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_execution_handler_detects_step_functions_invocation(
-    mock_extract_principal, mock_env_vars
-):
+def test_execution_handler_detects_step_functions_invocation(mock_extract_principal, mock_env_vars):
     """
     Test execution-handler correctly detects Step Functions invocations.
 
@@ -363,9 +345,7 @@ def test_execution_handler_detects_step_functions_invocation(
     """
     import index as execution_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # Step Functions action-based event
     event = get_step_functions_event(
@@ -384,11 +364,11 @@ def test_execution_handler_detects_step_functions_invocation(
             }
         }
         mock_table_fn.return_value = mock_table
-        
+
         # Handler may not implement this action yet, but should detect it
         try:
             response = execution_handler.lambda_handler(event, context)
-            
+
             # If implemented, verify Step Functions response format
             assert_step_functions_response(response)
         except Exception as e:
@@ -402,9 +382,7 @@ def test_execution_handler_detects_step_functions_invocation(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_query_handler_step_functions_polling(
-    mock_extract_principal, mock_env_vars
-):
+def test_query_handler_step_functions_polling(mock_extract_principal, mock_env_vars):
     """
     Test query-handler handles Step Functions polling requests.
 
@@ -418,9 +396,7 @@ def test_query_handler_step_functions_polling(
     """
     import index as query_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # Step Functions may use operation-based invocation for queries
     event = {
@@ -475,12 +451,10 @@ def test_multi_wave_execution_flow(mock_extract_principal, mock_env_vars):
     sys.path.insert(0, os.path.join(lambda_base, "dr-orchestration-stepfunction"))
     import index as orchestration_lambda
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     context = get_mock_context()
-    
+
     # Wave 1: Begin
     begin_event = get_step_functions_event(
         action="begin",
@@ -511,10 +485,12 @@ def test_multi_wave_execution_flow(mock_extract_principal, mock_env_vars):
         },
     )
 
-    with patch("index.get_execution_history_table") as mock_exec_table_fn, \
-         patch("index.get_protection_groups_table") as mock_pg_table_fn, \
-         patch("index.create_drs_client") as mock_drs_client:
-        
+    with (
+        patch("index.get_execution_history_table") as mock_exec_table_fn,
+        patch("index.get_protection_groups_table") as mock_pg_table_fn,
+        patch("index.create_drs_client") as mock_drs_client,
+    ):
+
         mock_exec_table = MagicMock()
         mock_exec_table.get_item.return_value = {
             "Item": {
@@ -524,7 +500,7 @@ def test_multi_wave_execution_flow(mock_extract_principal, mock_env_vars):
             }
         }
         mock_exec_table_fn.return_value = mock_exec_table
-        
+
         mock_pg_table = MagicMock()
         mock_pg_table.get_item.return_value = {
             "Item": {
@@ -535,11 +511,9 @@ def test_multi_wave_execution_flow(mock_extract_principal, mock_env_vars):
             }
         }
         mock_pg_table_fn.return_value = mock_pg_table
-        
+
         mock_drs = MagicMock()
-        mock_drs.start_recovery.return_value = {
-            "job": {"jobID": "job-wave1"}
-        }
+        mock_drs.start_recovery.return_value = {"job": {"jobID": "job-wave1"}}
         mock_drs_client.return_value = mock_drs
 
         wave1_state = orchestration_lambda.lambda_handler(begin_event, context)
@@ -547,7 +521,7 @@ def test_multi_wave_execution_flow(mock_extract_principal, mock_env_vars):
     # Verify Wave 1 started
     assert_step_functions_response(wave1_state)
     assert wave1_state.get("current_wave") == 1 or wave1_state.get("currentWave") == 1
-    
+
     # Wave 1: Poll until complete
     poll_event = get_step_functions_event(
         action="poll_wave_status",
@@ -561,9 +535,11 @@ def test_multi_wave_execution_flow(mock_extract_principal, mock_env_vars):
         },
     )
 
-    with patch("index.create_drs_client") as mock_drs_client, \
-         patch("index.get_execution_history_table") as mock_exec_table_fn:
-        
+    with (
+        patch("index.create_drs_client") as mock_drs_client,
+        patch("index.get_execution_history_table") as mock_exec_table_fn,
+    ):
+
         mock_drs = MagicMock()
         mock_drs.describe_jobs.return_value = {
             "items": [
@@ -584,7 +560,7 @@ def test_multi_wave_execution_flow(mock_extract_principal, mock_env_vars):
             ]
         }
         mock_drs_client.return_value = mock_drs
-        
+
         mock_exec_table = MagicMock()
         mock_exec_table.get_item.return_value = {
             "Item": {
@@ -623,9 +599,7 @@ def test_step_functions_error_handling(mock_extract_principal, mock_env_vars):
     sys.path.insert(0, os.path.join(lambda_base, "dr-orchestration-stepfunction"))
     import index as orchestration_lambda
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # Invalid action
     event = get_step_functions_event(
@@ -637,7 +611,7 @@ def test_step_functions_error_handling(mock_extract_principal, mock_env_vars):
     with patch("index.get_execution_history_table"):
         try:
             response = orchestration_lambda.lambda_handler(event, context)
-            
+
             # If error is returned (not raised), verify format
             if "error" in response or "status" in response:
                 assert_step_functions_response(response)
@@ -664,9 +638,7 @@ def test_step_functions_drs_error_handling(mock_extract_principal, mock_env_vars
     sys.path.insert(0, os.path.join(lambda_base, "dr-orchestration-stepfunction"))
     import index as orchestration_lambda
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     event = get_step_functions_event(
         action="begin",
@@ -692,10 +664,12 @@ def test_step_functions_drs_error_handling(mock_extract_principal, mock_env_vars
     )
     context = get_mock_context()
 
-    with patch("index.get_execution_history_table") as mock_exec_table_fn, \
-         patch("index.get_protection_groups_table") as mock_pg_table_fn, \
-         patch("index.create_drs_client") as mock_drs_client:
-        
+    with (
+        patch("index.get_execution_history_table") as mock_exec_table_fn,
+        patch("index.get_protection_groups_table") as mock_pg_table_fn,
+        patch("index.create_drs_client") as mock_drs_client,
+    ):
+
         mock_exec_table = MagicMock()
         mock_exec_table.get_item.return_value = {
             "Item": {
@@ -704,7 +678,7 @@ def test_step_functions_drs_error_handling(mock_extract_principal, mock_env_vars
             }
         }
         mock_exec_table_fn.return_value = mock_exec_table
-        
+
         mock_pg_table = MagicMock()
         mock_pg_table.get_item.return_value = {
             "Item": {
@@ -714,7 +688,7 @@ def test_step_functions_drs_error_handling(mock_extract_principal, mock_env_vars
             }
         }
         mock_pg_table_fn.return_value = mock_pg_table
-        
+
         # Mock DRS error
         mock_drs = MagicMock()
         mock_drs.start_recovery.side_effect = Exception("DRS service unavailable")
@@ -722,7 +696,7 @@ def test_step_functions_drs_error_handling(mock_extract_principal, mock_env_vars
 
         try:
             response = orchestration_lambda.lambda_handler(event, context)
-            
+
             # If error is returned, verify format
             if isinstance(response, dict):
                 assert_step_functions_response(response)
@@ -738,9 +712,7 @@ def test_step_functions_drs_error_handling(mock_extract_principal, mock_env_vars
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_step_functions_backward_compatibility(
-    mock_extract_principal, mock_env_vars
-):
+def test_step_functions_backward_compatibility(mock_extract_principal, mock_env_vars):
     """
     Test that Step Functions integration remains backward compatible.
 
@@ -756,9 +728,7 @@ def test_step_functions_backward_compatibility(
     sys.path.insert(0, os.path.join(lambda_base, "dr-orchestration-stepfunction"))
     import index as orchestration_lambda
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # Use exact event format that Step Functions currently sends
     event = {
@@ -776,22 +746,20 @@ def test_step_functions_backward_compatibility(
     }
     context = get_mock_context()
 
-    with patch("index.get_execution_history_table") as mock_exec_table_fn, \
-         patch("index.get_protection_groups_table") as mock_pg_table_fn, \
-         patch("index.create_drs_client") as mock_drs_client:
-        
+    with (
+        patch("index.get_execution_history_table") as mock_exec_table_fn,
+        patch("index.get_protection_groups_table") as mock_pg_table_fn,
+        patch("index.create_drs_client") as mock_drs_client,
+    ):
+
         mock_exec_table = MagicMock()
-        mock_exec_table.get_item.return_value = {
-            "Item": {"executionId": "test-execution-123", "status": "PENDING"}
-        }
+        mock_exec_table.get_item.return_value = {"Item": {"executionId": "test-execution-123", "status": "PENDING"}}
         mock_exec_table_fn.return_value = mock_exec_table
-        
+
         mock_pg_table = MagicMock()
-        mock_pg_table.get_item.return_value = {
-            "Item": {"groupId": "pg-123", "launchConfig": {}, "servers": []}
-        }
+        mock_pg_table.get_item.return_value = {"Item": {"groupId": "pg-123", "launchConfig": {}, "servers": []}}
         mock_pg_table_fn.return_value = mock_pg_table
-        
+
         mock_drs = MagicMock()
         mock_drs.start_recovery.return_value = {"job": {"jobID": "job-123"}}
         mock_drs_client.return_value = mock_drs
@@ -800,11 +768,11 @@ def test_step_functions_backward_compatibility(
 
     # Verify response is compatible with Step Functions expectations
     assert_step_functions_response(response)
-    
+
     # Verify state structure matches what Step Functions expects
     assert isinstance(response, dict)
     assert "status" in response
-    
+
     # Should not have API Gateway format
     assert "statusCode" not in response
     assert "headers" not in response

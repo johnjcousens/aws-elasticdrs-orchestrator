@@ -59,8 +59,7 @@ def setup_test_environment():
     ):
         # Save original shared modules before replacing
         original_shared_modules = {
-            name: mod for name, mod in sys.modules.items()
-            if name == "shared" or name.startswith("shared.")
+            name: mod for name, mod in sys.modules.items() if name == "shared" or name.startswith("shared.")
         }
 
         # Mock shared modules
@@ -97,7 +96,7 @@ def setup_test_environment():
         mock_iam_utils.log_direct_invocation.return_value = None
         mock_iam_utils.create_authorization_error_response.return_value = {
             "error": "AUTHORIZATION_FAILED",
-            "message": "Not authorized"
+            "message": "Not authorized",
         }
         sys.modules["shared.iam_utils"] = mock_iam_utils
 
@@ -106,7 +105,7 @@ def setup_test_environment():
         finally:
             # Stop all active patches to prevent pollution
             patch.stopall()
-            
+
             # Restore original state
             sys.path = original_path
             if "index" in sys.modules:
@@ -121,14 +120,11 @@ def setup_test_environment():
             sys.modules.update(original_shared_modules)
 
 
-
 def get_mock_context():
     """Create mock Lambda context"""
     context = Mock()
     context.request_id = "test-request-id-123"
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test-data-management-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test-data-management-handler"
     return context
 
 
@@ -185,9 +181,7 @@ def invalid_operation_name(draw):
     invalid_op = draw(
         st.one_of(
             st.text(
-                alphabet=st.characters(
-                    whitelist_categories=("Lu", "Ll", "Nd"), min_codepoint=65
-                ),
+                alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), min_codepoint=65),
                 min_size=1,
                 max_size=50,
             ),
@@ -198,7 +192,6 @@ def invalid_operation_name(draw):
     if invalid_op in VALID_OPERATIONS:
         return "definitely_invalid_operation_xyz"
     return invalid_op
-
 
 
 @st.composite
@@ -266,9 +259,7 @@ def valid_body_for_operation(draw, operation):
             "accountName": draw(st.text(min_size=1, max_size=50)),
         }
     elif operation == "delete_target_account":
-        return {
-            "accountId": str(draw(st.integers(min_value=100000000000, max_value=999999999999)))
-        }
+        return {"accountId": str(draw(st.integers(min_value=100000000000, max_value=999999999999)))}
     elif operation in ["handle_drs_tag_sync", "trigger_tag_sync"]:
         return {}
     elif operation == "update_tag_sync_settings":
@@ -286,18 +277,15 @@ def valid_body_for_operation(draw, operation):
             "stagingAccountId": str(draw(st.integers(min_value=100000000000, max_value=999999999999))),
         }
     elif operation in ["sync_staging_accounts", "sync_extended_source_servers"]:
-        return {
-            "targetAccountId": str(draw(st.integers(min_value=100000000000, max_value=999999999999)))
-        }
+        return {"targetAccountId": str(draw(st.integers(min_value=100000000000, max_value=999999999999)))}
     else:
         return {}
-
 
 
 def mock_all_handlers():
     """Helper to create all handler mocks"""
     success_response = {"success": True, "data": "test"}
-    
+
     patches = {
         "index.create_protection_group": success_response,
         "index.get_protection_groups": success_response,
@@ -325,7 +313,7 @@ def mock_all_handlers():
         "index.handle_remove_staging_account": success_response,
         "index.handle_sync_single_account": success_response,
     }
-    
+
     return [patch(name, return_value=value) for name, value in patches.items()]
 
 
@@ -378,7 +366,6 @@ def test_property_valid_operation_routing_succeeds(operation, data):
                 mock_patch.stop()
 
 
-
 # Property 13: Data Management Handler Invalid Operation Rejection
 # Feature: direct-lambda-invocation-mode, Property 13: Data Management Handler Invalid Operation Rejection
 @settings(
@@ -427,14 +414,16 @@ def test_property_invalid_operation_returns_error(operation):
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    operation=st.sampled_from([
-        "create_protection_group",
-        "list_protection_groups",
-        "get_protection_group",
-        "update_protection_group",
-        "delete_protection_group",
-        "resolve_protection_group_tags",
-    ]),
+    operation=st.sampled_from(
+        [
+            "create_protection_group",
+            "list_protection_groups",
+            "get_protection_group",
+            "update_protection_group",
+            "delete_protection_group",
+            "resolve_protection_group_tags",
+        ]
+    ),
     data=st.data(),
 )
 def test_property_protection_group_operations_route_correctly(operation, data):
@@ -454,12 +443,14 @@ def test_property_protection_group_operations_route_correctly(operation, data):
         mock_context = get_mock_context()
 
         # Mock protection group handlers
-        with patch("index.create_protection_group") as mock_create, \
-             patch("index.get_protection_groups") as mock_list, \
-             patch("index.get_protection_group") as mock_get, \
-             patch("index.update_protection_group") as mock_update, \
-             patch("index.delete_protection_group") as mock_delete, \
-             patch("index.resolve_protection_group_tags") as mock_resolve:
+        with (
+            patch("index.create_protection_group") as mock_create,
+            patch("index.get_protection_groups") as mock_list,
+            patch("index.get_protection_group") as mock_get,
+            patch("index.update_protection_group") as mock_update,
+            patch("index.delete_protection_group") as mock_delete,
+            patch("index.resolve_protection_group_tags") as mock_resolve,
+        ):
 
             # Mock all handlers to return success
             success_response = {"success": True, "groupId": "pg-123"}
@@ -485,7 +476,6 @@ def test_property_protection_group_operations_route_correctly(operation, data):
             assert isinstance(result, dict)
 
 
-
 # Property: Recovery Plan operations route correctly
 # Feature: direct-lambda-invocation-mode, Property 12: Data Management Handler Operation Routing
 @settings(
@@ -494,13 +484,15 @@ def test_property_protection_group_operations_route_correctly(operation, data):
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    operation=st.sampled_from([
-        "create_recovery_plan",
-        "list_recovery_plans",
-        "get_recovery_plan",
-        "update_recovery_plan",
-        "delete_recovery_plan",
-    ]),
+    operation=st.sampled_from(
+        [
+            "create_recovery_plan",
+            "list_recovery_plans",
+            "get_recovery_plan",
+            "update_recovery_plan",
+            "delete_recovery_plan",
+        ]
+    ),
     data=st.data(),
 )
 def test_property_recovery_plan_operations_route_correctly(operation, data):
@@ -520,11 +512,13 @@ def test_property_recovery_plan_operations_route_correctly(operation, data):
         mock_context = get_mock_context()
 
         # Mock recovery plan handlers
-        with patch("index.create_recovery_plan") as mock_create, \
-             patch("index.get_recovery_plans") as mock_list, \
-             patch("index.get_recovery_plan") as mock_get, \
-             patch("index.update_recovery_plan") as mock_update, \
-             patch("index.delete_recovery_plan") as mock_delete:
+        with (
+            patch("index.create_recovery_plan") as mock_create,
+            patch("index.get_recovery_plans") as mock_list,
+            patch("index.get_recovery_plan") as mock_get,
+            patch("index.update_recovery_plan") as mock_update,
+            patch("index.delete_recovery_plan") as mock_delete,
+        ):
 
             # Mock all handlers to return success
             success_response = {"success": True, "planId": "plan-123"}
@@ -557,12 +551,14 @@ def test_property_recovery_plan_operations_route_correctly(operation, data):
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    operation=st.sampled_from([
-        "update_server_launch_config",
-        "delete_server_launch_config",
-        "bulk_update_server_configs",
-        "validate_static_ip",
-    ]),
+    operation=st.sampled_from(
+        [
+            "update_server_launch_config",
+            "delete_server_launch_config",
+            "bulk_update_server_configs",
+            "validate_static_ip",
+        ]
+    ),
     data=st.data(),
 )
 def test_property_server_launch_config_operations_route_correctly(operation, data):
@@ -582,10 +578,12 @@ def test_property_server_launch_config_operations_route_correctly(operation, dat
         mock_context = get_mock_context()
 
         # Mock server launch config handlers
-        with patch("index.update_server_launch_config") as mock_update, \
-             patch("index.delete_server_launch_config") as mock_delete, \
-             patch("index.bulk_update_server_launch_config") as mock_bulk, \
-             patch("index.validate_server_static_ip") as mock_validate:
+        with (
+            patch("index.update_server_launch_config") as mock_update,
+            patch("index.delete_server_launch_config") as mock_delete,
+            patch("index.bulk_update_server_launch_config") as mock_bulk,
+            patch("index.validate_server_static_ip") as mock_validate,
+        ):
 
             # Mock all handlers to return success
             success_response = {"success": True}
@@ -609,7 +607,6 @@ def test_property_server_launch_config_operations_route_correctly(operation, dat
             assert isinstance(result, dict)
 
 
-
 # Property: Target Account operations route correctly
 # Feature: direct-lambda-invocation-mode, Property 12: Data Management Handler Operation Routing
 @settings(
@@ -618,11 +615,13 @@ def test_property_server_launch_config_operations_route_correctly(operation, dat
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    operation=st.sampled_from([
-        "add_target_account",
-        "update_target_account",
-        "delete_target_account",
-    ]),
+    operation=st.sampled_from(
+        [
+            "add_target_account",
+            "update_target_account",
+            "delete_target_account",
+        ]
+    ),
     data=st.data(),
 )
 def test_property_target_account_operations_route_correctly(operation, data):
@@ -642,9 +641,11 @@ def test_property_target_account_operations_route_correctly(operation, data):
         mock_context = get_mock_context()
 
         # Mock target account handlers
-        with patch("index.create_target_account") as mock_create, \
-             patch("index.update_target_account") as mock_update, \
-             patch("index.delete_target_account") as mock_delete:
+        with (
+            patch("index.create_target_account") as mock_create,
+            patch("index.update_target_account") as mock_update,
+            patch("index.delete_target_account") as mock_delete,
+        ):
 
             # Mock all handlers to return success
             success_response = {"success": True, "accountId": "123456789012"}
@@ -675,12 +676,14 @@ def test_property_target_account_operations_route_correctly(operation, data):
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    operation=st.sampled_from([
-        "handle_drs_tag_sync",
-        "trigger_tag_sync",
-        "get_tag_sync_settings",
-        "update_tag_sync_settings",
-    ]),
+    operation=st.sampled_from(
+        [
+            "handle_drs_tag_sync",
+            "trigger_tag_sync",
+            "get_tag_sync_settings",
+            "update_tag_sync_settings",
+        ]
+    ),
     data=st.data(),
 )
 def test_property_tag_sync_operations_route_correctly(operation, data):
@@ -700,9 +703,11 @@ def test_property_tag_sync_operations_route_correctly(operation, data):
         mock_context = get_mock_context()
 
         # Mock tag sync handlers
-        with patch("index.handle_drs_tag_sync") as mock_sync, \
-             patch("index.get_tag_sync_settings") as mock_get_settings, \
-             patch("index.update_tag_sync_settings") as mock_update_settings:
+        with (
+            patch("index.handle_drs_tag_sync") as mock_sync,
+            patch("index.get_tag_sync_settings") as mock_get_settings,
+            patch("index.update_tag_sync_settings") as mock_update_settings,
+        ):
 
             # Mock all handlers to return success
             success_response = {"success": True}
@@ -725,7 +730,6 @@ def test_property_tag_sync_operations_route_correctly(operation, data):
             assert isinstance(result, dict)
 
 
-
 # Property: Staging Account operations route correctly
 # Feature: direct-lambda-invocation-mode, Property 12: Data Management Handler Operation Routing
 @settings(
@@ -734,12 +738,14 @@ def test_property_tag_sync_operations_route_correctly(operation, data):
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    operation=st.sampled_from([
-        "add_staging_account",
-        "remove_staging_account",
-        "sync_staging_accounts",
-        "sync_extended_source_servers",
-    ]),
+    operation=st.sampled_from(
+        [
+            "add_staging_account",
+            "remove_staging_account",
+            "sync_staging_accounts",
+            "sync_extended_source_servers",
+        ]
+    ),
     data=st.data(),
 )
 def test_property_staging_account_operations_route_correctly(operation, data):
@@ -759,9 +765,11 @@ def test_property_staging_account_operations_route_correctly(operation, data):
         mock_context = get_mock_context()
 
         # Mock staging account handlers
-        with patch("index.handle_add_staging_account") as mock_add, \
-             patch("index.handle_remove_staging_account") as mock_remove, \
-             patch("index.handle_sync_single_account") as mock_sync:
+        with (
+            patch("index.handle_add_staging_account") as mock_add,
+            patch("index.handle_remove_staging_account") as mock_remove,
+            patch("index.handle_sync_single_account") as mock_sync,
+        ):
 
             # Mock all handlers to return success
             success_response = {"success": True}
@@ -871,7 +879,6 @@ def test_property_error_response_structure_consistency(operation):
         # Property assertion: Error code should be uppercase with underscores
         assert result["error"].isupper()
         assert "_" in result["error"] or result["error"].isalpha()
-
 
 
 # Property: Missing operation field returns error

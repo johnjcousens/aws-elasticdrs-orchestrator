@@ -31,9 +31,7 @@ if "index" in sys.modules:
     del sys.modules["index"]
 
 # Add lambda paths for imports - query-handler FIRST
-query_handler_dir = (
-    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
-)
+query_handler_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 shared_dir = Path(__file__).parent.parent.parent / "lambda" / "shared"
 
 sys.path.insert(0, str(query_handler_dir))
@@ -50,9 +48,7 @@ def lambda_context():
     """Mock Lambda context"""
     context = MagicMock()
     context.function_name = "query-handler"
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:query-handler"
     return context
 
 
@@ -60,14 +56,14 @@ def lambda_context():
 def mock_target_accounts_table():
     """
     Mock target accounts DynamoDB table.
-    
+
     IMPORTANT: This mocks the get_target_accounts_table() FUNCTION, not a module attribute.
     The Lambda handler uses lazy initialization via getter functions to avoid AWS API calls
     during module import. This pattern was changed from:
-    
+
     OLD (incorrect): patch("index.target_accounts_table")
     NEW (correct):   patch("index.get_target_accounts_table")
-    
+
     This fix resolved 21 AttributeError failures where tests tried to patch a non-existent
     module attribute.
     """
@@ -263,9 +259,7 @@ def test_get_tag_sync_settings_no_parameters_required():
 # ============================================================================
 
 
-def test_get_drs_capacity_conflicts_no_conflicts(
-    mock_target_accounts_table, mock_get_drs_capacity
-):
+def test_get_drs_capacity_conflicts_no_conflicts(mock_target_accounts_table, mock_get_drs_capacity):
     """Test capacity conflicts when all accounts are within limits."""
     from index import get_drs_capacity_conflicts_direct
 
@@ -295,9 +289,7 @@ def test_get_drs_capacity_conflicts_no_conflicts(
     assert "timestamp" in result
 
 
-def test_get_drs_capacity_conflicts_warning_replication(
-    mock_target_accounts_table, mock_get_drs_capacity
-):
+def test_get_drs_capacity_conflicts_warning_replication(mock_target_accounts_table, mock_get_drs_capacity):
     """Test capacity conflicts when account approaches replication limit (>80%)."""
     from index import get_drs_capacity_conflicts_direct
 
@@ -329,9 +321,7 @@ def test_get_drs_capacity_conflicts_warning_replication(
     assert result["conflicts"][0]["limit"] == 300
 
 
-def test_get_drs_capacity_conflicts_critical_replication(
-    mock_target_accounts_table, mock_get_drs_capacity
-):
+def test_get_drs_capacity_conflicts_critical_replication(mock_target_accounts_table, mock_get_drs_capacity):
     """Test capacity conflicts when account critically close to replication limit (>90%)."""
     from index import get_drs_capacity_conflicts_direct
 
@@ -363,9 +353,7 @@ def test_get_drs_capacity_conflicts_critical_replication(
     assert result["conflicts"][0]["limit"] == 300
 
 
-def test_get_drs_capacity_conflicts_warning_recovery(
-    mock_target_accounts_table, mock_get_drs_capacity
-):
+def test_get_drs_capacity_conflicts_warning_recovery(mock_target_accounts_table, mock_get_drs_capacity):
     """Test capacity conflicts when account approaches recovery limit (>80%)."""
     from index import get_drs_capacity_conflicts_direct
 
@@ -397,9 +385,7 @@ def test_get_drs_capacity_conflicts_warning_recovery(
     assert result["conflicts"][0]["limit"] == 4000
 
 
-def test_get_drs_capacity_conflicts_multiple_accounts(
-    mock_target_accounts_table, mock_get_drs_capacity
-):
+def test_get_drs_capacity_conflicts_multiple_accounts(mock_target_accounts_table, mock_get_drs_capacity):
     """Test capacity conflicts across multiple accounts."""
     from index import get_drs_capacity_conflicts_direct
 
@@ -438,9 +424,7 @@ def test_get_drs_capacity_conflicts_multiple_accounts(
     assert result["conflicts"][1]["severity"] == "warning"
 
 
-def test_get_drs_capacity_conflicts_no_parameters_required(
-    mock_target_accounts_table
-):
+def test_get_drs_capacity_conflicts_no_parameters_required(mock_target_accounts_table):
     """Test capacity conflicts works without any parameters."""
     from index import get_drs_capacity_conflicts_direct
 
@@ -462,9 +446,7 @@ def test_get_drs_capacity_conflicts_no_parameters_required(
 
 
 @patch("shared.iam_utils.validate_iam_authorization")
-def test_handle_direct_invocation_get_staging_accounts(
-    mock_validate, mock_target_accounts_table, lambda_context
-):
+def test_handle_direct_invocation_get_staging_accounts(mock_validate, mock_target_accounts_table, lambda_context):
     """Test direct invocation routing for get_staging_accounts operation."""
     from index import handle_direct_invocation
 
@@ -519,9 +501,7 @@ def test_handle_direct_invocation_get_tag_sync_settings(mock_validate, lambda_co
 
 
 @patch("shared.iam_utils.validate_iam_authorization")
-def test_handle_direct_invocation_get_drs_capacity_conflicts(
-    mock_validate, mock_target_accounts_table, lambda_context
-):
+def test_handle_direct_invocation_get_drs_capacity_conflicts(mock_validate, mock_target_accounts_table, lambda_context):
     """Test direct invocation routing for get_drs_capacity_conflicts operation."""
     from index import handle_direct_invocation
 

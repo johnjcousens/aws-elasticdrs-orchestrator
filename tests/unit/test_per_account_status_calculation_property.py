@@ -46,27 +46,16 @@ def test_property_per_account_status_calculation(replicating_servers):
 
     # Verify status matches threshold
     if replicating_servers < 200:
-        assert (
-            status == "OK"
-        ), f"Expected OK for {replicating_servers} servers, got {status}"
+        assert status == "OK", f"Expected OK for {replicating_servers} servers, got {status}"
     elif replicating_servers < 225:
-        assert (
-            status == "INFO"
-        ), f"Expected INFO for {replicating_servers} servers, got {status}"
+        assert status == "INFO", f"Expected INFO for {replicating_servers} servers, got {status}"
     elif replicating_servers < 250:
-        assert status == "WARNING", (
-            f"Expected WARNING for {replicating_servers} servers, "
-            f"got {status}"
-        )
+        assert status == "WARNING", f"Expected WARNING for {replicating_servers} servers, " f"got {status}"
     elif replicating_servers < 280:
-        assert status == "CRITICAL", (
-            f"Expected CRITICAL for {replicating_servers} servers, "
-            f"got {status}"
-        )
+        assert status == "CRITICAL", f"Expected CRITICAL for {replicating_servers} servers, " f"got {status}"
     else:
         assert status == "HYPER-CRITICAL", (
-            f"Expected HYPER-CRITICAL for {replicating_servers} servers, "
-            f"got {status}"
+            f"Expected HYPER-CRITICAL for {replicating_servers} servers, " f"got {status}"
         )
 
 

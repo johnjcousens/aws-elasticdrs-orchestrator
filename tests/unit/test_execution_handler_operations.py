@@ -25,11 +25,11 @@ def setup_execution_handler_import():
     """Ensure execution-handler index is imported correctly for each test"""
     # Save original sys.path and modules
     original_path = sys.path.copy()
-    original_index = sys.modules.get('index')
+    original_index = sys.modules.get("index")
 
     # Remove any existing 'index' module
-    if 'index' in sys.modules:
-        del sys.modules['index']
+    if "index" in sys.modules:
+        del sys.modules["index"]
 
     # Add execution-handler to front of path
     sys.path.insert(0, execution_handler_dir)
@@ -39,10 +39,10 @@ def setup_execution_handler_import():
 
     # Restore original state
     sys.path = original_path
-    if 'index' in sys.modules:
-        del sys.modules['index']
+    if "index" in sys.modules:
+        del sys.modules["index"]
     if original_index is not None:
-        sys.modules['index'] = original_index
+        sys.modules["index"] = original_index
 
 
 @pytest.fixture(scope="function", autouse=False)
@@ -51,15 +51,15 @@ def mock_shared_modules():
     # Save original modules
     original_modules = {}
     mock_modules = [
-        'shared.account_utils',
-        'shared.conflict_detection',
-        'shared.cross_account',
-        'shared.drs_limits',
-        'shared.drs_utils',
-        'shared.execution_utils',
-        'shared.rbac_middleware',
-        'shared.response_utils',
-        'shared.security_utils',
+        "shared.account_utils",
+        "shared.conflict_detection",
+        "shared.cross_account",
+        "shared.drs_limits",
+        "shared.drs_utils",
+        "shared.execution_utils",
+        "shared.rbac_middleware",
+        "shared.response_utils",
+        "shared.security_utils",
     ]
 
     for module_name in mock_modules:
@@ -116,15 +116,18 @@ def mock_shared_modules():
 @pytest.fixture
 def mock_env_vars():
     """Set up environment variables for tests"""
-    with patch.dict(os.environ, {
-        "EXECUTION_HISTORY_TABLE": "test-execution-table",
-        "PROTECTION_GROUPS_TABLE": "test-pg-table",
-        "RECOVERY_PLANS_TABLE": "test-plans-table",
-        "TARGET_ACCOUNTS_TABLE": "test-target-accounts-table",
-        "PROJECT_NAME": "test-project",
-        "ENVIRONMENT": "test",
-        "STATE_MACHINE_ARN": "arn:aws:states:us-east-1:123456789012:stateMachine:test"
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "EXECUTION_HISTORY_TABLE": "test-execution-table",
+            "PROTECTION_GROUPS_TABLE": "test-pg-table",
+            "RECOVERY_PLANS_TABLE": "test-plans-table",
+            "TARGET_ACCOUNTS_TABLE": "test-target-accounts-table",
+            "PROJECT_NAME": "test-project",
+            "ENVIRONMENT": "test",
+            "STATE_MACHINE_ARN": "arn:aws:states:us-east-1:123456789012:stateMachine:test",
+        },
+    ):
         yield
 
 
@@ -163,13 +166,11 @@ class TestOperationRouting:
 
         event = {"operation": "find"}
         context = Mock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
-            
+
             with patch("index.handle_find_operation") as mock_find:
                 mock_find.return_value = {"statusCode": 200, "executionsFound": 0}
 
@@ -182,19 +183,13 @@ class TestOperationRouting:
         """Test that operation='poll' routes to handle_poll_operation"""
         from index import lambda_handler  # noqa: F401
 
-        event = {
-            "operation": "poll",
-            "executionId": "test-123",
-            "planId": "plan-456"
-        }
+        event = {"operation": "poll", "executionId": "test-123", "planId": "plan-456"}
         context = Mock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
-            
+
             with patch("index.handle_poll_operation") as mock_poll:
                 mock_poll.return_value = {"statusCode": 200, "executionId": "test-123"}
 
@@ -207,19 +202,13 @@ class TestOperationRouting:
         """Test that operation='finalize' routes to handle_finalize_operation"""
         from index import lambda_handler  # noqa: F401
 
-        event = {
-            "operation": "finalize",
-            "executionId": "test-123",
-            "planId": "plan-456"
-        }
+        event = {"operation": "finalize", "executionId": "test-123", "planId": "plan-456"}
         context = Mock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
-            
+
             with patch("index.handle_finalize_operation") as mock_finalize:
                 mock_finalize.return_value = {"statusCode": 200, "status": "COMPLETED"}
 
@@ -234,13 +223,11 @@ class TestOperationRouting:
 
         event = {"operation": "invalid_operation"}
         context = Mock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
-            
+
             result = lambda_handler(event, context)  # noqa: F841
 
             # Direct invocation returns raw dict, not API Gateway format
@@ -255,9 +242,7 @@ class TestOperationRouting:
 
         event = {"source": "aws.events"}
         context = Mock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("index.handle_find_operation") as mock_find:
             mock_find.return_value = {"statusCode": 200, "executionsFound": 0}
@@ -279,19 +264,19 @@ class TestHandleFindOperation:
 
         # Mock DynamoDB responses
         mock_dynamodb_table.query.side_effect = [
-            {"Items": [
-                {"executionId": "exec-1", "planId": "plan-1", "status": "POLLING"},
-                {"executionId": "exec-2", "planId": "plan-2", "status": "POLLING"}
-            ]},
+            {
+                "Items": [
+                    {"executionId": "exec-1", "planId": "plan-1", "status": "POLLING"},
+                    {"executionId": "exec-2", "planId": "plan-2", "status": "POLLING"},
+                ]
+            },
             {"Items": []},  # No CANCELLING executions
             {"Items": []},  # No COMPLETED executions
         ]
 
         event = {"operation": "find"}
         context = Mock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.handle_poll_operation") as mock_poll:
@@ -312,17 +297,13 @@ class TestHandleFindOperation:
 
         mock_dynamodb_table.query.side_effect = [
             {"Items": []},  # No POLLING executions
-            {"Items": [
-                {"executionId": "exec-3", "planId": "plan-3", "status": "CANCELLING"}
-            ]},
+            {"Items": [{"executionId": "exec-3", "planId": "plan-3", "status": "CANCELLING"}]},
             {"Items": []},  # No COMPLETED executions
         ]
 
         event = {"operation": "find"}
         context = Mock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.handle_poll_operation") as mock_poll:
@@ -341,20 +322,20 @@ class TestHandleFindOperation:
         mock_validate.return_value = True
 
         mock_dynamodb_table.query.side_effect = [
-            {"Items": [
-                {"executionId": "exec-1"},  # Missing planId
-                {"planId": "plan-2"},  # Missing executionId
-                {"executionId": "exec-3", "planId": "plan-3"}  # Valid
-            ]},
+            {
+                "Items": [
+                    {"executionId": "exec-1"},  # Missing planId
+                    {"planId": "plan-2"},  # Missing executionId
+                    {"executionId": "exec-3", "planId": "plan-3"},  # Valid
+                ]
+            },
             {"Items": []},
             {"Items": []},  # No COMPLETED executions
         ]
 
         event = {"operation": "find"}
         context = Mock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("index.execution_history_table", mock_dynamodb_table):
             with patch("index.handle_poll_operation") as mock_poll:
@@ -381,22 +362,20 @@ class TestHandlePollOperation:
             "planId": "plan-1",
             "status": "POLLING",
             "executionType": "DRILL",
-            "waves": [{
-                "waveNumber": 0,
-                "waveName": "Wave1",
-                "status": "IN_PROGRESS",
-                "jobId": "job-123",
-                "region": "us-east-1"
-            }]
+            "waves": [
+                {
+                    "waveNumber": 0,
+                    "waveName": "Wave1",
+                    "status": "IN_PROGRESS",
+                    "jobId": "job-123",
+                    "region": "us-east-1",
+                }
+            ],
         }
 
         mock_dynamodb_table.get_item.return_value = {"Item": execution}
 
-        event = {
-            "operation": "poll",
-            "executionId": "exec-1",
-            "planId": "plan-1"
-        }
+        event = {"operation": "poll", "executionId": "exec-1", "planId": "plan-1"}
         context = Mock()
 
         with patch("index.execution_history_table", mock_dynamodb_table):
@@ -405,7 +384,7 @@ class TestHandlePollOperation:
                     "waveNumber": 0,
                     "waveName": "Wave1",
                     "status": "COMPLETED",
-                    "jobId": "job-123"
+                    "jobId": "job-123",
                 }
 
                 result = handle_poll_operation(event, context)  # noqa: F841
@@ -425,20 +404,11 @@ class TestHandlePollOperation:
         """Test polling skips executions that are already completed"""
         from index import handle_poll_operation  # noqa: F401
 
-        execution = {
-            "executionId": "exec-1",
-            "planId": "plan-1",
-            "status": "COMPLETED",
-            "waves": []
-        }
+        execution = {"executionId": "exec-1", "planId": "plan-1", "status": "COMPLETED", "waves": []}
 
         mock_dynamodb_table.get_item.return_value = {"Item": execution}
 
-        event = {
-            "operation": "poll",
-            "executionId": "exec-1",
-            "planId": "plan-1"
-        }
+        event = {"operation": "poll", "executionId": "exec-1", "planId": "plan-1"}
         context = Mock()
 
         with patch("index.execution_history_table", mock_dynamodb_table):
@@ -460,17 +430,13 @@ class TestHandlePollOperation:
             "executionType": "DRILL",
             "waves": [
                 {"waveNumber": 0, "status": "COMPLETED", "jobId": "job-1"},
-                {"waveNumber": 1, "status": "COMPLETED", "jobId": "job-2"}
-            ]
+                {"waveNumber": 1, "status": "COMPLETED", "jobId": "job-2"},
+            ],
         }
 
         mock_dynamodb_table.get_item.return_value = {"Item": execution}
 
-        event = {
-            "operation": "poll",
-            "executionId": "exec-1",
-            "planId": "plan-1"
-        }
+        event = {"operation": "poll", "executionId": "exec-1", "planId": "plan-1"}
         context = Mock()
 
         with patch("index.execution_history_table", mock_dynamodb_table):
@@ -485,11 +451,7 @@ class TestHandlePollOperation:
 
         mock_dynamodb_table.get_item.return_value = {}  # No Item
 
-        event = {
-            "operation": "poll",
-            "executionId": "nonexistent",
-            "planId": "plan-1"
-        }
+        event = {"operation": "poll", "executionId": "nonexistent", "planId": "plan-1"}
         context = Mock()
 
         with patch("index.execution_history_table", mock_dynamodb_table):
@@ -511,17 +473,13 @@ class TestHandleFinalizeOperation:
             "status": "POLLING",
             "waves": [
                 {"waveNumber": 0, "status": "COMPLETED"},
-                {"waveNumber": 1, "status": "IN_PROGRESS"}  # Not complete
-            ]
+                {"waveNumber": 1, "status": "IN_PROGRESS"},  # Not complete
+            ],
         }
 
         mock_dynamodb_table.get_item.return_value = {"Item": execution}
 
-        event = {
-            "operation": "finalize",
-            "executionId": "exec-1",
-            "planId": "plan-1"
-        }
+        event = {"operation": "finalize", "executionId": "exec-1", "planId": "plan-1"}
         context = Mock()
 
         with patch("index.execution_history_table", mock_dynamodb_table):
@@ -540,18 +498,12 @@ class TestHandleFinalizeOperation:
             "executionId": "exec-1",
             "planId": "plan-1",
             "status": "COMPLETED",  # Already finalized
-            "waves": [
-                {"waveNumber": 0, "status": "COMPLETED"}
-            ]
+            "waves": [{"waveNumber": 0, "status": "COMPLETED"}],
         }
 
         mock_dynamodb_table.get_item.return_value = {"Item": execution}
 
-        event = {
-            "operation": "finalize",
-            "executionId": "exec-1",
-            "planId": "plan-1"
-        }
+        event = {"operation": "finalize", "executionId": "exec-1", "planId": "plan-1"}
         context = Mock()
 
         with patch("index.execution_history_table", mock_dynamodb_table):
@@ -571,18 +523,12 @@ class TestHandleFinalizeOperation:
             "executionId": "exec-1",
             "planId": "plan-1",
             "status": "POLLING",
-            "waves": [
-                {"waveNumber": 0, "status": "COMPLETED"}
-            ]
+            "waves": [{"waveNumber": 0, "status": "COMPLETED"}],
         }
 
         mock_dynamodb_table.get_item.return_value = {"Item": execution}
 
-        event = {
-            "operation": "finalize",
-            "executionId": "exec-1",
-            "planId": "plan-1"
-        }
+        event = {"operation": "finalize", "executionId": "exec-1", "planId": "plan-1"}
         context = Mock()
 
         with patch("index.execution_history_table", mock_dynamodb_table):
@@ -602,24 +548,17 @@ class TestHandleFinalizeOperation:
             "executionId": "exec-1",
             "planId": "plan-1",
             "status": "POLLING",
-            "waves": [
-                {"waveNumber": 0, "status": "COMPLETED"}
-            ]
+            "waves": [{"waveNumber": 0, "status": "COMPLETED"}],
         }
 
         mock_dynamodb_table.get_item.return_value = {"Item": execution}
 
         # Simulate conditional check failure (already finalized by another call)
         mock_dynamodb_table.update_item.side_effect = ClientError(
-            {"Error": {"Code": "ConditionalCheckFailedException"}},
-            "UpdateItem"
+            {"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem"
         )
 
-        event = {
-            "operation": "finalize",
-            "executionId": "exec-1",
-            "planId": "plan-1"
-        }
+        event = {"operation": "finalize", "executionId": "exec-1", "planId": "plan-1"}
         context = Mock()
 
         with patch("index.execution_history_table", mock_dynamodb_table):
@@ -632,30 +571,23 @@ class TestHandleFinalizeOperation:
 class TestPollWaveWithEnrichment:
     """Test poll_wave_with_enrichment function"""
 
-    def test_enriches_server_data_with_ec2_details(  # noqa: F811
-        self, mock_env_vars, mock_drs_client, mock_ec2_client
-    ):
+    def test_enriches_server_data_with_ec2_details(self, mock_env_vars, mock_drs_client, mock_ec2_client):  # noqa: F811
         """Test wave polling enriches server data with EC2 details"""
         from index import poll_wave_with_enrichment  # noqa: F401
 
-        wave = {
-            "waveNumber": 0,
-            "waveName": "Wave1",
-            "jobId": "job-123",
-            "region": "us-east-1"
-        }
+        wave = {"waveNumber": 0, "waveName": "Wave1", "jobId": "job-123", "region": "us-east-1"}
 
         # Mock DRS response
         mock_drs_client.describe_jobs.return_value = {
-            "items": [{
-                "jobID": "job-123",
-                "status": "COMPLETED",
-                "participatingServers": [{
-                    "sourceServerID": "s-123",
-                    "launchStatus": "LAUNCHED",
-                    "recoveryInstanceID": "i-abc123"
-                }]
-            }]
+            "items": [
+                {
+                    "jobID": "job-123",
+                    "status": "COMPLETED",
+                    "participatingServers": [
+                        {"sourceServerID": "s-123", "launchStatus": "LAUNCHED", "recoveryInstanceID": "i-abc123"}
+                    ],
+                }
+            ]
         }
 
         with patch("boto3.client") as mock_boto_client:
@@ -665,13 +597,15 @@ class TestPollWaveWithEnrichment:
 
             # Mock the enrich_server_data function from shared.drs_utils
             with patch("shared.drs_utils.enrich_server_data") as mock_enrich:
-                mock_enrich.return_value = [{
-                    "sourceServerId": "s-123",
-                    "launchStatus": "LAUNCHED",
-                    "instanceId": "i-abc123",
-                    "privateIp": "10.0.1.50",
-                    "hostname": "server1.example.com"
-                }]
+                mock_enrich.return_value = [
+                    {
+                        "sourceServerId": "s-123",
+                        "launchStatus": "LAUNCHED",
+                        "instanceId": "i-abc123",
+                        "privateIp": "10.0.1.50",
+                        "hostname": "server1.example.com",
+                    }
+                ]
 
                 result = poll_wave_with_enrichment(wave, "DRILL")  # noqa: F841
 
@@ -684,12 +618,7 @@ class TestPollWaveWithEnrichment:
         """Test wave polling handles missing DRS job gracefully"""
         from index import poll_wave_with_enrichment  # noqa: F401
 
-        wave = {
-            "waveNumber": 0,
-            "waveName": "Wave1",
-            "jobId": None,  # No job ID
-            "region": "us-east-1"
-        }
+        wave = {"waveNumber": 0, "waveName": "Wave1", "jobId": None, "region": "us-east-1"}  # No job ID
 
         result = poll_wave_with_enrichment(wave, "DRILL")  # noqa: F841
 

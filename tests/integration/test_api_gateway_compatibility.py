@@ -41,9 +41,7 @@ def mock_env_vars():
     os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts"
     os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history"
     os.environ["AWS_REGION"] = "us-east-1"
-    os.environ["ORCHESTRATION_ROLE_ARN"] = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    os.environ["ORCHESTRATION_ROLE_ARN"] = "arn:aws:iam::123456789012:role/OrchestrationRole"
     yield
     # Cleanup
     for key in [
@@ -60,9 +58,7 @@ def mock_env_vars():
 def get_mock_context():
     """Create mock Lambda context"""
     context = Mock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:123456789012:function:test-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test-handler"
     context.request_id = "test-request-123"
     context.function_name = "test-handler"
     context.memory_limit_in_mb = 256
@@ -135,9 +131,7 @@ def assert_api_gateway_response(response, expected_status=200):
     assert "statusCode" in response, "Response must have statusCode"
     assert "body" in response, "Response must have body"
     assert "headers" in response, "Response must have headers"
-    assert response["statusCode"] == expected_status, (
-        f"Expected status {expected_status}, got {response['statusCode']}"
-    )
+    assert response["statusCode"] == expected_status, f"Expected status {expected_status}, got {response['statusCode']}"
 
     # Verify headers
     assert "Content-Type" in response["headers"]
@@ -158,9 +152,7 @@ def assert_api_gateway_response(response, expected_status=200):
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_query_handler_api_gateway_detection(
-    mock_extract_principal, mock_env_vars
-):
+def test_query_handler_api_gateway_detection(mock_extract_principal, mock_env_vars):
     """
     Test that query-handler correctly detects API Gateway invocations.
 
@@ -171,13 +163,9 @@ def test_query_handler_api_gateway_detection(
     """
     import index as query_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
-    event = get_api_gateway_event(
-        method="GET", path="/protection-groups", query_params={}
-    )
+    event = get_api_gateway_event(method="GET", path="/protection-groups", query_params={})
     context = get_mock_context()
 
     with patch("index.protection_groups_table") as mock_table:
@@ -192,9 +180,7 @@ def test_query_handler_api_gateway_detection(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_query_handler_list_protection_groups_api_gateway(
-    mock_extract_principal, mock_env_vars
-):
+def test_query_handler_list_protection_groups_api_gateway(mock_extract_principal, mock_env_vars):
     """
     Test query-handler list protection groups via API Gateway.
 
@@ -205,13 +191,9 @@ def test_query_handler_list_protection_groups_api_gateway(
     """
     import index as query_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
-    event = get_api_gateway_event(
-        method="GET", path="/protection-groups", query_params={}
-    )
+    event = get_api_gateway_event(method="GET", path="/protection-groups", query_params={})
     context = get_mock_context()
 
     mock_groups = [
@@ -235,9 +217,7 @@ def test_query_handler_list_protection_groups_api_gateway(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_query_handler_get_target_accounts_api_gateway(
-    mock_extract_principal, mock_env_vars
-):
+def test_query_handler_get_target_accounts_api_gateway(mock_extract_principal, mock_env_vars):
     """
     Test query-handler get target accounts via API Gateway.
 
@@ -250,13 +230,9 @@ def test_query_handler_get_target_accounts_api_gateway(
     sys.path.insert(0, os.path.join(lambda_base, "query-handler"))
     import index as query_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
-    event = get_api_gateway_event(
-        method="GET", path="/target-accounts", query_params={}
-    )
+    event = get_api_gateway_event(method="GET", path="/target-accounts", query_params={})
     context = get_mock_context()
 
     mock_accounts = [
@@ -280,9 +256,7 @@ def test_query_handler_get_target_accounts_api_gateway(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_query_handler_api_gateway_error_format(
-    mock_extract_principal, mock_env_vars
-):
+def test_query_handler_api_gateway_error_format(mock_extract_principal, mock_env_vars):
     """
     Test query-handler error responses via API Gateway.
 
@@ -293,14 +267,10 @@ def test_query_handler_api_gateway_error_format(
     """
     import index as query_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # Request non-existent endpoint
-    event = get_api_gateway_event(
-        method="GET", path="/non-existent-endpoint", query_params={}
-    )
+    event = get_api_gateway_event(method="GET", path="/non-existent-endpoint", query_params={})
     context = get_mock_context()
 
     response = query_handler.lambda_handler(event, context)
@@ -318,9 +288,7 @@ def test_query_handler_api_gateway_error_format(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_data_management_handler_api_gateway_detection(
-    mock_extract_principal, mock_env_vars
-):
+def test_data_management_handler_api_gateway_detection(mock_extract_principal, mock_env_vars):
     """
     Test that data-management-handler correctly detects API Gateway
     invocations.
@@ -332,9 +300,7 @@ def test_data_management_handler_api_gateway_detection(
     """
     import index as data_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     event = get_api_gateway_event(
         method="POST",
@@ -355,9 +321,7 @@ def test_data_management_handler_api_gateway_detection(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_data_management_handler_create_protection_group_api_gateway(
-    mock_extract_principal, mock_env_vars
-):
+def test_data_management_handler_create_protection_group_api_gateway(mock_extract_principal, mock_env_vars):
     """
     Test data-management-handler create protection group via API Gateway.
 
@@ -370,9 +334,7 @@ def test_data_management_handler_create_protection_group_api_gateway(
     sys.path.insert(0, os.path.join(lambda_base, "data-management-handler"))
     import index as data_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     event = get_api_gateway_event(
         method="POST",
@@ -399,9 +361,7 @@ def test_data_management_handler_create_protection_group_api_gateway(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_data_management_handler_update_protection_group_api_gateway(
-    mock_extract_principal, mock_env_vars
-):
+def test_data_management_handler_update_protection_group_api_gateway(mock_extract_principal, mock_env_vars):
     """
     Test data-management-handler update protection group via API Gateway.
 
@@ -414,9 +374,7 @@ def test_data_management_handler_update_protection_group_api_gateway(
     sys.path.insert(0, os.path.join(lambda_base, "data-management-handler"))
     import index as data_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     event = get_api_gateway_event(
         method="PUT",
@@ -426,11 +384,10 @@ def test_data_management_handler_update_protection_group_api_gateway(
     )
     context = get_mock_context()
 
-    with patch.object(
-        data_handler, "protection_groups_table"
-    ) as mock_table, patch.object(
-        data_handler, "execution_history_table", create=True
-    ) as mock_exec:
+    with (
+        patch.object(data_handler, "protection_groups_table") as mock_table,
+        patch.object(data_handler, "execution_history_table", create=True) as mock_exec,
+    ):
         mock_table.get_item.return_value = {
             "Item": {
                 "groupId": "pg-123",
@@ -451,9 +408,7 @@ def test_data_management_handler_update_protection_group_api_gateway(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_data_management_handler_api_gateway_error_format(
-    mock_extract_principal, mock_env_vars
-):
+def test_data_management_handler_api_gateway_error_format(mock_extract_principal, mock_env_vars):
     """
     Test data-management-handler error responses via API Gateway.
 
@@ -466,14 +421,10 @@ def test_data_management_handler_api_gateway_error_format(
     sys.path.insert(0, os.path.join(lambda_base, "data-management-handler"))
     import index as data_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # Request with invalid body
-    event = get_api_gateway_event(
-        method="POST", path="/protection-groups", body={}  # Missing required fields
-    )
+    event = get_api_gateway_event(method="POST", path="/protection-groups", body={})  # Missing required fields
     context = get_mock_context()
 
     response = data_handler.lambda_handler(event, context)
@@ -493,9 +444,7 @@ def test_data_management_handler_api_gateway_error_format(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_execution_handler_api_gateway_detection(
-    mock_extract_principal, mock_env_vars
-):
+def test_execution_handler_api_gateway_detection(mock_extract_principal, mock_env_vars):
     """
     Test that execution-handler correctly detects API Gateway invocations.
 
@@ -508,18 +457,12 @@ def test_execution_handler_api_gateway_detection(
     sys.path.insert(0, os.path.join(lambda_base, "execution-handler"))
     import index as execution_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
-    event = get_api_gateway_event(
-        method="GET", path="/executions", query_params={}
-    )
+    event = get_api_gateway_event(method="GET", path="/executions", query_params={})
     context = get_mock_context()
 
-    with patch.object(
-        execution_handler, "execution_history_table", create=True
-    ) as mock_table:
+    with patch.object(execution_handler, "execution_history_table", create=True) as mock_table:
         mock_table.scan.return_value = {"Items": []}
         response = execution_handler.lambda_handler(event, context)
 
@@ -530,9 +473,7 @@ def test_execution_handler_api_gateway_detection(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_execution_handler_list_executions_api_gateway(
-    mock_extract_principal, mock_env_vars
-):
+def test_execution_handler_list_executions_api_gateway(mock_extract_principal, mock_env_vars):
     """
     Test execution-handler list executions via API Gateway.
 
@@ -545,13 +486,9 @@ def test_execution_handler_list_executions_api_gateway(
     sys.path.insert(0, os.path.join(lambda_base, "execution-handler"))
     import index as execution_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
-    event = get_api_gateway_event(
-        method="GET", path="/executions", query_params={}
-    )
+    event = get_api_gateway_event(method="GET", path="/executions", query_params={})
     context = get_mock_context()
 
     mock_executions = [
@@ -563,9 +500,7 @@ def test_execution_handler_list_executions_api_gateway(
         }
     ]
 
-    with patch.object(
-        execution_handler, "execution_history_table", create=True
-    ) as mock_table:
+    with patch.object(execution_handler, "execution_history_table", create=True) as mock_table:
         mock_table.scan.return_value = {"Items": mock_executions}
         response = execution_handler.lambda_handler(event, context)
 
@@ -574,9 +509,7 @@ def test_execution_handler_list_executions_api_gateway(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_execution_handler_start_execution_api_gateway(
-    mock_extract_principal, mock_env_vars
-):
+def test_execution_handler_start_execution_api_gateway(mock_extract_principal, mock_env_vars):
     """
     Test execution-handler start execution via API Gateway.
 
@@ -589,9 +522,7 @@ def test_execution_handler_start_execution_api_gateway(
     sys.path.insert(0, os.path.join(lambda_base, "execution-handler"))
     import index as execution_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     event = get_api_gateway_event(
         method="POST",
@@ -600,13 +531,11 @@ def test_execution_handler_start_execution_api_gateway(
     )
     context = get_mock_context()
 
-    with patch.object(
-        execution_handler, "recovery_plans_table"
-    ) as mock_plans_table, patch.object(
-        execution_handler, "execution_history_table"
-    ) as mock_exec_table, patch.object(
-        execution_handler, "stepfunctions", create=True
-    ) as mock_sf:
+    with (
+        patch.object(execution_handler, "recovery_plans_table") as mock_plans_table,
+        patch.object(execution_handler, "execution_history_table") as mock_exec_table,
+        patch.object(execution_handler, "stepfunctions", create=True) as mock_sf,
+    ):
         mock_plans_table.get_item.return_value = {
             "Item": {
                 "planId": "plan-123",
@@ -630,9 +559,7 @@ def test_execution_handler_start_execution_api_gateway(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_execution_handler_api_gateway_error_format(
-    mock_extract_principal, mock_env_vars
-):
+def test_execution_handler_api_gateway_error_format(mock_extract_principal, mock_env_vars):
     """
     Test execution-handler error responses via API Gateway.
 
@@ -643,9 +570,7 @@ def test_execution_handler_api_gateway_error_format(
     """
     import index as execution_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # Request non-existent execution
     event = get_api_gateway_event(
@@ -670,9 +595,7 @@ def test_execution_handler_api_gateway_error_format(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_all_handlers_use_consistent_api_gateway_format(
-    mock_extract_principal, mock_env_vars
-):
+def test_all_handlers_use_consistent_api_gateway_format(mock_extract_principal, mock_env_vars):
     """
     Test that all handlers return consistent API Gateway response format.
 
@@ -686,9 +609,7 @@ def test_all_handlers_use_consistent_api_gateway_format(
     sys.path.insert(0, os.path.join(lambda_base, "query-handler"))
     import index as query_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     handlers = [
         ("query-handler", query_handler, "/protection-groups", "GET"),
@@ -698,9 +619,7 @@ def test_all_handlers_use_consistent_api_gateway_format(
         event = get_api_gateway_event(method=method, path=path)
         context = get_mock_context()
 
-        with patch.object(
-            handler_module, "protection_groups_table", create=True
-        ) as mock_table:
+        with patch.object(handler_module, "protection_groups_table", create=True) as mock_table:
             mock_table.scan.return_value = {"Items": []}
 
             response = handler_module.lambda_handler(event, context)
@@ -709,15 +628,11 @@ def test_all_handlers_use_consistent_api_gateway_format(
         assert "statusCode" in response, f"{handler_name} missing statusCode"
         assert "body" in response, f"{handler_name} missing body"
         assert "headers" in response, f"{handler_name} missing headers"
-        assert (
-            response["headers"]["Content-Type"] == "application/json"
-        ), f"{handler_name} wrong Content-Type"
+        assert response["headers"]["Content-Type"] == "application/json", f"{handler_name} wrong Content-Type"
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_cognito_user_extraction_consistency(
-    mock_extract_principal, mock_env_vars
-):
+def test_cognito_user_extraction_consistency(mock_extract_principal, mock_env_vars):
     """
     Test that Cognito user context is extracted consistently across handlers.
 
@@ -731,9 +646,7 @@ def test_cognito_user_extraction_consistency(
     sys.path.insert(0, os.path.join(lambda_base, "query-handler"))
     import index as query_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     event = get_api_gateway_event(
         method="GET",
@@ -742,9 +655,7 @@ def test_cognito_user_extraction_consistency(
     )
     context = get_mock_context()
 
-    with patch.object(
-        query_handler, "protection_groups_table", create=True
-    ) as mock_table:
+    with patch.object(query_handler, "protection_groups_table", create=True) as mock_table:
         mock_table.scan.return_value = {"Items": []}
         response = query_handler.lambda_handler(event, context)
 
@@ -759,9 +670,7 @@ def test_cognito_user_extraction_consistency(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_api_gateway_rbac_permissions_applied(
-    mock_extract_principal, mock_env_vars
-):
+def test_api_gateway_rbac_permissions_applied(mock_extract_principal, mock_env_vars):
     """
     Test that RBAC permissions are applied for API Gateway invocations.
 
@@ -774,19 +683,13 @@ def test_api_gateway_rbac_permissions_applied(
     sys.path.insert(0, os.path.join(lambda_base, "query-handler"))
     import index as query_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # User with no groups (should be denied for write operations)
-    event = get_api_gateway_event(
-        method="GET", path="/protection-groups", user_groups=""
-    )
+    event = get_api_gateway_event(method="GET", path="/protection-groups", user_groups="")
     context = get_mock_context()
 
-    with patch.object(
-        query_handler, "protection_groups_table", create=True
-    ) as mock_table:
+    with patch.object(query_handler, "protection_groups_table", create=True) as mock_table:
         mock_table.scan.return_value = {"Items": []}
         response = query_handler.lambda_handler(event, context)
 
@@ -801,9 +704,7 @@ def test_api_gateway_rbac_permissions_applied(
 
 
 @patch("shared.iam_utils.extract_iam_principal")
-def test_api_gateway_mode_unchanged_after_direct_invocation_support(
-    mock_extract_principal, mock_env_vars
-):
+def test_api_gateway_mode_unchanged_after_direct_invocation_support(mock_extract_principal, mock_env_vars):
     """
     Test that API Gateway mode works identically after adding direct
     invocation support.
@@ -818,9 +719,7 @@ def test_api_gateway_mode_unchanged_after_direct_invocation_support(
     sys.path.insert(0, os.path.join(lambda_base, "query-handler"))
     import index as query_handler
 
-    mock_extract_principal.return_value = (
-        "arn:aws:iam::123456789012:role/OrchestrationRole"
-    )
+    mock_extract_principal.return_value = "arn:aws:iam::123456789012:role/OrchestrationRole"
 
     # Test multiple API Gateway endpoints
     test_cases = [
@@ -830,18 +729,14 @@ def test_api_gateway_mode_unchanged_after_direct_invocation_support(
     ]
 
     for method, path, query_params in test_cases:
-        event = get_api_gateway_event(
-            method=method, path=path, query_params=query_params
-        )
+        event = get_api_gateway_event(method=method, path=path, query_params=query_params)
         context = get_mock_context()
 
-        with patch.object(
-            query_handler, "protection_groups_table", create=True
-        ) as mock_pg, patch.object(
-            query_handler, "target_accounts_table", create=True
-        ) as mock_ta, patch.object(
-            query_handler, "recovery_plans_table", create=True
-        ) as mock_rp:
+        with (
+            patch.object(query_handler, "protection_groups_table", create=True) as mock_pg,
+            patch.object(query_handler, "target_accounts_table", create=True) as mock_ta,
+            patch.object(query_handler, "recovery_plans_table", create=True) as mock_rp,
+        ):
             mock_pg.scan.return_value = {"Items": []}
             mock_ta.scan.return_value = {"Items": []}
             mock_rp.scan.return_value = {"Items": []}

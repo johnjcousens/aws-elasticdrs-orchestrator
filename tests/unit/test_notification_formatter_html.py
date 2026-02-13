@@ -27,6 +27,7 @@ from shared.notifications import (
 
 # ── Shared test fixtures ────────────────────────────────────────
 
+
 @pytest.fixture()
 def base_details():
     """Minimal details dict shared by all formatters."""
@@ -75,18 +76,13 @@ def pause_details(base_details):
     return {
         **base_details,
         "pauseReason": "Pre-wave approval required",
-        "resumeUrl": (
-            "https://api.example.com/execution-callback"
-            "?action=resume&taskToken=tok123"
-        ),
-        "cancelUrl": (
-            "https://api.example.com/execution-callback"
-            "?action=cancel&taskToken=tok123"
-        ),
+        "resumeUrl": ("https://api.example.com/execution-callback" "?action=resume&taskToken=tok123"),
+        "cancelUrl": ("https://api.example.com/execution-callback" "?action=cancel&taskToken=tok123"),
     }
 
 
 # ── HTML well-formedness helpers ────────────────────────────────
+
 
 def _assert_well_formed_html(html: str) -> None:
     """Assert the HTML string has basic well-formedness."""
@@ -117,12 +113,11 @@ def _assert_contains_console_link(html: str) -> None:
 
 # ── format_start_notification tests ─────────────────────────────
 
+
 class TestFormatStartNotification:
     """Tests for format_start_notification."""
 
-    def test_contains_plan_name_and_execution_id(
-        self, start_details
-    ):
+    def test_contains_plan_name_and_execution_id(self, start_details):
         """Start email includes plan name and execution ID."""
         html = format_start_notification(start_details)
         _assert_contains_info_box_fields(html, start_details)
@@ -155,17 +150,14 @@ class TestFormatStartNotification:
 
 # ── format_complete_notification tests ──────────────────────────
 
+
 class TestFormatCompleteNotification:
     """Tests for format_complete_notification."""
 
-    def test_contains_plan_name_and_execution_id(
-        self, complete_details
-    ):
+    def test_contains_plan_name_and_execution_id(self, complete_details):
         """Complete email includes plan name and execution ID."""
         html = format_complete_notification(complete_details)
-        _assert_contains_info_box_fields(
-            html, complete_details
-        )
+        _assert_contains_info_box_fields(html, complete_details)
 
     def test_contains_duration(self, complete_details):
         """Complete email shows execution duration."""
@@ -187,9 +179,7 @@ class TestFormatCompleteNotification:
         html = format_complete_notification(complete_details)
         _assert_contains_console_link(html)
 
-    def test_contains_completed_indicator(
-        self, complete_details
-    ):
+    def test_contains_completed_indicator(self, complete_details):
         """Complete email indicates successful completion."""
         html = format_complete_notification(complete_details)
         assert "completed" in html.lower()
@@ -197,17 +187,14 @@ class TestFormatCompleteNotification:
 
 # ── format_failure_notification tests ───────────────────────────
 
+
 class TestFormatFailureNotification:
     """Tests for format_failure_notification."""
 
-    def test_contains_plan_name_and_execution_id(
-        self, failure_details
-    ):
+    def test_contains_plan_name_and_execution_id(self, failure_details):
         """Failure email includes plan name and execution ID."""
         html = format_failure_notification(failure_details)
-        _assert_contains_info_box_fields(
-            html, failure_details
-        )
+        _assert_contains_info_box_fields(html, failure_details)
 
     def test_contains_error_message(self, failure_details):
         """Failure email shows the error message."""
@@ -237,17 +224,14 @@ class TestFormatFailureNotification:
 
 # ── format_pause_notification tests ─────────────────────────────
 
+
 class TestFormatPauseNotification:
     """Tests for format_pause_notification."""
 
-    def test_contains_plan_name_and_execution_id(
-        self, pause_details
-    ):
+    def test_contains_plan_name_and_execution_id(self, pause_details):
         """Pause email includes plan name and execution ID."""
         html = format_pause_notification(pause_details)
-        _assert_contains_info_box_fields(
-            html, pause_details
-        )
+        _assert_contains_info_box_fields(html, pause_details)
 
     def test_contains_resume_url(self, pause_details):
         """Pause email contains the resume action URL."""
@@ -259,17 +243,13 @@ class TestFormatPauseNotification:
         html = format_pause_notification(pause_details)
         assert pause_details["cancelUrl"] in html
 
-    def test_resume_button_has_correct_href(
-        self, pause_details
-    ):
+    def test_resume_button_has_correct_href(self, pause_details):
         """Resume button href points to the resume URL."""
         html = format_pause_notification(pause_details)
         expected = f'href="{pause_details["resumeUrl"]}"'
         assert expected in html
 
-    def test_cancel_button_has_correct_href(
-        self, pause_details
-    ):
+    def test_cancel_button_has_correct_href(self, pause_details):
         """Cancel button href points to the cancel URL."""
         html = format_pause_notification(pause_details)
         expected = f'href="{pause_details["cancelUrl"]}"'
@@ -295,9 +275,7 @@ class TestFormatPauseNotification:
         html = format_pause_notification(pause_details)
         assert "paused" in html.lower()
 
-    def test_no_buttons_when_urls_missing(
-        self, base_details
-    ):
+    def test_no_buttons_when_urls_missing(self, base_details):
         """Pause email omits action buttons when URLs absent."""
         html = format_pause_notification(base_details)
         assert "Resume Execution" not in html
@@ -306,14 +284,13 @@ class TestFormatPauseNotification:
 
 # ── format_notification_message routing tests ───────────────────
 
+
 class TestFormatNotificationMessage:
     """Tests for format_notification_message routing."""
 
     def test_routes_start_event(self, start_details):
         """'start' event routes to start formatter."""
-        result = format_notification_message(
-            "start", start_details
-        )
+        result = format_notification_message("start", start_details)
         assert "default" in result
         assert "email" in result
         assert "Started" in result["default"]
@@ -321,45 +298,31 @@ class TestFormatNotificationMessage:
 
     def test_routes_complete_event(self, complete_details):
         """'complete' event routes to complete formatter."""
-        result = format_notification_message(
-            "complete", complete_details
-        )
+        result = format_notification_message("complete", complete_details)
         assert "Completed" in result["default"]
         _assert_well_formed_html(result["email"])
 
     def test_routes_fail_event(self, failure_details):
         """'fail' event routes to failure formatter."""
-        result = format_notification_message(
-            "fail", failure_details
-        )
+        result = format_notification_message("fail", failure_details)
         assert "Failed" in result["default"]
         _assert_well_formed_html(result["email"])
 
     def test_routes_pause_event(self, pause_details):
         """'pause' event routes to pause formatter."""
-        result = format_notification_message(
-            "pause", pause_details
-        )
+        result = format_notification_message("pause", pause_details)
         assert "Paused" in result["default"]
         _assert_well_formed_html(result["email"])
 
-    def test_unknown_event_returns_fallback(
-        self, base_details
-    ):
+    def test_unknown_event_returns_fallback(self, base_details):
         """Unknown event type returns plain-text fallback."""
-        result = format_notification_message(
-            "unknown_event", base_details
-        )
+        result = format_notification_message("unknown_event", base_details)
         assert "unknown_event" in result["default"]
         # Fallback is not HTML — no DOCTYPE
         assert "<!DOCTYPE html>" not in result["email"]
 
-    def test_default_message_includes_plan_name(
-        self, base_details
-    ):
+    def test_default_message_includes_plan_name(self, base_details):
         """Default text message includes the plan name."""
         for event_type in ("start", "complete", "fail", "pause"):
-            result = format_notification_message(
-                event_type, base_details
-            )
+            result = format_notification_message(event_type, base_details)
             assert "Production DR Plan" in result["default"]

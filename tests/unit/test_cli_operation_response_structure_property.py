@@ -32,12 +32,11 @@ os.environ["RECOVERY_PLANS_TABLE"] = "test-recovery-plans"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 # Add lambda directories to path
-sys.path.insert(
-    0, str(Path(__file__).parent.parent.parent / "lambda" / "shared")
-)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "shared"))
 
 # Import data management handler
 import importlib  # noqa: F401
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda"))
 data_mgmt_handler = importlib.import_module("data-management-handler.index")
 data_mgmt_add_staging_account = data_mgmt_handler.handle_add_staging_account
@@ -56,64 +55,51 @@ role_arn_strategy = st.builds(
     account_id_strategy,
 )
 
-staging_account_strategy = st.fixed_dictionaries({
-    "accountId": account_id_strategy,
-    "accountName": st.text(
-        min_size=1,
-        max_size=50,
-        alphabet=st.characters(
-            whitelist_categories=("Lu", "Ll", "Nd"),
-            whitelist_characters="_-"
-        )
-    ),
-    "roleArn": role_arn_strategy,
-    "externalId": st.text(min_size=1, max_size=100),
-})
+staging_account_strategy = st.fixed_dictionaries(
+    {
+        "accountId": account_id_strategy,
+        "accountName": st.text(
+            min_size=1,
+            max_size=50,
+            alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="_-"),
+        ),
+        "roleArn": role_arn_strategy,
+        "externalId": st.text(min_size=1, max_size=100),
+    }
+)
 
-region_strategy = st.sampled_from([
-    "us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"
-])
+region_strategy = st.sampled_from(["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"])
 
 
 def validate_response_structure(response: dict, operation_name: str) -> None:
     """
     Validate that a CLI operation response has the correct structure.
-    
+
     A valid response must:
     1. Be a dictionary (parseable as JSON)
     2. Have either 'success' field (boolean) OR 'valid' field (boolean) OR 'error' field (string)
     3. If success=True or valid=True, contain relevant data fields
     4. If error present, it must be a non-empty string
-    
+
     Note: validate_staging_account uses 'valid' instead of 'success'
     """
     # Must be a dictionary
-    assert isinstance(response, dict), (
-        f"{operation_name}: Response must be a dictionary"
-    )
+    assert isinstance(response, dict), f"{operation_name}: Response must be a dictionary"
 
     # Must have statusCode (from Lambda response wrapper)
-    assert "statusCode" in response, (
-        f"{operation_name}: Response must have statusCode"
-    )
+    assert "statusCode" in response, f"{operation_name}: Response must have statusCode"
 
     # Must have body
-    assert "body" in response, (
-        f"{operation_name}: Response must have body"
-    )
+    assert "body" in response, f"{operation_name}: Response must have body"
 
     # Body must be valid JSON string
     try:
         body = json.loads(response["body"])
     except (json.JSONDecodeError, TypeError) as e:
-        pytest.fail(
-            f"{operation_name}: Response body must be valid JSON string: {e}"
-        )
+        pytest.fail(f"{operation_name}: Response body must be valid JSON string: {e}")
 
     # Body must be a dictionary
-    assert isinstance(body, dict), (
-        f"{operation_name}: Response body must be a dictionary"
-    )
+    assert isinstance(body, dict), f"{operation_name}: Response body must be a dictionary"
 
     # Must have either 'success', 'valid', or 'error' field
     has_success = "success" in body
@@ -127,40 +113,38 @@ def validate_response_structure(response: dict, operation_name: str) -> None:
 
     # Validate success field if present
     if has_success:
-        assert isinstance(body["success"], bool), (
-            f"{operation_name}: 'success' field must be boolean, got {type(body['success'])}"
-        )
+        assert isinstance(
+            body["success"], bool
+        ), f"{operation_name}: 'success' field must be boolean, got {type(body['success'])}"
 
         # If success=True, should have relevant data
         if body["success"]:
             # Should have at least one data field beyond 'success'
             data_fields = [k for k in body.keys() if k != "success"]
-            assert len(data_fields) > 0, (
-                f"{operation_name}: Successful response should contain data fields beyond 'success'"
-            )
+            assert (
+                len(data_fields) > 0
+            ), f"{operation_name}: Successful response should contain data fields beyond 'success'"
 
     # Validate valid field if present (for validate_staging_account)
     if has_valid:
-        assert isinstance(body["valid"], bool), (
-            f"{operation_name}: 'valid' field must be boolean, got {type(body['valid'])}"
-        )
+        assert isinstance(
+            body["valid"], bool
+        ), f"{operation_name}: 'valid' field must be boolean, got {type(body['valid'])}"
 
         # If valid=True, should have relevant data
         if body["valid"]:
             # Should have at least one data field beyond 'valid'
             data_fields = [k for k in body.keys() if k != "valid"]
-            assert len(data_fields) > 0, (
-                f"{operation_name}: Successful validation should contain data fields beyond 'valid'"
-            )
+            assert (
+                len(data_fields) > 0
+            ), f"{operation_name}: Successful validation should contain data fields beyond 'valid'"
 
     # Validate error field if present
     if has_error:
-        assert isinstance(body["error"], str), (
-            f"{operation_name}: 'error' field must be string, got {type(body['error'])}"
-        )
-        assert len(body["error"]) > 0, (
-            f"{operation_name}: 'error' message must not be empty"
-        )
+        assert isinstance(
+            body["error"], str
+        ), f"{operation_name}: 'error' field must be string, got {type(body['error'])}"
+        assert len(body["error"]) > 0, f"{operation_name}: 'error' message must not be empty"
 
 
 @pytest.fixture
@@ -173,9 +157,7 @@ def dynamodb_setup():
         table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-            AttributeDefinitions=[
-                {"AttributeName": "accountId", "AttributeType": "S"}
-            ],
+            AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
 
@@ -187,22 +169,16 @@ def dynamodb_setup():
 # ============================================================================
 
 
-@settings(
-    max_examples=100,
-    deadline=None,
-    suppress_health_check=[HealthCheck.function_scoped_fixture]
-)
+@settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
     target_account_id=account_id_strategy,
     staging_account=staging_account_strategy,
 )
 @pytest.mark.property
-def test_property_add_staging_account_response_structure(
-    dynamodb_setup, target_account_id, staging_account
-):
+def test_property_add_staging_account_response_structure(dynamodb_setup, target_account_id, staging_account):
     """
     Property 14a: add_staging_account Response Structure
-    
+
     For any add_staging_account operation, the response should be valid JSON
     containing either success=true with stagingAccounts data, or an error field.
     """
@@ -234,30 +210,15 @@ def test_property_add_staging_account_response_structure(
 
     # For successful add, verify specific fields
     if response_body.get("success"):
-        assert "stagingAccounts" in response_body, (
-            "Successful add_staging_account should include stagingAccounts"
-        )
-        assert isinstance(response_body["stagingAccounts"], list), (
-            "stagingAccounts must be a list"
-        )
-        assert "message" in response_body, (
-            "Successful add_staging_account should include message"
-        )
+        assert "stagingAccounts" in response_body, "Successful add_staging_account should include stagingAccounts"
+        assert isinstance(response_body["stagingAccounts"], list), "stagingAccounts must be a list"
+        assert "message" in response_body, "Successful add_staging_account should include message"
 
 
-@settings(
-    max_examples=100,
-    deadline=None,
-    suppress_health_check=[HealthCheck.function_scoped_fixture]
-)
+@settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
     target_account_id=account_id_strategy,
-    staging_accounts=st.lists(
-        staging_account_strategy,
-        min_size=1,
-        max_size=3,
-        unique_by=lambda x: x["accountId"]
-    ),
+    staging_accounts=st.lists(staging_account_strategy, min_size=1, max_size=3, unique_by=lambda x: x["accountId"]),
     removal_index=st.integers(min_value=0, max_value=2),
 )
 @pytest.mark.property
@@ -266,7 +227,7 @@ def test_property_remove_staging_account_response_structure(
 ):
     """
     Property 14b: remove_staging_account Response Structure
-    
+
     For any remove_staging_account operation, the response should be valid JSON
     containing either success=true with updated stagingAccounts, or an error field.
     """
@@ -280,14 +241,16 @@ def test_property_remove_staging_account_response_structure(
     # Convert staging accounts to DynamoDB format
     staging_accounts_db = []
     for sa in staging_accounts:
-        staging_accounts_db.append({
-            "accountId": sa["accountId"],
-            "accountName": sa["accountName"],
-            "roleArn": sa["roleArn"],
-            "externalId": sa["externalId"],
-            "addedAt": "2024-01-01T00:00:00Z",
-            "addedBy": "test",
-        })
+        staging_accounts_db.append(
+            {
+                "accountId": sa["accountId"],
+                "accountName": sa["accountName"],
+                "roleArn": sa["roleArn"],
+                "externalId": sa["externalId"],
+                "addedAt": "2024-01-01T00:00:00Z",
+                "addedBy": "test",
+            }
+        )
 
     table.put_item(
         Item={
@@ -316,15 +279,9 @@ def test_property_remove_staging_account_response_structure(
 
     # For successful removal, verify specific fields
     if response_body.get("success"):
-        assert "stagingAccounts" in response_body, (
-            "Successful remove_staging_account should include stagingAccounts"
-        )
-        assert isinstance(response_body["stagingAccounts"], list), (
-            "stagingAccounts must be a list"
-        )
-        assert "message" in response_body, (
-            "Successful remove_staging_account should include message"
-        )
+        assert "stagingAccounts" in response_body, "Successful remove_staging_account should include stagingAccounts"
+        assert isinstance(response_body["stagingAccounts"], list), "stagingAccounts must be a list"
+        assert "message" in response_body, "Successful remove_staging_account should include message"
 
 
 @settings(max_examples=100)
@@ -342,7 +299,7 @@ def test_property_validate_staging_account_response_structure(
 ):
     """
     Property 14c: validate_staging_account Response Structure
-    
+
     For any validate_staging_account operation, the response should be valid JSON
     containing validation result fields (valid, roleAccessible, drsInitialized)
     or an error field.
@@ -374,9 +331,7 @@ def test_property_validate_staging_account_response_structure(
             mock_servers = [
                 {
                     "sourceServerID": f"s-{i:08d}",
-                    "dataReplicationInfo": {
-                        "dataReplicationState": "CONTINUOUS"
-                    },
+                    "dataReplicationInfo": {"dataReplicationState": "CONTINUOUS"},
                 }
                 for i in range(server_count)
             ]
@@ -414,57 +369,37 @@ def test_property_validate_staging_account_response_structure(
         response_body = json.loads(response["body"])
 
         # Validate specific fields for validation operation
-        assert "valid" in response_body, (
-            "validate_staging_account must include 'valid' field"
-        )
-        assert isinstance(response_body["valid"], bool), (
-            "'valid' field must be boolean"
-        )
+        assert "valid" in response_body, "validate_staging_account must include 'valid' field"
+        assert isinstance(response_body["valid"], bool), "'valid' field must be boolean"
 
-        assert "roleAccessible" in response_body, (
-            "validate_staging_account must include 'roleAccessible' field"
-        )
-        assert isinstance(response_body["roleAccessible"], bool), (
-            "'roleAccessible' field must be boolean"
-        )
+        assert "roleAccessible" in response_body, "validate_staging_account must include 'roleAccessible' field"
+        assert isinstance(response_body["roleAccessible"], bool), "'roleAccessible' field must be boolean"
 
         # If validation succeeded, check for additional fields
         if response_body["valid"]:
-            assert "drsInitialized" in response_body, (
-                "Successful validation must include 'drsInitialized'"
-            )
-            assert "currentServers" in response_body, (
-                "Successful validation must include 'currentServers'"
-            )
-            assert "replicatingServers" in response_body, (
-                "Successful validation must include 'replicatingServers'"
-            )
-            assert "totalAfter" in response_body, (
-                "Successful validation must include 'totalAfter'"
-            )
+            assert "drsInitialized" in response_body, "Successful validation must include 'drsInitialized'"
+            assert "currentServers" in response_body, "Successful validation must include 'currentServers'"
+            assert "replicatingServers" in response_body, "Successful validation must include 'replicatingServers'"
+            assert "totalAfter" in response_body, "Successful validation must include 'totalAfter'"
 
 
-@settings(
-    max_examples=50,
-    deadline=None,
-    suppress_health_check=[HealthCheck.function_scoped_fixture]
-)
+@settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
     target_account_id=account_id_strategy,
-    invalid_input=st.sampled_from([
-        "missing_target_id",
-        "invalid_target_id_format",
-        "missing_staging_account",
-        "invalid_staging_account_format",
-    ]),
+    invalid_input=st.sampled_from(
+        [
+            "missing_target_id",
+            "invalid_target_id_format",
+            "missing_staging_account",
+            "invalid_staging_account_format",
+        ]
+    ),
 )
 @pytest.mark.property
-def test_property_error_responses_have_descriptive_messages(
-    dynamodb_setup, target_account_id, invalid_input
-):
+def test_property_error_responses_have_descriptive_messages(dynamodb_setup, target_account_id, invalid_input):
     """
     Property 14d: Error Response Descriptiveness
-    
+
     For any CLI operation that fails validation, the error message should be
     descriptive and help the user understand what went wrong.
     """
@@ -499,7 +434,7 @@ def test_property_error_responses_have_descriptive_messages(
                 "accountName": "Test",
                 "roleArn": "arn:aws:iam::123456789012:role/Test",
                 "externalId": "test",
-            }
+            },
         }
     elif invalid_input == "missing_staging_account":
         body = {
@@ -511,7 +446,7 @@ def test_property_error_responses_have_descriptive_messages(
             "stagingAccount": {
                 "accountId": "invalid",
                 "accountName": "Test",
-            }
+            },
         }
 
     # Execute operation
@@ -524,25 +459,17 @@ def test_property_error_responses_have_descriptive_messages(
     response_body = json.loads(response["body"])
 
     # Should have error field
-    assert "error" in response_body, (
-        "Invalid input should result in error field"
-    )
+    assert "error" in response_body, "Invalid input should result in error field"
 
     # Error field should be a string
     error_code = response_body["error"]
-    assert isinstance(error_code, str), (
-        f"Error field must be string, got {type(error_code)}"
-    )
+    assert isinstance(error_code, str), f"Error field must be string, got {type(error_code)}"
 
     # Should also have a message field with descriptive text
     if "message" in response_body:
         error_msg = response_body["message"]
-        assert isinstance(error_msg, str), (
-            f"Message field must be string, got {type(error_msg)}"
-        )
-        assert len(error_msg) >= 10, (
-            f"Error message should be descriptive, got: '{error_msg}'"
-        )
+        assert isinstance(error_msg, str), f"Message field must be string, got {type(error_msg)}"
+        assert len(error_msg) >= 10, f"Error message should be descriptive, got: '{error_msg}'"
 
         # Error message should contain relevant keywords
         if invalid_input == "missing_target_id":
@@ -553,16 +480,14 @@ def test_property_error_responses_have_descriptive_messages(
             assert "stagingAccount" in error_msg or "required" in error_msg.lower()
     else:
         # If no message field, error code itself should be descriptive
-        assert len(error_code) >= 3, (
-            f"Error code should be descriptive, got: '{error_code}'"
-        )
+        assert len(error_code) >= 3, f"Error code should be descriptive, got: '{error_code}'"
 
 
 @pytest.mark.property
 def test_response_structure_consistency_across_operations():
     """
     Property 14e: Response Structure Consistency
-    
+
     All CLI operations should follow the same response structure pattern,
     making it easy for CLI scripts to parse responses consistently.
     """

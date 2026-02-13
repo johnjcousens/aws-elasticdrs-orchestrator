@@ -20,9 +20,7 @@ if "index" in sys.modules:
     del sys.modules["index"]
 
 # Add lambda directory to path - query-handler FIRST
-query_handler_dir = (
-    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
-)
+query_handler_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(query_handler_dir))
 
 from hypothesis import given, strategies as st, settings  # noqa: E402
@@ -54,9 +52,7 @@ def account_with_status_strategy(draw, status_level):
     }
 
     min_servers, max_servers = status_ranges[status_level]
-    replicating_servers = draw(
-        st.integers(min_value=min_servers, max_value=max_servers)
-    )
+    replicating_servers = draw(st.integers(min_value=min_servers, max_value=max_servers))
 
     return {
         "accountId": draw(st.from_regex(r"\d{12}", fullmatch=True)),
@@ -79,11 +75,7 @@ def account_results_with_warnings_strategy(draw):
 
     for i in range(num_accounts):
         # Mix of different status levels
-        status = draw(
-            st.sampled_from(
-                ["OK", "INFO", "WARNING", "CRITICAL", "HYPER-CRITICAL"]
-            )
-        )
+        status = draw(st.sampled_from(["OK", "INFO", "WARNING", "CRITICAL", "HYPER-CRITICAL"]))
         account = draw(account_with_status_strategy(status))
         account["accountType"] = "target" if i == 0 else "staging"
         accounts.append(account)
@@ -180,8 +172,7 @@ def test_property_combined_warnings(num_accounts, servers_per_account):
     if total_replicating >= hard_capacity:
         # Should have HYPER-CRITICAL combined warning
         assert any(
-            "HYPER-CRITICAL" in w and "Combined capacity" in w
-            for w in warnings
+            "HYPER-CRITICAL" in w and "Combined capacity" in w for w in warnings
         ), f"Missing HYPER-CRITICAL combined warning for {total_replicating}/{hard_capacity}"
 
     elif total_replicating >= operational_capacity:
@@ -243,16 +234,12 @@ def test_warning_contains_actionable_guidance():
     warnings = generate_warnings(account_results, combined_metrics)
 
     # Find the CRITICAL warning
-    critical_warnings = [
-        w for w in warnings if "CRITICAL" in w and "Critical_Account" in w
-    ]
+    critical_warnings = [w for w in warnings if "CRITICAL" in w and "Critical_Account" in w]
     assert len(critical_warnings) > 0, "Should have CRITICAL warning"
 
     # Check for actionable guidance
     warning = critical_warnings[0]
-    assert (
-        "Add a staging account" in warning or "add" in warning.lower()
-    ), "Warning should contain actionable guidance"
+    assert "Add a staging account" in warning or "add" in warning.lower(), "Warning should contain actionable guidance"
 
 
 @pytest.mark.property
@@ -274,9 +261,7 @@ def test_warning_includes_server_count():
     warnings = generate_warnings(account_results, combined_metrics)
 
     # Find the INFO warning
-    info_warnings = [
-        w for w in warnings if "INFO" in w and "Test_Account" in w
-    ]
+    info_warnings = [w for w in warnings if "INFO" in w and "Test_Account" in w]
     assert len(info_warnings) > 0, "Should have INFO warning"
 
     # Check that server count is mentioned
@@ -303,16 +288,12 @@ def test_warning_includes_account_identification():
     warnings = generate_warnings(account_results, combined_metrics)
 
     # Find the WARNING
-    warning_msgs = [
-        w for w in warnings if "WARNING" in w and "Production_Account" in w
-    ]
+    warning_msgs = [w for w in warnings if "WARNING" in w and "Production_Account" in w]
     assert len(warning_msgs) > 0, "Should have WARNING"
 
     # Check that both name and ID are present
     warning = warning_msgs[0]
-    assert (
-        "Production_Account" in warning
-    ), "Warning should include account name"
+    assert "Production_Account" in warning, "Warning should include account name"
     assert "123456789012" in warning, "Warning should include account ID"
 
 
@@ -341,9 +322,7 @@ def test_edge_case_no_warnings_all_ok():
     warnings = generate_warnings(account_results, combined_metrics)
 
     # Should have no warnings
-    assert (
-        len(warnings) == 0
-    ), "Should have no warnings when all accounts are OK"
+    assert len(warnings) == 0, "Should have no warnings when all accounts are OK"
 
 
 @pytest.mark.property
@@ -405,9 +384,7 @@ def test_edge_case_inaccessible_accounts_no_warnings():
     warnings = generate_warnings(account_results, combined_metrics)
 
     # Should not have warnings for inaccessible account
-    assert not any(
-        "Inaccessible_High" in w for w in warnings
-    ), "Should not generate warnings for inaccessible accounts"
+    assert not any("Inaccessible_High" in w for w in warnings), "Should not generate warnings for inaccessible accounts"
 
 
 @pytest.mark.property
@@ -431,9 +408,7 @@ def test_edge_case_all_accounts_at_limit():
 
     # Should have HYPER-CRITICAL warnings for all accounts
     hyper_critical_count = sum(1 for w in warnings if "HYPER-CRITICAL" in w)
-    assert (
-        hyper_critical_count >= 3
-    ), "Should have HYPER-CRITICAL warnings for all accounts"
+    assert hyper_critical_count >= 3, "Should have HYPER-CRITICAL warnings for all accounts"
 
 
 # ============================================================================
@@ -490,9 +465,5 @@ def test_warning_severity_levels_distinct():
     # Should have warnings at each severity level
     assert any("INFO" in w for w in warnings), "Should have INFO warning"
     assert any("WARNING" in w for w in warnings), "Should have WARNING"
-    assert any(
-        "CRITICAL" in w for w in warnings
-    ), "Should have CRITICAL warning"
-    assert any(
-        "HYPER-CRITICAL" in w for w in warnings
-    ), "Should have HYPER-CRITICAL warning"
+    assert any("CRITICAL" in w for w in warnings), "Should have CRITICAL warning"
+    assert any("HYPER-CRITICAL" in w for w in warnings), "Should have HYPER-CRITICAL warning"

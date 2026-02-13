@@ -47,61 +47,65 @@ from shared.response_utils import (  # noqa: E402
 def get_lambda_handler_module(handler_name):
     """
     Import and return the handler module for patching and testing.
-    
+
     Args:
         handler_name: One of 'query_handler', 'execution_handler', 'data_management_handler'
-    
+
     Returns:
         Tuple of (lambda_handler function, module object for patching)
     """
     import importlib
-    
+
     # Map handler names to module names (with hyphens)
     module_map = {
         "query_handler": "query-handler.index",
         "execution_handler": "execution-handler.index",
         "data_management_handler": "data-management-handler.index",
     }
-    
+
     module_name = module_map[handler_name]
     module = importlib.import_module(module_name)
     return module.lambda_handler, module
 
 
 # Strategy for generating handler names
-handler_names = st.sampled_from(
-    ["query_handler", "execution_handler", "data_management_handler"]
-)
+handler_names = st.sampled_from(["query_handler", "execution_handler", "data_management_handler"])
 
 # Strategy for generating valid operations per handler
-query_handler_operations = st.sampled_from([
-    "list_protection_groups",
-    "get_protection_group",
-    "list_recovery_plans",
-    "get_recovery_plan",
-    "list_executions",
-    "get_execution",
-    "get_drs_source_servers",
-    "get_target_accounts",
-])
+query_handler_operations = st.sampled_from(
+    [
+        "list_protection_groups",
+        "get_protection_group",
+        "list_recovery_plans",
+        "get_recovery_plan",
+        "list_executions",
+        "get_execution",
+        "get_drs_source_servers",
+        "get_target_accounts",
+    ]
+)
 
-execution_handler_operations = st.sampled_from([
-    "start_execution",
-    "cancel_execution",
-    "pause_execution",
-    "resume_execution",
-    "terminate_instances",
-    "get_recovery_instances",
-])
+execution_handler_operations = st.sampled_from(
+    [
+        "start_execution",
+        "cancel_execution",
+        "pause_execution",
+        "resume_execution",
+        "terminate_instances",
+        "get_recovery_instances",
+    ]
+)
 
-data_management_operations = st.sampled_from([
-    "create_protection_group",
-    "update_protection_group",
-    "delete_protection_group",
-    "create_recovery_plan",
-    "update_recovery_plan",
-    "delete_recovery_plan",
-])
+data_management_operations = st.sampled_from(
+    [
+        "create_protection_group",
+        "update_protection_group",
+        "delete_protection_group",
+        "create_recovery_plan",
+        "update_recovery_plan",
+        "delete_recovery_plan",
+    ]
+)
 
 
 def get_operations_for_handler(handler_name):
@@ -151,9 +155,7 @@ class TestResponseFormatProperty:
         }
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock DynamoDB to return empty results
         mock_table = MagicMock()
@@ -211,9 +213,7 @@ class TestResponseFormatProperty:
         event = {"operation": operation}
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock authorization to pass
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
@@ -232,12 +232,8 @@ class TestResponseFormatProperty:
         assert isinstance(result, dict), "Response must be a dictionary"
 
         # Should NOT have API Gateway wrapping
-        assert "statusCode" not in result, (
-            "Direct invocation should not have statusCode wrapper"
-        )
-        assert "headers" not in result, (
-            "Direct invocation should not have headers wrapper"
-        )
+        assert "statusCode" not in result, "Direct invocation should not have statusCode wrapper"
+        assert "headers" not in result, "Direct invocation should not have headers wrapper"
 
         # Should have actual data fields (not wrapped in body)
         # The response should be the actual data, not a wrapper
@@ -280,9 +276,7 @@ class TestResponseFormatProperty:
         }
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         with patch.object(handler_module, "boto3"):
             result = lambda_handler(event, context)
@@ -319,9 +313,7 @@ class TestResponseFormatProperty:
         event = {"operation": "invalid_operation_xyz"}
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock authorization to pass
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
@@ -333,12 +325,8 @@ class TestResponseFormatProperty:
         assert isinstance(result, dict), "Error response must be a dictionary"
 
         # Should NOT have API Gateway wrapping
-        assert "statusCode" not in result, (
-            "Direct error should not have statusCode wrapper"
-        )
-        assert "headers" not in result, (
-            "Direct error should not have headers wrapper"
-        )
+        assert "statusCode" not in result, "Direct error should not have statusCode wrapper"
+        assert "headers" not in result, "Direct error should not have headers wrapper"
 
         # Should have error fields directly
         assert "error" in result, "Direct error must have 'error' field"
@@ -366,9 +354,7 @@ class TestResponseFormatConsistencyAcrossOperations:
         success=st.booleans(),
     )
     @settings(max_examples=100)
-    def test_response_format_consistent_for_success_and_error(
-        self, handler, success
-    ):
+    def test_response_format_consistent_for_success_and_error(self, handler, success):
         """
         Property: For any handler, the response format should be consistent
         whether the operation succeeds or fails - API Gateway mode always wraps,
@@ -388,9 +374,7 @@ class TestResponseFormatConsistencyAcrossOperations:
             operation = "list_protection_groups"
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Test both API Gateway and direct invocation modes
         for mode in ["api_gateway", "direct"]:
@@ -448,15 +432,9 @@ class TestResponseFormatConsistencyAcrossOperations:
             # Verify format consistency based on mode
             if mode == "api_gateway":
                 # API Gateway mode - always wrapped
-                assert "statusCode" in result, (
-                    f"API Gateway mode must have statusCode (success={success})"
-                )
-                assert "headers" in result, (
-                    f"API Gateway mode must have headers (success={success})"
-                )
-                assert "body" in result, (
-                    f"API Gateway mode must have body (success={success})"
-                )
+                assert "statusCode" in result, f"API Gateway mode must have statusCode (success={success})"
+                assert "headers" in result, f"API Gateway mode must have headers (success={success})"
+                assert "body" in result, f"API Gateway mode must have body (success={success})"
 
                 # Verify body is JSON string
                 assert isinstance(result["body"], str), "Body must be JSON string"
@@ -471,12 +449,8 @@ class TestResponseFormatConsistencyAcrossOperations:
                     assert "message" in body_data, "Error body must have 'message'"
             else:
                 # Direct mode - never wrapped
-                assert "statusCode" not in result, (
-                    f"Direct mode must not have statusCode (success={success})"
-                )
-                assert "headers" not in result, (
-                    f"Direct mode must not have headers (success={success})"
-                )
+                assert "statusCode" not in result, f"Direct mode must not have statusCode (success={success})"
+                assert "headers" not in result, f"Direct mode must not have headers (success={success})"
 
                 if success:
                     # Success response should be plain dict with data
@@ -523,9 +497,7 @@ class TestResponseDataStructureProperty:
         }
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock DynamoDB
         mock_table = MagicMock()
@@ -537,9 +509,7 @@ class TestResponseDataStructureProperty:
             result = lambda_handler(event, context)
 
         # Verify body is a string
-        assert isinstance(result["body"], str), (
-            "API Gateway body must be a JSON string, not a dict"
-        )
+        assert isinstance(result["body"], str), "API Gateway body must be a JSON string, not a dict"
 
         # Verify it can be parsed as JSON
         try:
@@ -572,9 +542,7 @@ class TestResponseDataStructureProperty:
         event = {"operation": operation}
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Mock authorization and DynamoDB
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
@@ -589,14 +557,10 @@ class TestResponseDataStructureProperty:
                 result = lambda_handler(event, context)
 
         # Verify result is a dict, not a string
-        assert isinstance(result, dict), (
-            "Direct mode response must be a dict, not a JSON string"
-        )
+        assert isinstance(result, dict), "Direct mode response must be a dict, not a JSON string"
 
         # Verify it's not a stringified JSON
-        assert not isinstance(result, str), (
-            "Direct mode response must not be a JSON string"
-        )
+        assert not isinstance(result, str), "Direct mode response must not be a JSON string"
 
         # Verify it's directly JSON serializable
         try:
@@ -636,9 +600,7 @@ class TestResponseFormatJSONSerializability:
             operation = "list_protection_groups"
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
-        )
+        context.invoked_function_arn = f"arn:aws:lambda:us-east-1:123456789012:function:{handler}"
 
         # Create event based on mode
         if mode == "api_gateway":

@@ -81,9 +81,7 @@ def mock_env_vars():
 def get_mock_context():
     """Create mock Lambda context"""
     context = Mock()
-    context.invoked_function_arn = (
-        "arn:aws:lambda:us-east-1:111111111111:function:test-handler"
-    )
+    context.invoked_function_arn = "arn:aws:lambda:us-east-1:111111111111:function:test-handler"
     context.request_id = "test-request-123"
     context.function_name = "test-handler"
     context.aws_request_id = "test-request-123"
@@ -98,7 +96,7 @@ def get_mock_context():
 class TestInvalidEventFormat:
     """
     Test error handling for invalid event formats.
-    
+
     Validates Requirement 9.7: Standardized error responses
     """
 
@@ -106,7 +104,7 @@ class TestInvalidEventFormat:
         """
         Test query handler returns INVALID_INVOCATION when operation field
         is missing.
-        
+
         Validates Requirement 9.7
         """
         # Event without operation field
@@ -129,7 +127,7 @@ class TestInvalidEventFormat:
         """
         Test execution handler returns INVALID_INVOCATION when operation
         field is missing.
-        
+
         Validates Requirement 9.7
         """
         # Event without operation field
@@ -144,13 +142,11 @@ class TestInvalidEventFormat:
         assert "message" in result
         assert result["error"] == ERROR_INVALID_INVOCATION
 
-    def test_data_management_handler_missing_operation_field(
-        self, mock_env_vars
-    ):
+    def test_data_management_handler_missing_operation_field(self, mock_env_vars):
         """
         Test data management handler returns INVALID_INVOCATION when
         operation field is missing.
-        
+
         Validates Requirement 9.7
         """
         # Event without operation field
@@ -158,9 +154,7 @@ class TestInvalidEventFormat:
         context = get_mock_context()
 
         with patch.object(data_management_handler_module, "boto3"):
-            result = data_management_handler_module.lambda_handler(
-                event, context
-            )
+            result = data_management_handler_module.lambda_handler(event, context)
 
         # Verify error response structure
         assert "error" in result
@@ -176,14 +170,14 @@ class TestInvalidEventFormat:
 class TestInvalidOperationNames:
     """
     Test error handling for invalid operation names.
-    
+
     Validates Requirement 9.2: Invalid operations return INVALID_OPERATION
     """
 
     def test_query_handler_invalid_operation(self, mock_env_vars):
         """
         Test query handler returns INVALID_OPERATION for unknown operation.
-        
+
         Validates Requirement 9.2
         """
         event = {"operation": "invalid_operation_xyz"}
@@ -208,7 +202,7 @@ class TestInvalidOperationNames:
         """
         Test execution handler returns INVALID_OPERATION for unknown
         operation.
-        
+
         Validates Requirement 9.2
         """
         event = {"operation": "unknown_operation"}
@@ -230,7 +224,7 @@ class TestInvalidOperationNames:
         """
         Test data management handler returns INVALID_OPERATION for unknown
         operation.
-        
+
         Validates Requirement 9.2
         """
         event = {"operation": "bad_operation"}
@@ -240,9 +234,7 @@ class TestInvalidOperationNames:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
             mock_auth.return_value = True
             with patch.object(data_management_handler_module, "boto3"):
-                result = data_management_handler_module.lambda_handler(
-                    event, context
-                )
+                result = data_management_handler_module.lambda_handler(event, context)
 
         # Verify error response
         assert result["error"] == ERROR_INVALID_OPERATION
@@ -259,17 +251,15 @@ class TestInvalidOperationNames:
 class TestMissingRequiredParameters:
     """
     Test error handling for missing required parameters.
-    
+
     Validates Requirement 9.1: Missing parameters return MISSING_PARAMETER
     """
 
-    def test_query_handler_get_drs_source_servers_missing_region(
-        self, mock_env_vars
-    ):
+    def test_query_handler_get_drs_source_servers_missing_region(self, mock_env_vars):
         """
         Test get_drs_source_servers works without required parameters
         (they're optional).
-        
+
         This test verifies the handler doesn't crash with missing optional params.
         """
         event = {"operation": "get_drs_source_servers"}
@@ -289,12 +279,10 @@ class TestMissingRequiredParameters:
         # Should succeed (parameters are optional)
         assert "error" not in result or result.get("error") != ERROR_MISSING_PARAMETER
 
-    def test_query_handler_get_target_accounts_succeeds(
-        self, mock_env_vars
-    ):
+    def test_query_handler_get_target_accounts_succeeds(self, mock_env_vars):
         """
         Test get_target_accounts works without parameters.
-        
+
         Validates that operations without required parameters work correctly.
         """
         event = {"operation": "get_target_accounts"}
@@ -314,12 +302,10 @@ class TestMissingRequiredParameters:
         # Should succeed
         assert "error" not in result or result.get("error") != ERROR_MISSING_PARAMETER
 
-    def test_query_handler_invalid_operation_returns_error(
-        self, mock_env_vars
-    ):
+    def test_query_handler_invalid_operation_returns_error(self, mock_env_vars):
         """
         Test that invalid operations return INVALID_OPERATION error.
-        
+
         Validates Requirement 9.2
         """
         event = {"operation": "nonexistent_operation"}
@@ -337,13 +323,11 @@ class TestMissingRequiredParameters:
         assert "details" in result
         assert result["details"]["operation"] == "nonexistent_operation"
 
-    def test_execution_handler_start_execution_missing_planid(
-        self, mock_env_vars
-    ):
+    def test_execution_handler_start_execution_missing_planid(self, mock_env_vars):
         """
         Test start_execution returns MISSING_PARAMETER when planId is
         missing.
-        
+
         Validates Requirement 9.1
         """
         event = {"operation": "start_execution"}
@@ -364,7 +348,7 @@ class TestMissingRequiredParameters:
     def test_execution_handler_invalid_operation(self, mock_env_vars):
         """
         Test execution handler returns error for invalid operations.
-        
+
         Validates Requirement 9.2
         """
         event = {"operation": "nonexistent_operation"}
@@ -383,7 +367,7 @@ class TestMissingRequiredParameters:
     def test_data_management_handler_invalid_operation(self, mock_env_vars):
         """
         Test data management handler returns error for invalid operations.
-        
+
         Validates Requirement 9.2
         """
         event = {"operation": "nonexistent_operation"}
@@ -393,9 +377,7 @@ class TestMissingRequiredParameters:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
             mock_auth.return_value = True
             with patch.object(data_management_handler_module, "boto3"):
-                result = data_management_handler_module.lambda_handler(
-                    event, context
-                )
+                result = data_management_handler_module.lambda_handler(event, context)
 
         # Verify error response
         assert result["error"] == ERROR_INVALID_OPERATION
@@ -410,17 +392,15 @@ class TestMissingRequiredParameters:
 class TestInvalidParameterValues:
     """
     Test error handling for invalid parameter values.
-    
+
     Validates Requirement 9.1: Invalid parameters return appropriate errors
     """
 
-    def test_execution_handler_start_execution_empty_planid(
-        self, mock_env_vars
-    ):
+    def test_execution_handler_start_execution_empty_planid(self, mock_env_vars):
         """
         Test start_execution returns MISSING_PARAMETER when planId is empty
         string (treated as missing).
-        
+
         Validates Requirement 9.1
         """
         event = {"operation": "start_execution", "planId": ""}
@@ -447,7 +427,7 @@ class TestInvalidParameterValues:
 class TestErrorResponseStructure:
     """
     Test that all error responses have consistent structure.
-    
+
     Validates Requirement 9.7: Standardized error responses
     """
 
@@ -455,7 +435,7 @@ class TestErrorResponseStructure:
         """
         Test that all error responses include error, message, and are JSON
         serializable.
-        
+
         Validates Requirement 9.7
         """
         test_cases = [
@@ -492,29 +472,19 @@ class TestErrorResponseStructure:
             context = get_mock_context()
 
             # Mock authorization to pass
-            with patch(
-                "shared.iam_utils.validate_iam_authorization"
-            ) as mock_auth:
+            with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
                 mock_auth.return_value = True
                 with patch.object(handler, "boto3"):
                     result = handler.lambda_handler(event, context)
 
             # Verify required fields
             assert "error" in result, f"Missing 'error' field in {handler}"
-            assert (
-                "message" in result
-            ), f"Missing 'message' field in {handler}"
-            assert isinstance(
-                result["error"], str
-            ), f"Error code not string in {handler}"
-            assert isinstance(
-                result["message"], str
-            ), f"Error message not string in {handler}"
+            assert "message" in result, f"Missing 'message' field in {handler}"
+            assert isinstance(result["error"], str), f"Error code not string in {handler}"
+            assert isinstance(result["message"], str), f"Error message not string in {handler}"
 
             # Verify expected error code
-            assert (
-                result["error"] == expected_error
-            ), f"Expected {expected_error}, got {result['error']}"
+            assert result["error"] == expected_error, f"Expected {expected_error}, got {result['error']}"
 
             # Verify JSON serializable
             try:
@@ -525,7 +495,7 @@ class TestErrorResponseStructure:
     def test_error_messages_are_descriptive(self, mock_env_vars):
         """
         Test that error messages are descriptive and actionable.
-        
+
         Validates Requirement 9.7
         """
         # Test invalid operation error
@@ -565,7 +535,7 @@ class TestErrorResponseStructure:
 class TestAuthorizationErrors:
     """
     Test error handling for authorization failures.
-    
+
     Validates Requirement 9.3: Authorization failures return
     AUTHORIZATION_FAILED
     """
@@ -574,7 +544,7 @@ class TestAuthorizationErrors:
         """
         Test query handler returns AUTHORIZATION_FAILED when IAM principal
         is not authorized.
-        
+
         Validates Requirement 9.3
         """
         event = {"operation": "list_protection_groups"}
@@ -597,7 +567,7 @@ class TestAuthorizationErrors:
         """
         Test execution handler returns AUTHORIZATION_FAILED when IAM
         principal is not authorized.
-        
+
         Validates Requirement 9.3
         """
         event = {"operation": "start_execution", "planId": "plan-123"}
@@ -613,13 +583,11 @@ class TestAuthorizationErrors:
         assert result["error"] == ERROR_AUTHORIZATION_FAILED
         assert "insufficient permissions" in result["message"].lower()
 
-    def test_data_management_handler_authorization_failure(
-        self, mock_env_vars
-    ):
+    def test_data_management_handler_authorization_failure(self, mock_env_vars):
         """
         Test data management handler returns AUTHORIZATION_FAILED when IAM
         principal is not authorized.
-        
+
         Validates Requirement 9.3
         """
         event = {
@@ -631,9 +599,7 @@ class TestAuthorizationErrors:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
             mock_auth.return_value = False
             with patch.object(data_management_handler_module, "boto3"):
-                result = data_management_handler_module.lambda_handler(
-                    event, context
-                )
+                result = data_management_handler_module.lambda_handler(event, context)
 
         # Verify error response
         assert result["error"] == ERROR_AUTHORIZATION_FAILED
@@ -648,17 +614,15 @@ class TestAuthorizationErrors:
 class TestResourceNotFoundErrors:
     """
     Test error handling for resource not found scenarios.
-    
+
     Validates Requirement 9.7: NOT_FOUND errors are consistent
     """
 
-    def test_query_handler_returns_empty_list_for_nonexistent_resources(
-        self, mock_env_vars
-    ):
+    def test_query_handler_returns_empty_list_for_nonexistent_resources(self, mock_env_vars):
         """
         Test that query operations return empty results rather than NOT_FOUND
         for list operations.
-        
+
         Validates Requirement 9.7
         """
         event = {"operation": "get_target_accounts"}
@@ -671,9 +635,7 @@ class TestResourceNotFoundErrors:
         with patch("shared.iam_utils.validate_iam_authorization") as mock_auth:
             mock_auth.return_value = True
             with patch.object(query_handler_module, "boto3") as mock_boto3:
-                mock_boto3.resource.return_value.Table.return_value = (
-                    mock_table
-                )
+                mock_boto3.resource.return_value.Table.return_value = mock_table
                 result = query_handler_module.lambda_handler(event, context)
 
         # Should return empty list, not error

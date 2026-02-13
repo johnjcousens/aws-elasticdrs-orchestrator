@@ -35,9 +35,7 @@ sys.path.insert(0, str(lambda_dir))
     has_staging_accounts_attr=st.booleans(),
 )
 @pytest.mark.property
-def test_property_13_empty_staging_accounts_default(
-    target_servers, has_staging_accounts_attr
-):
+def test_property_13_empty_staging_accounts_default(target_servers, has_staging_accounts_attr):
     """
     Feature: staging-accounts-management
     Property 13: For any target account where the stagingAccounts attribute
@@ -96,50 +94,52 @@ def test_property_13_empty_staging_accounts_default(
     # Mock query_all_accounts_parallel to return predictable results
     def mock_query_all_accounts(target, staging_list):
         # Property: staging_list should always be a list (never None)
-        assert isinstance(staging_list, list), (
-            f"staging_list should be a list, got {type(staging_list)}"
-        )
+        assert isinstance(staging_list, list), f"staging_list should be a list, got {type(staging_list)}"
 
         results = []  # noqa: F841
 
         # Add target account result
-        results.append({
-            "accountId": target["accountId"],
-            "accountName": target.get("accountName", "Target Account"),
-            "accountType": "target",
-            "replicatingServers": target_servers,
-            "totalServers": target_servers,
-            "regionalBreakdown": [
-                {
-                    "region": "us-east-1",
-                    "totalServers": target_servers,
-                    "replicatingServers": target_servers,
-                }
-            ],
-            "accessible": True,
-        })
+        results.append(
+            {
+                "accountId": target["accountId"],
+                "accountName": target.get("accountName", "Target Account"),
+                "accountType": "target",
+                "replicatingServers": target_servers,
+                "totalServers": target_servers,
+                "regionalBreakdown": [
+                    {
+                        "region": "us-east-1",
+                        "totalServers": target_servers,
+                        "replicatingServers": target_servers,
+                    }
+                ],
+                "accessible": True,
+            }
+        )
 
         # Add staging account results (should be empty if no staging accounts)
         for staging in staging_list:
-            results.append({
-                "accountId": staging["accountId"],
-                "accountName": staging.get("accountName", "Staging"),
-                "accountType": "staging",
-                "replicatingServers": 0,
-                "totalServers": 0,
-                "regionalBreakdown": [],
-                "accessible": True,
-            })
+            results.append(
+                {
+                    "accountId": staging["accountId"],
+                    "accountName": staging.get("accountName", "Staging"),
+                    "accountType": "staging",
+                    "replicatingServers": 0,
+                    "totalServers": 0,
+                    "regionalBreakdown": [],
+                    "accessible": True,
+                }
+            )
 
         return results
 
     # Patch the query function and table to use mocked versions
-    with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
-         patch.object(index, "get_target_accounts_table", return_value=table):
+    with (
+        patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts),
+        patch.object(index, "get_target_accounts_table", return_value=table),
+    ):
         # Call handle_get_combined_capacity
-        result = handle_get_combined_capacity(  # noqa: F841
-            {"targetAccountId": target_account_id}
-        )
+        result = handle_get_combined_capacity({"targetAccountId": target_account_id})  # noqa: F841
 
         # Parse response
         assert result["statusCode"] == 200
@@ -148,16 +148,12 @@ def test_property_13_empty_staging_accounts_default(
         # Property: Should always have accounts list
         assert "accounts" in body, "Response missing 'accounts' field"
         accounts = body["accounts"]
-        assert isinstance(accounts, list), (
-            f"accounts should be a list, got {type(accounts)}"
-        )
+        assert isinstance(accounts, list), f"accounts should be a list, got {type(accounts)}"
 
         # Property: When stagingAccounts attribute is missing or empty,
         # should have exactly 1 account (target only)
         if not has_staging_accounts_attr or not target_account.get("stagingAccounts"):
-            assert len(accounts) == 1, (
-                f"Expected 1 account (target only), got {len(accounts)}"
-            )
+            assert len(accounts) == 1, f"Expected 1 account (target only), got {len(accounts)}"
 
             # Should be the target account
             assert accounts[0]["accountType"] == "target"
@@ -166,9 +162,7 @@ def test_property_13_empty_staging_accounts_default(
         # Property: Should never have None or undefined in accounts list
         for account in accounts:
             assert account is not None, "Account should not be None"
-            assert isinstance(account, dict), (
-                f"Account should be dict, got {type(account)}"
-            )
+            assert isinstance(account, dict), f"Account should be dict, got {type(account)}"
 
         # Property: Combined metrics should reflect only target account
         # when no staging accounts
@@ -179,14 +173,12 @@ def test_property_13_empty_staging_accounts_default(
         if not has_staging_accounts_attr or not target_account.get("stagingAccounts"):
             # With only target account, maxReplicating should be 300
             assert combined["maxReplicating"] == 300, (
-                "Expected maxReplicating=300 for single account, "
-                f"got {combined['maxReplicating']}"
+                "Expected maxReplicating=300 for single account, " f"got {combined['maxReplicating']}"
             )
 
             # totalReplicating should match target account servers
             assert combined["totalReplicating"] == target_servers, (
-                f"Expected totalReplicating={target_servers}, "
-                f"got {combined['totalReplicating']}"
+                f"Expected totalReplicating={target_servers}, " f"got {combined['totalReplicating']}"
             )
 
 
@@ -255,45 +247,40 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
         staging_list_passed = staging_list
 
         # Property: staging_list should be an empty list, not None
-        assert staging_list is not None, (
-            "staging_list should not be None when attribute is missing"
-        )
-        assert isinstance(staging_list, list), (
-            f"staging_list should be a list, got {type(staging_list)}"
-        )
+        assert staging_list is not None, "staging_list should not be None when attribute is missing"
+        assert isinstance(staging_list, list), f"staging_list should be a list, got {type(staging_list)}"
         assert len(staging_list) == 0, (
-            "staging_list should be empty when attribute is missing, "
-            f"got {len(staging_list)} items"
+            "staging_list should be empty when attribute is missing, " f"got {len(staging_list)} items"
         )
 
         # Return only target account
-        return [{
-            "accountId": target["accountId"],
-            "accountName": target.get("accountName", "Target Account"),
-            "accountType": "target",
-            "replicatingServers": target_servers,
-            "totalServers": target_servers,
-            "regionalBreakdown": [
-                {
-                    "region": "us-east-1",
-                    "totalServers": target_servers,
-                    "replicatingServers": target_servers,
-                }
-            ],
-            "accessible": True,
-        }]
+        return [
+            {
+                "accountId": target["accountId"],
+                "accountName": target.get("accountName", "Target Account"),
+                "accountType": "target",
+                "replicatingServers": target_servers,
+                "totalServers": target_servers,
+                "regionalBreakdown": [
+                    {
+                        "region": "us-east-1",
+                        "totalServers": target_servers,
+                        "replicatingServers": target_servers,
+                    }
+                ],
+                "accessible": True,
+            }
+        ]
 
-    with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
-         patch.object(index, "get_target_accounts_table", return_value=table):
+    with (
+        patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts),
+        patch.object(index, "get_target_accounts_table", return_value=table),
+    ):
         # Call handle_get_combined_capacity
-        result = handle_get_combined_capacity(  # noqa: F841
-            {"targetAccountId": target_account_id}
-        )
+        result = handle_get_combined_capacity({"targetAccountId": target_account_id})  # noqa: F841
 
         # Verify the function was called
-        assert staging_list_passed is not None, (
-            "query_all_accounts_parallel was not called"
-        )
+        assert staging_list_passed is not None, "query_all_accounts_parallel was not called"
 
         # Parse response
         assert result["statusCode"] == 200
@@ -301,10 +288,7 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
 
         # Property: Should have exactly 1 account (target only)
         accounts = body.get("accounts", [])
-        assert len(accounts) == 1, (
-            "Expected 1 account when stagingAccounts missing, "
-            f"got {len(accounts)}"
-        )
+        assert len(accounts) == 1, "Expected 1 account when stagingAccounts missing, " f"got {len(accounts)}"
 
         # Property: The single account should be the target
         assert accounts[0]["accountType"] == "target"

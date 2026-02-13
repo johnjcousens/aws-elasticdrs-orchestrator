@@ -49,6 +49,7 @@ def mock_drs_client():
 def reset_global_clients():
     """Reset global cached clients before each test"""
     import conflict_detection
+
     conflict_detection._protection_groups_table = None
     conflict_detection._recovery_plans_table = None
     conflict_detection._execution_history_table = None
@@ -65,10 +66,12 @@ def mock_dynamodb_tables():
     pg_table = MagicMock()
     rp_table = MagicMock()
     eh_table = MagicMock()
-    
-    with patch("conflict_detection.get_protection_groups_table", return_value=pg_table), \
-         patch("conflict_detection.get_recovery_plans_table", return_value=rp_table), \
-         patch("conflict_detection.get_execution_history_table", return_value=eh_table):
+
+    with (
+        patch("conflict_detection.get_protection_groups_table", return_value=pg_table),
+        patch("conflict_detection.get_recovery_plans_table", return_value=rp_table),
+        patch("conflict_detection.get_execution_history_table", return_value=eh_table),
+    ):
         yield {
             "protection_groups": pg_table,
             "recovery_plans": rp_table,
@@ -128,10 +131,7 @@ def test_concurrent_jobs_under_limit(mock_drs_client):
     """Test concurrent jobs check when under 20 job limit"""
     # Mock 15 active jobs
     mock_drs_client.describe_jobs.return_value = {
-        "items": [
-            {"jobID": f"job-{i}", "status": "STARTED", "type": "LAUNCH"}
-            for i in range(15)
-        ]
+        "items": [{"jobID": f"job-{i}", "status": "STARTED", "type": "LAUNCH"} for i in range(15)]
     }
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
@@ -147,10 +147,7 @@ def test_concurrent_jobs_at_limit(mock_drs_client):
     """Test concurrent jobs check when at 20 job limit"""
     # Mock 20 active jobs
     mock_drs_client.describe_jobs.return_value = {
-        "items": [
-            {"jobID": f"job-{i}", "status": "PENDING", "type": "LAUNCH"}
-            for i in range(20)
-        ]
+        "items": [{"jobID": f"job-{i}", "status": "PENDING", "type": "LAUNCH"} for i in range(20)]
     }
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
@@ -166,10 +163,7 @@ def test_concurrent_jobs_ignores_completed(mock_drs_client):
     """Test that completed/failed jobs don't count toward limit"""
     # Mock 25 total jobs, but only 10 active
     mock_drs_client.describe_jobs.return_value = {
-        "items": [
-            {"jobID": f"job-active-{i}", "status": "STARTED", "type": "LAUNCH"}
-            for i in range(10)
-        ]
+        "items": [{"jobID": f"job-active-{i}", "status": "STARTED", "type": "LAUNCH"} for i in range(10)]
         + [
             {
                 "jobID": f"job-done-{i}",
@@ -305,17 +299,13 @@ def test_total_servers_under_500(mock_drs_client):
                 "jobID": "job-1",
                 "status": "STARTED",
                 "type": "LAUNCH",
-                "participatingServers": [
-                    {"sourceServerID": f"s-{i:03d}"} for i in range(100)
-                ],
+                "participatingServers": [{"sourceServerID": f"s-{i:03d}"} for i in range(100)],
             },
             {
                 "jobID": "job-2",
                 "status": "PENDING",
                 "type": "LAUNCH",
-                "participatingServers": [
-                    {"sourceServerID": f"s-{i:03d}"} for i in range(100, 200)
-                ],
+                "participatingServers": [{"sourceServerID": f"s-{i:03d}"} for i in range(100, 200)],
             },
         ]
     }
@@ -340,9 +330,7 @@ def test_total_servers_would_exceed_500(mock_drs_client):
                 "jobID": f"job-{j}",
                 "status": "STARTED",
                 "type": "LAUNCH",
-                "participatingServers": [
-                    {"sourceServerID": f"s-{j}-{i:03d}"} for i in range(90)
-                ],
+                "participatingServers": [{"sourceServerID": f"s-{j}-{i:03d}"} for i in range(90)],
             }
             for j in range(5)
         ]
@@ -367,9 +355,7 @@ def test_total_servers_at_500_limit(mock_drs_client):
                 "jobID": f"job-{j}",
                 "status": "STARTED",
                 "type": "LAUNCH",
-                "participatingServers": [
-                    {"sourceServerID": f"s-{j}-{i:03d}"} for i in range(100)
-                ],
+                "participatingServers": [{"sourceServerID": f"s-{j}-{i:03d}"} for i in range(100)],
             }
             for j in range(5)
         ]
@@ -388,9 +374,7 @@ def test_total_servers_at_500_limit(mock_drs_client):
 # ============================================================================
 
 
-def test_no_conflicts_clean_state(
-    mock_dynamodb_tables, mock_drs_client, sample_recovery_plan
-):
+def test_no_conflicts_clean_state(mock_dynamodb_tables, mock_drs_client, sample_recovery_plan):
     """Test conflict check with no active executions or jobs"""
     # Mock no active executions
     mock_dynamodb_tables["execution_history"].query.return_value = {"Items": []}
@@ -417,17 +401,13 @@ def test_no_conflicts_clean_state(
     # Mock no active DRS jobs
     mock_drs_client.describe_jobs.return_value = {"items": []}
 
-    with patch(
-        "conflict_detection.create_drs_client", return_value=mock_drs_client
-    ):
+    with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
         conflicts = check_server_conflicts(sample_recovery_plan)
 
     assert len(conflicts) == 0
 
 
-def test_server_in_active_execution(
-    mock_dynamodb_tables, mock_drs_client, sample_recovery_plan
-):
+def test_server_in_active_execution(mock_dynamodb_tables, mock_drs_client, sample_recovery_plan):
     """Test conflict detection when server is in another execution"""
     # Mock active execution with conflicting server
     mock_dynamodb_tables["execution_history"].query.return_value = {
@@ -469,9 +449,7 @@ def test_server_in_active_execution(
     # Mock no DRS jobs
     mock_drs_client.describe_jobs.return_value = {"items": []}
 
-    with patch(
-        "conflict_detection.create_drs_client", return_value=mock_drs_client
-    ):
+    with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
         conflicts = check_server_conflicts(sample_recovery_plan)
 
     assert len(conflicts) > 0
@@ -480,9 +458,7 @@ def test_server_in_active_execution(
     assert conflict["conflictingExecutionId"] == "exec-999"
 
 
-def test_server_in_active_drs_job(
-    mock_dynamodb_tables, mock_drs_client, sample_recovery_plan
-):
+def test_server_in_active_drs_job(mock_dynamodb_tables, mock_drs_client, sample_recovery_plan):
     """Test conflict detection when server is in active DRS job"""
     # Mock no active executions
     mock_dynamodb_tables["execution_history"].query.return_value = {"Items": []}
@@ -510,16 +486,12 @@ def test_server_in_active_drs_job(
                 "jobID": "job-external",
                 "status": "STARTED",
                 "type": "LAUNCH",
-                "participatingServers": [
-                    {"sourceServerID": "s-001", "launchStatus": "LAUNCHING"}
-                ],
+                "participatingServers": [{"sourceServerID": "s-001", "launchStatus": "LAUNCHING"}],
             }
         ]
     }
 
-    with patch(
-        "conflict_detection.create_drs_client", return_value=mock_drs_client
-    ):
+    with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
         conflicts = check_server_conflicts(sample_recovery_plan)
 
     assert len(conflicts) > 0
@@ -533,9 +505,7 @@ def test_server_in_active_drs_job(
 # ============================================================================
 
 
-def test_quota_violation_concurrent_jobs(
-    mock_dynamodb_tables, mock_drs_client, sample_recovery_plan
-):
+def test_quota_violation_concurrent_jobs(mock_dynamodb_tables, mock_drs_client, sample_recovery_plan):
     """Test conflict check detects concurrent jobs limit violation"""
     # Mock no active executions
     mock_dynamodb_tables["execution_history"].query.return_value = {"Items": []}
@@ -552,21 +522,14 @@ def test_quota_violation_concurrent_jobs(
 
     # Mock 20 active jobs (at limit)
     mock_drs_client.describe_jobs.return_value = {
-        "items": [
-            {"jobID": f"job-{i}", "status": "STARTED", "type": "LAUNCH"}
-            for i in range(20)
-        ]
+        "items": [{"jobID": f"job-{i}", "status": "STARTED", "type": "LAUNCH"} for i in range(20)]
     }
 
-    with patch(
-        "conflict_detection.create_drs_client", return_value=mock_drs_client
-    ):
+    with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
         conflicts = check_server_conflicts(sample_recovery_plan)
 
     # Should have quota violation
-    quota_violations = [
-        c for c in conflicts if c.get("conflictSource") == "quota_violation"
-    ]
+    quota_violations = [c for c in conflicts if c.get("conflictSource") == "quota_violation"]
     assert len(quota_violations) > 0
 
     concurrent_violation = next(
@@ -578,9 +541,7 @@ def test_quota_violation_concurrent_jobs(
     assert concurrent_violation["maxJobs"] == 20
 
 
-def test_quota_violation_servers_per_job(
-    mock_dynamodb_tables, mock_drs_client, sample_recovery_plan
-):
+def test_quota_violation_servers_per_job(mock_dynamodb_tables, mock_drs_client, sample_recovery_plan):
     """Test conflict check detects 100 servers per job limit violation"""
     # Mock no active executions
     mock_dynamodb_tables["execution_history"].query.return_value = {"Items": []}
@@ -604,15 +565,11 @@ def test_quota_violation_servers_per_job(
     # Mock no active jobs
     mock_drs_client.describe_jobs.return_value = {"items": []}
 
-    with patch(
-        "conflict_detection.create_drs_client", return_value=mock_drs_client
-    ):
+    with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
         conflicts = check_server_conflicts(sample_recovery_plan)
 
     # Should have quota violation
-    quota_violations = [
-        c for c in conflicts if c.get("conflictSource") == "quota_violation"
-    ]
+    quota_violations = [c for c in conflicts if c.get("conflictSource") == "quota_violation"]
     assert len(quota_violations) > 0
 
     per_job_violation = next(
@@ -624,9 +581,7 @@ def test_quota_violation_servers_per_job(
     assert per_job_violation["maxServers"] == 100
 
 
-def test_quota_violation_total_servers_in_jobs(
-    mock_dynamodb_tables, mock_drs_client, sample_recovery_plan
-):
+def test_quota_violation_total_servers_in_jobs(mock_dynamodb_tables, mock_drs_client, sample_recovery_plan):
     """Test conflict check detects 500 total servers limit violation"""
     # Mock no active executions
     mock_dynamodb_tables["execution_history"].query.return_value = {"Items": []}
@@ -654,33 +609,22 @@ def test_quota_violation_total_servers_in_jobs(
                 "jobID": f"job-{j}",
                 "status": "STARTED",
                 "type": "LAUNCH",
-                "participatingServers": [
-                    {"sourceServerID": f"s-existing-{j}-{i:03d}"}
-                    for i in range(90)
-                ],
+                "participatingServers": [{"sourceServerID": f"s-existing-{j}-{i:03d}"} for i in range(90)],
             }
             for j in range(5)
         ]
     }
 
-    with patch(
-        "conflict_detection.create_drs_client", return_value=mock_drs_client
-    ):
+    with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
         conflicts = check_server_conflicts(sample_recovery_plan)
 
     # Should have quota violation (450 + 200 = 650 > 500)
     # Note: Recovery plan has 2 waves, each with 100 servers = 200 total
-    quota_violations = [
-        c for c in conflicts if c.get("conflictSource") == "quota_violation"
-    ]
+    quota_violations = [c for c in conflicts if c.get("conflictSource") == "quota_violation"]
     assert len(quota_violations) > 0
 
     total_violation = next(
-        (
-            v
-            for v in quota_violations
-            if v.get("quotaType") == "total_servers_in_jobs"
-        ),
+        (v for v in quota_violations if v.get("quotaType") == "total_servers_in_jobs"),
         None,
     )
     assert total_violation is not None
@@ -717,9 +661,7 @@ def test_query_drs_servers_by_tags_exact_match(mock_drs_client):
     ]
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = query_drs_servers_by_tags(  # noqa: F841
-            "us-east-1", {"Environment": "Production", "App": "WebApp"}
-        )
+        result = query_drs_servers_by_tags("us-east-1", {"Environment": "Production", "App": "WebApp"})  # noqa: F841
 
     # Should only match s-001 (has both tags)
     assert len(result) == 1
@@ -755,9 +697,7 @@ def test_query_drs_servers_by_tags_case_insensitive(mock_drs_client):
 # ============================================================================
 
 
-def test_conflict_check_handles_drs_api_error(
-    mock_dynamodb_tables, mock_drs_client, sample_recovery_plan
-):
+def test_conflict_check_handles_drs_api_error(mock_dynamodb_tables, mock_drs_client, sample_recovery_plan):
     """Test conflict check handles DRS API errors gracefully"""
     # Mock no active executions
     mock_dynamodb_tables["execution_history"].query.return_value = {"Items": []}
@@ -775,9 +715,7 @@ def test_conflict_check_handles_drs_api_error(
     # Mock DRS API error
     mock_drs_client.describe_jobs.side_effect = Exception("DRS API unavailable")
 
-    with patch(
-        "conflict_detection.create_drs_client", return_value=mock_drs_client
-    ):
+    with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
         # Should not raise exception
         conflicts = check_server_conflicts(sample_recovery_plan)
 

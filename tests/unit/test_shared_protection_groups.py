@@ -40,10 +40,12 @@ def mock_dynamodb_tables():
     pg_table = MagicMock()
     rp_table = MagicMock()
     eh_table = MagicMock()
-    
-    with patch("conflict_detection.get_protection_groups_table", return_value=pg_table), \
-         patch("conflict_detection.get_recovery_plans_table", return_value=rp_table), \
-         patch("conflict_detection.get_execution_history_table", return_value=eh_table):
+
+    with (
+        patch("conflict_detection.get_protection_groups_table", return_value=pg_table),
+        patch("conflict_detection.get_recovery_plans_table", return_value=rp_table),
+        patch("conflict_detection.get_execution_history_table", return_value=eh_table),
+    ):
         yield {
             "protection_groups": pg_table,
             "recovery_plans": rp_table,
@@ -105,12 +107,10 @@ class TestSharedProtectionGroupDetection:
     ):
         """Should detect when a PG is used by multiple plans"""
         # Setup mocks
-        mock_dynamodb_tables["recovery_plans"].scan.return_value = {
-            "Items": sample_plans_sharing_pg
+        mock_dynamodb_tables["recovery_plans"].scan.return_value = {"Items": sample_plans_sharing_pg}
+        mock_dynamodb_tables["protection_groups"].get_item.side_effect = lambda Key: {
+            "Item": sample_protection_groups.get(Key["groupId"], {})
         }
-        mock_dynamodb_tables["protection_groups"].get_item.side_effect = (
-            lambda Key: {"Item": sample_protection_groups.get(Key["groupId"], {})}
-        )
 
         # Execute
         shared_pgs = get_shared_protection_groups()
@@ -175,12 +175,10 @@ class TestPlanSharedPGWarnings:
         self, mock_dynamodb_tables, sample_plans_sharing_pg, sample_protection_groups
     ):
         """Should return warnings when plan uses shared PGs"""
-        mock_dynamodb_tables["recovery_plans"].scan.return_value = {
-            "Items": sample_plans_sharing_pg
+        mock_dynamodb_tables["recovery_plans"].scan.return_value = {"Items": sample_plans_sharing_pg}
+        mock_dynamodb_tables["protection_groups"].get_item.side_effect = lambda Key: {
+            "Item": sample_protection_groups.get(Key["groupId"], {})
         }
-        mock_dynamodb_tables["protection_groups"].get_item.side_effect = (
-            lambda Key: {"Item": sample_protection_groups.get(Key["groupId"], {})}
-        )
 
         warnings = get_plan_shared_pg_warnings("plan-A")
 
@@ -227,16 +225,12 @@ class TestConflictDetectionEdgeCases:
                     "jobID": "drsjob-pending",
                     "status": "PENDING",
                     "type": "LAUNCH",
-                    "participatingServers": [
-                        {"sourceServerID": "s-001", "launchStatus": "PENDING"}
-                    ],
+                    "participatingServers": [{"sourceServerID": "s-001", "launchStatus": "PENDING"}],
                 }
             ]
         }
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
             servers_in_jobs = get_servers_in_active_drs_jobs("us-east-1")
 
         assert "s-001" in servers_in_jobs
@@ -251,16 +245,12 @@ class TestConflictDetectionEdgeCases:
                     "jobID": "drsjob-started",
                     "status": "STARTED",
                     "type": "LAUNCH",
-                    "participatingServers": [
-                        {"sourceServerID": "s-002", "launchStatus": "IN_PROGRESS"}
-                    ],
+                    "participatingServers": [{"sourceServerID": "s-002", "launchStatus": "IN_PROGRESS"}],
                 }
             ]
         }
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
             servers_in_jobs = get_servers_in_active_drs_jobs("us-east-1")
 
         assert "s-002" in servers_in_jobs
@@ -275,16 +265,12 @@ class TestConflictDetectionEdgeCases:
                     "jobID": "drsjob-done",
                     "status": "COMPLETED",
                     "type": "LAUNCH",
-                    "participatingServers": [
-                        {"sourceServerID": "s-003", "launchStatus": "LAUNCHED"}
-                    ],
+                    "participatingServers": [{"sourceServerID": "s-003", "launchStatus": "LAUNCHED"}],
                 }
             ]
         }
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
             servers_in_jobs = get_servers_in_active_drs_jobs("us-east-1")
 
         # COMPLETED jobs should not be in the active list
@@ -383,15 +369,10 @@ class TestDRSLimitEdgeCases:
         """Exactly 20 concurrent jobs should block new job"""
         mock_drs_client = MagicMock()
         # Create 20 active jobs
-        active_jobs = [
-            {"jobID": f"drsjob-{i}", "status": "STARTED", "type": "LAUNCH"}
-            for i in range(20)
-        ]
+        active_jobs = [{"jobID": f"drsjob-{i}", "status": "STARTED", "type": "LAUNCH"} for i in range(20)]
         mock_drs_client.describe_jobs.return_value = {"items": active_jobs}
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
             from conflict_detection import check_concurrent_jobs_limit
 
             result = check_concurrent_jobs_limit("us-east-1")
@@ -403,15 +384,10 @@ class TestDRSLimitEdgeCases:
     def test_19_concurrent_jobs_allows_new_job(self, mock_dynamodb_tables):
         """19 concurrent jobs should allow new job"""
         mock_drs_client = MagicMock()
-        active_jobs = [
-            {"jobID": f"drsjob-{i}", "status": "STARTED", "type": "LAUNCH"}
-            for i in range(19)
-        ]
+        active_jobs = [{"jobID": f"drsjob-{i}", "status": "STARTED", "type": "LAUNCH"} for i in range(19)]
         mock_drs_client.describe_jobs.return_value = {"items": active_jobs}
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
             from conflict_detection import check_concurrent_jobs_limit
 
             result = check_concurrent_jobs_limit("us-east-1")
@@ -465,9 +441,7 @@ class TestCriticalOneJobPerServerRule:
     DRS returns ConflictException (409) if violated.
     """
 
-    def test_same_server_in_two_plans_blocks_second_execution(
-        self, mock_dynamodb_tables
-    ):
+    def test_same_server_in_two_plans_blocks_second_execution(self, mock_dynamodb_tables):
         """
         CRITICAL: If server s-001 is in Plan A (running), Plan B cannot start
         if it also contains s-001.
@@ -512,9 +486,7 @@ class TestCriticalOneJobPerServerRule:
         mock_drs_client = MagicMock()
         mock_drs_client.describe_jobs.return_value = {"items": []}
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
             conflicts = check_server_conflicts(plan_b)
 
         # Should have conflict for s-001
@@ -522,9 +494,7 @@ class TestCriticalOneJobPerServerRule:
         conflict_server_ids = [c["serverId"] for c in conflicts]
         assert "s-001" in conflict_server_ids
 
-    def test_server_in_external_drs_job_blocks_orchestration(
-        self, mock_dynamodb_tables
-    ):
+    def test_server_in_external_drs_job_blocks_orchestration(self, mock_dynamodb_tables):
         """
         CRITICAL: If server is in DRS job started outside orchestration,
         we should still detect and block.
@@ -540,9 +510,7 @@ class TestCriticalOneJobPerServerRule:
                     "jobID": "drsjob-external",
                     "status": "STARTED",
                     "type": "LAUNCH",
-                    "participatingServers": [
-                        {"sourceServerID": "s-001", "launchStatus": "IN_PROGRESS"}
-                    ],
+                    "participatingServers": [{"sourceServerID": "s-001", "launchStatus": "IN_PROGRESS"}],
                 }
             ]
         }
@@ -563,9 +531,7 @@ class TestCriticalOneJobPerServerRule:
             }
         }
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
             conflicts = check_server_conflicts(plan)
 
         # Should detect DRS job conflict
@@ -616,9 +582,7 @@ class TestCriticalOneJobPerServerRule:
             }
         }
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
             conflicts = check_server_conflicts(plan_b)
 
         # No conflicts - sequential execution allowed
@@ -646,16 +610,12 @@ class TestMultiRegionConflicts:
                     "jobID": "drsjob-east",
                     "status": "STARTED",
                     "type": "LAUNCH",
-                    "participatingServers": [
-                        {"sourceServerID": "s-east-001", "launchStatus": "IN_PROGRESS"}
-                    ],
+                    "participatingServers": [{"sourceServerID": "s-east-001", "launchStatus": "IN_PROGRESS"}],
                 }
             ]
         }
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client_east
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client_east):
             servers_east = get_servers_in_active_drs_jobs("us-east-1")
 
         assert "s-east-001" in servers_east
@@ -664,9 +624,7 @@ class TestMultiRegionConflicts:
         mock_drs_client_west = MagicMock()
         mock_drs_client_west.describe_jobs.return_value = {"items": []}
 
-        with patch(
-            "conflict_detection.create_drs_client", return_value=mock_drs_client_west
-        ):
+        with patch("conflict_detection.create_drs_client", return_value=mock_drs_client_west):
             servers_west = get_servers_in_active_drs_jobs("us-west-2")
 
         assert "s-east-001" not in servers_west

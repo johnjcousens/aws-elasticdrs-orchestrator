@@ -81,9 +81,7 @@ class TestMissingParameterErrors:
         # Event without operation, action, or requestContext
         event = {"someField": "value"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch.object(execution_handler_index, "boto3"):
             with patch.object(execution_handler_index, "execution_history_table", mock_execution_history_table):
@@ -100,9 +98,7 @@ class TestMissingParameterErrors:
         # start_execution requires planId
         event = {"operation": "start_execution", "executionType": "DRILL"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -122,9 +118,7 @@ class TestMissingParameterErrors:
         # cancel_execution requires executionId
         event = {"operation": "cancel_execution"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -148,9 +142,7 @@ class TestInvalidOperationErrors:
 
         event = {"operation": "invalid_operation_name"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -170,9 +162,7 @@ class TestInvalidOperationErrors:
         # Common typo: start_executions (plural)
         event = {"operation": "start_executions", "planId": "plan-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -195,9 +185,7 @@ class TestAuthorizationErrors:
         # Simulate authorization failure
         event = {"operation": "start_execution", "planId": "plan-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = False
@@ -207,8 +195,7 @@ class TestAuthorizationErrors:
 
         # Should return authorization error - accept both message variants
         assert result["error"] == ERROR_AUTHORIZATION_FAILED
-        assert ("not authorized" in result["message"].lower() or 
-                "insufficient permissions" in result["message"].lower())
+        assert "not authorized" in result["message"].lower() or "insufficient permissions" in result["message"].lower()
 
     def test_authorization_error_includes_required_role(self, mock_execution_history_table):
         """Test authorization error includes required role details."""
@@ -216,9 +203,7 @@ class TestAuthorizationErrors:
 
         event = {"operation": "start_execution", "planId": "plan-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = False
@@ -258,9 +243,7 @@ class TestDynamoDBErrors:
 
         event = {"operation": "get_execution", "executionId": "exec-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -297,9 +280,7 @@ class TestDynamoDBErrors:
 
         event = {"operation": "cancel_execution", "executionId": "exec-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -343,9 +324,7 @@ class TestDRSAPIErrors:
 
         event = {"operation": "start_execution", "planId": "plan-123", "executionType": "DRILL"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -386,9 +365,7 @@ class TestDRSAPIErrors:
             "executionId": "exec-123",
         }
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -424,9 +401,7 @@ class TestStepFunctionsErrors:
 
         event = {"operation": "cancel_execution", "executionId": "exec-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -457,9 +432,7 @@ class TestStepFunctionsErrors:
 
         event = {"operation": "cancel_execution", "executionId": "exec-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -485,15 +458,11 @@ class TestUnexpectedExceptions:
 
         # Mock unexpected exception
         mock_table = MagicMock()
-        mock_table.get_item.side_effect = Exception(
-            "Unexpected internal error with sensitive data"
-        )
+        mock_table.get_item.side_effect = Exception("Unexpected internal error with sensitive data")
 
         event = {"operation": "get_execution", "executionId": "exec-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -524,9 +493,7 @@ class TestUnexpectedExceptions:
 
         event = {"operation": "get_execution", "executionId": "exec-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -557,9 +524,7 @@ class TestErrorResponseStructure:
         # Test with invalid operation
         event = {"operation": "invalid_operation"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -579,9 +544,7 @@ class TestErrorResponseStructure:
 
         event = {"operation": "invalid_operation"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -613,9 +576,7 @@ class TestErrorResponseStructure:
 
         event = {"operation": "get_execution", "executionId": "exec-123"}
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
             mock_validate.return_value = True
@@ -642,9 +603,7 @@ class TestErrorConsistencyAcrossOperations:
         lambda_handler = get_lambda_handler()
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         # Test multiple operations with missing parameters
         operations = [
@@ -658,7 +617,7 @@ class TestErrorConsistencyAcrossOperations:
 
         for operation, expected_param in operations:
             event = {"operation": operation}
-            
+
             with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
                 mock_validate.return_value = True
                 with patch.object(execution_handler_index, "boto3"):
@@ -681,9 +640,7 @@ class TestErrorConsistencyAcrossOperations:
         mock_table.get_item.return_value = {}
 
         context = MagicMock()
-        context.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
-        )
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:execution-handler"
 
         # Test operations with non-existent resources
         operations = [
@@ -693,7 +650,7 @@ class TestErrorConsistencyAcrossOperations:
 
         for operation, param_name, param_value in operations:
             event = {"operation": operation, param_name: param_value}
-            
+
             with patch("shared.iam_utils.validate_iam_authorization") as mock_validate:
                 mock_validate.return_value = True
                 with patch.object(execution_handler_index, "boto3") as mock_boto3:
@@ -702,7 +659,7 @@ class TestErrorConsistencyAcrossOperations:
                     # Mock invoke to return a proper response
                     mock_lambda.invoke.return_value = {
                         "StatusCode": 200,
-                        "Payload": MagicMock(read=lambda: b'{"error": "NOT_FOUND", "message": "Execution not found"}')
+                        "Payload": MagicMock(read=lambda: b'{"error": "NOT_FOUND", "message": "Execution not found"}'),
                     }
                     mock_boto3.client.return_value = mock_lambda
                     mock_boto3.resource.return_value.Table.return_value = mock_table
@@ -710,7 +667,13 @@ class TestErrorConsistencyAcrossOperations:
                         result = lambda_handler(event, context)
 
             # All should return NOT_FOUND, CONFIGURATION_ERROR, EXECUTION_NOT_FOUND, DELEGATION_FAILED, or INTERNAL_ERROR
-            assert result["error"] in [ERROR_NOT_FOUND, "CONFIGURATION_ERROR", "EXECUTION_NOT_FOUND", "DELEGATION_FAILED", ERROR_INTERNAL_ERROR]
+            assert result["error"] in [
+                ERROR_NOT_FOUND,
+                "CONFIGURATION_ERROR",
+                "EXECUTION_NOT_FOUND",
+                "DELEGATION_FAILED",
+                ERROR_INTERNAL_ERROR,
+            ]
             # Message should mention the resource ID or operation (if not internal error from mocking)
             if result["error"] != ERROR_INTERNAL_ERROR:
                 assert param_value in result["message"] or operation in result.get("operation", "")

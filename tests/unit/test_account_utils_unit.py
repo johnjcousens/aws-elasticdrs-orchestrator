@@ -376,9 +376,7 @@ class TestExtractAccountFromCognito:
             "requestContext": {
                 "identity": {
                     "cognitoAuthenticationProvider": (
-                        "cognito-idp.us-east-1.amazonaws.com"
-                        "/us-east-1_abc:CognitoSignIn"
-                        ":123456789012"
+                        "cognito-idp.us-east-1.amazonaws.com" "/us-east-1_abc:CognitoSignIn" ":123456789012"
                     ),
                 }
             }
@@ -416,10 +414,7 @@ class TestExtractAccountFromCognito:
         event = {
             "requestContext": {
                 "identity": {
-                    "cognitoAuthenticationProvider": (
-                        "cognito-idp.us-east-1.amazonaws.com"
-                        "/us-east-1_poolId"
-                    ),
+                    "cognitoAuthenticationProvider": ("cognito-idp.us-east-1.amazonaws.com" "/us-east-1_poolId"),
                 }
             }
         }
@@ -442,9 +437,7 @@ class TestValidateAccountContextForInvocation:
             "assumeRoleName": "MyRole",
             "externalId": "ext-123",
         }
-        result = validate_account_context_for_invocation(
-            event, body
-        )
+        result = validate_account_context_for_invocation(event, body)
         assert result["accountId"] == "123456789012"
         assert result["assumeRoleName"] == "MyRole"
         assert result["externalId"] == "ext-123"
@@ -453,20 +446,14 @@ class TestValidateAccountContextForInvocation:
         """Test direct invocation without accountId raises error."""
         event = {"operation": "create"}
         body = {"groupName": "test"}
-        with pytest.raises(
-            InputValidationError,
-            match="accountId is required for direct Lambda"
-        ):
+        with pytest.raises(InputValidationError, match="accountId is required for direct Lambda"):
             validate_account_context_for_invocation(event, body)
 
     def test_direct_invocation_empty_account_id_raises(self):  # noqa: F811
         """Test direct invocation with empty accountId raises error."""
         event = {"operation": "create"}
         body = {"accountId": ""}
-        with pytest.raises(
-            InputValidationError,
-            match="accountId is required for direct Lambda"
-        ):
+        with pytest.raises(InputValidationError, match="accountId is required for direct Lambda"):
             validate_account_context_for_invocation(event, body)
 
     def test_api_gateway_with_account_id_in_body(self):  # noqa: F811
@@ -478,9 +465,7 @@ class TestValidateAccountContextForInvocation:
             }
         }
         body = {"accountId": "123456789012"}
-        result = validate_account_context_for_invocation(
-            event, body
-        )
+        result = validate_account_context_for_invocation(event, body)
         assert result["accountId"] == "123456789012"
 
     def test_api_gateway_falls_back_to_cognito(self):  # noqa: F811
@@ -490,46 +475,34 @@ class TestValidateAccountContextForInvocation:
                 "requestId": "req-123",
                 "identity": {
                     "cognitoAuthenticationProvider": (
-                        "cognito-idp.us-east-1.amazonaws.com"
-                        "/us-east-1_abc:CognitoSignIn"
-                        ":123456789012"
+                        "cognito-idp.us-east-1.amazonaws.com" "/us-east-1_abc:CognitoSignIn" ":123456789012"
                     ),
                 },
             }
         }
         body = {}
-        result = validate_account_context_for_invocation(
-            event, body
-        )
+        result = validate_account_context_for_invocation(event, body)
         assert result["accountId"] == "123456789012"
 
     def test_invalid_account_id_format_raises(self):  # noqa: F811
         """Test invalid account ID format raises error."""
         event = {"operation": "create"}
         body = {"accountId": "not-valid"}
-        with pytest.raises(
-            InputValidationError,
-            match="Invalid account ID format"
-        ):
+        with pytest.raises(InputValidationError, match="Invalid account ID format"):
             validate_account_context_for_invocation(event, body)
 
     def test_short_account_id_raises(self):  # noqa: F811
         """Test too-short account ID raises error."""
         event = {"operation": "create"}
         body = {"accountId": "12345"}
-        with pytest.raises(
-            InputValidationError,
-            match="Invalid account ID format"
-        ):
+        with pytest.raises(InputValidationError, match="Invalid account ID format"):
             validate_account_context_for_invocation(event, body)
 
     def test_defaults_for_optional_fields(self):  # noqa: F811
         """Test assumeRoleName and externalId default to empty."""
         event = {"operation": "create"}
         body = {"accountId": "123456789012"}
-        result = validate_account_context_for_invocation(
-            event, body
-        )
+        result = validate_account_context_for_invocation(event, body)
         assert result["assumeRoleName"] == ""
         assert result["externalId"] == ""
 
@@ -537,9 +510,7 @@ class TestValidateAccountContextForInvocation:
         """Test return dict always has accountId, assumeRoleName, externalId."""
         event = {"operation": "create"}
         body = {"accountId": "123456789012"}
-        result = validate_account_context_for_invocation(
-            event, body
-        )
+        result = validate_account_context_for_invocation(event, body)
         assert "accountId" in result
         assert "assumeRoleName" in result
         assert "externalId" in result

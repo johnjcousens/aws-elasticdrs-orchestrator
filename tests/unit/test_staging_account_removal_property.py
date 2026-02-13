@@ -25,6 +25,7 @@ os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 # Add lambda directory to path
 import sys  # noqa: E402
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
 from shared.staging_account_models import (  # noqa: E402
@@ -42,10 +43,9 @@ staging_account_strategy = st.fixed_dictionaries(
     {
         "accountId": account_id_strategy,
         "accountName": st.text(
-            min_size=1, max_size=50, alphabet=st.characters(
-                whitelist_categories=("Lu", "Ll", "Nd"),
-                whitelist_characters="_-"
-            )
+            min_size=1,
+            max_size=50,
+            alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="_-"),
         ),
         "roleArn": st.builds(
             lambda acc_id: f"arn:aws:iam::{acc_id}:role/TestRole",
@@ -66,25 +66,17 @@ def dynamodb_setup():
         table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-            AttributeDefinitions=[
-                {"AttributeName": "accountId", "AttributeType": "S"}
-            ],
+            AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
 
         yield table
 
 
-@settings(
-    max_examples=100,
-    deadline=None,
-    suppress_health_check=[HealthCheck.function_scoped_fixture]
-)
+@settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
     target_account_id=account_id_strategy,
-    staging_accounts=st.lists(
-        staging_account_strategy, min_size=2, max_size=5, unique_by=lambda x: x["accountId"]
-    ),
+    staging_accounts=st.lists(staging_account_strategy, min_size=2, max_size=5, unique_by=lambda x: x["accountId"]),
     removal_index=st.integers(min_value=0, max_value=4),
 )
 @pytest.mark.property
@@ -116,9 +108,7 @@ def test_property_staging_account_removal_completeness(
 
     # Add all staging accounts
     for staging_account in staging_accounts:
-        add_staging_account(
-            target_account_id, staging_account, added_by="test"
-        )
+        add_staging_account(target_account_id, staging_account, added_by="test")
 
     # Get initial state
     initial_staging_accounts = get_staging_accounts(target_account_id)
@@ -136,19 +126,14 @@ def test_property_staging_account_removal_completeness(
     # Verify removal was successful
     assert result["success"] is True
     # Message contains either account ID or account name
-    assert (
-        staging_id_to_remove in result["message"]
-        or staging_to_remove["accountName"] in result["message"]
-    )
+    assert staging_id_to_remove in result["message"] or staging_to_remove["accountName"] in result["message"]
 
     # Get final state
     final_staging_accounts = get_staging_accounts(target_account_id)
 
     # Property Verification:
     # 1. Removed account should not appear in final list
-    removed_account_ids = [
-        acc.accountId for acc in final_staging_accounts
-    ]
+    removed_account_ids = [acc.accountId for acc in final_staging_accounts]
     assert (
         staging_id_to_remove not in removed_account_ids
     ), f"Removed staging account {staging_id_to_remove} still in list"
@@ -166,45 +151,25 @@ def test_property_staging_account_removal_completeness(
 
         # Find this staging account in final list
         final_account = next(
-            (
-                acc
-                for acc in final_staging_accounts
-                if acc.accountId == staging_account["accountId"]
-            ),
+            (acc for acc in final_staging_accounts if acc.accountId == staging_account["accountId"]),
             None,
         )
 
-        assert (
-            final_account is not None
-        ), f"Staging account {staging_account['accountId']} was incorrectly removed"
+        assert final_account is not None, f"Staging account {staging_account['accountId']} was incorrectly removed"
 
         # Verify all fields remain unchanged
-        assert (
-            final_account.accountName == staging_account["accountName"]
-        ), "Account name changed"
-        assert (
-            final_account.roleArn == staging_account["roleArn"]
-        ), "Role ARN changed"
-        assert (
-            final_account.externalId == staging_account["externalId"]
-        ), "External ID changed"
+        assert final_account.accountName == staging_account["accountName"], "Account name changed"
+        assert final_account.roleArn == staging_account["roleArn"], "Role ARN changed"
+        assert final_account.externalId == staging_account["externalId"], "External ID changed"
 
 
-@settings(
-    max_examples=50,
-    deadline=None,
-    suppress_health_check=[HealthCheck.function_scoped_fixture]
-)
+@settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
     target_account_id=account_id_strategy,
-    staging_accounts=st.lists(
-        staging_account_strategy, min_size=1, max_size=3, unique_by=lambda x: x["accountId"]
-    ),
+    staging_accounts=st.lists(staging_account_strategy, min_size=1, max_size=3, unique_by=lambda x: x["accountId"]),
 )
 @pytest.mark.property
-def test_property_remove_all_staging_accounts_sequentially(
-    dynamodb_setup, target_account_id, staging_accounts
-):
+def test_property_remove_all_staging_accounts_sequentially(dynamodb_setup, target_account_id, staging_accounts):
     """
     Property 2 Extension: Removing all staging accounts sequentially
     should result in an empty staging accounts list.
@@ -223,9 +188,7 @@ def test_property_remove_all_staging_accounts_sequentially(
 
     # Add all staging accounts
     for staging_account in staging_accounts:
-        add_staging_account(
-            target_account_id, staging_account, added_by="test"
-        )
+        add_staging_account(target_account_id, staging_account, added_by="test")
 
     # Remove all staging accounts one by one
     for staging_account in staging_accounts:
@@ -236,9 +199,7 @@ def test_property_remove_all_staging_accounts_sequentially(
     # Verify final state has no staging accounts
     final_staging_accounts = get_staging_accounts(target_account_id)
 
-    assert (
-        len(final_staging_accounts) == 0
-    ), f"Expected empty staging accounts list, got {len(final_staging_accounts)}"
+    assert len(final_staging_accounts) == 0, f"Expected empty staging accounts list, got {len(final_staging_accounts)}"
 
 
 @pytest.mark.property
