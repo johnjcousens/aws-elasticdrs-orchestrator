@@ -38,7 +38,7 @@ stages:
 # Global defaults
 # ---------------------------------------------------------------------------
 default:
-  image: python:3.12-slim
+  image: public.ecr.aws/docker/library/python:3.12-slim
 
 variables:
   AWS_REGION: us-east-2
@@ -73,7 +73,7 @@ variables:
     - pip install --quiet -r requirements-dev.txt
 
 .setup-node: &setup-node
-  image: node:${NODE_VERSION}-slim
+  image: public.ecr.aws/docker/library/node:${NODE_VERSION}-slim
   before_script:
     - cd frontend
     - npm ci --quiet
