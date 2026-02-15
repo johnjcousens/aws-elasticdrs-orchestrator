@@ -325,6 +325,7 @@ from shared.account_utils import (
 )
 from shared.cross_account import (
     create_drs_client,
+    get_cross_account_session,
     get_current_account_id,
 )
 from shared.drs_limits import (
@@ -2261,8 +2262,15 @@ def get_drs_account_capacity(region: str, account_id: Optional[str] = None) -> D
 
 
 def get_ec2_subnets(query_params: Dict) -> Dict:
-    """Get VPC subnets for dropdown selection"""
+    """
+    Get VPC subnets for dropdown selection.
+
+    Supports cross-account queries when accountId is provided.
+    """
     region = query_params.get("region")
+    account_id = query_params.get("accountId")
+
+    print(f"[get_ec2_subnets] region={region}, accountId={account_id}")
 
     if not region:
         return response(
@@ -2275,8 +2283,30 @@ def get_ec2_subnets(query_params: Dict) -> Dict:
         )
 
     try:
-        ec2 = boto3.client("ec2", region_name=region)
+        # Use cross-account credentials if accountId provided
+        if account_id:
+            from shared.cross_account import get_cross_account_session
+
+            print(f"[get_ec2_subnets] Using cross-account session for account {account_id}")
+            session = get_cross_account_session(account_id)
+            if not session:
+                print(f"[get_ec2_subnets] ERROR: Failed to get cross-account session for {account_id}")
+                return response(
+                    500,
+                    error_response(
+                        ERROR_INTERNAL_ERROR,
+                        f"Failed to assume role for account {account_id}",
+                        details={"accountId": account_id, "region": region},
+                    ),
+                )
+            ec2 = session.client("ec2", region_name=region)
+        else:
+            # Use orchestration account credentials
+            print("[get_ec2_subnets] Using orchestration account credentials")
+            ec2 = boto3.client("ec2", region_name=region)
+
         result = ec2.describe_subnets()
+        print(f"[get_ec2_subnets] Found {len(result['Subnets'])} subnets")
 
         subnets = []
         for subnet in result["Subnets"]:
@@ -2308,7 +2338,7 @@ def get_ec2_subnets(query_params: Dict) -> Dict:
             error_response(
                 ERROR_INTERNAL_ERROR,
                 "Failed to retrieve EC2 subnets",
-                details={"error": str(e), "region": region},
+                details={"error": str(e), "region": region, "accountId": account_id},
             ),
         )
 
@@ -2317,6 +2347,7 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
     """Get security groups for dropdown selection"""
     region = query_params.get("region")
     vpc_id = query_params.get("vpcId")  # Optional filter
+    account_id = query_params.get("accountId")  # Optional cross-account
 
     if not region:
         return response(
@@ -2329,7 +2360,22 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
         )
 
     try:
-        ec2 = boto3.client("ec2", region_name=region)
+        # Use cross-account session if accountId provided
+        if account_id:
+            session = get_cross_account_session(account_id, region)
+            if not session:
+                return response(
+                    500,
+                    error_response(
+                        ERROR_INTERNAL_ERROR,
+                        f"Failed to assume role for account {account_id}",
+                        details={"accountId": account_id, "region": region},
+                    ),
+                )
+            ec2 = session.client("ec2", region_name=region)
+        else:
+            ec2 = boto3.client("ec2", region_name=region)
+
         filters = [{"Name": "vpc-id", "Values": [vpc_id]}] if vpc_id else []
         result = ec2.describe_security_groups(Filters=filters) if filters else ec2.describe_security_groups()
 
@@ -2355,7 +2401,7 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
             error_response(
                 ERROR_INTERNAL_ERROR,
                 "Failed to retrieve EC2 security groups",
-                details={"error": str(e), "region": region},
+                details={"error": str(e), "region": region, "accountId": account_id},
             ),
         )
 
@@ -2363,6 +2409,7 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
 def get_ec2_instance_profiles(query_params: Dict) -> Dict:
     """Get IAM instance profiles for dropdown selection"""
     region = query_params.get("region")
+    account_id = query_params.get("accountId")  # Optional cross-account
 
     if not region:
         return response(
@@ -2375,8 +2422,23 @@ def get_ec2_instance_profiles(query_params: Dict) -> Dict:
         )
 
     try:
-        # IAM is global but we accept region for consistency
-        iam = boto3.client("iam")
+        # Use cross-account session if accountId provided
+        if account_id:
+            session = get_cross_account_session(account_id, region)
+            if not session:
+                return response(
+                    500,
+                    error_response(
+                        ERROR_INTERNAL_ERROR,
+                        f"Failed to assume role for account {account_id}",
+                        details={"accountId": account_id, "region": region},
+                    ),
+                )
+            iam = session.client("iam")
+        else:
+            # IAM is global but we accept region for consistency
+            iam = boto3.client("iam")
+
         profiles = []
         paginator = iam.get_paginator("list_instance_profiles")
 
@@ -2399,7 +2461,7 @@ def get_ec2_instance_profiles(query_params: Dict) -> Dict:
             error_response(
                 ERROR_INTERNAL_ERROR,
                 "Failed to retrieve IAM instance profiles",
-                details={"error": str(e)},
+                details={"error": str(e), "accountId": account_id},
             ),
         )
 
@@ -5433,7 +5495,7 @@ def handle_get_source_server_inventory(query_params: Dict) -> Dict:
                 "sourceRegion": item.get("sourceRegion", ""),
                 "sourceAccount": item.get("sourceAccountId", ""),
                 "os": item.get("osName", ""),
-                "state": "READY_FOR_RECOVERY" if item.get("replicationState") == "CONTINUOUS" else "NOT_READY",
+                "state": ("READY_FOR_RECOVERY" if item.get("replicationState") == "CONTINUOUS" else "NOT_READY"),
                 "replicationState": item.get("replicationState", "UNKNOWN"),
                 "lagDuration": item.get("lagDuration", ""),
                 "lastSeen": item.get("lastSeen", item.get("lastUpdated", "")),
@@ -5445,13 +5507,18 @@ def handle_get_source_server_inventory(query_params: Dict) -> Dict:
                 "sourceAccountId": item.get("sourceAccountId", ""),
                 "hardware": {
                     "cpus": (
-                        [{"modelName": item.get("cpuModel", ""), "cores": int(item.get("cpuCores", 0))}]
+                        [
+                            {
+                                "modelName": item.get("cpuModel", ""),
+                                "cores": int(item.get("cpuCores", 0)),
+                            }
+                        ]
                         if item.get("cpuModel")
                         else []
                     ),
                     "totalCores": int(item.get("cpuCores", 0)),
                     "ramBytes": ram_bytes,
-                    "ramGiB": round(ram_bytes / (1024**3), 1) if ram_bytes else 0,
+                    "ramGiB": (round(ram_bytes / (1024**3), 1) if ram_bytes else 0),
                     "disks": [
                         {
                             "deviceName": d.get("deviceName", ""),
@@ -5460,7 +5527,7 @@ def handle_get_source_server_inventory(query_params: Dict) -> Dict:
                         }
                         for d in item.get("disks", [])
                     ],
-                    "totalDiskGiB": round(storage_bytes / (1024**3), 1) if storage_bytes else 0,
+                    "totalDiskGiB": (round(storage_bytes / (1024**3), 1) if storage_bytes else 0),
                 },
                 "networkInterfaces": (
                     [
@@ -5535,7 +5602,7 @@ def handle_sync_source_server_inventory() -> Dict:
     total_synced = 0
     total_errors = 0
 
-    # Collect all accounts to query (target + staging)
+    # Collect only target accounts to query (staging accounts only have recovery instances, not source servers)
     accounts_to_query = []
     for target in target_accounts:
         target_id = target.get("accountId")
@@ -5549,15 +5616,6 @@ def handle_sync_source_server_inventory() -> Dict:
                 "accountType": "target",
             }
         )
-        for staging in target.get("stagingAccounts", []):
-            accounts_to_query.append(
-                {
-                    "accountId": staging.get("accountId"),
-                    "roleArn": staging.get("roleArn"),
-                    "externalId": staging.get("externalId"),
-                    "accountType": "staging",
-                }
-            )
 
     for acct in accounts_to_query:
         acct_id = acct["accountId"]
@@ -5570,7 +5628,11 @@ def handle_sync_source_server_inventory() -> Dict:
         if acct_id != current_account and role_arn:
             try:
                 sts = boto3.client("sts")
-                params = {"RoleArn": role_arn, "RoleSessionName": "inventory-sync", "DurationSeconds": 900}
+                params = {
+                    "RoleArn": role_arn,
+                    "RoleSessionName": "inventory-sync",
+                    "DurationSeconds": 900,
+                }
                 if ext_id:
                     params["ExternalId"] = ext_id
                 credentials = sts.assume_role(**params)["Credentials"]
@@ -5662,7 +5724,7 @@ def handle_sync_source_server_inventory() -> Dict:
                     "servers": [],
                     "status": "ERROR",
                     "serverCount": 0,
-                    "errorMessage": f"{code}: {error_msg}" if code else error_msg[:500],
+                    "errorMessage": (f"{code}: {error_msg}" if code else error_msg[:500]),
                 }
             except Exception as e:
                 msg = str(e)
@@ -5739,7 +5801,10 @@ def handle_sync_source_server_inventory() -> Dict:
 
         # Query EC2 for instance details, assuming role into source account if needed
         ec2_details = {}
-        for (src_account, region), region_servers in servers_by_account_region.items():
+        for (
+            src_account,
+            region,
+        ), region_servers in servers_by_account_region.items():
             instance_ids = [
                 s.get("sourceProperties", {}).get("identificationHints", {}).get("awsInstanceID", "")
                 for s in region_servers
@@ -5847,8 +5912,8 @@ def handle_sync_source_server_inventory() -> Dict:
 
                     # Network from sourceProperties
                     nics = src_props.get("networkInterfaces", [])
-                    primary_ip = nics[0].get("ips", [""])[0] if nics else ""
-                    mac_address = nics[0].get("macAddress", "") if nics else ""
+                    primary_ip = nics[0].get("ips", [""])[0] if nics and len(nics) > 0 else ""
+                    mac_address = nics[0].get("macAddress", "") if nics and len(nics) > 0 else ""
 
                     # Recovery readiness
                     life_cycle = srv.get("lifeCycle", {})
@@ -5879,7 +5944,13 @@ def handle_sync_source_server_inventory() -> Dict:
                         "osName": os_name,
                         "primaryIp": primary_ip,
                         "macAddress": mac_address,
-                        "disks": [{"deviceName": d.get("deviceName", ""), "bytes": d.get("bytes", 0)} for d in disks],
+                        "disks": [
+                            {
+                                "deviceName": d.get("deviceName", ""),
+                                "bytes": d.get("bytes", 0),
+                            }
+                            for d in disks
+                        ],
                     }
 
                     if ec2_info:
@@ -5898,13 +5969,54 @@ def handle_sync_source_server_inventory() -> Dict:
                     print(f"Error writing {srv.get('sourceServerID', '?')}: {e}")
                     total_errors += 1
 
+    # Cleanup: Delete stale records that weren't synced
+    print(f"Cleaning up stale records for account {acct_id}...")
+    synced_keys = set()
+    for srv in all_servers:
+        server_arn = srv.get("arn", "")
+        staging_area = srv.get("stagingArea", {})
+        staging_acct = staging_area.get("stagingAccountID", acct_id)
+        synced_keys.add((server_arn, staging_acct))
+
+    # Scan table for records from this account
+    scan_kwargs = {
+        "FilterExpression": "sourceAccountId = :acct_id",
+        "ExpressionAttributeValues": {":acct_id": acct_id},
+    }
+    stale_count = 0
+
+    while True:
+        scan_response = inventory_table.scan(**scan_kwargs)
+        for item in scan_response.get("Items", []):
+            key = (item["sourceServerArn"], item["stagingAccountId"])
+            if key not in synced_keys:
+                # This record is stale - delete it
+                try:
+                    inventory_table.delete_item(
+                        Key={
+                            "sourceServerArn": item["sourceServerArn"],
+                            "stagingAccountId": item["stagingAccountId"],
+                        }
+                    )
+                    stale_count += 1
+                except Exception as e:
+                    print(f"Error deleting stale record {item.get('sourceServerID', '?')}: {e}")
+
+        if "LastEvaluatedKey" not in scan_response:
+            break
+        scan_kwargs["ExclusiveStartKey"] = scan_response["LastEvaluatedKey"]
+
+    if stale_count > 0:
+        print(f"Deleted {stale_count} stale records for account {acct_id}")
+
     result = {
         "message": "Source server inventory sync complete",
         "totalSynced": total_synced,
         "totalErrors": total_errors,
+        "staleRecordsDeleted": stale_count,
         "timestamp": now,
     }
-    print(f"Inventory sync: {total_synced} synced, {total_errors} errors")
+    print(f"Inventory sync: {total_synced} synced, {total_errors} errors, {stale_count} stale deleted")
     return response(200, result)
 
 
@@ -6048,7 +6160,11 @@ def get_extended_source_servers(target_account_id: str, role_arn: str, external_
     # Assume role once, reuse credentials
     try:
         sts_client = boto3.client("sts")
-        assume_params = {"RoleArn": role_arn, "RoleSessionName": "drs-extend-check", "DurationSeconds": 900}
+        assume_params = {
+            "RoleArn": role_arn,
+            "RoleSessionName": "drs-extend-check",
+            "DurationSeconds": 900,
+        }
         if external_id:
             assume_params["ExternalId"] = external_id
         credentials = sts_client.assume_role(**assume_params)["Credentials"]
@@ -6109,7 +6225,11 @@ def get_staging_account_servers(staging_account_id: str, role_arn: str, external
     if not use_default:
         try:
             sts_client = boto3.client("sts")
-            assume_params = {"RoleArn": role_arn, "RoleSessionName": "drs-staging-query", "DurationSeconds": 900}
+            assume_params = {
+                "RoleArn": role_arn,
+                "RoleSessionName": "drs-staging-query",
+                "DurationSeconds": 900,
+            }
             if external_id:
                 assume_params["ExternalId"] = external_id
             credentials = sts_client.assume_role(**assume_params)["Credentials"]
