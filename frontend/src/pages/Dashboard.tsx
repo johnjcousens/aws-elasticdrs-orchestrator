@@ -17,6 +17,7 @@ import {
   PieChart,
   Button,
   Alert,
+  ProgressBar,
 } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -111,11 +112,14 @@ export const Dashboard: React.FC = () => {
 
   // Fetch capacity data - simple callback, check is done in useEffect
   const fetchCapacityData = useCallback(async () => {
+    const accountId = getCurrentAccountId();
+    if (!accountId) return;
+    
     setCapacityLoading(true);
     setCapacityError(null);
     
     try {
-      const data = await getAllAccountsCapacity();
+      const data = await getAllAccountsCapacity(accountId);
       setCapacityData(data);
     } catch (err) {
       console.error('Error fetching capacity data:', err);
@@ -124,7 +128,7 @@ export const Dashboard: React.FC = () => {
     } finally {
       setCapacityLoading(false);
     }
-  }, []);
+  }, [getCurrentAccountId]);
 
   // Setup staging account refresh coordination
   useStagingAccountRefresh({
@@ -387,141 +391,7 @@ export const Dashboard: React.FC = () => {
               </Container>
             </ColumnLayout>
 
-            {/* Regional Replication Capacity Section */}
-            {capacityData && capacityData.regionalCapacity && (
-              <RegionalCapacitySection 
-                regionalCapacity={capacityData.regionalCapacity}
-              />
-            )}
-
-            <Container
-              header={
-                <Header variant="h2">
-                  DRS Service Capacity
-                </Header>
-              }
-            >
-              {capacityLoading && !capacityData ? (
-                <Box textAlign="center" padding="l">
-                  <Spinner size="large" />
-                </Box>
-              ) : capacityError ? (
-                <StatusIndicator type="error">{capacityError}</StatusIndicator>
-              ) : capacityData ? (
-                <SpaceBetween size="l">
-                  {/* Warnings */}
-                  {capacityData.warnings.length > 0 && (
-                    <SpaceBetween size="s">
-                      {capacityData.warnings.map((warning, index) => (
-                        <Alert
-                          key={index}
-                          type={
-                            capacityData.combined.status === 'OK'
-                              ? 'info'
-                              : capacityData.combined.status === 'INFO'
-                                ? 'info'
-                                : capacityData.combined.status === 'WARNING'
-                                  ? 'warning'
-                                  : 'error'
-                          }
-                        >
-                          {warning}
-                        </Alert>
-                      ))}
-                    </SpaceBetween>
-                  )}
-
-                  {/* 1x3 Grid Layout for Job-Related Capacity Gauges */}
-                  <ColumnLayout columns={3} variant="text-grid">
-                    {/* Concurrent Recovery Jobs */}
-                    <Container>
-                      <SpaceBetween size="s">
-                        <div>
-                          <Box variant="h3" padding={{ bottom: 'xxs' }}>Concurrent Recovery Jobs</Box>
-                          <Box variant="small" color="text-body-secondary">
-                            Number of recovery jobs that can run at the same time. AWS DRS limit: 20 concurrent jobs per account.
-                          </Box>
-                        </div>
-                        <CapacityGauge
-                          used={capacityData.concurrentJobs?.current ?? 0}
-                          total={capacityData.concurrentJobs?.max ?? 20}
-                          size="medium"
-                          label={`${(capacityData.concurrentJobs?.current ?? 0).toLocaleString()} / ${(capacityData.concurrentJobs?.max ?? 20).toLocaleString()} jobs`}
-                        />
-                        <Box textAlign="center">
-                          <Box variant="small" color="text-body-secondary">
-                            {((capacityData.concurrentJobs?.max ?? 20) - (capacityData.concurrentJobs?.current ?? 0)).toLocaleString()} jobs available
-                          </Box>
-                        </Box>
-                      </SpaceBetween>
-                    </Container>
-
-                    {/* Servers in Active Jobs */}
-                    <Container>
-                      <SpaceBetween size="s">
-                        <div>
-                          <Box variant="h3" padding={{ bottom: 'xxs' }}>Servers in Active Jobs</Box>
-                          <Box variant="small" color="text-body-secondary">
-                            Total servers across all active recovery jobs. AWS DRS limit: 500 servers in all jobs combined per account.
-                          </Box>
-                        </div>
-                        <CapacityGauge
-                          used={capacityData.serversInJobs?.current ?? 0}
-                          total={capacityData.serversInJobs?.max ?? 500}
-                          size="medium"
-                          label={`${(capacityData.serversInJobs?.current ?? 0).toLocaleString()} / ${(capacityData.serversInJobs?.max ?? 500).toLocaleString()} servers`}
-                        />
-                        <Box textAlign="center">
-                          <Box variant="small" color="text-body-secondary">
-                            {((capacityData.serversInJobs?.max ?? 500) - (capacityData.serversInJobs?.current ?? 0)).toLocaleString()} slots available
-                          </Box>
-                        </Box>
-                      </SpaceBetween>
-                    </Container>
-
-                    {/* Max Servers Per Job */}
-                    <Container>
-                      <SpaceBetween size="s">
-                        <div>
-                          <Box variant="h3" padding={{ bottom: 'xxs' }}>Max Servers Per Job</Box>
-                          <Box variant="small" color="text-body-secondary">
-                            Maximum servers allowed in a single recovery job. AWS DRS limit: 100 servers per job.
-                          </Box>
-                        </div>
-                        {capacityData.maxServersPerJob ? (
-                          <>
-                            <CapacityGauge
-                              used={capacityData.maxServersPerJob.current ?? 0}
-                              total={capacityData.maxServersPerJob.max ?? 100}
-                              size="medium"
-                              label={`${(capacityData.maxServersPerJob.current ?? 0).toLocaleString()} / ${(capacityData.maxServersPerJob.max ?? 100).toLocaleString()} servers`}
-                            />
-                            <Box textAlign="center">
-                              <Box variant="small" color="text-body-secondary">
-                                {capacityData.maxServersPerJob.current > 0
-                                  ? `Largest job: ${capacityData.maxServersPerJob.current.toLocaleString()} servers`
-                                  : 'No active jobs'}
-                              </Box>
-                            </Box>
-                          </>
-                        ) : (
-                          <Box textAlign="center" padding={{ top: 'l', bottom: 'l' }}>
-                            <Box variant="small" color="text-status-error">
-                              Data not available
-                            </Box>
-                          </Box>
-                        )}
-                      </SpaceBetween>
-                    </Container>
-                  </ColumnLayout>
-                </SpaceBetween>
-              ) : (
-                <Box textAlign="center" padding="l" color="text-body-secondary">
-                  Select a target account to view capacity
-                </Box>
-              )}
-            </Container>
-
+            {/* Execution Status */}
             <Container header={<Header variant="h2">Execution Status</Header>}>
               {pieData.length > 0 ? (
                 <PieChart
@@ -553,6 +423,102 @@ export const Dashboard: React.FC = () => {
                     Create a Recovery Plan
                   </Link>{' '}
                   to get started.
+                </Box>
+              )}
+            </Container>
+
+            {/* Regional Replication Capacity Section */}
+            {capacityData && capacityData.regionalCapacity && (
+              <RegionalCapacitySection 
+                regionalCapacity={capacityData.regionalCapacity}
+                accounts={capacityData.accounts}
+              />
+            )}
+
+            <Container
+              header={
+                <Header
+                  variant="h2"
+                  description="AWS DRS service quotas for recovery operations"
+                >
+                  DRS Service Capacity
+                </Header>
+              }
+            >
+              {capacityLoading && !capacityData ? (
+                <Box textAlign="center" padding="l">
+                  <Spinner size="large" />
+                </Box>
+              ) : capacityError ? (
+                <StatusIndicator type="error">{capacityError}</StatusIndicator>
+              ) : capacityData ? (
+                <SpaceBetween size="l">
+                  {capacityData.warnings.length > 0 && (
+                    <SpaceBetween size="s">
+                      {capacityData.warnings.map((warning, index) => (
+                        <Alert
+                          key={index}
+                          type={
+                            capacityData.combined.status === 'OK' || capacityData.combined.status === 'INFO'
+                              ? 'info'
+                              : capacityData.combined.status === 'WARNING'
+                                ? 'warning'
+                                : 'error'
+                          }
+                        >
+                          {warning}
+                        </Alert>
+                      ))}
+                    </SpaceBetween>
+                  )}
+
+                  <ColumnLayout columns={3} variant="text-grid">
+                    <SpaceBetween size="xxs">
+                      <Box variant="awsui-key-label">Concurrent Recovery Jobs</Box>
+                      <Box variant="small" color="text-body-secondary">
+                        Max 20 concurrent jobs per account
+                      </Box>
+                      <ProgressBar
+                        value={capacityData.concurrentJobs?.max ? Math.ceil(((capacityData.concurrentJobs?.current ?? 0) / capacityData.concurrentJobs.max) * 100) : 0}
+                        status={(capacityData.concurrentJobs?.current ?? 0) >= 18 ? 'error' : 'in-progress'}
+                        additionalInfo={`${(capacityData.concurrentJobs?.current ?? 0).toLocaleString()} / ${(capacityData.concurrentJobs?.max ?? 20).toLocaleString()} jobs`}
+                        description={`${((capacityData.concurrentJobs?.max ?? 20) - (capacityData.concurrentJobs?.current ?? 0)).toLocaleString()} available`}
+                      />
+                    </SpaceBetween>
+
+                    <SpaceBetween size="xxs">
+                      <Box variant="awsui-key-label">Servers in Active Jobs</Box>
+                      <Box variant="small" color="text-body-secondary">
+                        Max 500 servers across all jobs
+                      </Box>
+                      <ProgressBar
+                        value={capacityData.serversInJobs?.max ? Math.ceil(((capacityData.serversInJobs?.current ?? 0) / capacityData.serversInJobs.max) * 100) : 0}
+                        status={(capacityData.serversInJobs?.current ?? 0) >= 450 ? 'error' : 'in-progress'}
+                        resultText={`${((capacityData.serversInJobs?.current ?? 0) / (capacityData.serversInJobs?.max ?? 500) * 100).toFixed(1)}%`}
+                        additionalInfo={`${(capacityData.serversInJobs?.current ?? 0).toLocaleString()} / ${(capacityData.serversInJobs?.max ?? 500).toLocaleString()} servers`}
+                        description={`${((capacityData.serversInJobs?.max ?? 500) - (capacityData.serversInJobs?.current ?? 0)).toLocaleString()} available`}
+                      />
+                    </SpaceBetween>
+
+                    <SpaceBetween size="xxs">
+                      <Box variant="awsui-key-label">Max Servers Per Job</Box>
+                      <Box variant="small" color="text-body-secondary">
+                        Max 100 servers in a single job
+                      </Box>
+                      <ProgressBar
+                        value={capacityData.maxServersPerJob?.max ? Math.ceil(((capacityData.maxServersPerJob?.current ?? 0) / capacityData.maxServersPerJob.max) * 100) : 0}
+                        status={(capacityData.maxServersPerJob?.current ?? 0) >= 90 ? 'error' : 'in-progress'}
+                        additionalInfo={`${(capacityData.maxServersPerJob?.current ?? 0).toLocaleString()} / ${(capacityData.maxServersPerJob?.max ?? 100).toLocaleString()} servers`}
+                        description={capacityData.maxServersPerJob?.current && capacityData.maxServersPerJob.current > 0
+                          ? `Largest job: ${capacityData.maxServersPerJob.current.toLocaleString()} servers`
+                          : 'No active jobs'}
+                      />
+                    </SpaceBetween>
+                  </ColumnLayout>
+                </SpaceBetween>
+              ) : (
+                <Box textAlign="center" padding="l" color="text-body-secondary">
+                  Select a target account to view capacity
                 </Box>
               )}
             </Container>

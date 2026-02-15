@@ -628,6 +628,8 @@ Resources:
         RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
         TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
+        SourceServerInventoryTableName: !GetAtt DatabaseStack.Outputs.SourceServerInventoryTableName
+        DRSRegionStatusTableName: !GetAtt DatabaseStack.Outputs.DRSRegionStatusTableName
         ExecutionNotificationsTopicArn: !If
           - EnableNotificationsCondition
           - !GetAtt NotificationStack.Outputs.ExecutionNotificationsTopicArn
@@ -885,6 +887,7 @@ Resources:
         QueryHandlerArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
         # Infrastructure Resource IDs from Resources Stack
         DrsSourceServersResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceServersResourceId
+        DrsSourceServerInventoryResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceServerInventoryResourceId
         DrsQuotasResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSQuotasResourceId
         DrsAccountsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSAccountsResourceId
         DrsTagSyncResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSTagSyncResourceId

@@ -8,11 +8,13 @@ import {
   Spinner,
   Alert,
   Container,
+  SpaceBetween,
 } from '@cloudscape-design/components';
 import { ServerListItem } from './ServerListItem';
 import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
-import type { DRSServer } from '../types';
+import type { DRSServer, RegionStatus } from '../types';
+import { getRegionStatusGuidance, isDrsUnavailable } from '../types/region-status';
 
 
 interface ServerDiscoveryPanelProps {
@@ -37,7 +39,8 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'available' | 'assigned'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'hostname' | 'ip'>('name');
-  const [drsInitialized, setDrsInitialized] = useState(true);
+  const [regionStatus, setRegionStatus] = useState<RegionStatus>('ACTIVE');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Fetch servers
   const fetchServers = useCallback(async (silent = false) => {
@@ -48,18 +51,36 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     
     if (!silent) setLoading(true);
     setError(null);
+    setErrorMessage(null);
     
     try {
       const response = await apiClient.listDRSSourceServers(region, accountId, currentProtectionGroupId);
       
-      // Check if DRS is initialized - response may have 'initialized' field or just servers
-      const responseAny = response as { initialized?: boolean; message?: string; servers: typeof response.servers };
-      if (responseAny.initialized === false) {
-        setDrsInitialized(false);
-        setError(responseAny.message || 'DRS not initialized');
+      // Check response structure for status information
+      const responseAny = response as { 
+        initialized?: boolean; 
+        message?: string; 
+        status?: RegionStatus;
+        errorMessage?: string;
+        servers: typeof response.servers;
+      };
+      
+      // Handle new status-based response
+      if (responseAny.status && responseAny.status !== 'ACTIVE') {
+        setRegionStatus(responseAny.status);
+        setErrorMessage(responseAny.errorMessage || responseAny.message || null);
         setServers([]);
-      } else {
-        setDrsInitialized(true);
+      } 
+      // Handle legacy initialized field for backward compatibility
+      else if (responseAny.initialized === false) {
+        setRegionStatus('NOT_INITIALIZED');
+        setErrorMessage(responseAny.message || null);
+        setServers([]);
+      } 
+      // Success case
+      else {
+        setRegionStatus('ACTIVE');
+        setErrorMessage(null);
         // Map servers to ensure required fields have defaults
         const mappedServers: DRSServer[] = (response.servers || []).map(s => ({
           ...s,
@@ -73,14 +94,31 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
         setServers(mappedServers);
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      if (errorMessage.includes('DRS_NOT_INITIALIZED') || errorMessage.includes('not initialized') || errorMessage.includes('REGION_NOT_ENABLED') || errorMessage.includes('not enabled')) {
-        setDrsInitialized(false);
-        setError(errorMessage);
-        setServers([]);
-      } else {
-        setError('Failed to fetch DRS source servers. Please try again.');
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      
+      // Try to extract status from error message
+      let detectedStatus: RegionStatus = 'ERROR';
+      
+      if (errorMsg.includes('NOT_INITIALIZED') || errorMsg.includes('not initialized')) {
+        detectedStatus = 'NOT_INITIALIZED';
+      } else if (errorMsg.includes('IAM_PERMISSION_DENIED') || errorMsg.includes('not authorized')) {
+        detectedStatus = 'IAM_PERMISSION_DENIED';
+      } else if (errorMsg.includes('SCP_DENIED') || errorMsg.includes('service control policy')) {
+        detectedStatus = 'SCP_DENIED';
+      } else if (errorMsg.includes('REGION_NOT_ENABLED') || errorMsg.includes('not enabled')) {
+        detectedStatus = 'REGION_NOT_ENABLED';
+      } else if (errorMsg.includes('REGION_NOT_OPTED_IN') || errorMsg.includes('not opted')) {
+        detectedStatus = 'REGION_NOT_OPTED_IN';
+      } else if (errorMsg.includes('THROTTLED') || errorMsg.includes('rate limit')) {
+        detectedStatus = 'THROTTLED';
+      } else if (errorMsg.includes('ENDPOINT_UNREACHABLE') || errorMsg.includes('unreachable')) {
+        detectedStatus = 'ENDPOINT_UNREACHABLE';
       }
+      
+      setRegionStatus(detectedStatus);
+      setErrorMessage(errorMsg);
+      setServers([]);
+      setError('Failed to fetch DRS source servers. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -91,16 +129,16 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     fetchServers();
   }, [fetchServers]);
 
-  // Auto-refresh every 30 seconds (paused when user is configuring launch settings)
+  // Auto-refresh every 30 seconds (paused when user is configuring launch settings or DRS unavailable)
   useEffect(() => {
-    if (!region || !drsInitialized || pauseRefresh) return;
+    if (!region || isDrsUnavailable(regionStatus) || pauseRefresh) return;
     
     const interval = setInterval(() => {
       fetchServers(true); // Silent refresh
     }, 30000);
     
     return () => clearInterval(interval);
-  }, [region, drsInitialized, fetchServers, pauseRefresh]);
+  }, [region, regionStatus, fetchServers, pauseRefresh]);
 
   // Filter, search, and sort
   const filteredServers = servers
@@ -181,10 +219,35 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     );
   }
 
-  if (!drsInitialized) {
+  // Display region status error with specific guidance
+  if (isDrsUnavailable(regionStatus)) {
+    const guidance = getRegionStatusGuidance(regionStatus, region, errorMessage || undefined);
+    
     return (
-      <Alert type="warning" header="DRS Not Initialized">
-        {error || `AWS Elastic Disaster Recovery (DRS) is not initialized in ${region}. Go to the DRS Console and complete the initialization wizard before creating Protection Groups.`}
+      <Alert 
+        type={guidance.severity} 
+        header={guidance.title}
+      >
+        <SpaceBetween size="m">
+          <div>{guidance.message}</div>
+          
+          {errorMessage && errorMessage !== guidance.message && (
+            <Box variant="code">
+              <strong>Error Details:</strong> {errorMessage}
+            </Box>
+          )}
+          
+          {guidance.actionable && guidance.actions && guidance.actions.length > 0 && (
+            <div>
+              <strong>Next Steps:</strong>
+              <ul style={{ marginTop: '8px', marginBottom: '0' }}>
+                {guidance.actions.map((action, index) => (
+                  <li key={index}>{action}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </SpaceBetween>
       </Alert>
     );
   }

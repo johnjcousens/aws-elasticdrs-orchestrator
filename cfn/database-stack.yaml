@@ -305,6 +305,140 @@ Resources:
         - Key: Schema
           Value: camelCase
 
+  # ===========================================================================
+  # DRS REGION STATUS TABLE
+  # ===========================================================================
+  # Tracks DRS service availability and health per region.
+  # Separate from server inventory for cleaner data model.
+  #
+  # Key Schema:
+  #   region (HASH) - AWS region code (e.g., "us-east-1")
+  #
+  # Item Schema:
+  # {
+  #   "region": "us-east-1",
+  #   "status": "AVAILABLE",
+  #   "serverCount": 42,
+  #   "replicatingCount": 38,
+  #   "lastChecked": "2026-02-15T06:00:00Z",
+  #   "errorMessage": null
+  # }
+  DRSRegionStatusTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-drs-region-status-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: region
+          AttributeType: S
+      KeySchema:
+        - AttributeName: region
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
+  # ===========================================================================
+  # SOURCE SERVER INVENTORY TABLE
+  # ===========================================================================
+  # Tracks DRS agent installations and source server metadata for failback.
+  # Captures pre-disaster state: network, IP, security groups, tags, etc.
+  #
+  # Key Schema:
+  #   sourceServerArn (HASH) - Globally unique DRS source server ARN
+  #   stagingAccountId (RANGE) - Account where agent replicates to
+  #
+  # GSIs:
+  #   SourceAccountIndex - Query by source EC2 account
+  #   StagingAccountIndex - Query all servers in a staging account
+  #
+  # Item Schema:
+  # {
+  #   "sourceServerArn": "arn:aws:drs:us-east-2:338552098570:source-server/s-xxx",
+  #   "stagingAccountId": "338552098570",
+  #   "sourceServerID": "s-xxx",
+  #   "sourceAccountId": "851725249649",
+  #   "sourceRegion": "us-east-1",
+  #   "hostname": "hrp-dev-db-az4-001",
+  #   "instanceId": "i-xxx",
+  #   "agentVersion": "5.x.x",
+  #   "agentInstalledAt": "2026-02-14T03:00:00Z",
+  #   "replicationRegion": "us-east-2",
+  #   "networkConfig": {
+  #     "vpcId": "vpc-xxx",
+  #     "subnetId": "subnet-xxx",
+  #     "privateIp": "10.229.143.101",
+  #     "securityGroups": ["sg-xxx"],
+  #     "instanceProfile": "ec2-baseline-role"
+  #   },
+  #   "sourceTags": {"Name": "hrp-dev-db-az4-001", "Service": "DatabaseServer", ...},
+  #   "replicationState": "CONTINUOUS",
+  #   "lastUpdated": "2026-02-14T03:00:00Z"
+  # }
+  SourceServerInventoryTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-source-server-inventory-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sourceServerArn
+          AttributeType: S
+        - AttributeName: stagingAccountId
+          AttributeType: S
+        - AttributeName: sourceAccountId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sourceServerArn
+          KeyType: HASH
+        - AttributeName: stagingAccountId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: SourceAccountIndex
+          KeySchema:
+            - AttributeName: sourceAccountId
+              KeyType: HASH
+            - AttributeName: sourceServerArn
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: StagingAccountIndex
+          KeySchema:
+            - AttributeName: stagingAccountId
+              KeyType: HASH
+            - AttributeName: sourceServerArn
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
 # =============================================================================
 # OUTPUTS
 # =============================================================================
@@ -379,3 +513,33 @@ Outputs:
     Value: !GetAtt TargetAccountsTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-TargetAccountsTableArn'
+
+  # ---------------------------------------------------------------------------
+  # DRS Region Status Table
+  # ---------------------------------------------------------------------------
+  DRSRegionStatusTableName:
+    Description: 'DRS Region Status table name'
+    Value: !Ref DRSRegionStatusTable
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSRegionStatusTableName'
+
+  DRSRegionStatusTableArn:
+    Description: 'DRS Region Status table ARN'
+    Value: !GetAtt DRSRegionStatusTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSRegionStatusTableArn'
+
+  # ---------------------------------------------------------------------------
+  # Source Server Inventory Table
+  # ---------------------------------------------------------------------------
+  SourceServerInventoryTableName:
+    Description: 'Source Server Inventory table name'
+    Value: !Ref SourceServerInventoryTable
+    Export:
+      Name: !Sub '${AWS::StackName}-SourceServerInventoryTableName'
+
+  SourceServerInventoryTableArn:
+    Description: 'Source Server Inventory table ARN'
+    Value: !GetAtt SourceServerInventoryTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-SourceServerInventoryTableArn'

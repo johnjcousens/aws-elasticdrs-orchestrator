@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] - 2026-02-15 - Sprint Priorities & Documentation Updates
+
+### Changed
+
+**Sprint Priorities Established**: Identified three high-priority DRS enhancements for current sprint implementation:
+- **DRS Rate Limit Handling** (Priority 1): Foundational enhancement implementing comprehensive DRS API rate limit handling with retry logic and metrics. Must be completed first as it's a dependency for AllowLaunchingIntoInstance.
+- **DRS Agent Deployer** (Priority 2): Deploys DRS agents to target instances via SSM with cross-account support. Can be implemented in parallel with rate limit handling.
+- **DRS AllowLaunchingIntoInstance** (Priority 3): Implements DRS AllowLaunchingIntoInstance pattern for targeted recovery. Depends on rate limit handling completion.
+
+**README.md Reorganization**: Restructured Future Enhancements section to highlight sprint priorities:
+- Moved three priority DRS specs to top of enhancement table with 🎯 Priority markers
+- Added sprint priority note explaining implementation order and dependencies
+- Reordered table: Priority specs first, then Completed, In Progress, and Planned specs
+- Updated all spec links to point directly to `requirements.md` files for easier navigation
+
+**Spec Completion Updates**: Marked two additional specs as complete:
+- **Generic Orchestration Refactoring**: Code architecture improvements completed (changed from In Progress to Complete)
+- **Wave Completion Display**: All 6 tasks completed and verified (changed from Planned to Complete)
+- Updated statistics: 10 completed specs (50%), 2 in-progress (10%), 5 planned (25%), 3 high-priority (15%)
+
+### Documentation
+- Added "Next Week Priorities" section to README.md explaining implementation sequence
+- Fixed all 20 spec links to point to `requirements.md` files instead of directories
+- Enhanced Future Enhancements table with clearer status indicators and completion tracking
+
+---
+
 ## [6.0.0] - 2026-02-13 - SNS Notifications & Email Callback
 
 ### Added

@@ -286,7 +286,7 @@ Resources:
       # Force update on every stack update using StackId
       ForceUpdate: !Ref AWS::StackId
       # Force replacement - increment version to trigger new deployment
-      Version: "2026-02-05-tag-sync-get-method"
+      Version: "2026-02-15-source-server-inventory-endpoint"
 
   # ===========================================================================
   # API GATEWAY ACCESS LOG GROUP

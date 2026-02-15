@@ -288,7 +288,7 @@ export const TargetAccountSettingsModal: React.FC<
                       </div>
                       <div>
                         <Box variant="awsui-key-label">Status</Box>
-                        <StatusIndicator type={stagingAccount.status === 'connected' ? 'success' : 'error'}>
+                        <StatusIndicator type={!stagingAccount.status || stagingAccount.status === 'connected' ? 'success' : 'error'}>
                           {stagingAccount.status || 'connected'}
                         </StatusIndicator>
                       </div>

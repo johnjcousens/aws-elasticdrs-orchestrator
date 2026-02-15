@@ -47,6 +47,14 @@ Parameters:
     Type: String
     Description: "DynamoDB table name for Target Accounts"
 
+  SourceServerInventoryTableName:
+    Type: String
+    Description: "DynamoDB table name for Source Server Inventory"
+
+  DRSRegionStatusTableName:
+    Type: String
+    Description: "DynamoDB table name for DRS Region Status"
+
   LambdaCodeVersion:
     Type: String
     Description: "Version identifier to force Lambda code updates (timestamp)"
@@ -128,6 +136,8 @@ Resources:
           RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
           TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
+          SOURCE_SERVER_INVENTORY_TABLE: !Ref SourceServerInventoryTableName
+          DRS_REGION_STATUS_TABLE: !Ref DRSRegionStatusTableName
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
           STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
@@ -162,10 +172,13 @@ Resources:
           RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
           TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
+          SOURCE_SERVER_INVENTORY_TABLE: !Ref SourceServerInventoryTableName
+          DRS_REGION_STATUS_TABLE: !Ref DRSRegionStatusTableName
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
           STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
           EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          EXECUTION_PAUSE_TOPIC_ARN: !Ref ExecutionPauseTopicArn
           API_GATEWAY_URL: !Ref ApiGatewayUrl
       Tags:
         - Key: Project
@@ -197,6 +210,8 @@ Resources:
           RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
           TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
+          SOURCE_SERVER_INVENTORY_TABLE: !Ref SourceServerInventoryTableName
+          DRS_REGION_STATUS_TABLE: !Ref DRSRegionStatusTableName
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
           EXECUTION_HANDLER_ARN: !GetAtt ExecutionHandlerFunction.Arn
