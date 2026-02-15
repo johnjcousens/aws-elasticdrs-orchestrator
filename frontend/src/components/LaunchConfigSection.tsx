@@ -26,6 +26,7 @@ import type {
   InstanceProfileOption,
   InstanceTypeOption,
 } from '../types';
+import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
 
 interface LaunchConfigSectionProps {
@@ -45,6 +46,9 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
   disabled = false,
   customConfigCount = 0,
 }) => {
+  // Get account context for cross-account queries
+  const { getAccountContext, getCurrentAccountId } = useAccount();
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -68,10 +72,14 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
     setLoading(true);
     setError(null);
     try {
+      const accountContext = getAccountContext();
+      const accountId = accountContext.accountId;
+      console.log('[LaunchConfigSection] Loading EC2 resources for:', { region, accountId, accountContext });
+      
       const [subs, sgs, profiles, types] = await Promise.all([
-        apiClient.getEC2Subnets(region),
-        apiClient.getEC2SecurityGroups(region),
-        apiClient.getEC2InstanceProfiles(region),
+        apiClient.getEC2Subnets(region, accountId),
+        apiClient.getEC2SecurityGroups(region, accountId),
+        apiClient.getEC2InstanceProfiles(region, accountId),
         apiClient.getEC2InstanceTypes(region),
       ]);
       setSubnets(subs);
@@ -84,7 +92,7 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [region]);
+  }, [region, getAccountContext, getCurrentAccountId()]);
 
   useEffect(() => {
     if (region && expanded) {
