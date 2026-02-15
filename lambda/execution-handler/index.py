@@ -1883,7 +1883,8 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         if selection_tags:
             print(f"Resolving servers for PG {protection_group_id} " f"with tags: {selection_tags}")
             account_context = state.get("accountContext") or state.get("account_context", {})
-            server_ids = query_drs_servers_by_tags(region, selection_tags, account_context)
+            resolved_servers = query_drs_servers_by_tags(region, selection_tags, account_context)
+            server_ids = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
             print(f"Resolved {len(server_ids)} servers from tags")
         else:
             # Fallback: explicit serverIds from wave (legacy support)
