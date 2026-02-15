@@ -10,6 +10,12 @@ Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wav
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 > **🎯 Current Sprint Priorities**: This sprint focuses on three high-priority DRS enhancements to improve rate limit handling, agent deployment, and targeted recovery capabilities. See [Future Enhancements](#future-enhancements) for implementation details and dependencies.
+>
+> **📌 Stable Checkpoint**: Tag `v6.0.1-PreSpecRefactoring` marks a stable state before sprint refactoring begins. If issues arise during implementation, rollback with:
+> ```bash
+> git checkout v6.0.1-PreSpecRefactoring
+> ./scripts/deploy.sh dev
+> ```
 
 ## Overview
 
