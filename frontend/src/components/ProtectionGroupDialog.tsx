@@ -784,6 +784,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                     onChange={setLaunchConfig}
                     disabled={loading}
                     customConfigCount={customConfigCount}
+                    accountId={group?.accountId}
                   />
                 ),
               },

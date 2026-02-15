@@ -36,6 +36,7 @@ interface LaunchConfigSectionProps {
   onExpandChange?: (expanded: boolean) => void;
   disabled?: boolean;
   customConfigCount?: number; // Number of servers with custom configurations
+  accountId?: string; // Override account ID for cross-account queries
 }
 
 export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
@@ -45,9 +46,10 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
   onExpandChange,
   disabled = false,
   customConfigCount = 0,
+  accountId: propAccountId,
 }) => {
   // Get account context for cross-account queries
-  const { getAccountContext, getCurrentAccountId } = useAccount();
+  const { getAccountContext } = useAccount();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,14 +74,14 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const accountContext = getAccountContext();
-      const accountId = accountContext.accountId;
-      console.log('[LaunchConfigSection] Loading EC2 resources for:', { region, accountId, accountContext });
+      // Use prop accountId if provided, otherwise get from context
+      const accountId = propAccountId || getAccountContext().accountId;
+      console.log('[LaunchConfigSection] Loading EC2 resources for:', { region, accountId, propAccountId });
       
       const [subs, sgs, profiles, types] = await Promise.all([
         apiClient.getEC2Subnets(region, accountId),
         apiClient.getEC2SecurityGroups(region, accountId),
-        apiClient.getEC2InstanceProfiles(region, accountId),
+        apiClient.getEC2InstanceProfiles(region),
         apiClient.getEC2InstanceTypes(region),
       ]);
       setSubnets(subs);
@@ -92,7 +94,7 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [region, getAccountContext, getCurrentAccountId()]);
+  }, [region, propAccountId, getAccountContext]);
 
   useEffect(() => {
     if (region && expanded) {
