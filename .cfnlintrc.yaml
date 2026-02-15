@@ -1,0 +1,23 @@
+---
+# CFN-Lint Configuration
+# Suppress W2001 (unused parameters) warnings
+# These parameters are passed for consistency across nested stacks
+# and may be used in Conditions, Outputs, or reserved for future use
+
+ignore_checks:
+  - W2001  # Parameter is defined but not used
+  - W3005  # DependsOn already enforced by GetAtt/Ref (explicit dependencies for clarity)
+
+# Keep other warnings and errors enabled
+include_checks: []
+
+# Configure regions for validation
+regions:
+  - us-east-1
+  - us-east-2
+  - us-west-2
+
+# Template validation settings
+configure_rules:
+  W2001:
+    strict: false
