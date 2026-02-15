@@ -361,7 +361,8 @@ class ApiClient {
    */
   public async resolveProtectionGroupTags(
     region: string,
-    tags: Record<string, string>
+    tags: Record<string, string>,
+    accountId?: string
   ): Promise<{
     region: string;
     tags: Record<string, string>;
@@ -411,7 +412,11 @@ class ApiClient {
     serverCount: number;
     resolvedAt: number;
   }> {
-    return this.post(`/protection-groups/resolve`, { region, tags });
+    const payload: { region: string; tags: Record<string, string>; accountId?: string } = { region, tags };
+    if (accountId) {
+      payload.accountId = accountId;
+    }
+    return this.post(`/protection-groups/resolve`, payload);
   }
 
   // ============================================================================
