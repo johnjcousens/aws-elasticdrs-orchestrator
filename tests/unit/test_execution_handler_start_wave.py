@@ -146,8 +146,13 @@ class TestStartWaveRecoverySuccessful:
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
 
-        # Mock query_drs_servers_by_tags to return server IDs
+        # Mock query_drs_servers_by_tags to return server objects (not just IDs)
         mock_server_ids = ["s-001", "s-002", "s-003"]
+        mock_resolved_servers = [
+            {"sourceServerID": "s-001"},
+            {"sourceServerID": "s-002"},
+            {"sourceServerID": "s-003"},
+        ]
 
         # Mock start_drs_recovery_for_wave response (includes Name tags)
         mock_wave_job_result = {
@@ -182,7 +187,7 @@ class TestStartWaveRecoverySuccessful:
                 with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=mock_server_ids,
+                        return_value=mock_resolved_servers,
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch(
@@ -405,7 +410,7 @@ class TestStartWaveRecoveryDRSAPIError:
         with patch("index.protection_groups_table", pg_table):
             with patch(
                 "index.query_drs_servers_by_tags",
-                return_value=["s-001", "s-002"],
+                return_value=[{"sourceServerID": "s-001"}, {"sourceServerID": "s-002"}],
             ):
                 with patch("index.apply_launch_config_before_recovery"):
                     with patch(
@@ -493,7 +498,7 @@ class TestStartWaveRecoveryDRSAPIError:
                 with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001"],
+                        return_value=[{"sourceServerID": "s-001"}],
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch(
@@ -538,7 +543,7 @@ class TestStartWaveRecoveryCrossAccountContext:
                 with patch("index.create_drs_client", mock_create_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001"],
+                        return_value=[{"sourceServerID": "s-001"}],
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch("time.time", return_value=1234567890):
@@ -598,7 +603,7 @@ class TestStartWaveRecoveryCrossAccountContext:
                 with patch("index.create_drs_client", mock_create_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001"],
+                        return_value=[{"sourceServerID": "s-001"}],
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch("time.time", return_value=1234567890):
@@ -642,7 +647,7 @@ class TestStartWaveRecoveryCrossAccountContext:
                 with patch("index.create_drs_client", mock_create_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001"],
+                        return_value=[{"sourceServerID": "s-001"}],
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch("time.time", return_value=1234567890):
@@ -684,7 +689,7 @@ class TestStartWaveRecoveryLaunchConfig:
                 with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001", "s-002"],
+                        return_value=[{"sourceServerID": "s-001"}, {"sourceServerID": "s-002"}],
                     ):
                         with patch(
                             "index.apply_launch_config_before_recovery",
@@ -734,7 +739,7 @@ class TestStartWaveRecoveryLaunchConfig:
                 with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001"],
+                        return_value=[{"sourceServerID": "s-001"}],
                     ):
                         with patch(
                             "index.apply_launch_config_before_recovery",
@@ -789,7 +794,7 @@ class TestStartWaveRecoveryStateUpdates:
                 with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001"],
+                        return_value=[{"sourceServerID": "s-001"}],
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch(
@@ -861,7 +866,7 @@ class TestStartWaveRecoveryStateUpdates:
                 with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001"],
+                        return_value=[{"sourceServerID": "s-001"}],
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch(
@@ -919,7 +924,7 @@ class TestStartWaveRecoveryStateUpdates:
                 with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001", "s-002"],
+                        return_value=[{"sourceServerID": "s-001"}, {"sourceServerID": "s-002"}],
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch(
@@ -990,7 +995,7 @@ class TestStartWaveRecoveryDrillVsRecovery:
                 with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001"],
+                        return_value=[{"sourceServerID": "s-001"}],
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch(
@@ -1044,7 +1049,7 @@ class TestStartWaveRecoveryDrillVsRecovery:
                 with patch("index.create_drs_client", return_value=mock_drs_client):
                     with patch(
                         "index.query_drs_servers_by_tags",
-                        return_value=["s-001"],
+                        return_value=[{"sourceServerID": "s-001"}],
                     ):
                         with patch("index.apply_launch_config_before_recovery"):
                             with patch(
