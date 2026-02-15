@@ -200,7 +200,8 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       setPreviewLoading(true);
       setPreviewError(null);
       
-      const response = await apiClient.resolveProtectionGroupTags(region, tagsObj);
+      const accountId = getCurrentAccountId();
+      const response = await apiClient.resolveProtectionGroupTags(region, tagsObj, accountId);
       setPreviewServers(response.resolvedServers || []);
       
       if (response.resolvedServers?.length === 0) {
@@ -213,7 +214,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
     } finally {
       setPreviewLoading(false);
     }
-  }, [region, tags]);
+  }, [region, tags, getCurrentAccountId]);
 
   // Handle per-server configuration changes
   const handleServerConfigChange = (serverId: string, config: ServerLaunchConfig | null) => {
