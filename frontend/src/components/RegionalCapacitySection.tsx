@@ -2,9 +2,8 @@
  * Regional Capacity Section
  * 
  * Displays combined per-region replication capacity across all accounts.
- * Replication capacity is unique as it's the only DRS quota that is per-account-per-region (300 max).
- * 
- * Now uses pre-calculated regional data from backend for better performance.
+ * Uses CloudScape ProgressBar for clean left-aligned layout.
+ * Includes collapsible per-account breakdown.
  */
 
 import React from 'react';
@@ -14,63 +13,123 @@ import {
   SpaceBetween,
   Box,
   ColumnLayout,
-  Grid,
+  ExpandableSection,
+  ProgressBar,
+  StatusIndicator,
 } from '@cloudscape-design/components';
-import { CapacityGauge } from './CapacityGauge';
-import type { RegionalCapacityBreakdown } from '../types/staging-accounts';
+import type { RegionalCapacityBreakdown, AccountCapacity } from '../types/staging-accounts';
 
 interface RegionalCapacitySectionProps {
   regionalCapacity: RegionalCapacityBreakdown[];
+  accounts?: AccountCapacity[];
 }
 
 export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = ({
   regionalCapacity,
+  accounts,
 }) => {
-  // Filter to only show regions with active replicating servers
   const activeRegions = regionalCapacity.filter(r => r.replicatingServers > 0);
 
   if (activeRegions.length === 0) {
     return null;
   }
 
+  const getStatus = (pct: number): 'success' | 'error' | 'in-progress' => {
+    if (pct >= 90) return 'error';
+    return 'in-progress';
+  };
+
   return (
     <Container
       header={
         <Header
           variant="h2"
-          description="Per-region capacity across all accounts (300 replication / 4,000 recovery per account per region)"
+          description="Per-region capacity across all accounts (300 per account per region)"
         >
           Regional Capacity
         </Header>
       }
     >
-      <ColumnLayout columns={activeRegions.length === 1 ? 1 : 2} variant="text-grid">
-        {activeRegions.map((region) => (
-          <SpaceBetween key={region.region} size="xs">
-            <Box variant="h4">{region.region}</Box>
-            
-            {/* Replication */}
-            <Box variant="small" color="text-body-secondary">
-              Replication: {region.replicatingServers} / {region.maxReplicating.toLocaleString()} ({region.accountCount} acct{region.accountCount !== 1 ? 's' : ''})
-            </Box>
-            <CapacityGauge
-              used={region.replicatingServers}
-              total={region.maxReplicating}
-              size="small"
-            />
+      <SpaceBetween size="l">
+        {activeRegions.map((region) => {
+          const replPct = region.maxReplicating > 0
+            ? Math.round((region.replicatingServers / region.maxReplicating) * 100)
+            : 0;
+          const recovPct = region.recoveryMax > 0
+            ? Math.round((region.recoveryServers / region.recoveryMax) * 100)
+            : 0;
 
-            {/* Recovery */}
-            <Box variant="small" color="text-body-secondary" padding={{ top: 'xs' }}>
-              Recovery: {region.recoveryServers} / {region.recoveryMax.toLocaleString()}
-            </Box>
-            <CapacityGauge
-              used={region.recoveryServers}
-              total={region.recoveryMax}
-              size="small"
-            />
-          </SpaceBetween>
-        ))}
-      </ColumnLayout>
+          const accountsInRegion = (accounts || [])
+            .map((account) => {
+              const rd = (account.regionalBreakdown || []).find(
+                (r: { region: string }) => r.region === region.region
+              );
+              if (!rd || rd.replicatingServers === 0) return null;
+              return { ...account, regionData: rd };
+            })
+            .filter(Boolean) as Array<AccountCapacity & { regionData: { replicatingServers: number } }>;
+
+          return (
+            <SpaceBetween key={region.region} size="s">
+              <Box variant="h3">{region.region}</Box>
+
+              <ColumnLayout columns={2} variant="text-grid">
+                <SpaceBetween size="xxs">
+                  <Box variant="awsui-key-label">
+                    Replication ({region.accountCount} acct{region.accountCount !== 1 ? 's' : ''})
+                  </Box>
+                  <ProgressBar
+                    value={replPct}
+                    status={getStatus(replPct)}
+                    additionalInfo={`${region.replicatingServers.toLocaleString()} / ${region.maxReplicating.toLocaleString()} servers`}
+                    description={`${region.maxReplicating - region.replicatingServers} slots available`}
+                  />
+                </SpaceBetween>
+
+                <SpaceBetween size="xxs">
+                  <Box variant="awsui-key-label">Recovery</Box>
+                  <ProgressBar
+                    value={recovPct}
+                    status={getStatus(recovPct)}
+                    additionalInfo={`${region.recoveryServers.toLocaleString()} / ${region.recoveryMax.toLocaleString()} instances`}
+                    description={`${region.recoveryMax - region.recoveryServers} slots available`}
+                  />
+                </SpaceBetween>
+              </ColumnLayout>
+
+              {accountsInRegion.length > 0 && (
+                <ExpandableSection
+                  variant="footer"
+                  headerText={`Account breakdown (${accountsInRegion.length} accounts)`}
+                >
+                  <ColumnLayout columns={accountsInRegion.length <= 2 ? accountsInRegion.length : 3} variant="text-grid">
+                    {accountsInRegion.map((account) => {
+                      const used = account.regionData.replicatingServers;
+                      const pct = Math.round((used / 300) * 100);
+                      const typeLabel = account.accountType === 'target' ? 'Target' : 'Staging';
+
+                      return (
+                        <SpaceBetween key={account.accountId} size="xxs">
+                          <Box variant="awsui-key-label">
+                            {account.accountName || account.accountId}
+                            <Box variant="small" color="text-body-secondary" display="inline"> ({typeLabel})</Box>
+                          </Box>
+                          <ProgressBar
+                            value={pct}
+                            status={getStatus(pct)}
+                            additionalInfo={`${used} / 300 servers`}
+                            description={`${300 - used} available`}
+                          />
+                        </SpaceBetween>
+                      );
+                    })}
+                  </ColumnLayout>
+                </ExpandableSection>
+              )}
+            </SpaceBetween>
+          );
+        })}
+      </SpaceBetween>
     </Container>
   );
 };

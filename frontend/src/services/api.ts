@@ -818,6 +818,25 @@ class ApiClient {
     serverCount: number;
     region: string;
   }> {
+    // Try inventory first (fast DynamoDB query)
+    try {
+      const inventoryParams: Record<string, string> = {};
+      if (accountId) inventoryParams.sourceAccountId = accountId;
+      if (region) inventoryParams.region = region;
+
+      const inventoryResponse = await this.get<{
+        servers: DRSServer[];
+        count: number;
+        source: string;
+      }>('/drs/source-server-inventory', inventoryParams);
+
+      if (inventoryResponse.count > 0) {
+        return { servers: inventoryResponse.servers, serverCount: inventoryResponse.count, region };
+      }
+    } catch {
+      // Inventory not available, fall back to live query
+    }
+
     const queryParams: Record<string, string> = { region };
     if (accountId) {
       queryParams.accountId = accountId;

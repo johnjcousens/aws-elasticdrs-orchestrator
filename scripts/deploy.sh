@@ -745,8 +745,15 @@ if [ "$FRONTEND_ONLY" = false ]; then
     echo -e "${GREEN}  ✓ Lambda packages built${NC}"
     
     # Sync to S3
-    aws s3 sync cfn/ "s3://${DEPLOYMENT_BUCKET}/cfn/" --delete --quiet
-    aws s3 sync build/lambda/ "s3://${DEPLOYMENT_BUCKET}/lambda/" --delete --quiet
+    echo "  Syncing artifacts to S3..."
+    if ! aws s3 sync cfn/ "s3://${DEPLOYMENT_BUCKET}/cfn/" --delete --quiet; then
+        echo -e "${RED}  ✗ Failed to sync CFN templates to S3${NC}"
+        exit 1
+    fi
+    if ! aws s3 sync build/lambda/ "s3://${DEPLOYMENT_BUCKET}/lambda/" --delete --quiet; then
+        echo -e "${RED}  ✗ Failed to sync Lambda packages to S3${NC}"
+        exit 1
+    fi
     echo -e "${GREEN}  ✓ Artifacts synced to S3${NC}"
 fi
 
@@ -797,6 +804,7 @@ if [ "$LAMBDA_ONLY" = true ]; then
         RP_TABLE=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="RecoveryPlansTableName") | .ParameterValue')
         EH_TABLE=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="ExecutionHistoryTableName") | .ParameterValue')
         TA_TABLE=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="TargetAccountsTableName") | .ParameterValue')
+        SSI_TABLE=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="SourceServerInventoryTableName") | .ParameterValue // ""')
         EXEC_NOTIF_TOPIC=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="ExecutionNotificationsTopicArn") | .ParameterValue // ""')
         DRS_ALERTS_TOPIC=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="DRSAlertsTopicArn") | .ParameterValue // ""')
         EXEC_PAUSE_TOPIC=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="ExecutionPauseTopicArn") | .ParameterValue // ""')
@@ -814,6 +822,7 @@ if [ "$LAMBDA_ONLY" = true ]; then
                 RecoveryPlansTableName="$RP_TABLE" \
                 ExecutionHistoryTableName="$EH_TABLE" \
                 TargetAccountsTableName="$TA_TABLE" \
+                SourceServerInventoryTableName="$SSI_TABLE" \
                 ExecutionNotificationsTopicArn="$EXEC_NOTIF_TOPIC" \
                 DRSAlertsTopicArn="$DRS_ALERTS_TOPIC" \
                 ExecutionPauseTopicArn="$EXEC_PAUSE_TOPIC" \

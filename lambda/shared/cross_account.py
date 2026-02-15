@@ -360,6 +360,7 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
                     assume_role_name = (
                         account_config.get("assumeRoleName")
                         or account_config.get("crossAccountRoleArn", "").split("/")[-1]
+                        or account_config.get("roleArn", "").split("/")[-1]
                     )
                     # Include externalId for secure cross-account role assumption
                     external_id = account_config.get("externalId")

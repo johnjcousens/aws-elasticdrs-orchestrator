@@ -6655,6 +6655,11 @@ def create_target_account(body: Dict) -> Dict:
         if role_arn:
             account_item["roleArn"] = role_arn
 
+        # Add external ID for cross-account role assumption
+        external_id = body.get("externalId", "drs-orchestration-cross-account")
+        if not is_current_account:
+            account_item["externalId"] = external_id
+
         # Store in DynamoDB
         get_target_accounts_table().put_item(Item=account_item)
 

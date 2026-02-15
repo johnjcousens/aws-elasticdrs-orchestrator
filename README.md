@@ -9,18 +9,11 @@ Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wav
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+> **🎯 Current Sprint Priorities**: This sprint focuses on three high-priority DRS enhancements to improve rate limit handling, agent deployment, and targeted recovery capabilities. See [Future Enhancements](#future-enhancements) for implementation details and dependencies.
+
 ## Overview
 
 AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native serverless services.
-
-### Key Capabilities
-
-- **Cost-Effective**: $12-40/month operational cost with pay-per-use serverless pricing
-- **Unlimited Waves**: Flexible wave-based orchestration with no artificial constraints
-- **Platform Agnostic**: Supports any source platform (physical servers, cloud instances, virtual machines)
-- **Sub-Second RPO**: Leverages AWS DRS continuous replication capabilities
-- **Fully Serverless**: No infrastructure to manage, scales automatically
-- **Launch Config Sync**: Automatically applies Protection Group launch configurations to DRS at execution time
 
 ## Key Features
 
@@ -764,6 +757,85 @@ Complete working examples for AWS service integration:
   - Scheduled invocation (cron, rate)
   - Event pattern matching
   - Target configuration with input transformation
+
+### Additional Guides
+
+- **[Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md)** - Complete deployment mode documentation
+
+## Future Enhancements
+
+The following features are planned or in development. Each enhancement is documented in `.kiro/specs/` with detailed requirements, design, and implementation tasks.
+
+**🎯 Current Sprint Priorities:** The three DRS enhancements below are targeted for completion this sprint. DRS Rate Limit Handling must be completed first as it's a dependency for AllowLaunchingIntoInstance.
+
+| Status | Enhancement | Description | Tasks | Spec |
+|--------|-------------|-------------|-------|------|
+| 🎯 Priority | **DRS Rate Limit Handling** | Implements comprehensive DRS API rate limit handling with retry logic and metrics | 0/multiple | [Spec](.kiro/specs/drs-rate-limit-handling/requirements.md) |
+| 🎯 Priority | **DRS Agent Deployer** | Deploys DRS agents to target instances via SSM with cross-account support | Phase 1.5+ | [Spec](.kiro/specs/drs-agent-deployer/requirements.md) |
+| 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements DRS AllowLaunchingIntoInstance pattern for targeted recovery | 0/234 | [Spec](.kiro/specs/drs-allow-launching-into-instance/requirements.md) |
+| ✅ Complete | **Account Context Improvements** | Adds direct `accountId` on Protection Groups/Recovery Plans, SNS notifications, and pause/resume with task tokens | 15/15 | [Spec](.kiro/specs/account-context-improvements/requirements.md) |
+| ✅ Complete | **Direct Lambda Invocation Mode** | Standardizes direct Lambda invocation across handlers with IAM authorization and audit logging | 8/8 phases | [Spec](.kiro/specs/direct-lambda-invocation-mode/requirements.md) |
+| ✅ Complete | **Fix Broken Tests** | Fixes 37 failing tests across query-handler, data-management, and execution-handler | 7/7 phases | [Spec](.kiro/specs/fix-broken-tests/requirements.md) |
+| ✅ Complete | **Granular Progress Tracking** | Maps DRS job events to progress percentages for wave execution tracking | 5/5 | [Spec](.kiro/specs/granular-progress-tracking/requirements.md) |
+| ✅ Complete | **Notification Formatter Consolidation** | Consolidates HTML email formatting into shared module and removes standalone Lambda | 5/5 | [Spec](.kiro/specs/notification-formatter-consolidation/requirements.md) |
+| ✅ Complete | **Polling AccountContext Fix** | Fixes cross-account DRS query failures during polling by passing accountContext | 3/3 | [Spec](.kiro/specs/polling-accountcontext-fix/requirements.md) |
+| ✅ Complete | **Staging Accounts Management** | Enables multiple staging accounts per target account for expanded replication capacity | 2+ | [Spec](.kiro/specs/staging-accounts-management/requirements.md) |
+| ✅ Complete | **Standardized Cross-Account Role Naming** | Standardizes cross-account role naming to `DRSOrchestrationRole` pattern | 6+ | [Spec](.kiro/specs/standardized-cross-account-role-naming/requirements.md) |
+| ✅ Complete | **Generic Orchestration Refactoring** | Moves DRS-specific functions from orchestration Lambda into handler Lambdas | Complete | [Spec](.kiro/specs/generic-orchestration-refactoring/requirements.md) |
+| ✅ Complete | **Wave Completion Display** | Fixes wave status display and server column headers in frontend | 6/6 | [Spec](.kiro/specs/wave-completion-display/requirements.md) |
+| 🔄 In Progress | **Active Region Filtering** | Filters DRS queries to active regions only, reducing API calls by 80-90% | 0/17 | [Spec](.kiro/specs/active-region-filtering/requirements.md) |
+| 🔄 In Progress | **Test Isolation Refactoring** | Refactors 15 failing tests to use proper mocking instead of @mock_aws decorator | 7/7 phases | [Spec](.kiro/specs/test-isolation-refactoring/requirements.md) |
+| 📋 Planned | **CloudScape Component Improvements** | Adopts additional CloudScape components (Wizard, Cards, CodeEditor, etc.) | 0/~100 | [Spec](.kiro/specs/cloudscape-component-improvements/requirements.md) |
+| 📋 Planned | **CSS Refactoring** | Removes all inline styles, replaces with CSS modules and CloudScape design tokens | 0/35 | [Spec](.kiro/specs/css-refactoring/requirements.md) |
+| 📋 Planned | **Deploy Script Test Detection Fix** | Fixes deploy script test failure detection using exit codes instead of string parsing | 0/18 | [Spec](.kiro/specs/deploy-script-test-detection-fix/requirements.md) |
+| 📋 Planned | **Documentation Accuracy Audit** | Fixes broken links and corrects architecture/API documentation across 8 files | 0/9 | [Spec](.kiro/specs/documentation-accuracy-audit/requirements.md) |
+| 📋 Planned | **Inventory Sync Refactoring** | Decomposes monolithic sync_source_server_inventory function into 7 focused functions | 0/15 | [Spec](.kiro/specs/inventory-sync-refactoring/requirements.md) |
+
+### Enhancement Categories
+
+**Completed (10 specs - 50%)**
+- Core functionality improvements and bug fixes
+- Direct Lambda invocation support
+- Cross-account role standardization
+- Test suite stabilization
+- Code architecture improvements (orchestration refactoring)
+- Frontend fixes (wave completion display)
+
+**In Progress (2 specs - 10%)**
+- Performance optimizations (active region filtering)
+- Code quality improvements (test isolation)
+
+**Planned (5 specs - 25%)**
+- Frontend modernization (CloudScape components, CSS refactoring)
+- Documentation improvements
+
+**High Priority (3 specs - 15%)**
+- Advanced DRS features (rate limiting, agent deployment, AllowLaunchingIntoInstance)
+- Targeted for completion in next week
+
+### Key Dependencies
+
+- **DRS AllowLaunchingIntoInstance** depends on **DRS Rate Limit Handling** (must complete first)
+- **Inventory Sync Refactoring** depends on **Active Region Filtering** (must complete first)
+- **Deploy Script Test Detection Fix** provides test isolation fixtures needed by other specs
+
+### Next Week Priorities
+
+The following three DRS enhancements are targeted for completion in the next week:
+
+1. **DRS Rate Limit Handling** (foundational) - Must complete first to unblock AllowLaunchingIntoInstance
+2. **DRS Agent Deployer** - Can be developed in parallel with rate limiting
+3. **DRS AllowLaunchingIntoInstance** - Depends on rate limit handling completion
+
+### Contributing
+
+To contribute to any enhancement:
+
+1. Review the spec in `.kiro/specs/{enhancement-name}/`
+2. Read `requirements.md` for feature specifications
+3. Review `design.md` for technical approach
+4. Check `tasks.md` for implementation checklist
+5. Follow development standards in `.kiro/steering/`
 
 ### Additional Guides
 

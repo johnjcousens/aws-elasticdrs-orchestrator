@@ -70,6 +70,10 @@ Parameters:
     Type: String
     Description: DRS Source Servers Resource ID from Resources Stack
 
+  DrsSourceServerInventoryResourceId:
+    Type: String
+    Description: DRS Source Server Inventory Resource ID from Resources Stack
+
   DrsQuotasResourceId:
     Type: String
     Description: DRS Quotas Resource ID from Resources Stack
@@ -308,6 +312,52 @@ Resources:
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref DrsSourceServersResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # /drs/source-server-inventory - GET from inventory table (fast)
+  DrsSourceServerInventoryGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsSourceServerInventoryResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestParameters:
+        method.request.querystring.region: false
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QueryHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  DrsSourceServerInventoryOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsSourceServerInventoryResourceId
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:

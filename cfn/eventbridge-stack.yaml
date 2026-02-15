@@ -96,10 +96,17 @@ Parameters:
     AllowedValues: ['true', 'false']
     Description: Enable automatic staging account discovery every 5 minutes
 
+  EnableInventorySync:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable automatic source server inventory sync every 15 minutes
+
 Conditions:
   EnableWeeklyDrillCondition: !Equals [!Ref EnableWeeklyDrill, 'true']
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
   EnableStagingAccountSyncCondition: !Equals [!Ref EnableStagingAccountSync, 'true']
+  EnableInventorySyncCondition: !Equals [!Ref EnableInventorySync, 'true']
 
 # =============================================================================
 # RESOURCES
@@ -302,6 +309,32 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt StagingAccountSyncScheduleRule.Arn
+
+  # ---------------------------------------------------------------------------
+  # Source Server Inventory Sync (every 15 minutes)
+  # ---------------------------------------------------------------------------
+  InventorySyncScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: EnableInventorySyncCondition
+    Properties:
+      Name: !Sub '${ProjectName}-inventory-sync-${Environment}'
+      Description: 'Sync source server inventory from DRS and EC2 every 15 minutes'
+      ScheduleExpression: 'rate(15 minutes)'
+      State: ENABLED
+      Targets:
+        - Id: InventorySyncTarget
+          Arn: !Ref QueryHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"operation": "sync_source_server_inventory"}'
+
+  InventorySyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Condition: EnableInventorySyncCondition
+    Properties:
+      FunctionName: !Ref QueryHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt InventorySyncScheduleRule.Arn
 
 # =============================================================================
 # OUTPUTS

@@ -294,6 +294,13 @@ Resources:
       ParentId: !Ref DRSResource
       PathPart: source-servers
 
+  DRSSourceServerInventoryResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref DRSResource
+      PathPart: source-server-inventory
+
   DRSQuotasResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -1004,6 +1011,12 @@ Outputs:
     Value: !Ref DRSSourceServersResource
     Export:
       Name: !Sub '${AWS::StackName}-DRSSourceServersResourceId'
+
+  DRSSourceServerInventoryResourceId:
+    Description: 'DRS Source Server Inventory Resource ID'
+    Value: !Ref DRSSourceServerInventoryResource
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSSourceServerInventoryResourceId'
 
   DRSQuotasResourceId:
     Description: 'DRS Quotas Resource ID'

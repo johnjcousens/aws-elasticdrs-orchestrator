@@ -153,14 +153,17 @@ export async function removeStagingAccount(
  * @returns Combined capacity data for all target accounts
  * @throws Error if capacity query fails
  */
-export async function getAllAccountsCapacity(): Promise<CombinedCapacityData> {
+export async function getAllAccountsCapacity(targetAccountId?: string): Promise<CombinedCapacityData> {
   try {
+    if (!targetAccountId) {
+      throw new Error("Target account ID is required");
+    }
+
     const response = await apiClient["get"]<CombinedCapacityData>(
-      `/accounts/capacity/all`
+      `/accounts/targets/${targetAccountId}/capacity`
     );
     return response;
   } catch (error) {
-    // Re-throw with context for better error messages
     const err = error as Error;
     throw new Error(
       `Failed to get all accounts capacity: ${err.message || "Unknown error"}`
