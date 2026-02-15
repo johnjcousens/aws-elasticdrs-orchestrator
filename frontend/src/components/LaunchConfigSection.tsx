@@ -76,6 +76,13 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
     try {
       // Use prop accountId if provided, otherwise get from context
       const accountId = propAccountId || getAccountContext().accountId;
+      
+      if (!accountId) {
+        setError('No target account specified. Cannot load EC2 resources.');
+        setLoading(false);
+        return;
+      }
+      
       console.log('[LaunchConfigSection] Loading EC2 resources for:', { region, accountId, propAccountId });
       
       const [subs, sgs, profiles, types] = await Promise.all([
