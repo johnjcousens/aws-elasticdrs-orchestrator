@@ -35,7 +35,6 @@ history/
 # Security scanning configs (may contain sensitive paths)
 .bandit
 .cfn_nag_deny_list.yml
-.cfnlintrc.yaml
 .flake8
 .kics-exclude
 .kicsignore
