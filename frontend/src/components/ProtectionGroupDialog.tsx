@@ -58,7 +58,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   onClose,
   onSave,
 }) => {
-  const { getCurrentAccountId, selectedAccount, availableAccounts, getAccountContext } = useAccount();
+  const { getCurrentAccountId, selectedAccount, availableAccounts, getAccountContext, setSelectedAccount } = useAccount();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [region, setRegion] = useState('');
@@ -113,6 +113,21 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         setDescription(group.description || '');
         setRegion(group.region || '');
         
+        // CRITICAL: Switch account context to match the protection group's target account
+        // This ensures EC2 resources (subnets, security groups, instance profiles) are loaded from the correct account
+        if (group.accountId && selectedAccount?.value !== group.accountId) {
+          const targetAccount = availableAccounts.find(acc => acc.accountId === group.accountId);
+          if (targetAccount) {
+            console.log(`[ProtectionGroupDialog] Switching account context from ${selectedAccount?.value} to ${group.accountId} for editing`);
+            setSelectedAccount({
+              label: targetAccount.accountName || targetAccount.accountId,
+              value: targetAccount.accountId,
+            });
+          } else {
+            console.warn(`[ProtectionGroupDialog] Target account ${group.accountId} not found in available accounts`);
+          }
+        }
+        
         // Determine selection mode based on existing data
         if (group.serverSelectionTags && Object.keys(group.serverSelectionTags).length > 0) {
           setSelectionMode('tags');
@@ -162,7 +177,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       setPreviewError(null);
       setActiveTabId('servers'); // Reset to first tab
     }
-  }, [open, group]);
+  }, [open, group, selectedAccount?.value, availableAccounts, setSelectedAccount]);
 
   // Add a new tag row
   const handleAddTag = () => {
@@ -201,6 +216,17 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       setPreviewError(null);
       
       const accountId = getCurrentAccountId();
+      console.log('Preview Servers - accountId:', accountId);
+      console.log('Preview Servers - region:', region);
+      console.log('Preview Servers - tags:', tagsObj);
+      
+      if (!accountId) {
+        setPreviewError('Please select a target account first');
+        setPreviewServers([]);
+        setPreviewLoading(false);
+        return;
+      }
+      
       const response = await apiClient.resolveProtectionGroupTags(region, tagsObj, accountId);
       setPreviewServers(response.resolvedServers || []);
       
@@ -209,6 +235,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       }
     } catch (err: unknown) {
       const error = err as Error & { message?: string };
+      console.error('Preview error:', error);
       setPreviewError(error.message || 'Failed to preview servers');
       setPreviewServers([]);
     } finally {
