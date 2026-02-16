@@ -235,7 +235,7 @@ Resources:
       Code:
         S3Bucket: !Ref SourceBucket
         S3Key: "lambda/dr-orchestration-stepfunction.zip"
-      Timeout: 120
+      Timeout: 300
       MemorySize: 512
       ReservedConcurrentExecutions: 50
       DeadLetterConfig:
