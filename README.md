@@ -372,6 +372,7 @@ pip install -r requirements-dev.txt
 The solution uses **standardized cross-account role naming** to simplify multi-account configuration. When adding target or staging accounts, you only need to provide the account ID - the system automatically constructs the role ARN.
 
 **Standardized Role Name**: `DRSOrchestrationRole` (no environment suffix)
+**Standardized SSM Document**: `DRS-InstallAgent-CrossAccount` (deployed to all 20 DRS regions)
 
 **Setup Steps**:
 
@@ -389,9 +390,16 @@ The solution uses **standardized cross-account role naming** to simplify multi-a
    
    This single stack deploys:
    - **DRSOrchestrationRole**: Cross-account IAM role for orchestration platform
-   - **DRS Agent Installer**: SSM document for automated agent deployment
+   - **AWS-DRS-InstallAgent-CrossAccount**: SSM document for automated agent deployment (single region)
 
-2. **Add account via API** (roleArn is optional):
+2. **Deploy SSM Document to all 20 DRS regions** (optional, for multi-region agent deployment):
+   ```bash
+   ./scripts/deploy-ssm-document-multi-region.sh --profile YOUR_PROFILE
+   ```
+   
+   This deploys the SSM Document to all 20 DRS-supported regions with the standardized name `DRS-InstallAgent-CrossAccount`.
+
+3. **Add account via API** (roleArn is optional):
    ```bash
    curl -X POST https://api-endpoint/accounts/target \
      -H "Authorization: Bearer $TOKEN" \
