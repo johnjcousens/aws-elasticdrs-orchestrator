@@ -501,6 +501,72 @@ Add automatic launch config re-application if servers or configs changed.
 ### Risk: Backward compatibility with existing executions
 **Mitigation**: Phase 3 implementation checks config status and falls back to runtime application if needed
 
+## Version Control Best Practices
+
+### Commit and Push Frequently
+To enable granular rollback of changes during implementation:
+
+1. **Commit after each logical unit of work**
+   - After creating a new function or class
+   - After completing a test file
+   - After fixing a bug or issue
+   - After updating documentation
+
+2. **Push commits immediately after creation**
+   - Enables rollback to any previous state
+   - Provides backup of work in progress
+   - Allows easy identification of problematic changes
+   - Facilitates code review at granular level
+
+3. **Use descriptive commit messages**
+   - Follow Conventional Commits format
+   - Include scope and brief description
+   - Example: `feat(launch-config): add config status persistence`
+   - Example: `test(launch-config): add property tests for status transitions`
+   - Example: `fix(launch-config): handle DRS API timeout during config apply`
+
+4. **Commit granularity guidelines**
+   - One function/class per commit (for new code)
+   - One test file per commit
+   - One bug fix per commit
+   - One documentation update per commit
+   - Avoid combining unrelated changes in single commit
+
+5. **Benefits of frequent commits**
+   - Easy to identify which change introduced a bug
+   - Simple to revert specific changes without losing other work
+   - Clear history of implementation progress
+   - Enables bisecting to find problematic commits
+   - Reduces risk of losing work
+
+### Example Commit Sequence
+```bash
+# 1. Add DynamoDB schema extension
+git add lambda/shared/models.py
+git commit -m "feat(launch-config): add LaunchConfigStatus to protection group schema"
+git push origin main
+
+# 2. Add configuration service
+git add lambda/shared/launch_config_service.py
+git commit -m "feat(launch-config): add launch config application service"
+git push origin main
+
+# 3. Add unit tests
+git add tests/unit/test_launch_config_service_unit.py
+git commit -m "test(launch-config): add unit tests for config service"
+git push origin main
+
+# 4. Add property-based tests
+git add tests/unit/test_launch_config_service_property.py
+git commit -m "test(launch-config): add property tests for config status transitions"
+git push origin main
+
+# 5. Integrate with data management handler
+git add lambda/data-management-handler/index.py
+git commit -m "feat(launch-config): integrate config application with protection group create"
+git push origin main
+```
+
 ## Open Questions
 
 1. Should configuration application be synchronous or asynchronous during group operations?
