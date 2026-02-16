@@ -207,6 +207,7 @@ from shared.conflict_detection import (
     check_server_conflicts_for_create,
     check_server_conflicts_for_update,
     get_active_executions_for_plan,
+    get_inventory_table,
     get_plans_with_conflicts,
     get_shared_protection_groups,
     query_drs_servers_by_tags,
@@ -235,6 +236,7 @@ RECOVERY_PLANS_TABLE = os.environ.get("RECOVERY_PLANS_TABLE")
 EXECUTIONS_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 TARGET_ACCOUNTS_TABLE = os.environ.get("TARGET_ACCOUNTS_TABLE")
 TAG_SYNC_CONFIG_TABLE = os.environ.get("TAG_SYNC_CONFIG_TABLE")
+INVENTORY_TABLE = os.environ.get("SOURCE_SERVER_INVENTORY_TABLE")
 
 # Initialize DynamoDB resources - lazy initialization for test mocking
 dynamodb = boto3.resource("dynamodb")
@@ -246,6 +248,7 @@ _recovery_plans_table = None
 _executions_table = None
 _target_accounts_table = None
 _tag_sync_config_table = None
+_inventory_table = None
 
 
 def get_protection_groups_table():
@@ -1236,21 +1239,35 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
     Resolve tag-based server selection to actual DRS source servers.
 
     EXTRACTION TARGET: Data Management Handler (Phase 3)
-    Queries DRS API to preview servers matching tag criteria before creating Protection Group.
+    Queries inventory database to preview servers matching tag criteria.
 
-    Used for previewing which servers match the specified tags.
+    Supports TWO invocation modes:
+    1. Frontend/API Gateway: accountId provided in request body (from account dropdown)
+    2. Direct Lambda: accountId optional, uses protectionGroupId to lookup account
 
-    Request body:
+    Request body (Frontend):
     {
         "region": "us-east-1",
-        "serverSelectionTags": {"DR-Application": "MyApp", "DR-Tier": "Database"}
+        "tags": {"dr:wave": "1"},
+        "accountId": "851725249649"  # From account dropdown
+    }
+
+    Request body (Direct Lambda):
+    {
+        "region": "us-east-1",
+        "tags": {"dr:wave": "1"},
+        "protectionGroupId": "pg-123"  # Lookup accountId from PG
     }
 
     Returns list of servers matching ALL specified tags.
     """
     try:
+        print(f"DEBUG: resolve_protection_group_tags called with body: {json.dumps(body, indent=2, default=str)}")
+
         region = body.get("region")
         tags = body.get("serverSelectionTags") or body.get("tags", {})
+
+        print(f"DEBUG: Extracted region={region}, tags={tags}")
 
         if not region:
             return response(
@@ -1275,21 +1292,153 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
                 ),
             )
 
-        # Extract account context from request body
-        account_context = None
-        if body.get("accountId"):
-            account_context = {
-                "accountId": body.get("accountId"),
-                "assumeRoleName": body.get("assumeRoleName"),
+        # Determine accountId from request body OR protection group
+        account_id = body.get("accountId")
+        protection_group_id = body.get("protectionGroupId")
+
+        if not account_id and protection_group_id:
+            # Direct Lambda invocation - lookup accountId from protection group
+            print(f"DEBUG: No accountId provided, looking up from protectionGroupId={protection_group_id}")
+            pg_table = get_protection_groups_table()
+            pg_result = pg_table.get_item(Key={"protectionGroupId": protection_group_id})
+            if "Item" not in pg_result:
+                return response(
+                    404,
+                    error_response(
+                        ERROR_NOT_FOUND,
+                        "Protection Group not found",
+                        details={"protectionGroupId": protection_group_id},
+                    ),
+                )
+            account_id = pg_result["Item"].get("accountId")
+            print(f"DEBUG: Found accountId={account_id} from protection group")
+
+        if not account_id:
+            return response(
+                400,
+                error_response(
+                    ERROR_MISSING_PARAMETER,
+                    "Missing required parameter: accountId or protectionGroupId",
+                    details={"provided": {"accountId": account_id, "protectionGroupId": protection_group_id}},
+                ),
+            )
+
+        # Query inventory database for servers matching tags
+        print(f"DEBUG: Querying inventory for accountId={account_id}, region={region}, tags={tags}")
+        inventory_table = get_inventory_table()
+
+        # Query using SourceAccountIndex GSI (same as server selector)
+        result = inventory_table.query(
+            IndexName="SourceAccountIndex",
+            KeyConditionExpression="sourceAccountId = :said",
+            ExpressionAttributeValues={":said": account_id},
+        )
+        all_servers = result.get("Items", [])
+
+        # Handle pagination
+        while "LastEvaluatedKey" in result:
+            result = inventory_table.query(
+                IndexName="SourceAccountIndex",
+                KeyConditionExpression="sourceAccountId = :said",
+                ExpressionAttributeValues={":said": account_id},
+                ExclusiveStartKey=result["LastEvaluatedKey"],
+            )
+            all_servers.extend(result.get("Items", []))
+
+        print(f"DEBUG: Found {len(all_servers)} total servers in account {account_id}")
+
+        # Filter by region (use replicationRegion, same as server selector)
+        if region:
+            all_servers = [s for s in all_servers if s.get("replicationRegion") == region]
+            print(f"DEBUG: After region filter: {len(all_servers)} servers")
+
+        # Filter by tags - server must have ALL specified tags
+        matching_servers = []
+        for server in all_servers:
+            server_tags = server.get("sourceTags", {})
+            matches_all_tags = all(server_tags.get(tag_key) == tag_value for tag_key, tag_value in tags.items())
+            if matches_all_tags:
+                matching_servers.append(server)
+
+        print(f"DEBUG: After tag filter: {len(matching_servers)} servers matching all tags")
+
+        # Transform to frontend-compatible format (same as server selector)
+        resolved_servers = []
+        for item in matching_servers:
+            network = item.get("networkConfig", {})
+            tags_dict = item.get("sourceTags", {})
+            ram_bytes = int(item.get("ramBytes", 0))
+            storage_bytes = int(item.get("totalStorageBytes", 0))
+            server = {
+                "sourceServerID": item.get("sourceServerID", ""),
+                "arn": item.get("sourceServerArn", ""),
+                "hostname": item.get("hostname", ""),
+                "fqdn": item.get("fqdn", ""),
+                "nameTag": tags_dict.get("Name", item.get("hostname", "")),
+                "sourceInstanceId": item.get("instanceId", ""),
+                "sourceIp": item.get("primaryIp", network.get("privateIp", "")),
+                "sourceMac": item.get("macAddress", ""),
+                "sourceRegion": item.get("sourceRegion", ""),
+                "sourceAccount": item.get("sourceAccountId", ""),
+                "os": item.get("osName", ""),
+                "state": ("READY_FOR_RECOVERY" if item.get("replicationState") == "CONTINUOUS" else "NOT_READY"),
+                "replicationState": item.get("replicationState", "UNKNOWN"),
+                "lagDuration": item.get("lagDuration", ""),
+                "lastSeen": item.get("lastSeen", item.get("lastUpdated", "")),
+                "lastSnapshot": item.get("lastSnapshot", ""),
+                "region": item.get("replicationRegion", ""),
+                "instanceId": item.get("instanceId", ""),
+                "agentVersion": item.get("agentVersion", ""),
+                "stagingAccountId": item.get("stagingAccountId", ""),
+                "sourceAccountId": item.get("sourceAccountId", ""),
+                "hardware": {
+                    "cpus": (
+                        [
+                            {
+                                "modelName": item.get("cpuModel", ""),
+                                "cores": int(item.get("cpuCores", 0)),
+                            }
+                        ]
+                        if item.get("cpuModel")
+                        else []
+                    ),
+                    "totalCores": int(item.get("cpuCores", 0)),
+                    "ramBytes": ram_bytes,
+                    "ramGiB": (round(ram_bytes / (1024**3), 1) if ram_bytes else 0),
+                    "disks": [
+                        {
+                            "deviceName": d.get("deviceName", ""),
+                            "bytes": int(d.get("bytes", 0)),
+                            "sizeGiB": round(int(d.get("bytes", 0)) / (1024**3), 1),
+                        }
+                        for d in item.get("disks", [])
+                    ],
+                    "totalDiskGiB": (round(storage_bytes / (1024**3), 1) if storage_bytes else 0),
+                },
+                "networkInterfaces": (
+                    [
+                        {
+                            "ips": [item.get("primaryIp", network.get("privateIp", ""))],
+                            "macAddress": item.get("macAddress", ""),
+                            "isPrimary": True,
+                        }
+                    ]
+                    if item.get("primaryIp") or network.get("privateIp")
+                    else []
+                ),
+                "vpcId": network.get("vpcId", ""),
+                "subnetId": network.get("subnetId", ""),
+                "privateIp": network.get("privateIp", item.get("primaryIp", "")),
+                "securityGroups": network.get("securityGroups", []),
+                "instanceProfile": network.get("instanceProfile", ""),
+                "drsTags": tags_dict,
+                "tags": tags_dict,
+                "name": tags_dict.get("Name", item.get("hostname", "")),
+                "assignedToProtectionGroup": None,
+                "selectable": True,
+                "dataSource": "inventory",
             }
-
-        # Query DRS for servers matching tags
-        raw_servers = query_drs_servers_by_tags(region, tags, account_context)
-
-        # Transform to frontend format
-        from shared.drs_utils import transform_drs_server_for_frontend
-
-        resolved_servers = [transform_drs_server_for_frontend(server) for server in raw_servers]
+            resolved_servers.append(server)
 
         return response(
             200,

@@ -24,7 +24,7 @@ lambda_client = session.client("lambda", region_name=REGION)
 
 def invoke_sync_source_server_inventory():
     """Invoke Lambda to sync source server inventory."""
-    function_name = f"{PROJECT_NAME}-data-management-handler-{ENVIRONMENT}"
+    function_name = f"{PROJECT_NAME}-query-handler-{ENVIRONMENT}"
     
     # Get target accounts first
     print("Fetching target accounts...")
@@ -35,8 +35,8 @@ def invoke_sync_source_server_inventory():
     print(f"Found {len(accounts)} target accounts")
     
     for account in accounts:
-        account_id = account.get("AccountId")
-        account_name = account.get("AccountName", "Unknown")
+        account_id = account.get("accountId") or account.get("AccountId")
+        account_name = account.get("accountName") or account.get("AccountName", "Unknown")
         
         print(f"\nSyncing inventory for account: {account_name} ({account_id})")
         

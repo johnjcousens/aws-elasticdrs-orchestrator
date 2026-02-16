@@ -2261,6 +2261,44 @@ def get_drs_account_capacity(region: str, account_id: Optional[str] = None) -> D
 # ============================================================================
 
 
+def _get_cross_account_ec2_session(account_id: str) -> tuple:
+    """
+    Look up target account and build account_context for create_ec2_client.
+
+    Args:
+        account_id: 12-digit AWS account ID
+
+    Returns:
+        Tuple of (account_context dict, error_message_or_none)
+    """
+    if not get_target_accounts_table():
+        return None, "Target accounts table not configured"
+
+    try:
+        acct_result = get_target_accounts_table().get_item(Key={"accountId": account_id})
+        if "Item" not in acct_result:
+            return None, f"Account {account_id} not found in target accounts"
+
+        account = acct_result["Item"]
+        role_arn = account.get("roleArn", "")
+        # Prefer roleArn (source of truth) over assumeRoleName
+        assume_role_name = role_arn.split("/")[-1] if role_arn else account.get("assumeRoleName")
+
+        if not assume_role_name:
+            return None, f"No cross-account role configured for account {account_id}"
+
+        account_context = {
+            "accountId": account_id,
+            "assumeRoleName": assume_role_name,
+            "externalId": account.get("externalId"),
+            "isCurrentAccount": False,
+        }
+        return account_context, None
+    except Exception as e:
+        print(f"[cross_account_ec2] Error looking up account: {e}")
+        return None, f"Error looking up account {account_id}: {e}"
+
+
 def get_ec2_subnets(query_params: Dict) -> Dict:
     """
     Get VPC subnets for dropdown selection.
@@ -2285,21 +2323,21 @@ def get_ec2_subnets(query_params: Dict) -> Dict:
     try:
         # Use cross-account credentials if accountId provided
         if account_id:
-            from shared.cross_account import get_cross_account_session
+            from shared.cross_account import create_ec2_client
 
-            print(f"[get_ec2_subnets] Using cross-account session for account {account_id}")
-            session = get_cross_account_session(account_id)
-            if not session:
-                print(f"[get_ec2_subnets] ERROR: Failed to get cross-account session for {account_id}")
+            print(f"[get_ec2_subnets] Using cross-account for account {account_id}")
+            account_context, err_msg = _get_cross_account_ec2_session(account_id)
+            if not account_context:
+                print(f"[get_ec2_subnets] ERROR: {err_msg}")
                 return response(
                     500,
                     error_response(
                         ERROR_INTERNAL_ERROR,
-                        f"Failed to assume role for account {account_id}",
+                        err_msg,
                         details={"accountId": account_id, "region": region},
                     ),
                 )
-            ec2 = session.client("ec2", region_name=region)
+            ec2 = create_ec2_client(region, account_context)
         else:
             # Use orchestration account credentials
             print("[get_ec2_subnets] Using orchestration account credentials")
@@ -2362,17 +2400,20 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
     try:
         # Use cross-account session if accountId provided
         if account_id:
-            session = get_cross_account_session(account_id, region)
-            if not session:
+            from shared.cross_account import create_ec2_client
+
+            print(f"[get_ec2_security_groups] Using cross-account for account {account_id}")
+            account_context, err_msg = _get_cross_account_ec2_session(account_id)
+            if not account_context:
                 return response(
                     500,
                     error_response(
                         ERROR_INTERNAL_ERROR,
-                        f"Failed to assume role for account {account_id}",
+                        err_msg,
                         details={"accountId": account_id, "region": region},
                     ),
                 )
-            ec2 = session.client("ec2", region_name=region)
+            ec2 = create_ec2_client(region, account_context)
         else:
             ec2 = boto3.client("ec2", region_name=region)
 
@@ -2424,16 +2465,21 @@ def get_ec2_instance_profiles(query_params: Dict) -> Dict:
     try:
         # Use cross-account session if accountId provided
         if account_id:
-            session = get_cross_account_session(account_id, region)
-            if not session:
+            from shared.cross_account import get_cross_account_session
+
+            print(f"[get_ec2_instance_profiles] Using cross-account for account {account_id}")
+            account_context, err_msg = _get_cross_account_ec2_session(account_id)
+            if not account_context:
                 return response(
                     500,
                     error_response(
                         ERROR_INTERNAL_ERROR,
-                        f"Failed to assume role for account {account_id}",
+                        err_msg,
                         details={"accountId": account_id, "region": region},
                     ),
                 )
+            role_arn = f"arn:aws:iam::{account_context['accountId']}:role/{account_context['assumeRoleName']}"
+            session = get_cross_account_session(role_arn, account_context.get("externalId"))
             iam = session.client("iam")
         else:
             # IAM is global but we accept region for consistency

@@ -1311,17 +1311,22 @@ class ApiClient {
   /**
    * Get VPC subnets for dropdown selection
    */
-  public async getEC2Subnets(region: string): Promise<SubnetOption[]> {
-    const response = await this.get<{ subnets: SubnetOption[] }>('/ec2/subnets', { region });
+  public async getEC2Subnets(region: string, accountId?: string): Promise<SubnetOption[]> {
+    const params: Record<string, string> = { region };
+    if (accountId) params.accountId = accountId;
+    console.log('[API] getEC2Subnets params:', params);
+    const response = await this.get<{ subnets: SubnetOption[] }>('/ec2/subnets', params);
     return response.subnets || [];
   }
 
   /**
    * Get security groups for dropdown selection
    */
-  public async getEC2SecurityGroups(region: string, vpcId?: string): Promise<SecurityGroupOption[]> {
+  public async getEC2SecurityGroups(region: string, accountId?: string, vpcId?: string): Promise<SecurityGroupOption[]> {
     const params: Record<string, string> = { region };
+    if (accountId) params.accountId = accountId;
     if (vpcId) params.vpcId = vpcId;
+    console.log('[API] getEC2SecurityGroups params:', params);
     const response = await this.get<{ securityGroups: SecurityGroupOption[] }>('/ec2/security-groups', params);
     return response.securityGroups || [];
   }
