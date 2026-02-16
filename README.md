@@ -772,10 +772,11 @@ Complete working examples for AWS service integration:
 
 The following features are planned or in development. Each enhancement is documented in `.kiro/specs/` with detailed requirements, design, and implementation tasks.
 
-**🎯 Current Sprint Priorities:** The three DRS enhancements below are targeted for completion this sprint. DRS Rate Limit Handling must be completed first as it's a dependency for AllowLaunchingIntoInstance.
+**🎯 Current Sprint Priorities:** Launch Config Pre-Application is the #1 priority to complete today. The three DRS enhancements below are targeted for completion this sprint. DRS Rate Limit Handling must be completed first as it's a dependency for AllowLaunchingIntoInstance.
 
 | Status | Enhancement | Description | Tasks | Spec |
 |--------|-------------|-------------|-------|------|
+| 🎯 Priority | **Launch Config Pre-Application** | Pre-apply and persist DRS launch configurations when protection groups are created/updated, eliminating 30-60s per-wave overhead during recovery execution | 0/multiple | [Spec](.kiro/specs/launch-config-preapplication/requirements.md) |
 | 🎯 Priority | **DRS Rate Limit Handling** | Implements comprehensive DRS API rate limit handling with retry logic and metrics | 0/multiple | [Spec](.kiro/specs/drs-rate-limit-handling/requirements.md) |
 | 🎯 Priority | **DRS Agent Deployer** | Deploys DRS agents to target instances via SSM with cross-account support | Phase 1.5+ | [Spec](.kiro/specs/drs-agent-deployer/requirements.md) |
 | 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements DRS AllowLaunchingIntoInstance pattern for targeted recovery | 0/234 | [Spec](.kiro/specs/drs-allow-launching-into-instance/requirements.md) |
