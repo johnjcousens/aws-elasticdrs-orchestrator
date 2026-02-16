@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+---
+
+## [6.1.0] - 2026-02-15 - Cross-Account Fixes & Deployment Workflow
+
+### Fixed
+
+- **Cross-account EC2 resource queries**: Subnets, security groups, and instance profiles now properly look up the cross-account role ARN from DynamoDB instead of passing the raw account ID as a role ARN
+- **Role name resolution**: All cross-account code paths now prefer `roleArn` (source of truth) over `assumeRoleName` field, fixing a typo mismatch in DynamoDB (`DROrchestrationRole` vs `DRSOrchestrationRole`)
+- **deploy.sh --frontend-only**: Restored local build + package + S3 upload + Lambda update steps that were removed in commit 5ac7366b, which broke frontend-only deployments
+- **dr-orch-sf Lambda timeout**: Increased from 120s to 300s to prevent timeout during cross-account tag resolution + DRS StartRecovery for 25+ servers
+- **Tag-based server resolution**: Fixed `start_wave_recovery` to extract `sourceServerID` from tag resolution results (returned server objects, not IDs)
+- **LaunchConfigSection**: Removed corrupted `noDeprecation` import and added `accountId` prop for cross-account EC2 resource loading
+- **shared/cross_account.py**: `determine_target_account_context` now extracts role name from `roleArn` field first
+
+### Changed
+
+- EC2 query functions use `create_ec2_client` from shared module for cross-account session handling
+- Added `_get_cross_account_ec2_session` helper in query-handler for DynamoDB account lookup
+
+---
+
 ## [Unreleased] - 2026-02-15 - Sprint Priorities & Documentation Updates
 
 ### Changed
