@@ -1,0 +1,85 @@
+description: 'Install AWS DRS Replication Agent with cross-account support'
+schemaVersion: '2.2'
+parameters:
+  Region:
+    type: String
+    description: (Required) AWS Region for DRS replication
+    allowedValues:
+      - us-east-1
+      - us-east-2
+      - us-west-1
+      - us-west-2
+      - eu-west-1
+      - eu-west-2
+      - eu-west-3
+      - eu-central-1
+      - ap-northeast-1
+      - ap-northeast-2
+      - ap-northeast-3
+      - ap-southeast-1
+      - ap-southeast-2
+      - ap-south-1
+      - ca-central-1
+      - sa-east-1
+      - eu-north-1
+      - ap-east-1
+  AccountId:
+    type: String
+    description: (Optional) Target AWS Account ID for cross-account replication
+    default: ""
+    allowedPattern: "^(\\d{12})?$"
+  Tags:
+    type: String
+    description: (Optional) Resource tags (KEY=VALUE,KEY=VALUE)
+    default: ""
+    allowedPattern: "^(([a-zA-Z_0-9.:+/@\\-]{1,50}=[a-zA-Z_0-9.:+/@ \\-]{1,50})(,[a-zA-Z_0-9.:+/@\\-]{1,50}=[a-zA-Z_0-9.:+/@ \\-]{1,50}){0,20})?$"
+mainSteps:
+  - action: aws:runPowerShellScript
+    name: InstallWindowsAgent
+    precondition:
+      StringEquals:
+        - platformType
+        - Windows
+    inputs:
+      timeoutSeconds: '3600'
+      runCommand:
+        - "try { $tmpDir = New-Item -ItemType Directory -Path (Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())); cd $tmpDir } catch { Write-Error 'Failed creating temp directory'; exit 1 }"
+        - "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::tls12; $webClient = New-Object System.Net.WebClient; try { $webClient.DownloadFile('https://aws-elastic-disaster-recovery-{{Region}}.s3.dualstack.{{Region}}.amazonaws.com/latest/windows/AwsReplicationWindowsInstaller.exe', (Join-Path $tmpDir 'AwsReplicationWindowsInstaller.exe')); $webClient.DownloadFile('https://aws-elastic-disaster-recovery-hashes-{{Region}}.s3.dualstack.{{Region}}.amazonaws.com/latest/windows/AwsReplicationWindowsInstaller.exe.sha512', (Join-Path $tmpDir 'AwsReplicationWindowsInstaller.exe.sha512')) } catch { Write-Warning 'Primary download failed, trying fallback'; $webClient.DownloadFile('https://aws-elastic-disaster-recovery-{{Region}}.s3.{{Region}}.amazonaws.com/latest/windows/AwsReplicationWindowsInstaller.exe', (Join-Path $tmpDir 'AwsReplicationWindowsInstaller.exe')); $webClient.DownloadFile('https://aws-elastic-disaster-recovery-hashes-{{Region}}.s3.{{Region}}.amazonaws.com/latest/windows/AwsReplicationWindowsInstaller.exe.sha512', (Join-Path $tmpDir 'AwsReplicationWindowsInstaller.exe.sha512')) } } catch { Write-Error 'Download failed'; cd ..; Remove-Item -Force -Recurse $tmpDir; exit 1 }"
+        - "try { if ($PSVersionTable.PSVersion.Major -lt 4) { $hashAlgorithm = [Security.Cryptography.HashAlgorithm]::Create('SHA512'); $fileBytes = [io.File]::ReadAllBytes((Join-Path $tmpDir 'AwsReplicationWindowsInstaller.exe')); $hashBytes = $hashAlgorithm.ComputeHash($fileBytes); $fileHash = -Join ($hashBytes | ForEach {\\\"{ 0:x2}\\\" -f $_}) } else { $hashObject = Get-FileHash -Algorithm SHA512 -Path AwsReplicationWindowsInstaller.exe; $fileHash = $hashObject.Hash }; $hash = Get-Content AwsReplicationWindowsInstaller.exe.sha512 } catch { cd ..; Remove-Item -Force -Recurse $tmpDir; Write-Error 'Hash verification failed'; exit 1 }"
+        - "try { if($fileHash -eq $hash){ $requestedTags='{{Tags}}'; $tagList=$requestedTags.split(','); $finalTags=''; foreach ($tag in $tagList){ $tagKeyVal=$tag.split('='); $tagKey=$tagKeyVal[0]; $tagVal=$tagKeyVal[1]; $finalTags=$finalTags+' '+$tagKey+'='+'\\\"'+$tagVal+'\\\"' }; $requestedAccountId='{{AccountId}}'; $process = New-object System.Diagnostics.Process; $startInfo = New-object System.Diagnostics.ProcessStartInfo; $startInfo.FileName = (Join-Path $tmpDir 'AwsReplicationWindowsInstaller.exe'); $baseArgs = '--no-prompt --region {{Region}}'; if ( $requestedAccountId ) { $baseArgs = $baseArgs + \\\" --account-id $requestedAccountId\\\" }; if ( $requestedTags ) { $baseArgs = $baseArgs + \\\" --tags $finalTags\\\" }; $startInfo.Arguments = $baseArgs; $startInfo.WorkingDirectory=$tmpDir; $startInfo.UseShellExecute=$False; $process.StartInfo = $startInfo; $process.Start(); $process.WaitForExit(); $result = $process.ExitCode }else{ Write-Error 'Checksum validation failed'; cd ..; Remove-Item -Force -Recurse $tmpDir; exit 1 }; cd ..; Remove-Item -Force -Recurse -Path $tmpDir; if( $result -ne 0 ){ Write-Error 'Installation failed'; exit $result } } catch { Write-Error 'Installation error'; Write-Error $_; Write-Error $_.ScriptStackTrace; cd ..; Remove-Item -Force -Recurse $tmpDir; exit 1 }"
+  - action: aws:runShellScript
+    name: InstallLinuxAgent
+    precondition:
+      StringEquals:
+        - platformType
+        - Linux
+    inputs:
+      timeoutSeconds: '3600'
+      runCommand:
+        - "sudo curl -o ./aws-installer.sha512 https://aws-elastic-disaster-recovery-hashes-{{ Region }}.s3.dualstack.{{ Region }}.amazonaws.com/latest/linux/aws-replication-installer-init.sha512 || sudo curl -o ./aws-installer.sha512 https://aws-elastic-disaster-recovery-hashes-{{ Region }}.s3.{{ Region }}.amazonaws.com/latest/linux/aws-replication-installer-init.sha512"
+        - "asset_hash=$(cat ./aws-installer.sha512)"
+        - "sudo curl -o ./aws-replication-installer-init https://aws-elastic-disaster-recovery-{{ Region }}.s3.dualstack.{{ Region }}.amazonaws.com/latest/linux/aws-replication-installer-init || sudo curl -o ./aws-replication-installer-init https://aws-elastic-disaster-recovery-{{ Region }}.s3.{{ Region }}.amazonaws.com/latest/linux/aws-replication-installer-init"
+        - "computed_hash=$(sha512sum ./aws-replication-installer-init | cut -d' ' -f1)"
+        - "if [ \\\"$computed_hash\\\" != \\\"$asset_hash\\\" ]; then echo 'Checksum validation failed' >&2; else pyexec=python3; which python3; ispy3=$?; if [ $ispy3 -eq 1 ]; then pyexec=python; fi; cat << EOF > install_agent.py"
+        - "#!/usr/bin/python"
+        - "import subprocess"
+        - "import shlex"
+        - "raw_cmd = \\\"./aws-replication-installer-init --no-prompt --region {0} \\\".format('{{ Region }}')"
+        - "account_id = '{{ AccountId }}'"
+        - "if account_id:"
+        - "  raw_cmd += \\\"--account-id {0} \\\".format(account_id)"
+        - "cmd = shlex.split(raw_cmd)"
+        - "if len('{{ Tags }}' ) > 0:"
+        - "  tags_to_split='{{ Tags }}'"
+        - "  tags=tags_to_split.split(',')"
+        - "  cmd.append(\\\"--tags\\\")"
+        - "  for tag in tags:"
+        - "    cmd.append(tag)"
+        - "try:"
+        - "   response = subprocess.check_output(cmd, shell=False)"
+        - "except Exception as e:"
+        - "   print(e)"
+        - "   exit(1)"
+        - "exit(0)"
+        - "EOF"
+        - "chmod +x ./aws-replication-installer-init; chmod +x install_agent.py; $pyexec install_agent.py; result=$?; fi; rm -f ./aws-installer.sha512 ./aws-replication-installer-init install_agent.py; exit $result"
