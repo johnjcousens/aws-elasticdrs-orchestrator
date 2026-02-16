@@ -50,11 +50,13 @@ dynamodb = boto3.resource("dynamodb")
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
 RECOVERY_PLANS_TABLE = os.environ.get("RECOVERY_PLANS_TABLE")
 EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
+INVENTORY_TABLE = os.environ.get("SOURCE_SERVER_INVENTORY_TABLE")
 
 # DynamoDB tables - lazy initialization for Lambda cold start optimization and test mocking
 _protection_groups_table = None
 _recovery_plans_table = None
 _execution_history_table = None
+_inventory_table = None
 
 
 def get_protection_groups_table():
@@ -79,6 +81,14 @@ def get_execution_history_table():
     if _execution_history_table is None:
         _execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
     return _execution_history_table
+
+
+def get_inventory_table():
+    """Lazy-load Inventory table to optimize Lambda cold starts and enable test mocking"""
+    global _inventory_table
+    if _inventory_table is None:
+        _inventory_table = dynamodb.Table(INVENTORY_TABLE)
+    return _inventory_table
 
 
 # Execution statuses indicating active DR operations in progress

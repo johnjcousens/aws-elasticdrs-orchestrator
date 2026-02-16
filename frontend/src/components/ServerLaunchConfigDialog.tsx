@@ -29,6 +29,7 @@ import {
 } from '@cloudscape-design/components';
 import { StaticIPInput } from './StaticIPInput';
 import { ServerConfigBadge } from './ServerConfigBadge';
+import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
 import type {
   ResolvedServer,
@@ -77,6 +78,9 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
   onSave,
   saving = false,
 }) => {
+  // Get account context for cross-account queries
+  const { getAccountContext } = useAccount();
+
   // Dropdown options state
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -91,9 +95,10 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
     setLoading(true);
     setLoadError(null);
     try {
+      const accountId = getAccountContext().accountId;
       const [subs, sgs, types] = await Promise.all([
-        apiClient.getEC2Subnets(region),
-        apiClient.getEC2SecurityGroups(region),
+        apiClient.getEC2Subnets(region, accountId),
+        apiClient.getEC2SecurityGroups(region, accountId),
         apiClient.getEC2InstanceTypes(region),
       ]);
       setSubnets(subs);
@@ -105,6 +110,7 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [region]);
 
   useEffect(() => {

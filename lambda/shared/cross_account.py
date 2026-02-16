@@ -357,10 +357,13 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
                 account_result = target_accounts_table.get_item(Key={"accountId": target_account_id})
                 if "Item" in account_result:
                     account_config = account_result["Item"]
+                    # Prefer roleArn (source of truth) over assumeRoleName
+                    role_arn = account_config.get("roleArn", "")
                     assume_role_name = (
-                        account_config.get("assumeRoleName")
+                        role_arn.split("/")[-1]
+                        if role_arn
+                        else account_config.get("assumeRoleName")
                         or account_config.get("crossAccountRoleArn", "").split("/")[-1]
-                        or account_config.get("roleArn", "").split("/")[-1]
                     )
                     # Include externalId for secure cross-account role assumption
                     external_id = account_config.get("externalId")

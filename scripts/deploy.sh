@@ -858,10 +858,35 @@ if [ "$LAMBDA_ONLY" = true ]; then
     echo -e "${GREEN}  ✓ Lambda code updated${NC}"
 
 elif [ "$FRONTEND_ONLY" = true ]; then
-    # Generate new frontend version to trigger rebuild via CloudFormation Custom Resource
+    # Build frontend locally, package into deployer Lambda, upload, then trigger CFN
+    echo "  Building frontend..."
+    (cd frontend && npm run build > /dev/null 2>&1)
+    echo -e "${GREEN}  ✓ Frontend built${NC}"
+
+    # Package frontend-deployer Lambda with new dist
+    echo "  Packaging frontend-deployer Lambda..."
+    python3 package_lambda.py > /dev/null 2>&1
+    echo -e "${GREEN}  ✓ Lambda packaged${NC}"
+
+    # Sync artifacts to S3
+    echo "  Syncing artifacts to S3..."
+    aws s3 sync cfn/ "s3://${DEPLOYMENT_BUCKET}/cfn/" --delete --quiet
+    aws s3 cp build/lambda/frontend-deployer.zip "s3://${DEPLOYMENT_BUCKET}/lambda/frontend-deployer.zip" --quiet
+    echo -e "${GREEN}  ✓ Artifacts synced${NC}"
+
+    # Update Lambda function code
+    echo "  Updating frontend-deployer Lambda..."
+    aws lambda update-function-code \
+        --function-name "${PROJECT_NAME}-frontend-deployer-${ENVIRONMENT}" \
+        --s3-bucket "$DEPLOYMENT_BUCKET" \
+        --s3-key "lambda/frontend-deployer.zip" \
+        --output json > /dev/null
+    echo -e "${GREEN}  ✓ Lambda updated${NC}"
+
+    # Trigger frontend rebuild via CloudFormation Custom Resource
     FRONTEND_VERSION=$(generate_frontend_version)
-    echo "  Triggering frontend rebuild via Lambda (version: $FRONTEND_VERSION)..."
-    
+    echo "  Triggering frontend rebuild (version: $FRONTEND_VERSION)..."
+
     # Get FrontendStack name from master stack
     FRONTEND_STACK_NAME=$(aws cloudformation describe-stack-resources \
         --stack-name "$STACK_NAME" \
