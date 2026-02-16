@@ -567,16 +567,20 @@ git commit -m "feat(launch-config): integrate config application with protection
 git push origin main
 ```
 
-## Open Questions
+## Design Decisions
 
-1. Should configuration application be synchronous or asynchronous during group operations?
-   - **Recommendation**: Synchronous for immediate feedback, with timeout and fallback to async
+1. **Configuration application timing during group operations**
+   - **Decision**: Synchronous for immediate feedback, with timeout and fallback to async
+   - **Rationale**: Users get immediate confirmation of configuration status, with graceful degradation for slow operations
 
-2. How long should configuration status be considered "fresh" before requiring re-validation?
-   - **Recommendation**: 24 hours, with manual re-apply option
+2. **Configuration status freshness**
+   - **Decision**: 24 hours, with manual re-apply option
+   - **Rationale**: Balances performance (avoiding unnecessary re-application) with safety (detecting drift within reasonable timeframe)
 
-3. Should we support partial configuration application (some servers succeed, some fail)?
-   - **Recommendation**: Yes, store per-server status and allow partial success
+3. **Partial configuration application support**
+   - **Decision**: Yes, store per-server status and allow partial success
+   - **Rationale**: Enables visibility into which servers succeeded/failed, allows group creation to proceed even if some servers fail
 
-4. What happens if DRS API is unavailable during configuration application?
-   - **Recommendation**: Mark status as "pending", retry with exponential backoff, allow group creation to succeed
+4. **DRS API unavailability handling**
+   - **Decision**: Mark status as "pending", retry with exponential backoff, allow group creation to succeed
+   - **Rationale**: Ensures group creation isn't blocked by temporary DRS API issues, with automatic retry for eventual consistency
