@@ -375,16 +375,21 @@ The solution uses **standardized cross-account role naming** to simplify multi-a
 
 **Setup Steps**:
 
-1. **Deploy cross-account role in target/staging account**:
+1. **Deploy combined target/staging account setup**:
    ```bash
    aws cloudformation deploy \
-     --template-file cfn/cross-account-role-stack.yaml \
-     --stack-name drs-orchestration-role \
+     --template-file cfn/drs-target-account-setup-stack.yaml \
+     --stack-name drs-target-account-setup \
      --capabilities CAPABILITY_NAMED_IAM \
      --parameter-overrides \
        OrchestrationAccountId=YOUR_ORCHESTRATION_ACCOUNT_ID \
-       ExternalId=YOUR_UNIQUE_EXTERNAL_ID
+       ExternalId=YOUR_UNIQUE_EXTERNAL_ID \
+       Environment=prod
    ```
+   
+   This single stack deploys:
+   - **DRSOrchestrationRole**: Cross-account IAM role for orchestration platform
+   - **DRS Agent Installer**: SSM document for automated agent deployment
 
 2. **Add account via API** (roleArn is optional):
    ```bash
@@ -480,7 +485,7 @@ The solution uses a modular nested stack architecture. The API Gateway is split 
 | `frontend-stack.yaml` | Frontend hosting | S3 bucket, CloudFront distribution (conditional) |
 | `waf-stack.yaml` | Web Application Firewall | WAF WebACL for CloudFront with rate limiting |
 | `notification-stack.yaml` | Notifications | SNS topics, email subscriptions |
-| `cross-account-role-stack.yaml` | Multi-account | Cross-account IAM roles |
+| `drs-target-account-setup-stack.yaml` | Target/Staging setup | Cross-account IAM role + SSM agent installer |
 | `github-oidc-stack.yaml` | CI/CD | OIDC authentication (optional) |
 
 ### Lambda Functions (6 Handlers)
