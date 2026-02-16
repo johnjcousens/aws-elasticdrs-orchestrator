@@ -9,11 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Combined Target/Staging Account Setup Stack**: Simplified deployment for target and staging accounts
+  - New `drs-target-account-setup-stack.yaml` combines cross-account role and SSM agent installer
+  - Single CloudFormation deployment creates both DRSOrchestrationRole and DRS agent installer document
+  - Accepts `OrchestrationAccountId` parameter (12-digit account ID where orchestration platform runs)
+  - Standardized role name: `DRSOrchestrationRole` (no environment suffix)
+  - SSM document: `DRS-InstallAgentCrossAccount-{Environment}` for automated agent deployment
+  - Comprehensive IAM permissions: DRS, EC2, SSM, IAM PassRole, S3, KMS operations
+  - Archived original stacks: `cross-account-role-stack.yaml` and `drs-agent-installer-stack.yaml` moved to `archive/code/cfn/`
+
+### Changed
+- **Cross-Account Setup Documentation**: Updated README with simplified deployment instructions
+  - Single stack deployment replaces two separate stack deployments
+  - Clearer explanation of `OrchestrationAccountId` parameter (hub account ID)
+  - Updated CloudFormation stacks table to reference new combined stack
+
 ---
 
 ## [6.1.0] - 2026-02-15 - Cross-Account Fixes & Deployment Workflow
-
-### Fixed
 
 - **Cross-account EC2 resource queries**: Subnets, security groups, and instance profiles now properly look up the cross-account role ARN from DynamoDB instead of passing the raw account ID as a role ARN
 - **Role name resolution**: All cross-account code paths now prefer `roleArn` (source of truth) over `assumeRoleName` field, fixing a typo mismatch in DynamoDB (`DROrchestrationRole` vs `DRSOrchestrationRole`)
