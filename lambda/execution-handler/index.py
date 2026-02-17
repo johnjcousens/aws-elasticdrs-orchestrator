@@ -1924,20 +1924,14 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                 launch_config = pg.get("launchConfig")
                 if launch_config:
                     # Build current configs dict for drift detection
-                    current_configs = {
-                        sid: launch_config for sid in server_ids
-                    }
+                    current_configs = {sid: launch_config for sid in server_ids}
 
                     # Detect configuration drift
-                    drift_result = detect_config_drift(
-                        protection_group_id, current_configs
-                    )
+                    drift_result = detect_config_drift(protection_group_id, current_configs)
 
                     if drift_result.get("hasDrift", False):
                         # Drift detected - re-apply configs
-                        drifted_servers = drift_result.get(
-                            "driftedServers", []
-                        )
+                        drifted_servers = drift_result.get("driftedServers", [])
                         print(
                             f"⚠️  Configuration drift detected for "
                             f"{protection_group_id}: {len(drifted_servers)} "
@@ -1948,9 +1942,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                         drift_details = drift_result.get("details", {})
                         for sid, detail in drift_details.items():
                             reason = detail.get("reason", "unknown")
-                            print(
-                                f"  - Server {sid}: {reason}"
-                            )
+                            print(f"  - Server {sid}: {reason}")
 
                         # Re-apply configs to drifted servers
                         try:
@@ -1958,33 +1950,20 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                                 group_id=protection_group_id,
                                 region=region,
                                 server_ids=drifted_servers,
-                                launch_configs={
-                                    sid: launch_config
-                                    for sid in drifted_servers
-                                },
+                                launch_configs={sid: launch_config for sid in drifted_servers},
                                 account_context=account_context,
                                 timeout_seconds=60,
                             )
 
                             # Update config status after re-application
                             new_status = {
-                                "status": apply_result.get(
-                                    "status", "failed"
-                                ),
-                                "lastApplied": (
-                                    datetime.now(timezone.utc)
-                                    .isoformat()
-                                    .replace("+00:00", "Z")
-                                ),
+                                "status": apply_result.get("status", "failed"),
+                                "lastApplied": (datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")),
                                 "appliedBy": "drift-detection",
-                                "serverConfigs": apply_result.get(
-                                    "serverConfigs", {}
-                                ),
+                                "serverConfigs": apply_result.get("serverConfigs", {}),
                                 "errors": apply_result.get("errors", []),
                             }
-                            persist_config_status(
-                                protection_group_id, new_status
-                            )
+                            persist_config_status(protection_group_id, new_status)
 
                             print(
                                 f"✅ Drift re-application complete: "
@@ -2020,13 +1999,8 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                 )
                 launch_config = pg.get("launchConfig")
                 if launch_config:
-                    print(
-                        f"Applying launchConfig to {len(server_ids)} servers "
-                        f"before recovery"
-                    )
-                    apply_launch_config_before_recovery(
-                        drs_client, server_ids, launch_config, region, pg
-                    )
+                    print(f"Applying launchConfig to {len(server_ids)} servers " f"before recovery")
+                    apply_launch_config_before_recovery(drs_client, server_ids, launch_config, region, pg)
         except Exception as e:
             # If config status check fails, fall back to runtime application
             print(
@@ -2035,13 +2009,8 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             )
             launch_config = pg.get("launchConfig")
             if launch_config:
-                print(
-                    f"Applying launchConfig to {len(server_ids)} servers "
-                    f"before recovery"
-                )
-                apply_launch_config_before_recovery(
-                    drs_client, server_ids, launch_config, region, pg
-                )
+                print(f"Applying launchConfig to {len(server_ids)} servers " f"before recovery")
+                apply_launch_config_before_recovery(drs_client, server_ids, launch_config, region, pg)
 
         # Use start_drs_recovery_for_wave to get Name tags
         wave_job_result = start_drs_recovery_for_wave(
@@ -2386,42 +2355,9 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
         # Add termination metadata for frontend button visibility
         execution["terminationMetadata"] = can_terminate_execution(execution)
 
-        # PERFORMANCE OPTIMIZATION: Enrich completed waves with recovery instance data
-        # Only call DRS API for completed waves to populate Instance ID, Type, Private IP, Launch Time
-        # This ensures UI shows recovery instance details without requiring /realtime endpoint
-        try:
-            waves = execution.get("waves", [])
-            # Check for terminal wave statuses: COMPLETED, FAILED, ERROR
-            has_completed_waves = any(
-                wave.get("status", "").upper() in ["COMPLETED", "FAILED", "ERROR"] for wave in waves
-            )
-
-            if has_completed_waves:
-                print("DEBUG: Enriching completed waves with recovery instance data")
-
-                # Get account context for cross-account DRS/EC2 queries
-                account_context = execution.get("accountContext")
-                if account_context:
-                    print(
-                        f"DEBUG: Using account context for cross-account enrichment: accountId={account_context.get('accountId')}"
-                    )
-
-                execution = reconcile_wave_status_with_drs(execution, account_context)
-
-                # CRITICAL FIX: Persist wave status updates to DynamoDB
-                # Uses merge to prevent clobbering waves added by other processes
-                try:
-                    updated_waves = execution.get("waves", [])
-                    _merge_and_persist_waves(
-                        execution_id,
-                        execution.get("planId"),
-                        updated_waves,
-                    )
-                except Exception as persist_error:
-                    print(f"Error persisting wave updates: {persist_error}")
-        except Exception as enrich_error:
-            print(f"Error enriching completed waves: {enrich_error}")
-            # Don't fail the request if enrichment fails
+        # REMOVED: Expensive cross-account enrichment from basic endpoint
+        # This was causing 504 Gateway Timeout errors
+        # Use /executions/{id}/realtime endpoint for real-time data instead
 
         return response(200, execution)
 
@@ -3081,7 +3017,11 @@ def handle_poll_operation(event: Dict, context) -> Dict:
         # CRITICAL: Check Step Functions status to detect failures
         # Step Functions is the source of truth for execution lifecycle
         state_machine_arn = execution.get("stateMachineArn")
-        if state_machine_arn and execution_status in ["POLLING", "RUNNING", "COMPLETED"]:
+        if state_machine_arn and execution_status in [
+            "POLLING",
+            "RUNNING",
+            "COMPLETED",
+        ]:
             try:
                 sf_response = stepfunctions.describe_execution(executionArn=state_machine_arn)
                 sf_status = sf_response.get("status")
@@ -7750,7 +7690,11 @@ def _callback_success_response(message: str, action: str) -> Dict:
 <body><div class="success">&#10003; Success</div>
 <div class="message">{message}</div>
 <p>You can close this window.</p></body></html>"""
-    return {"statusCode": 200, "headers": {"Content-Type": "text/html"}, "body": html}
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "text/html"},
+        "body": html,
+    }
 
 
 def _callback_error_response(status_code: int, message: str) -> Dict:
@@ -7763,4 +7707,8 @@ def _callback_error_response(status_code: int, message: str) -> Dict:
 <body><div class="error">&#10007; Error</div>
 <div class="message">{message}</div>
 <p>Please contact your administrator if this issue persists.</p></body></html>"""
-    return {"statusCode": status_code, "headers": {"Content-Type": "text/html"}, "body": html}
+    return {
+        "statusCode": status_code,
+        "headers": {"Content-Type": "text/html"},
+        "body": html,
+    }

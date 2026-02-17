@@ -2285,7 +2285,10 @@ def _get_cross_account_ec2_session(account_id: str) -> tuple:
         assume_role_name = role_arn.split("/")[-1] if role_arn else account.get("assumeRoleName")
 
         if not assume_role_name:
-            return None, f"No cross-account role configured for account {account_id}"
+            return (
+                None,
+                f"No cross-account role configured for account {account_id}",
+            )
 
         account_context = {
             "accountId": account_id,
@@ -2376,7 +2379,11 @@ def get_ec2_subnets(query_params: Dict) -> Dict:
             error_response(
                 ERROR_INTERNAL_ERROR,
                 "Failed to retrieve EC2 subnets",
-                details={"error": str(e), "region": region, "accountId": account_id},
+                details={
+                    "error": str(e),
+                    "region": region,
+                    "accountId": account_id,
+                },
             ),
         )
 
@@ -2442,7 +2449,11 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
             error_response(
                 ERROR_INTERNAL_ERROR,
                 "Failed to retrieve EC2 security groups",
-                details={"error": str(e), "region": region, "accountId": account_id},
+                details={
+                    "error": str(e),
+                    "region": region,
+                    "accountId": account_id,
+                },
             ),
         )
 
