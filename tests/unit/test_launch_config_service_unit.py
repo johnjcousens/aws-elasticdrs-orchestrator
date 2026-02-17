@@ -27,6 +27,27 @@ from shared.launch_config_service import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_dynamodb_globals():
+    """
+    Reset DynamoDB global variables before each test.
+    
+    This fixture ensures test isolation by resetting the module-level
+    DynamoDB resource and table references that are cached globally.
+    """
+    import shared.launch_config_service as lcs
+    
+    # Reset global variables
+    lcs._dynamodb = None
+    lcs._protection_groups_table = None
+    
+    yield
+    
+    # Clean up after test
+    lcs._dynamodb = None
+    lcs._protection_groups_table = None
+
+
 class TestCalculateConfigHash:
     """Tests for calculate_config_hash function.
 
