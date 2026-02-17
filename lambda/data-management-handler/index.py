@@ -1756,7 +1756,19 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
         # Tags take precedence if both are somehow provided
         if has_tags:
             item["serverSelectionTags"] = selection_tags
-            item["sourceServerIds"] = []  # Ensure empty
+            # Resolve servers from tags and store the actual server IDs
+            # This allows launch configs to be pre-applied to the resolved servers
+            print("DEBUG: Resolving servers from tags for protection group creation")
+            tag_account_context = None
+            if account_context.get("accountId"):
+                tag_account_context = {
+                    "accountId": account_context["accountId"],
+                    "assumeRoleName": account_context.get("assumeRoleName"),
+                }
+            resolved_servers = query_drs_servers_by_tags(region, selection_tags, tag_account_context)
+            resolved_server_ids = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
+            item["sourceServerIds"] = resolved_server_ids  # Store resolved IDs
+            print(f"DEBUG: Resolved {len(resolved_server_ids)} servers from tags: {resolved_server_ids}")
         elif has_servers:
             item["sourceServerIds"] = source_server_ids
             item["serverSelectionTags"] = {}  # Ensure empty
@@ -1798,22 +1810,9 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
         if "launchConfig" in body:
             launch_config = body["launchConfig"]
 
-            # Get server IDs to apply settings to
-            server_ids_to_apply = source_server_ids if has_servers else []
-
-            # If using tags, resolve servers first
-            if has_tags and not server_ids_to_apply:
-                print("DEBUG: Resolving servers from tags for launch config application")
-                # Use validated account context for cross-account
-                lc_account_context = None
-                if account_context.get("accountId"):
-                    lc_account_context = {
-                        "accountId": account_context["accountId"],
-                        "assumeRoleName": account_context.get("assumeRoleName"),
-                    }
-                resolved = query_drs_servers_by_tags(region, selection_tags, lc_account_context)
-                server_ids_to_apply = [s.get("sourceServerID") for s in resolved if s.get("sourceServerID")]
-                print(f"DEBUG: Resolved {len(server_ids_to_apply)} servers from tags")
+            # Get server IDs to apply settings to - use the already-resolved IDs from item
+            server_ids_to_apply = item.get("sourceServerIds", [])
+            print(f"DEBUG: Using {len(server_ids_to_apply)} server IDs for launch config application")
 
             # Apply launch configs if we have servers
             if server_ids_to_apply:
@@ -2211,9 +2210,25 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         if "serverSelectionTags" in body:
             update_expression += ", serverSelectionTags = :tags"
             expression_values[":tags"] = body["serverSelectionTags"]
-            # Clear sourceServerIds when using tags
-            update_expression += ", sourceServerIds = :empty_servers"
-            expression_values[":empty_servers"] = []
+            
+            # Resolve servers from tags and store the actual server IDs
+            print("DEBUG: Resolving servers from tags for protection group update")
+            tag_account_context = None
+            if existing_group.get("accountId"):
+                tag_account_context = {
+                    "accountId": existing_group["accountId"],
+                    "assumeRoleName": existing_group.get("assumeRoleName"),
+                }
+            resolved_servers = query_drs_servers_by_tags(
+                existing_group.get("region"),
+                body["serverSelectionTags"],
+                tag_account_context
+            )
+            resolved_server_ids = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
+            update_expression += ", sourceServerIds = :resolved_servers"
+            expression_values[":resolved_servers"] = resolved_server_ids
+            print(f"DEBUG: Resolved {len(resolved_server_ids)} servers from tags: {resolved_server_ids}")
+            
             # Remove old PascalCase fields only if they exist
             if "ServerSelectionTags" in existing_group:
                 update_expression += " REMOVE ServerSelectionTags"
