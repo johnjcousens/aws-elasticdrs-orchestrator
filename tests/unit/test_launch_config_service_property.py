@@ -46,6 +46,14 @@ def reset_dynamodb_globals():
     lcs._protection_groups_table = None
 
 
+@pytest.fixture(autouse=True)
+def mock_environment_variables():
+    """Set required environment variables for tests."""
+    os.environ["PROTECTION_GROUPS_TABLE"] = "test-protection-groups-table"
+    yield
+    # Clean up is optional since tests should set their own env vars
+
+
 # Efficient strategy for generating unique server IDs
 # Instead of generating random hex strings and filtering for uniqueness,
 # we generate unique integers and format them as server IDs
