@@ -43,9 +43,10 @@ flowchart TB
     end
     
     subgraph "Background Sync"
-        E[EventBridge Every 5min] --> F[Query All Regions]
-        F --> G[Enrich with EC2 Details]
-        G --> H[Update DynamoDB Cache]
+        E[EventBridge Every 5min] --> F[Data Management Handler]
+        F --> G[Query All Regions]
+        G --> H[Enrich with EC2 Details]
+        H --> I[Update DynamoDB Cache]
     end
     
     subgraph "Frontend Query"
@@ -65,7 +66,6 @@ sequenceDiagram
     participant API as API Gateway
     participant DM as Data Management Handler
     participant EH as Execution Handler
-    participant BS as Background Sync Lambda
     participant DB as DynamoDB Cache
     participant DRS as DRS API
     participant EC2 as EC2 API
@@ -85,12 +85,13 @@ sequenceDiagram
     EH->>DB: Write Recovery Instance Records
     
     Note over UI,EB: Background Sync (Every 5 Minutes)
-    EB->>BS: Trigger Sync
-    BS->>DRS: describe_recovery_instances()
-    DRS-->>BS: All Recovery Instances
-    BS->>EC2: describe_instances()
-    EC2-->>BS: EC2 Details
-    BS->>DB: Update Cache
+    EB->>DM: Trigger Sync Event (Direct)
+    DM->>DRS: describe_recovery_instances()
+    DRS-->>DM: All Recovery Instances
+    DM->>EC2: describe_instances()
+    EC2-->>DM: EC2 Details
+    DM->>DB: Update Cache
+    DM-->>EB: Success Response
     
     Note over UI,EB: Frontend Query (Fast Path)
     UI->>API: Load Recovery Plans Page
@@ -211,24 +212,34 @@ def sync_recovery_instances_after_wave(execution_id, wave_number, source_server_
 
 **Integration Point**: Called from `execute_wave()` after wave status becomes `COMPLETED`
 
-### 3. Background Sync Lambda
+### 3. Shared Utility: lambda/shared/recovery_instance_sync.py
 
-**Function Name**: `hrp-drs-tech-adapter-recovery-instance-sync-{environment}`
+**Purpose**: Shared utility module providing recovery instance sync functions. Called by data-management-handler to perform DRS/EC2 API calls and write results to DynamoDB cache.
 
-**Runtime**: Python 3.12+ (matches project standard)
+**Integration Pattern**: Similar to `launch_config_service.py` - provides reusable sync functions.
 
-**Memory**: 512 MB
+**Key Functions**:
+- `sync_recovery_instances_for_account(account_id: str, region: str) -> Dict` - Sync single account/region
+- `sync_all_recovery_instances() -> Dict` - Sync all target accounts
+- `get_recovery_instance_sync_status() -> Dict` - Get last sync status
 
-**Timeout**: 5 minutes
+**Handler Responsibilities**:
+- **data-management-handler**: CRUD operations + Data sync operations (reads from cache for queries, performs DRS/EC2 API calls and writes to cache for sync)
+- **execution-handler**: Recovery actions - performs wave completion sync as part of recovery execution
+- **query-handler**: Read-only operations (NO DynamoDB writes, NO sync operations)
 
-**Trigger**: EventBridge rule every 5 minutes
+**Invocation Flow**:
+1. **EventBridge Scheduled** (every 5 minutes):
+   - EventBridge → **data-management-handler** (direct) → `recovery_instance_sync.sync_all_recovery_instances()`
+   - Event payload: `{"operation": "sync_recovery_instances"}`
 
-**Environment Variables**:
-- `DYNAMODB_TABLE_NAME`: Recovery instances cache table
-- `EXECUTION_HISTORY_TABLE`: Execution history table
-- `ACTIVE_REGIONS`: Comma-separated list of regions to scan
+2. **Manual API Trigger**:
+   - Frontend → API Gateway → data-management-handler → `recovery_instance_sync.sync_all_recovery_instances()`
+   - Endpoint: `POST /drs/recovery-instance-sync`
 
-**Handler**: `index.lambda_handler`
+3. **Direct Invocation**:
+   - CLI/SDK → data-management-handler → `recovery_instance_sync.sync_all_recovery_instances()`
+   - Operation: `sync_recovery_instances`
 
 **Code Quality**:
 - Follow PEP 8 with 120 character line length
@@ -237,25 +248,40 @@ def sync_recovery_instances_after_wave(execution_id, wave_number, source_server_
 
 **Logic**:
 ```python
-def lambda_handler(event, context):
+# lambda/shared/recovery_instance_sync.py
+
+def sync_all_recovery_instances() -> Dict[str, Any]:
     """
-    Background sync of recovery instances across all regions.
-    Runs every 5 minutes via EventBridge.
+    Background sync of recovery instances across all target accounts and regions.
+    Called by data-management-handler (invoked directly by EventBridge or API).
+    
+    Performs DRS/EC2 API calls and writes results to DynamoDB cache.
+    
+    Returns:
+        Dict with sync results: instancesUpdated, regionsScanned, errors
     """
     logger.info("Starting background recovery instance sync")
     
-    # 1. Get all active regions from account context
-    active_regions = get_active_regions()
+    # 1. Get all target accounts and their regions
+    target_accounts = get_target_accounts()
     
-    # 2. Query DRS for all recovery instances across regions
+    # 2. Query DRS for all recovery instances across accounts/regions
     all_instances = []
-    for region in active_regions:
-        try:
-            instances = get_recovery_instances_for_region(region)
-            all_instances.extend(instances)
-        except Exception as e:
-            logger.error(f"Failed to sync region {region}: {e}")
-            # Continue with other regions
+    errors = []
+    
+    for account in target_accounts:
+        for region in account.get('regions', []):
+            try:
+                instances = get_recovery_instances_for_account_region(
+                    account['accountId'],
+                    region
+                )
+                all_instances.extend(instances)
+            except Exception as e:
+                error_msg = f"Failed to sync {account['accountId']}/{region}: {e}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                # Continue with other accounts/regions
     
     # 3. Enrich with EC2 details
     enriched_instances = []
@@ -263,7 +289,8 @@ def lambda_handler(event, context):
         try:
             ec2_details = get_ec2_instance_details(
                 instance['ec2InstanceID'],
-                instance['region']
+                instance['region'],
+                instance['accountId']
             )
             
             # Find source execution from history
@@ -290,11 +317,13 @@ def lambda_handler(event, context):
                 'lastSyncTime': datetime.utcnow().isoformat()
             })
         except Exception as e:
-            logger.error(f"Failed to enrich instance {instance['recoveryInstanceID']}: {e}")
+            error_msg = f"Failed to enrich instance {instance['recoveryInstanceID']}: {e}"
+            logger.error(error_msg)
+            errors.append(error_msg)
             # Continue with other instances
     
     # 4. Update DynamoDB cache
-    table = dynamodb.Table(os.environ['DYNAMODB_TABLE_NAME'])
+    table = get_recovery_instances_table()
     with table.batch_writer() as batch:
         for instance in enriched_instances:
             batch.put_item(Item=instance)
@@ -302,21 +331,88 @@ def lambda_handler(event, context):
     logger.info(f"Background sync completed: {len(enriched_instances)} instances updated")
     
     return {
-        'statusCode': 200,
-        'body': {
-            'instancesUpdated': len(enriched_instances),
-            'regionsScanned': len(active_regions)
-        }
+        'instancesUpdated': len(enriched_instances),
+        'regionsScanned': len([r for a in target_accounts for r in a.get('regions', [])]),
+        'errors': errors
     }
 ```
 
-### 4. Data Management Handler Updates
+### 4. Data Management Handler Integration
 
 **Location**: `lambda/data-management-handler/index.py`
 
-**Functions Modified**:
-1. `checkExistingRecoveryInstances()` - Query cache for Recovery Plans page
-2. `terminateRecoveryInstances()` - Query cache when terminating instances
+**Role**: Handles all sync operations directly - receives EventBridge events, processes API requests, performs DRS/EC2 API calls, and writes to DynamoDB cache. Also reads from cache for frontend queries.
+
+**Architecture Pattern**:
+- **data-management-handler**: CRUD + Data sync operations - handles EventBridge sync events, API endpoints, performs DRS/EC2 API calls, writes to DynamoDB cache, reads from cache
+- **execution-handler**: Recovery actions - performs wave completion sync as part of recovery execution
+- **query-handler**: Read-only operations - NO DynamoDB writes, NO sync operations
+
+**New API Endpoints**:
+1. `POST /drs/recovery-instance-sync` - Triggers manual sync directly in data-management-handler
+2. `GET /drs/recovery-instance-sync/status` - Returns sync status from data-management-handler
+
+**New Direct Invocation Operations**:
+1. `sync_recovery_instances` - Performs background sync directly in data-management-handler
+2. `get_recovery_instance_sync_status` - Returns sync status from data-management-handler
+
+**EventBridge Integration**: EventBridge scheduled sync events target data-management-handler DIRECTLY with payload `{"operation": "sync_recovery_instances"}`.
+
+**API Gateway Routing**:
+```python
+def handle_api_gateway_request(event, context):
+    """Route API Gateway requests to appropriate handler functions."""
+    http_method = event.get("httpMethod")
+    path = event.get("path", "")
+    body = json.loads(event.get("body", "{}"))
+    
+    # ... existing routes ...
+    
+    # Recovery Instance Sync endpoints - handle directly
+    elif path == "/drs/recovery-instance-sync":
+        if http_method == "POST":
+            return handle_recovery_instance_sync()
+        elif http_method == "GET":
+            return get_recovery_instance_sync_status()
+```
+
+**Handler Functions**:
+```python
+def handle_recovery_instance_sync() -> Dict:
+    """
+    Perform manual recovery instance sync.
+    
+    Returns:
+        Sync results including instances updated and errors
+    """
+    try:
+        # Call shared utility to perform sync
+        from shared.recovery_instance_sync import sync_all_recovery_instances
+        result = sync_all_recovery_instances()
+        return response(200, result)
+    except Exception as e:
+        logger.exception("Failed to sync recovery instances")
+        return response(500, error_response("SYNC_FAILED", str(e)))
+
+
+def get_recovery_instance_sync_status() -> Dict:
+    """
+    Get last sync status.
+    
+    Returns:
+        Last sync status including timestamp and results
+    """
+    try:
+        # Call shared utility to get status
+        from shared.recovery_instance_sync import get_recovery_instance_sync_status
+        status = get_recovery_instance_sync_status()
+        return response(200, status)
+    except Exception as e:
+        logger.exception("Failed to get sync status")
+        return response(500, error_response("STATUS_FAILED", str(e)))
+```
+
+**checkExistingRecoveryInstances() Updates**:
 
 **Before (Slow)**:
 ```python
@@ -756,28 +852,32 @@ def test_sync_idempotency(source_server_ids, execution_id):
   Resource: !GetAtt RecoveryInstancesCache.Arn
 ```
 
-**Background Sync Lambda**:
+**Query Handler** (read-only operations):
+```yaml
+- Effect: Allow
+  Action:
+    - dynamodb:GetItem
+    - dynamodb:Query
+    - dynamodb:Scan
+  Resource: !GetAtt RecoveryInstancesCache.Arn
+```
+
+**Data Management Handler** (CRUD + sync operations):
 ```yaml
 - Effect: Allow
   Action:
     - drs:DescribeRecoveryInstances
     - drs:DescribeSourceServers
     - ec2:DescribeInstances
+    - dynamodb:GetItem
+    - dynamodb:BatchGetItem
+    - dynamodb:Scan
     - dynamodb:PutItem
     - dynamodb:BatchWriteItem
-    - dynamodb:Scan
+    - dynamodb:DeleteItem
   Resource:
     - "*"  # DRS/EC2 require wildcard
     - !GetAtt RecoveryInstancesCache.Arn
-```
-
-**Data Management Handler**:
-```yaml
-- Effect: Allow
-  Action:
-    - dynamodb:GetItem
-    - dynamodb:BatchGetItem
-  Resource: !GetAtt RecoveryInstancesCache.Arn
 ```
 
 ### Rollout Strategy

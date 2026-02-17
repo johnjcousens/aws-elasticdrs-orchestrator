@@ -439,6 +439,66 @@ Resources:
         - Key: Schema
           Value: camelCase
 
+  # ===========================================================================
+  # RECOVERY INSTANCES CACHE TABLE
+  # ===========================================================================
+  # Caches recovery instance data to reduce Recovery Plans page load time.
+  # Synced via wave completion and background EventBridge schedule.
+  #
+  # Key Schema:
+  #   sourceServerId (HASH) - DRS source server ID
+  #
+  # Item Schema:
+  # {
+  #   "sourceServerId": "s-1234567890abcdef0",
+  #   "recoveryInstanceId": "ri-abcdef1234567890",
+  #   "ec2InstanceId": "i-0123456789abcdef0",
+  #   "ec2InstanceState": "running",
+  #   "sourceServerName": "web-server-01",
+  #   "name": "Recovery of web-server-01",
+  #   "privateIp": "10.0.1.100",
+  #   "publicIp": "54.123.45.67",
+  #   "instanceType": "t3.medium",
+  #   "launchTime": "2025-02-17T10:30:00Z",
+  #   "region": "us-east-2",
+  #   "accountId": "891376951562",
+  #   "sourceExecutionId": "exec-abc123",
+  #   "sourcePlanName": "Web Servers Recovery",
+  #   "lastSyncTime": "2025-02-17T10:35:00Z",
+  #   "replicationStagingAccountId": "123456789012",
+  #   "sourceVpcId": "vpc-abc123def456",
+  #   "sourceSubnetId": "subnet-xyz789abc123",
+  #   "sourceSecurityGroupIds": ["sg-111222333444"],
+  #   "sourceInstanceProfile": "arn:aws:iam::891376951562:instance-profile/MyAppRole"
+  # }
+  RecoveryInstancesCacheTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-recovery-instances-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sourceServerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sourceServerId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
 # =============================================================================
 # OUTPUTS
 # =============================================================================
@@ -543,3 +603,18 @@ Outputs:
     Value: !GetAtt SourceServerInventoryTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-SourceServerInventoryTableArn'
+
+  # ---------------------------------------------------------------------------
+  # Recovery Instances Cache Table
+  # ---------------------------------------------------------------------------
+  RecoveryInstancesCacheTableName:
+    Description: 'Recovery Instances Cache table name'
+    Value: !Ref RecoveryInstancesCacheTable
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryInstancesCacheTableName'
+
+  RecoveryInstancesCacheTableArn:
+    Description: 'Recovery Instances Cache table ARN'
+    Value: !GetAtt RecoveryInstancesCacheTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryInstancesCacheTableArn'
