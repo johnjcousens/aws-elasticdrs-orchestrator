@@ -2210,7 +2210,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         if "serverSelectionTags" in body:
             update_expression += ", serverSelectionTags = :tags"
             expression_values[":tags"] = body["serverSelectionTags"]
-            
+
             # Resolve servers from tags and store the actual server IDs
             print("DEBUG: Resolving servers from tags for protection group update")
             tag_account_context = None
@@ -2220,15 +2220,13 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     "assumeRoleName": existing_group.get("assumeRoleName"),
                 }
             resolved_servers = query_drs_servers_by_tags(
-                existing_group.get("region"),
-                body["serverSelectionTags"],
-                tag_account_context
+                existing_group.get("region"), body["serverSelectionTags"], tag_account_context
             )
             resolved_server_ids = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
             update_expression += ", sourceServerIds = :resolved_servers"
             expression_values[":resolved_servers"] = resolved_server_ids
             print(f"DEBUG: Resolved {len(resolved_server_ids)} servers from tags: {resolved_server_ids}")
-            
+
             # Remove old PascalCase fields only if they exist
             if "ServerSelectionTags" in existing_group:
                 update_expression += " REMOVE ServerSelectionTags"
