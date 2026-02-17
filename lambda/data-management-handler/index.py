@@ -229,6 +229,12 @@ from shared.response_utils import (
 )
 
 from shared.drs_regions import DRS_REGIONS
+from shared.launch_config_service import (
+    apply_launch_configs_to_group,
+    persist_config_status,
+    LaunchConfigApplicationError,
+    LaunchConfigTimeoutError,
+)
 
 # DynamoDB tables (from environment variables)
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
@@ -407,8 +413,18 @@ def handle_api_gateway_request(event, context):
                     ),
                 )
 
+            # Apply launch configurations endpoint
+            if "/apply-launch-configs" in path:
+                if http_method == "POST":
+                    return apply_launch_configs(group_id, body)
+            
+            # Get launch configuration status endpoint
+            elif "/launch-config-status" in path:
+                if http_method == "GET":
+                    return get_launch_config_status(group_id)
+            
             # Bulk server configuration endpoint
-            if "/servers/bulk-launch-config" in path:
+            elif "/servers/bulk-launch-config" in path:
                 if http_method == "POST":
                     return bulk_update_server_launch_config(group_id, body)
 
@@ -677,6 +693,9 @@ def handle_direct_invocation(event, context):
         "delete_server_launch_config": lambda: delete_server_launch_config(body.get("groupId"), body.get("serverId")),
         "bulk_update_server_configs": lambda: bulk_update_server_launch_config(body.get("groupId"), body),
         "validate_static_ip": lambda: validate_server_static_ip(body.get("groupId"), body.get("serverId"), body),
+        # Launch Config Pre-Application (Task 8)
+        "apply_launch_configs": lambda: apply_launch_configs(body.get("groupId"), body),
+        "get_launch_config_status": lambda: get_launch_config_status(body.get("groupId")),
         # Target Accounts (Phase 4: Tasks 5.5-5.7)
         "add_target_account": lambda: create_target_account(body),
         "update_target_account": lambda: update_target_account(body.get("accountId"), body),
@@ -1719,6 +1738,13 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
             "createdDate": timestamp,  # FIXED: camelCase
             "lastModifiedDate": timestamp,  # FIXED: camelCase
             "version": 1,  # FIXED: camelCase - Optimistic locking starts at version 1
+            "launchConfigStatus": {
+                "status": "not_configured",
+                "lastApplied": None,
+                "appliedBy": None,
+                "serverConfigs": {},
+                "errors": []
+            }
         }
 
         # Store the appropriate selection method (MUTUALLY EXCLUSIVE)
@@ -1731,7 +1757,6 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
             item["serverSelectionTags"] = {}  # Ensure empty
 
         # Handle launchConfig if provided
-        launch_config_apply_results = None
         if "launchConfig" in body:
             launch_config = body["launchConfig"]
 
@@ -1756,16 +1781,24 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
                         },
                     )
 
+            # Store launchConfig in item
+            item["launchConfig"] = launch_config
+
+        print(f"Creating Protection Group: {group_id}")
+
+        # Store in DynamoDB
+        get_protection_groups_table().put_item(Item=item)
+
+        # Apply launch configurations after group creation (if provided)
+        if "launchConfig" in body:
+            launch_config = body["launchConfig"]
+            
             # Get server IDs to apply settings to
             server_ids_to_apply = source_server_ids if has_servers else []
-            print(f"DEBUG: server_ids_to_apply = {server_ids_to_apply}, has_servers = {has_servers}")
-            print(
-                f"DEBUG: has_tags = {has_tags}, len(server_ids_to_apply) = {len(server_ids_to_apply) if server_ids_to_apply else 0}"
-            )
-
+            
             # If using tags, resolve servers first
             if has_tags and not server_ids_to_apply:
-                print("DEBUG: Resolving servers from tags")
+                print("DEBUG: Resolving servers from tags for launch config application")
                 # Use validated account context for cross-account
                 lc_account_context = None
                 if account_context.get("accountId"):
@@ -1776,58 +1809,96 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
                 resolved = query_drs_servers_by_tags(region, selection_tags, lc_account_context)
                 server_ids_to_apply = [s.get("sourceServerID") for s in resolved if s.get("sourceServerID")]
                 print(f"DEBUG: Resolved {len(server_ids_to_apply)} servers from tags")
-
-            # Apply launchConfig to DRS/EC2 immediately
-            print(
-                f"DEBUG: About to check apply condition: server_ids_to_apply={len(server_ids_to_apply) if server_ids_to_apply else 0}, launch_config={bool(launch_config)}"
-            )
-            if server_ids_to_apply and launch_config:
-                # Build protection group dict for account context
-                pg_for_apply = {
-                    "groupId": group_id,
-                    "groupName": name,
-                    "accountId": account_context["accountId"],
-                    "assumeRoleName": account_context.get("assumeRoleName", ""),
-                    "region": region,
-                }
-
-                print(f"Applying launch config to {len(server_ids_to_apply)} servers")
-                print(f"DEBUG: pg_for_apply = {pg_for_apply}")
-
-                launch_config_apply_results = apply_launch_config_to_servers(
-                    server_ids_to_apply,
-                    launch_config,
-                    region,
-                    protection_group=pg_for_apply,
-                    protection_group_id=group_id,
-                    protection_group_name=name,
-                )
-                print(f"Launch config apply results: {launch_config_apply_results}")
-
-                # If any failed, return error (don't save partial state)
-                if launch_config_apply_results and launch_config_apply_results.get("failed", 0) > 0:
-                    failed_servers = [
-                        d for d in launch_config_apply_results.get("details", []) if d.get("status") == "failed"
-                    ]
-                    return response(
-                        400,
-                        {
-                            "error": "Failed to apply launch settings to some servers",
-                            "code": "LAUNCH_CONFIG_APPLY_FAILED",
-                            "failedServers": failed_servers,
-                            "applyResults": launch_config_apply_results,
-                        },
+            
+            # Apply launch configs if we have servers
+            if server_ids_to_apply:
+                try:
+                    print(f"Applying launch configs to {len(server_ids_to_apply)} servers")
+                    
+                    # Build launch_configs dict (same config for all servers)
+                    launch_configs = {server_id: launch_config for server_id in server_ids_to_apply}
+                    
+                    # Prepare account context for cross-account operations
+                    lc_account_context = None
+                    if account_context.get("accountId"):
+                        current_account_id = get_current_account_id()
+                        target_account_id = account_context["accountId"]
+                        if current_account_id != target_account_id:
+                            lc_account_context = {
+                                "accountId": target_account_id,
+                                "roleName": account_context.get("assumeRoleName", "OrchestrationRole")
+                            }
+                    
+                    # Apply configurations with timeout (allow group creation to succeed even if this times out)
+                    apply_result = apply_launch_configs_to_group(
+                        group_id=group_id,
+                        region=region,
+                        server_ids=server_ids_to_apply,
+                        launch_configs=launch_configs,
+                        account_context=lc_account_context,
+                        timeout_seconds=60  # 60 second timeout for group creation
                     )
-            elif launch_config:
+                    
+                    print(f"Launch config application result: {apply_result}")
+                    
+                    # Update launchConfigStatus in DynamoDB
+                    config_status = {
+                        "status": apply_result["status"],
+                        "lastApplied": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                        "appliedBy": None,  # TODO: Extract from event context
+                        "serverConfigs": apply_result["serverConfigs"],
+                        "errors": apply_result["errors"]
+                    }
+                    
+                    persist_config_status(group_id, config_status)
+                    
+                    # Update item with latest status for response
+                    item["launchConfigStatus"] = config_status
+                    
+                    print(f"Launch config status persisted: {config_status['status']}")
+                    
+                except LaunchConfigTimeoutError as e:
+                    # Timeout is acceptable - group creation succeeds, configs marked as pending
+                    print(f"Launch config application timed out: {e}")
+                    config_status = {
+                        "status": "pending",
+                        "lastApplied": None,
+                        "appliedBy": None,
+                        "serverConfigs": {},
+                        "errors": [str(e)]
+                    }
+                    persist_config_status(group_id, config_status)
+                    item["launchConfigStatus"] = config_status
+                    
+                except LaunchConfigApplicationError as e:
+                    # Application error - group creation succeeds, configs marked as failed
+                    print(f"Launch config application failed: {e}")
+                    config_status = {
+                        "status": "failed",
+                        "lastApplied": None,
+                        "appliedBy": None,
+                        "serverConfigs": {},
+                        "errors": [str(e)]
+                    }
+                    persist_config_status(group_id, config_status)
+                    item["launchConfigStatus"] = config_status
+                    
+                except Exception as e:
+                    # Unexpected error - log but don't fail group creation
+                    print(f"Unexpected error applying launch configs: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    config_status = {
+                        "status": "failed",
+                        "lastApplied": None,
+                        "appliedBy": None,
+                        "serverConfigs": {},
+                        "errors": [f"Unexpected error: {str(e)}"]
+                    }
+                    persist_config_status(group_id, config_status)
+                    item["launchConfigStatus"] = config_status
+            else:
                 print("WARNING: launchConfig provided but no servers to apply to")
-
-            # Store launchConfig in item
-            item["launchConfig"] = launch_config
-
-        print(f"Creating Protection Group: {group_id}")
-
-        # Store in DynamoDB
-        get_protection_groups_table().put_item(Item=item)
 
         # Return raw camelCase database fields directly - no transformation
         # needed
@@ -2156,8 +2227,27 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 update_expression += " REMOVE SourceServerIds"
 
         # Handle launchConfig - EC2 launch settings for recovery instances
-        launch_config_apply_results = None
+        # Detect if servers or configs changed to determine if re-apply needed
+        servers_changed = False
+        configs_changed = False
+        
+        if "sourceServerIds" in body:
+            old_servers = set(existing_group.get("sourceServerIds", []))
+            new_servers = set(body["sourceServerIds"])
+            servers_changed = (old_servers != new_servers)
+        
+        if "serverSelectionTags" in body:
+            old_tags = existing_group.get("serverSelectionTags", {})
+            new_tags = body["serverSelectionTags"]
+            servers_changed = (old_tags != new_tags)
+        
         if "launchConfig" in body:
+            old_config = existing_group.get("launchConfig", {})
+            new_config = body["launchConfig"]
+            configs_changed = (old_config != new_config)
+        
+        # Apply launch configs if servers or configs changed
+        if "launchConfig" in body and (servers_changed or configs_changed):
             launch_config = body["launchConfig"]
 
             # Validate launchConfig structure
@@ -2183,65 +2273,169 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
             # Get server IDs to apply settings to
             region = existing_group.get("region")
-            server_ids = body.get("sourceServerIds", existing_group.get("sourceServerIds", []))
+            server_ids = body.get(
+                "sourceServerIds",
+                existing_group.get("sourceServerIds", [])
+            )
 
             # If using tags, resolve servers first
-            if not server_ids and existing_group.get("serverSelectionTags"):
+            if not server_ids and (
+                body.get("serverSelectionTags") or
+                existing_group.get("serverSelectionTags")
+            ):
+                tags = body.get(
+                    "serverSelectionTags",
+                    existing_group.get("serverSelectionTags", {})
+                )
                 # Extract account context from existing group
                 account_context = None
                 if existing_group.get("accountId"):
                     account_context = {
                         "accountId": existing_group.get("accountId"),
-                        "assumeRoleName": existing_group.get("assumeRoleName"),
+                        "assumeRoleName": existing_group.get(
+                            "assumeRoleName"
+                        ),
                     }
                 resolved = query_drs_servers_by_tags(
                     region,
-                    existing_group["serverSelectionTags"],
+                    tags,
                     account_context,
                 )
-                server_ids = [s.get("sourceServerID") for s in resolved if s.get("sourceServerID")]
+                server_ids = [
+                    s.get("sourceServerID")
+                    for s in resolved
+                    if s.get("sourceServerID")
+                ]
 
-            # Apply launchConfig to DRS/EC2 immediately
-            if server_ids and launch_config:
-                # Get group name (use updated name if provided, else existing)
-                pg_name = body.get("groupName", existing_group.get("groupName", ""))
-
-                # Build protection group dict for account context
-                pg_for_apply = {
-                    "groupId": group_id,
-                    "groupName": pg_name,
-                    "accountId": existing_group.get("accountId", ""),
-                    "assumeRoleName": existing_group.get("assumeRoleName", ""),
-                    "region": region,
-                }
-
-                launch_config_apply_results = apply_launch_config_to_servers(
-                    server_ids,
-                    launch_config,
-                    region,
-                    protection_group=pg_for_apply,
-                    protection_group_id=group_id,
-                    protection_group_name=pg_name,
-                )
-
-                # If any failed, return error (don't save partial state)
-                if launch_config_apply_results.get("failed", 0) > 0:
-                    failed_servers = [
-                        d for d in launch_config_apply_results.get("details", []) if d.get("status") == "failed"
-                    ]
-                    return response(
-                        400,
-                        {
-                            "error": "Failed to apply launch settings to some servers",
-                            "code": "LAUNCH_CONFIG_APPLY_FAILED",
-                            "failedServers": failed_servers,
-                            "applyResults": launch_config_apply_results,
-                        },
+            # Apply launch configs using new service
+            if server_ids:
+                try:
+                    print(
+                        f"Applying launch configs to "
+                        f"{len(server_ids)} servers (update)"
+                    )
+                    
+                    # Build launch_configs dict
+                    launch_configs = {
+                        server_id: launch_config
+                        for server_id in server_ids
+                    }
+                    
+                    # Prepare account context for cross-account
+                    lc_account_context = None
+                    if existing_group.get("accountId"):
+                        current_account_id = get_current_account_id()
+                        target_account_id = existing_group["accountId"]
+                        if current_account_id != target_account_id:
+                            lc_account_context = {
+                                "accountId": target_account_id,
+                                "roleName": existing_group.get(
+                                    "assumeRoleName",
+                                    "OrchestrationRole"
+                                )
+                            }
+                    
+                    # Apply with timeout (allow update to succeed)
+                    apply_result = apply_launch_configs_to_group(
+                        group_id=group_id,
+                        region=region,
+                        server_ids=server_ids,
+                        launch_configs=launch_configs,
+                        account_context=lc_account_context,
+                        timeout_seconds=60
+                    )
+                    
+                    print(f"Launch config result: {apply_result}")
+                    
+                    # Update launchConfigStatus in DynamoDB
+                    config_status = {
+                        "status": apply_result["status"],
+                        "lastApplied": datetime.now(
+                            timezone.utc
+                        ).isoformat().replace("+00:00", "Z"),
+                        "appliedBy": None,
+                        "serverConfigs": apply_result["serverConfigs"],
+                        "errors": apply_result["errors"]
+                    }
+                    
+                    persist_config_status(group_id, config_status)
+                    
+                    # Add to update expression
+                    update_expression += (
+                        ", launchConfigStatus = :launchConfigStatus"
+                    )
+                    expression_values[":launchConfigStatus"] = (
+                        config_status
+                    )
+                    
+                    print(
+                        f"Launch config status: "
+                        f"{config_status['status']}"
+                    )
+                    
+                except LaunchConfigTimeoutError as e:
+                    # Timeout OK - update succeeds, configs pending
+                    print(f"Launch config timed out: {e}")
+                    config_status = {
+                        "status": "pending",
+                        "lastApplied": None,
+                        "appliedBy": None,
+                        "serverConfigs": {},
+                        "errors": [str(e)]
+                    }
+                    persist_config_status(group_id, config_status)
+                    update_expression += (
+                        ", launchConfigStatus = :launchConfigStatus"
+                    )
+                    expression_values[":launchConfigStatus"] = (
+                        config_status
+                    )
+                    
+                except LaunchConfigApplicationError as e:
+                    # Application error - update succeeds, configs failed
+                    print(f"Launch config failed: {e}")
+                    config_status = {
+                        "status": "failed",
+                        "lastApplied": None,
+                        "appliedBy": None,
+                        "serverConfigs": {},
+                        "errors": [str(e)]
+                    }
+                    persist_config_status(group_id, config_status)
+                    update_expression += (
+                        ", launchConfigStatus = :launchConfigStatus"
+                    )
+                    expression_values[":launchConfigStatus"] = (
+                        config_status
+                    )
+                    
+                except Exception as e:
+                    # Unexpected error - log but don't fail update
+                    print(f"Unexpected error applying configs: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    config_status = {
+                        "status": "failed",
+                        "lastApplied": None,
+                        "appliedBy": None,
+                        "serverConfigs": {},
+                        "errors": [f"Unexpected error: {str(e)}"]
+                    }
+                    persist_config_status(group_id, config_status)
+                    update_expression += (
+                        ", launchConfigStatus = :launchConfigStatus"
+                    )
+                    expression_values[":launchConfigStatus"] = (
+                        config_status
                     )
 
             # Store launchConfig in DynamoDB
             update_expression += ", launchConfig = :launchConfig"
             expression_values[":launchConfig"] = launch_config
+        elif "launchConfig" in body:
+            # Config provided but no changes - just store it
+            update_expression += ", launchConfig = :launchConfig"
+            expression_values[":launchConfig"] = body["launchConfig"]
 
         # Handle servers array - per-server launch template configurations
         servers_apply_results = None
@@ -2337,14 +2531,6 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         # Transform to camelCase for frontend
         response_item = result["Attributes"]
-
-        # Include launchConfig apply results if applicable
-        if launch_config_apply_results:
-            response_item["launchConfigApplyResults"] = launch_config_apply_results
-
-        # Include servers apply results if applicable
-        if servers_apply_results:
-            response_item["serversApplyResults"] = servers_apply_results
 
         print(f"Updated Protection Group: {group_id}")
         return response(200, response_item)
@@ -6634,6 +6820,184 @@ def apply_launch_config_to_servers(
             results["details"].append({"serverId": server_id, "status": "failed", "error": str(e)})
 
     return results
+def apply_launch_configs(group_id: str, body: Dict) -> Dict:
+    """
+    Manually apply launch configurations to a protection group.
+
+    Supports three invocation methods:
+    - Frontend: Via API Gateway with Cognito auth
+    - API: Via API Gateway with IAM auth
+    - Direct: Lambda invocation with operation parameter
+
+    Args:
+        group_id: Protection group ID
+        body: {"force": bool}  # Force re-apply even if status is ready
+
+    Returns:
+        {
+            "groupId": "pg-xxx",
+            "status": "ready",
+            "appliedServers": 10,
+            "failedServers": 0,
+            "errors": []
+        }
+    """
+    from shared.launch_config_service import (
+        apply_launch_configs_to_group,
+        get_config_status,
+    )
+
+    try:
+        # Get protection group
+        table = get_protection_groups_table()
+        pg_response = table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in pg_response:
+            return response(
+                404,
+                error_response(
+                    ERROR_NOT_FOUND,
+                    f"Protection group {group_id} not found",
+                ),
+            )
+
+        protection_group = pg_response["Item"]
+
+        # Check force flag
+        force = body.get("force", False)
+
+        # If not forcing, check current status
+        if not force:
+            current_status = get_config_status(group_id)
+            if current_status.get("status") == "ready":
+                return response(
+                    200,
+                    {
+                        "groupId": group_id,
+                        "status": "ready",
+                        "appliedServers": len(
+                            current_status.get("serverConfigs", {})
+                        ),
+                        "failedServers": 0,
+                        "message": (
+                            "Configuration already applied. "
+                            "Use force=true to re-apply."
+                        ),
+                        "errors": [],
+                    },
+                )
+
+        # Get server IDs and launch configs
+        server_ids = protection_group.get("sourceServerIds", [])
+        if not server_ids:
+            return response(
+                400,
+                error_response(
+                    ERROR_INVALID_PARAMETER,
+                    "Protection group has no servers",
+                ),
+            )
+
+        # Build launch configs dict (group defaults + per-server overrides)
+        launch_configs = {}
+        group_launch_config = protection_group.get("launchConfig", {})
+        servers = protection_group.get("servers", [])
+
+        for server_id in server_ids:
+            # Get effective config (merge group defaults with server overrides)
+            effective_config = get_effective_launch_config(
+                protection_group, server_id
+            )
+            launch_configs[server_id] = effective_config
+
+        # Get account context for cross-account operations
+        account_context = None
+        account_id = protection_group.get("accountId")
+        assume_role_name = protection_group.get("assumeRoleName")
+
+        if account_id and account_id.strip():
+            account_context = {
+                "accountId": account_id,
+                "assumeRoleName": assume_role_name,
+                "isCurrentAccount": False,
+                "externalId": "drs-orchestration-cross-account",
+            }
+
+        # Apply configurations
+        region = protection_group.get("region")
+        result = apply_launch_configs_to_group(
+            group_id=group_id,
+            region=region,
+            server_ids=server_ids,
+            launch_configs=launch_configs,
+            account_context=account_context,
+            timeout_seconds=300,
+        )
+
+        # Return result
+        return response(
+            200,
+            {
+                "groupId": group_id,
+                "status": result.get("status"),
+                "appliedServers": result.get("appliedServers", 0),
+                "failedServers": result.get("failedServers", 0),
+                "serverConfigs": result.get("serverConfigs", {}),
+                "errors": result.get("errors", []),
+            },
+        )
+
+    except Exception as e:
+        print(f"Error applying launch configs to group {group_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
+
+
+def get_launch_config_status(group_id: str) -> Dict:
+    """
+    Get launch configuration status for a protection group.
+
+    Supports three invocation methods.
+
+    Args:
+        group_id: Protection group ID
+
+    Returns:
+        Configuration status dictionary
+    """
+    from shared.launch_config_service import get_config_status
+
+    try:
+        # Verify protection group exists
+        table = get_protection_groups_table()
+        pg_response = table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in pg_response:
+            return response(
+                404,
+                error_response(
+                    ERROR_NOT_FOUND,
+                    f"Protection group {group_id} not found",
+                ),
+            )
+
+        # Get configuration status
+        config_status = get_config_status(group_id)
+
+        return response(200, config_status)
+
+    except Exception as e:
+        print(f"Error getting launch config status for group {group_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(
+            500,
+            error_response(ERROR_INTERNAL_ERROR, str(e)),
+        )
 
 
 # ============================================================================

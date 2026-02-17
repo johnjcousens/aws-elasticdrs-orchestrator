@@ -528,3 +528,71 @@ def enrich_server_data(participating_servers: List[Dict], drs_client, ec2_client
         enriched.append(normalized)
 
     return enriched
+
+
+def drs_api_call_with_backoff(client, operation: str, max_retries: int = 3, base_delay: float = 1.0, **kwargs):
+    """
+    Execute DRS API call with exponential backoff for rate limits.
+
+    Handles TooManyRequestsException and ThrottlingException with exponential backoff
+    to avoid overwhelming the DRS API and causing Lambda timeouts.
+
+    Args:
+        client: boto3 DRS client
+        operation: API operation name ('describe_source_servers', 'describe_jobs', etc.)
+        max_retries: Maximum number of retry attempts (default: 3)
+        base_delay: Base delay in seconds for exponential backoff (default: 1.0)
+        **kwargs: Additional arguments to pass to the API call
+
+    Returns:
+        API response or None if rate limited after all retries
+
+    Example:
+        >>> drs_client = boto3.client('drs', region_name='us-east-2')
+        >>> servers = drs_api_call_with_backoff(
+        ...     drs_client,
+        ...     'describe_source_servers',
+        ...     filters={'sourceServerIDs': ['s-123']}
+        ... )
+    """
+    import time
+    from botocore.exceptions import ClientError
+
+    for attempt in range(max_retries):
+        try:
+            if operation == "describe_source_servers":
+                # Handle paginated operation
+                paginator = client.get_paginator("describe_source_servers")
+                results = []
+                for page in paginator.paginate(**kwargs):
+                    results.extend(page.get("items", []))
+                return results
+            elif operation == "describe_jobs":
+                return client.describe_jobs(**kwargs)
+            elif operation == "describe_recovery_instances":
+                return client.describe_recovery_instances(**kwargs)
+            elif operation == "describe_job_log_items":
+                return client.describe_job_log_items(**kwargs)
+            else:
+                # Generic operation - call method by name
+                method = getattr(client, operation)
+                return method(**kwargs)
+
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code in ["ThrottlingException", "TooManyRequestsException"]:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2**attempt)
+                    print(
+                        f"Rate limited on {operation}, retrying in {delay}s " f"(attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(delay)
+                    continue
+                else:
+                    print(f"Rate limit exceeded on {operation} after {max_retries} attempts, returning None")
+                    return None
+            else:
+                # Re-raise non-rate-limit errors
+                raise
+
+    return None

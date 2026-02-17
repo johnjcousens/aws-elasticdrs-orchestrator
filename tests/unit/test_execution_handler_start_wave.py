@@ -12,6 +12,11 @@ generic orchestration refactoring.
 - Task 1.11: Test empty server list (no tags matched)
 - Task 1.12: Test DRS API error handling
 - Task 1.13: Test cross-account context handling
+
+**Updated for launch-config-preapplication**:
+- Tests now mock launch_config_service functions (get_config_status,
+  detect_config_drift, apply_launch_configs_to_group, persist_config_status)
+- Tests verify fast path (configs pre-applied) and fallback path behavior
 """
 
 import json
@@ -124,6 +129,53 @@ def sample_protection_group():
     }
 
 
+@pytest.fixture
+def mock_launch_config_service():
+    """Mock launch_config_service functions for wave execution tests.
+    
+    This fixture provides mocks for the launch config service functions
+    used in start_wave_recovery for the fast path/fallback path optimization.
+    """
+    with patch("shared.launch_config_service.get_config_status") as mock_get_status, \
+         patch("shared.launch_config_service.detect_config_drift") as mock_detect_drift, \
+         patch("shared.launch_config_service.apply_launch_configs_to_group") as mock_apply, \
+         patch("shared.launch_config_service.persist_config_status") as mock_persist:
+        
+        # Default: configs are ready (fast path)
+        mock_get_status.return_value = {
+            "status": "ready",
+            "lastApplied": "2025-02-16T10:30:00Z",
+            "appliedBy": "user@example.com",
+            "serverConfigs": {},
+            "errors": []
+        }
+        
+        # Default: no drift detected
+        mock_detect_drift.return_value = {
+            "hasDrift": False,
+            "driftedServers": [],
+            "details": {}
+        }
+        
+        # Default: apply succeeds
+        mock_apply.return_value = {
+            "status": "ready",
+            "appliedServers": 0,
+            "failedServers": 0,
+            "serverConfigs": {},
+            "errors": []
+        }
+        
+        mock_persist.return_value = None
+        
+        yield {
+            "get_config_status": mock_get_status,
+            "detect_config_drift": mock_detect_drift,
+            "apply_launch_configs_to_group": mock_apply,
+            "persist_config_status": mock_persist
+        }
+
+
 class TestStartWaveRecoverySuccessful:
     """Test successful wave start (Task 1.9)"""
 
@@ -134,6 +186,7 @@ class TestStartWaveRecoverySuccessful:
         mock_drs_client,
         sample_state,
         sample_protection_group,
+        mock_launch_config_service,
     ):
         """Test successful wave start with tag-based server resolution"""
         from index import start_wave_recovery
@@ -228,6 +281,7 @@ class TestStartWaveRecoverySuccessful:
         mock_dynamodb_tables,
         mock_drs_client,
         sample_state,
+        mock_launch_config_service,
     ):
         """Test successful wave start with explicit server IDs (no tags)"""
         from index import start_wave_recovery
@@ -381,6 +435,7 @@ class TestStartWaveRecoveryDRSAPIError:
         mock_drs_client,
         sample_state,
         sample_protection_group,
+        mock_launch_config_service,
     ):
         """Test handling when DRS start_recovery API fails"""
         from index import start_wave_recovery
@@ -431,6 +486,7 @@ class TestStartWaveRecoveryDRSAPIError:
         mock_dynamodb_tables,
         sample_state,
         sample_protection_group,
+        mock_launch_config_service,
     ):
         """Test handling when query_drs_servers_by_tags fails"""
         from index import start_wave_recovery
@@ -466,6 +522,7 @@ class TestStartWaveRecoveryDRSAPIError:
         mock_drs_client,
         sample_state,
         sample_protection_group,
+        mock_launch_config_service,
     ):
         """Test that DynamoDB update errors don't fail wave start"""
         from index import start_wave_recovery
@@ -524,6 +581,7 @@ class TestStartWaveRecoveryCrossAccountContext:
         mock_drs_client,
         sample_state,
         sample_protection_group,
+        mock_launch_config_service,
     ):
         """Test that cross-account context is passed to DRS client"""
         from index import start_wave_recovery
@@ -564,6 +622,7 @@ class TestStartWaveRecoveryCrossAccountContext:
         mock_dynamodb_tables,
         mock_drs_client,
         sample_protection_group,
+        mock_launch_config_service,
     ):
         """Test handling of snake_case account_context (resume format)"""
         from index import start_wave_recovery
@@ -622,6 +681,7 @@ class TestStartWaveRecoveryCrossAccountContext:
         mock_drs_client,
         sample_state,
         sample_protection_group,
+        mock_launch_config_service,
     ):
         """Test handling when using current account (no role assumption)"""
         from index import start_wave_recovery
@@ -670,8 +730,9 @@ class TestStartWaveRecoveryLaunchConfig:
         mock_drs_client,
         sample_state,
         sample_protection_group,
+        mock_launch_config_service,
     ):
-        """Test that launch config is applied when present in PG"""
+        """Test that launch config is applied when present in PG and status not ready"""
         from index import start_wave_recovery
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
@@ -683,6 +744,15 @@ class TestStartWaveRecoveryLaunchConfig:
         mock_drs_client.start_recovery.return_value = {"job": {"jobID": "drsjob-abc123"}}
 
         mock_apply_launch_config = Mock()
+
+        # Override fixture to return not_configured status (triggers fallback path)
+        mock_launch_config_service["get_config_status"].return_value = {
+            "status": "not_configured",
+            "lastApplied": None,
+            "appliedBy": None,
+            "serverConfigs": {},
+            "errors": []
+        }
 
         with patch("index.protection_groups_table", pg_table):
             with patch("index.execution_history_table", exec_table):
@@ -713,6 +783,7 @@ class TestStartWaveRecoveryLaunchConfig:
         mock_dynamodb_tables,
         mock_drs_client,
         sample_state,
+        mock_launch_config_service,
     ):
         """Test that launch config is skipped when not in PG"""
         from index import start_wave_recovery

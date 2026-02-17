@@ -800,6 +800,8 @@ Resources:
         ProtectionGroupsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupsResourceId
         ProtectionGroupByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupResourceId
         ProtectionGroupResolveResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupResolveResourceId
+        ProtectionGroupApplyLaunchConfigsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupApplyLaunchConfigsResourceId
+        ProtectionGroupLaunchConfigStatusResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupLaunchConfigStatusResourceId
         RecoveryPlansResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlansResourceId
         RecoveryPlanByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlanResourceId
         RecoveryPlanExecuteResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlanExecuteResourceId

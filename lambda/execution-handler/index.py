@@ -109,7 +109,7 @@ import json
 import os
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 import boto3
@@ -1903,11 +1903,145 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         account_context = state.get("accountContext") or state.get("account_context", {})
         drs_client = create_drs_client(region, account_context)
 
-        # Apply Protection Group launch config before recovery
-        launch_config = pg.get("launchConfig")
-        if launch_config:
-            print(f"Applying launchConfig to {len(server_ids)} servers " f"before recovery")
-            apply_launch_config_before_recovery(drs_client, server_ids, launch_config, region, pg)
+        # Check configuration status for optimization
+        # Fast path: If configs pre-applied (status=ready), skip application
+        # Fallback path: If configs not ready, apply at runtime
+        # Drift detection: If status=ready but configs drifted, re-apply
+        from shared.launch_config_service import (
+            get_config_status,
+            detect_config_drift,
+            apply_launch_configs_to_group,
+            persist_config_status,
+        )
+
+        try:
+            config_status = get_config_status(protection_group_id)
+            status_value = config_status.get("status", "not_configured")
+
+            if status_value == "ready":
+                # Fast path: Configs already applied
+                # But first check for configuration drift
+                launch_config = pg.get("launchConfig")
+                if launch_config:
+                    # Build current configs dict for drift detection
+                    current_configs = {
+                        sid: launch_config for sid in server_ids
+                    }
+
+                    # Detect configuration drift
+                    drift_result = detect_config_drift(
+                        protection_group_id, current_configs
+                    )
+
+                    if drift_result.get("hasDrift", False):
+                        # Drift detected - re-apply configs
+                        drifted_servers = drift_result.get(
+                            "driftedServers", []
+                        )
+                        print(
+                            f"⚠️  Configuration drift detected for "
+                            f"{protection_group_id}: {len(drifted_servers)} "
+                            f"server(s) drifted, re-applying configs"
+                        )
+
+                        # Log drift details
+                        drift_details = drift_result.get("details", {})
+                        for sid, detail in drift_details.items():
+                            reason = detail.get("reason", "unknown")
+                            print(
+                                f"  - Server {sid}: {reason}"
+                            )
+
+                        # Re-apply configs to drifted servers
+                        try:
+                            apply_result = apply_launch_configs_to_group(
+                                group_id=protection_group_id,
+                                region=region,
+                                server_ids=drifted_servers,
+                                launch_configs={
+                                    sid: launch_config
+                                    for sid in drifted_servers
+                                },
+                                account_context=account_context,
+                                timeout_seconds=60,
+                            )
+
+                            # Update config status after re-application
+                            new_status = {
+                                "status": apply_result.get(
+                                    "status", "failed"
+                                ),
+                                "lastApplied": (
+                                    datetime.now(timezone.utc)
+                                    .isoformat()
+                                    .replace("+00:00", "Z")
+                                ),
+                                "appliedBy": "drift-detection",
+                                "serverConfigs": apply_result.get(
+                                    "serverConfigs", {}
+                                ),
+                                "errors": apply_result.get("errors", []),
+                            }
+                            persist_config_status(
+                                protection_group_id, new_status
+                            )
+
+                            print(
+                                f"✅ Drift re-application complete: "
+                                f"status={apply_result.get('status')}, "
+                                f"applied={apply_result.get('appliedServers', 0)}, "
+                                f"failed={apply_result.get('failedServers', 0)}"
+                            )
+                        except Exception as drift_apply_error:
+                            print(
+                                f"⚠️  Failed to re-apply configs after drift "
+                                f"detection: {drift_apply_error}, "
+                                f"continuing with recovery"
+                            )
+                    else:
+                        # No drift detected
+                        print(
+                            f"✅ Launch configs pre-applied for "
+                            f"{protection_group_id} (status: {status_value}), "
+                            f"no drift detected, starting recovery immediately"
+                        )
+                else:
+                    # No launch config in PG, skip drift detection
+                    print(
+                        f"✅ Launch configs pre-applied for "
+                        f"{protection_group_id} (status: {status_value}), "
+                        f"starting recovery immediately"
+                    )
+            else:
+                # Fallback path: Configs not ready, apply at runtime
+                print(
+                    f"⚠️  Launch configs not ready for {protection_group_id} "
+                    f"(status: {status_value}), applying at runtime"
+                )
+                launch_config = pg.get("launchConfig")
+                if launch_config:
+                    print(
+                        f"Applying launchConfig to {len(server_ids)} servers "
+                        f"before recovery"
+                    )
+                    apply_launch_config_before_recovery(
+                        drs_client, server_ids, launch_config, region, pg
+                    )
+        except Exception as e:
+            # If config status check fails, fall back to runtime application
+            print(
+                f"⚠️  Failed to check config status for {protection_group_id}: "
+                f"{e}, falling back to runtime application"
+            )
+            launch_config = pg.get("launchConfig")
+            if launch_config:
+                print(
+                    f"Applying launchConfig to {len(server_ids)} servers "
+                    f"before recovery"
+                )
+                apply_launch_config_before_recovery(
+                    drs_client, server_ids, launch_config, region, pg
+                )
 
         # Use start_drs_recovery_for_wave to get Name tags
         wave_job_result = start_drs_recovery_for_wave(

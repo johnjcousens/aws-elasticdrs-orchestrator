@@ -76,7 +76,6 @@ filterwarnings = [
     "ignore::urllib3.exceptions.SystemTimeWarning",
     "ignore::DeprecationWarning:datetime",
 ]
-asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
 source = ["lambda"]
