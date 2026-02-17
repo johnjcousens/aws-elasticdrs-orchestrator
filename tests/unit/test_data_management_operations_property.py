@@ -73,6 +73,42 @@ def setup_test_environment():
         sys.modules["shared.security_utils"] = Mock()
         sys.modules["shared.notifications"] = Mock()
 
+        # Mock launch_config_service (added for launch-config-preapplication)
+        mock_launch_config_service = Mock()
+        mock_launch_config_service.apply_launch_configs_to_group = Mock(
+            return_value={
+                "status": "ready",
+                "appliedServers": 0,
+                "failedServers": 0,
+                "serverConfigs": {},
+                "errors": []
+            }
+        )
+        mock_launch_config_service.persist_config_status = Mock()
+        mock_launch_config_service.get_config_status = Mock(
+            return_value={
+                "status": "not_configured",
+                "lastApplied": None,
+                "appliedBy": None,
+                "serverConfigs": {},
+                "errors": []
+            }
+        )
+        mock_launch_config_service.detect_config_drift = Mock(
+            return_value={
+                "hasDrift": False,
+                "driftedServers": [],
+                "details": {}
+            }
+        )
+        mock_launch_config_service.calculate_config_hash = Mock(
+            return_value="sha256:mock_hash"
+        )
+        mock_launch_config_service.LaunchConfigApplicationError = Exception
+        mock_launch_config_service.LaunchConfigTimeoutError = Exception
+        mock_launch_config_service.LaunchConfigValidationError = Exception
+        sys.modules["shared.launch_config_service"] = mock_launch_config_service
+
         mock_response_utils = Mock()
 
         def mock_response(status_code, body, headers=None):

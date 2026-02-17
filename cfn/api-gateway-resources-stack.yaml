@@ -119,9 +119,11 @@ Resources:
   # ===========================================================================
   # PROTECTION GROUPS
   # ===========================================================================
-  # /protection-groups         - GET list, POST create
-  # /protection-groups/{id}    - GET, PUT, DELETE single group
-  # /protection-groups/resolve - POST resolve server references
+  # /protection-groups                              - GET list, POST create
+  # /protection-groups/{id}                         - GET, PUT, DELETE single group
+  # /protection-groups/{id}/apply-launch-configs    - POST apply launch configs
+  # /protection-groups/{id}/launch-config-status    - GET launch config status
+  # /protection-groups/resolve                      - POST resolve server references
   ProtectionGroupsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -135,6 +137,20 @@ Resources:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ProtectionGroupsResource
       PathPart: '{id}'
+
+  ProtectionGroupApplyLaunchConfigsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ProtectionGroupResource
+      PathPart: apply-launch-configs
+
+  ProtectionGroupLaunchConfigStatusResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ProtectionGroupResource
+      PathPart: launch-config-status
 
   ProtectionGroupResolveResource:
     Type: AWS::ApiGateway::Resource
@@ -905,6 +921,18 @@ Outputs:
     Value: !Ref ProtectionGroupResolveResource
     Export:
       Name: !Sub '${AWS::StackName}-ProtectionGroupResolveResourceId'
+
+  ProtectionGroupApplyLaunchConfigsResourceId:
+    Description: 'Protection Group Apply Launch Configs Resource ID'
+    Value: !Ref ProtectionGroupApplyLaunchConfigsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ProtectionGroupApplyLaunchConfigsResourceId'
+
+  ProtectionGroupLaunchConfigStatusResourceId:
+    Description: 'Protection Group Launch Config Status Resource ID'
+    Value: !Ref ProtectionGroupLaunchConfigStatusResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ProtectionGroupLaunchConfigStatusResourceId'
 
   # Recovery Plan Resources
   RecoveryPlansResourceId:

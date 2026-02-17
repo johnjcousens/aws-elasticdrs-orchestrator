@@ -2465,8 +2465,6 @@ def get_ec2_instance_profiles(query_params: Dict) -> Dict:
     try:
         # Use cross-account session if accountId provided
         if account_id:
-            from shared.cross_account import get_cross_account_session
-
             print(f"[get_ec2_instance_profiles] Using cross-account for account {account_id}")
             account_context, err_msg = _get_cross_account_ec2_session(account_id)
             if not account_context:
