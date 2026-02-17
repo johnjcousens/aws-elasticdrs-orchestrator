@@ -54,9 +54,7 @@ def _get_protection_groups_table():
     if _protection_groups_table is None:
         table_name = os.environ.get("PROTECTION_GROUPS_TABLE")
         if not table_name:
-            raise LaunchConfigApplicationError(
-                "PROTECTION_GROUPS_TABLE environment variable not set"
-            )
+            raise LaunchConfigApplicationError("PROTECTION_GROUPS_TABLE environment variable not set")
         dynamodb = _get_dynamodb_resource()
         _protection_groups_table = dynamodb.Table(table_name)
     return _protection_groups_table
@@ -86,7 +84,7 @@ def apply_launch_configs_to_group(
     server_ids: List[str],
     launch_configs: Dict[str, Dict],
     account_context: Optional[Dict] = None,
-    timeout_seconds: int = 300
+    timeout_seconds: int = 300,
 ) -> Dict:
     """
     Apply launch configurations to all servers in a protection group.
@@ -133,17 +131,12 @@ def apply_launch_configs_to_group(
     if not region:
         raise LaunchConfigValidationError("region is required")
     if not server_ids:
-        raise LaunchConfigValidationError(
-            "server_ids list cannot be empty"
-        )
+        raise LaunchConfigValidationError("server_ids list cannot be empty")
     if not launch_configs:
-        raise LaunchConfigValidationError(
-            "launch_configs dict cannot be empty"
-        )
+        raise LaunchConfigValidationError("launch_configs dict cannot be empty")
 
     logger.info(
-        f"Applying launch configs to group {group_id} with "
-        f"{len(server_ids)} servers (timeout: {timeout_seconds}s)"
+        f"Applying launch configs to group {group_id} with " f"{len(server_ids)} servers (timeout: {timeout_seconds}s)"
     )
 
     # Initialize result tracking
@@ -157,9 +150,7 @@ def apply_launch_configs_to_group(
     try:
         if account_context:
             # Cross-account DRS client (for staging accounts)
-            drs_client = _get_cross_account_drs_client(
-                region, account_context
-            )
+            drs_client = _get_cross_account_drs_client(region, account_context)
         else:
             # Same-account DRS client
             drs_client = boto3.client("drs", region_name=region)
@@ -174,22 +165,18 @@ def apply_launch_configs_to_group(
         elapsed = time.time() - start_time
         if elapsed >= timeout_seconds:
             # Mark remaining servers as pending
-            remaining_servers = server_ids[server_ids.index(server_id):]
+            remaining_servers = server_ids[server_ids.index(server_id) :]
             for remaining_id in remaining_servers:
                 server_configs[remaining_id] = {
                     "status": "pending",
                     "lastApplied": None,
                     "configHash": None,
-                    "errors": ["Configuration application timed out"]
+                    "errors": ["Configuration application timed out"],
                 }
             overall_errors.append(
-                f"Timeout after {elapsed:.1f}s, "
-                f"{len(remaining_servers)} servers marked as pending"
+                f"Timeout after {elapsed:.1f}s, " f"{len(remaining_servers)} servers marked as pending"
             )
-            logger.warning(
-                f"Config application timeout for {group_id} after "
-                f"{elapsed:.1f}s"
-            )
+            logger.warning(f"Config application timeout for {group_id} after " f"{elapsed:.1f}s")
             break
 
         # Get launch config for this server
@@ -200,16 +187,14 @@ def apply_launch_configs_to_group(
                 "status": "failed",
                 "lastApplied": None,
                 "configHash": None,
-                "errors": [f"No launch config found for server {server_id}"]
+                "errors": [f"No launch config found for server {server_id}"],
             }
             failed_servers += 1
             continue
 
         # Apply configuration with retry logic
         try:
-            _apply_config_to_server(
-                drs_client, server_id, launch_config, region
-            )
+            _apply_config_to_server(drs_client, server_id, launch_config, region)
 
             # Calculate config hash for drift detection
             config_hash = calculate_config_hash(launch_config)
@@ -217,15 +202,13 @@ def apply_launch_configs_to_group(
             # Mark as ready
             server_configs[server_id] = {
                 "status": "ready",
-                "lastApplied": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                "lastApplied": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "configHash": config_hash,
-                "errors": []
+                "errors": [],
             }
             applied_servers += 1
 
-            logger.info(
-                f"Successfully applied config to server {server_id}"
-            )
+            logger.info(f"Successfully applied config to server {server_id}")
 
         except Exception as e:
             # Capture error and continue with other servers
@@ -234,16 +217,12 @@ def apply_launch_configs_to_group(
                 "status": "failed",
                 "lastApplied": None,
                 "configHash": None,
-                "errors": [error_msg]
+                "errors": [error_msg],
             }
             failed_servers += 1
-            overall_errors.append(
-                f"Server {server_id}: {error_msg}"
-            )
+            overall_errors.append(f"Server {server_id}: {error_msg}")
 
-            logger.error(
-                f"Failed to apply config to server {server_id}: {error_msg}"
-            )
+            logger.error(f"Failed to apply config to server {server_id}: {error_msg}")
 
     # Determine overall status
     if applied_servers == len(server_ids):
@@ -258,7 +237,7 @@ def apply_launch_configs_to_group(
         "appliedServers": applied_servers,
         "failedServers": failed_servers,
         "serverConfigs": server_configs,
-        "errors": overall_errors
+        "errors": overall_errors,
     }
 
     logger.info(
@@ -275,7 +254,7 @@ def _apply_config_to_server(
     server_id: str,
     launch_config: Dict,
     region: str,
-    max_retries: int = 3
+    max_retries: int = 3,
 ) -> None:
     """
     Apply launch configuration to a single server with retry logic.
@@ -301,7 +280,7 @@ def _apply_config_to_server(
     # EC2-specific fields (instanceType, subnetId, securityGroupIds) are
     # NOT valid for DRS API and must be applied via EC2 launch template
     drs_update = {"sourceServerID": server_id}
-    
+
     # Map only DRS-valid parameters
     drs_valid_params = [
         "copyPrivateIp",
@@ -310,9 +289,9 @@ def _apply_config_to_server(
         "licensing",
         "targetInstanceTypeRightSizingMethod",
         "postLaunchEnabled",
-        "name"
+        "name",
     ]
-    
+
     for param in drs_valid_params:
         if param in launch_config:
             drs_update[param] = launch_config[param]
@@ -329,10 +308,10 @@ def _apply_config_to_server(
             # Handle throttling with retry
             if error_code in [
                 "ThrottlingException",
-                "TooManyRequestsException"
+                "TooManyRequestsException",
             ]:
                 if attempt < max_retries - 1:
-                    delay = 1.0 * (2 ** attempt)
+                    delay = 1.0 * (2**attempt)
                     logger.warning(
                         f"DRS API throttled for {server_id}, "
                         f"retrying in {delay}s (attempt {attempt + 1}/"
@@ -341,29 +320,21 @@ def _apply_config_to_server(
                     time.sleep(delay)
                     continue
                 else:
-                    raise LaunchConfigApplicationError(
-                        f"DRS API throttled after {max_retries} attempts"
-                    )
+                    raise LaunchConfigApplicationError(f"DRS API throttled after {max_retries} attempts")
 
             # Handle validation errors (no retry)
             elif error_code == "ValidationException":
                 error_msg = e.response.get("Error", {}).get("Message", "")
-                raise LaunchConfigValidationError(
-                    f"Invalid launch config: {error_msg}"
-                )
+                raise LaunchConfigValidationError(f"Invalid launch config: {error_msg}")
 
             # Handle other errors (no retry)
             else:
                 error_msg = e.response.get("Error", {}).get("Message", "")
-                raise LaunchConfigApplicationError(
-                    f"DRS API error ({error_code}): {error_msg}"
-                )
+                raise LaunchConfigApplicationError(f"DRS API error ({error_code}): {error_msg}")
 
         except Exception as e:
             # Unexpected error
-            raise LaunchConfigApplicationError(
-                f"Unexpected error applying config: {str(e)}"
-            )
+            raise LaunchConfigApplicationError(f"Unexpected error applying config: {str(e)}")
 
 
 def _get_cross_account_drs_client(region: str, account_context: Dict):
@@ -386,15 +357,9 @@ def _get_cross_account_drs_client(region: str, account_context: Dict):
         sts_client = boto3.client("sts")
 
         # Assume role in target account
-        role_arn = (
-            f"arn:aws:iam::{account_context['accountId']}:"
-            f"role/{account_context['roleName']}"
-        )
+        role_arn = f"arn:aws:iam::{account_context['accountId']}:" f"role/{account_context['roleName']}"
 
-        response = sts_client.assume_role(
-            RoleArn=role_arn,
-            RoleSessionName="launch-config-application"
-        )
+        response = sts_client.assume_role(RoleArn=role_arn, RoleSessionName="launch-config-application")
 
         credentials = response["Credentials"]
 
@@ -404,7 +369,7 @@ def _get_cross_account_drs_client(region: str, account_context: Dict):
             region_name=region,
             aws_access_key_id=credentials["AccessKeyId"],
             aws_secret_access_key=credentials["SecretAccessKey"],
-            aws_session_token=credentials["SessionToken"]
+            aws_session_token=credentials["SessionToken"],
         )
 
         return drs_client
@@ -412,9 +377,7 @@ def _get_cross_account_drs_client(region: str, account_context: Dict):
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "")
         error_msg = e.response.get("Error", {}).get("Message", "")
-        raise LaunchConfigApplicationError(
-            f"Failed to assume role ({error_code}): {error_msg}"
-        )
+        raise LaunchConfigApplicationError(f"Failed to assume role ({error_code}): {error_msg}")
 
 
 def calculate_config_hash(launch_config: Dict) -> str:
@@ -489,9 +452,7 @@ def persist_config_status(group_id: str, config_status: Dict) -> None:
     required_fields = ["status", "serverConfigs", "errors"]
     for field in required_fields:
         if field not in config_status:
-            raise LaunchConfigValidationError(
-                f"config_status missing required field: {field}"
-            )
+            raise LaunchConfigValidationError(f"config_status missing required field: {field}")
 
     try:
         table = _get_protection_groups_table()
@@ -503,21 +464,13 @@ def persist_config_status(group_id: str, config_status: Dict) -> None:
             ExpressionAttributeValues={":status": config_status},
         )
 
-        logger.info(
-            f"Persisted config status for group {group_id}: "
-            f"status={config_status['status']}"
-        )
+        logger.info(f"Persisted config status for group {group_id}: " f"status={config_status['status']}")
 
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         error_message = e.response["Error"]["Message"]
-        logger.error(
-            f"Failed to persist config status for {group_id}: "
-            f"{error_code} - {error_message}"
-        )
-        raise LaunchConfigApplicationError(
-            f"DynamoDB update failed: {error_code}"
-        )
+        logger.error(f"Failed to persist config status for {group_id}: " f"{error_code} - {error_message}")
+        raise LaunchConfigApplicationError(f"DynamoDB update failed: {error_code}")
 
 
 def get_config_status(group_id: str) -> Dict:
@@ -557,9 +510,7 @@ def get_config_status(group_id: str) -> Dict:
 
         if "Item" not in response:
             logger.warning(f"Protection group {group_id} not found")
-            raise LaunchConfigApplicationError(
-                f"Protection group {group_id} not found"
-            )
+            raise LaunchConfigApplicationError(f"Protection group {group_id} not found")
 
         item = response["Item"]
 
@@ -579,19 +530,11 @@ def get_config_status(group_id: str) -> Dict:
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         error_message = e.response["Error"]["Message"]
-        logger.error(
-            f"Failed to get config status for {group_id}: "
-            f"{error_code} - {error_message}"
-        )
-        raise LaunchConfigApplicationError(
-            f"DynamoDB query failed: {error_code}"
-        )
+        logger.error(f"Failed to get config status for {group_id}: " f"{error_code} - {error_message}")
+        raise LaunchConfigApplicationError(f"DynamoDB query failed: {error_code}")
 
 
-def detect_config_drift(
-    group_id: str,
-    current_configs: Dict[str, Dict]
-) -> Dict:
+def detect_config_drift(group_id: str, current_configs: Dict[str, Dict]) -> Dict:
     """
     Detect configuration drift by comparing current config hashes
     with stored hashes.
@@ -630,19 +573,14 @@ def detect_config_drift(
     if current_configs is None:
         current_configs = {}
 
-    logger.info(
-        f"Detecting config drift for group {group_id} with "
-        f"{len(current_configs)} current configs"
-    )
+    logger.info(f"Detecting config drift for group {group_id} with " f"{len(current_configs)} current configs")
 
     # Get stored configuration status
     try:
         stored_status = get_config_status(group_id)
     except LaunchConfigApplicationError as e:
         # If we can't get stored status, treat as drift
-        logger.warning(
-            f"Failed to get stored config status for {group_id}: {e}"
-        )
+        logger.warning(f"Failed to get stored config status for {group_id}: {e}")
         return {
             "hasDrift": True,
             "driftedServers": list(current_configs.keys()),
@@ -650,17 +588,15 @@ def detect_config_drift(
                 server_id: {
                     "currentHash": calculate_config_hash(config),
                     "storedHash": None,
-                    "reason": "Unable to retrieve stored configuration status"
+                    "reason": "Unable to retrieve stored configuration status",
                 }
                 for server_id, config in current_configs.items()
-            }
+            },
         }
 
     # If no stored status, treat as drift
     if stored_status["status"] == "not_configured":
-        logger.info(
-            f"No stored config status for {group_id}, treating as drift"
-        )
+        logger.info(f"No stored config status for {group_id}, treating as drift")
         return {
             "hasDrift": True,
             "driftedServers": list(current_configs.keys()),
@@ -668,10 +604,10 @@ def detect_config_drift(
                 server_id: {
                     "currentHash": calculate_config_hash(config),
                     "storedHash": None,
-                    "reason": "No stored configuration status"
+                    "reason": "No stored configuration status",
                 }
                 for server_id, config in current_configs.items()
-            }
+            },
         }
 
     # Compare hashes for each server
@@ -681,14 +617,8 @@ def detect_config_drift(
 
     # Handle empty current configs (no drift if no configs to check)
     if not current_configs:
-        logger.info(
-            f"No current configs provided for {group_id}, no drift detected"
-        )
-        return {
-            "hasDrift": False,
-            "driftedServers": [],
-            "details": {}
-        }
+        logger.info(f"No current configs provided for {group_id}, no drift detected")
+        return {"hasDrift": False, "driftedServers": [], "details": {}}
 
     for server_id, current_config in current_configs.items():
         # Calculate current config hash
@@ -703,11 +633,9 @@ def detect_config_drift(
             drift_details[server_id] = {
                 "currentHash": current_hash,
                 "storedHash": None,
-                "reason": "No stored configuration for this server"
+                "reason": "No stored configuration for this server",
             }
-            logger.info(
-                f"Drift detected for {server_id}: no stored configuration"
-            )
+            logger.info(f"Drift detected for {server_id}: no stored configuration")
             continue
 
         # Get stored hash
@@ -719,11 +647,9 @@ def detect_config_drift(
             drift_details[server_id] = {
                 "currentHash": current_hash,
                 "storedHash": None,
-                "reason": "Stored configuration has no hash"
+                "reason": "Stored configuration has no hash",
             }
-            logger.info(
-                f"Drift detected for {server_id}: stored config has no hash"
-            )
+            logger.info(f"Drift detected for {server_id}: stored config has no hash")
             continue
 
         # Compare hashes
@@ -733,7 +659,7 @@ def detect_config_drift(
             drift_details[server_id] = {
                 "currentHash": current_hash,
                 "storedHash": stored_hash,
-                "reason": "Configuration hash mismatch"
+                "reason": "Configuration hash mismatch",
             }
             logger.info(
                 f"Drift detected for {server_id}: hash mismatch "
@@ -746,12 +672,11 @@ def detect_config_drift(
     result = {
         "hasDrift": has_drift,
         "driftedServers": drifted_servers,
-        "details": drift_details
+        "details": drift_details,
     }
 
     logger.info(
-        f"Drift detection complete for {group_id}: "
-        f"hasDrift={has_drift}, driftedServers={len(drifted_servers)}"
+        f"Drift detection complete for {group_id}: " f"hasDrift={has_drift}, driftedServers={len(drifted_servers)}"
     )
 
     return result

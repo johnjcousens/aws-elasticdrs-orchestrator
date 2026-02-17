@@ -530,7 +530,13 @@ def enrich_server_data(participating_servers: List[Dict], drs_client, ec2_client
     return enriched
 
 
-def drs_api_call_with_backoff(client, operation: str, max_retries: int = 3, base_delay: float = 1.0, **kwargs):
+def drs_api_call_with_backoff(
+    client,
+    operation: str,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    **kwargs,
+):
     """
     Execute DRS API call with exponential backoff for rate limits.
 
@@ -580,7 +586,10 @@ def drs_api_call_with_backoff(client, operation: str, max_retries: int = 3, base
 
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "")
-            if error_code in ["ThrottlingException", "TooManyRequestsException"]:
+            if error_code in [
+                "ThrottlingException",
+                "TooManyRequestsException",
+            ]:
                 if attempt < max_retries - 1:
                     delay = base_delay * (2**attempt)
                     print(

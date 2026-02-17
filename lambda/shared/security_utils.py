@@ -992,35 +992,31 @@ def validate_dynamodb_input(field_name: str, value: str) -> bool:
 def validate_launch_config_status(status: Dict[str, Any]) -> bool:
     """
     Validate launchConfigStatus field structure.
-    
+
     Args:
         status: Launch configuration status dictionary
-        
+
     Returns:
         True if valid
-        
+
     Raises:
         InputValidationError: If validation fails
     """
     if not isinstance(status, dict):
-        raise InputValidationError(
-            "launchConfigStatus must be a dictionary"
-        )
-    
+        raise InputValidationError("launchConfigStatus must be a dictionary")
+
     # Validate required fields
     required_fields = [
         "status",
         "lastApplied",
         "appliedBy",
         "serverConfigs",
-        "errors"
+        "errors",
     ]
     for field in required_fields:
         if field not in status:
-            raise InputValidationError(
-                f"launchConfigStatus missing required field: {field}"
-            )
-    
+            raise InputValidationError(f"launchConfigStatus missing required field: {field}")
+
     # Validate status field values
     valid_statuses = ["ready", "pending", "failed", "not_configured"]
     if status["status"] not in valid_statuses:
@@ -1028,32 +1024,26 @@ def validate_launch_config_status(status: Dict[str, Any]) -> bool:
             f"Invalid launchConfigStatus.status value: {status['status']}. "
             f"Must be one of: {', '.join(valid_statuses)}"
         )
-    
+
     # Validate serverConfigs is a dictionary
     if not isinstance(status["serverConfigs"], dict):
-        raise InputValidationError(
-            "launchConfigStatus.serverConfigs must be a dictionary"
-        )
-    
+        raise InputValidationError("launchConfigStatus.serverConfigs must be a dictionary")
+
     # Validate each server config structure
     for server_id, server_config in status["serverConfigs"].items():
         if not isinstance(server_config, dict):
-            raise InputValidationError(
-                f"Server config for {server_id} must be a dictionary"
-            )
-        
+            raise InputValidationError(f"Server config for {server_id} must be a dictionary")
+
         server_required_fields = [
             "status",
             "lastApplied",
             "configHash",
-            "errors"
+            "errors",
         ]
         for field in server_required_fields:
             if field not in server_config:
-                raise InputValidationError(
-                    f"Server config for {server_id} missing field: {field}"
-                )
-        
+                raise InputValidationError(f"Server config for {server_id} missing field: {field}")
+
         # Validate server status values
         server_valid_statuses = ["ready", "pending", "failed"]
         if server_config["status"] not in server_valid_statuses:
@@ -1062,17 +1052,13 @@ def validate_launch_config_status(status: Dict[str, Any]) -> bool:
                 f"{server_config['status']}. "
                 f"Must be one of: {', '.join(server_valid_statuses)}"
             )
-        
+
         # Validate errors is a list
         if not isinstance(server_config["errors"], list):
-            raise InputValidationError(
-                f"Errors for server {server_id} must be a list"
-            )
-    
+            raise InputValidationError(f"Errors for server {server_id} must be a list")
+
     # Validate errors is a list
     if not isinstance(status["errors"], list):
-        raise InputValidationError(
-            "launchConfigStatus.errors must be a list"
-        )
-    
+        raise InputValidationError("launchConfigStatus.errors must be a list")
+
     return True
