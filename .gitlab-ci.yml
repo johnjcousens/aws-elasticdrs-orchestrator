@@ -162,7 +162,6 @@ checkov:
   allow_failure: true
 
 semgrep:
-semgrep:
   stage: scan
   <<: *python-cache
   <<: *setup-python
@@ -304,6 +303,7 @@ build-frontend:
 .deploy-setup: &deploy-setup
   stage: deploy
   image: python:3.12-slim
+  resource_group: ${ENVIRONMENT}-deployment
   before_script:
     - apt-get update -qq && apt-get install -y -qq jq > /dev/null
     - pip install --quiet awscli boto3

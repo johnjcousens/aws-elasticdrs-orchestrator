@@ -855,6 +855,22 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
     }
   }, [waves, jobLogs, completedWaveDurations]);
   
+  // Filter waves to only show up to current wave (don't show future waves)
+  const visibleWaves = React.useMemo(() => {
+    if (!waves || waves.length === 0) return [];
+    
+    // If currentWave is defined, only show waves up to and including current wave
+    if (currentWave !== undefined) {
+      return waves.filter(wave => {
+        const waveNum = wave.waveNumber ?? 0;
+        return waveNum <= currentWave;
+      });
+    }
+    
+    // If no currentWave specified, show all waves (backward compatibility)
+    return waves;
+  }, [waves, currentWave]);
+  
   return (
     <SpaceBetween size="m">
       {/* Overall Progress Bar */}
@@ -870,7 +886,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
       )}
       
       {/* Wave List */}
-      {(waves || []).map((wave, index) => {
+      {visibleWaves.map((wave, index) => {
         const waveNum = wave.waveNumber ?? index;
         const displayNum = waveNum + 1;
         const isCurrent = currentWave === waveNum;

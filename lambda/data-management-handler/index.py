@@ -210,7 +210,6 @@ from shared.conflict_detection import (
     get_inventory_table,
     get_plans_with_conflicts,
     get_shared_protection_groups,
-    query_drs_servers_by_tags,
 )
 from shared.config_merge import get_effective_launch_config
 from shared.cross_account import (
@@ -1253,6 +1252,73 @@ def has_circular_dependencies_by_number(graph: Dict[int, List[int]]) -> bool:
     return False
 
 
+def query_inventory_servers_by_tags(account_id: str, region: str, tags: Dict[str, str]) -> List[str]:
+    """
+    Query inventory database for servers matching ALL specified tags.
+
+    Args:
+        account_id: Target account ID
+        region: AWS region
+        tags: Dictionary of tag key-value pairs (all must match)
+
+    Returns:
+        List of source server IDs matching all tags
+    """
+    try:
+        print(f"DEBUG: Querying inventory for accountId={account_id}, region={region}, tags={tags}")
+        inventory_table = get_inventory_table()
+
+        # Query using SourceAccountIndex GSI
+        result = inventory_table.query(
+            IndexName="SourceAccountIndex",
+            KeyConditionExpression="sourceAccountId = :said",
+            ExpressionAttributeValues={":said": account_id},
+        )
+        all_servers = result.get("Items", [])
+
+        # Handle pagination
+        while "LastEvaluatedKey" in result:
+            result = inventory_table.query(
+                IndexName="SourceAccountIndex",
+                KeyConditionExpression="sourceAccountId = :said",
+                ExpressionAttributeValues={":said": account_id},
+                ExclusiveStartKey=result["LastEvaluatedKey"],
+            )
+            all_servers.extend(result.get("Items", []))
+
+        print(f"DEBUG: Found {len(all_servers)} total servers in account {account_id}")
+
+        # Filter by region
+        if region:
+            all_servers = [s for s in all_servers if s.get("replicationRegion") == region]
+            print(f"DEBUG: After region filter: {len(all_servers)} servers")
+
+        # Filter by tags - server must have ALL specified tags
+        matching_servers = []
+        for server in all_servers:
+            server_tags = server.get("sourceTags", {})
+            server_id = server.get("sourceServerID", "unknown")
+
+            # Debug: Show first server's tags for comparison
+            if len(matching_servers) == 0 and len(all_servers) > 0:
+                print(f"DEBUG: First server {server_id} tags: {list(server_tags.keys())[:5]}")
+                print(f"DEBUG: Looking for tags: {list(tags.keys())}")
+
+            matches_all_tags = all(server_tags.get(tag_key) == tag_value for tag_key, tag_value in tags.items())
+            if matches_all_tags:
+                matching_servers.append(server)
+                print(f"DEBUG: Server {server_id} matched all tags")
+
+        print(f"DEBUG: After tag filter: {len(matching_servers)} servers matching all tags")
+
+        # Return just the server IDs
+        return [s.get("sourceServerID") for s in matching_servers if s.get("sourceServerID")]
+
+    except Exception as e:
+        print(f"Error querying inventory by tags: {e}")
+        return []
+
+
 def resolve_protection_group_tags(body: Dict) -> Dict:
     """
     Resolve tag-based server selection to actual DRS source servers.
@@ -1694,16 +1760,9 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
 
         # QUOTA VALIDATION: For tag-based selection, resolve and count servers
         if has_tags:
-            # Use validated account context for cross-account access
-            tag_account_context = None
-            if account_context.get("accountId"):
-                tag_account_context = {
-                    "accountId": account_context["accountId"],
-                    "assumeRoleName": account_context.get("assumeRoleName"),
-                }
-
-            # Resolve servers matching tags
-            resolved = query_drs_servers_by_tags(region, selection_tags, tag_account_context)
+            # Resolve servers matching tags from inventory database
+            target_account_id = account_context.get("accountId")
+            resolved = query_inventory_servers_by_tags(target_account_id, region, selection_tags)
             server_count = len(resolved)
 
             # Check 100 servers per job limit
@@ -1759,16 +1818,7 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
             # Resolve servers from tags and store the actual server IDs
             # This allows launch configs to be pre-applied to the resolved servers
             print("DEBUG: Resolving servers from tags for protection group creation")
-            tag_account_context = None
-            if account_context.get("accountId"):
-                current_account_id = get_current_account_id()
-                tag_account_context = {
-                    "accountId": account_context["accountId"],
-                    "assumeRoleName": account_context.get("assumeRoleName"),
-                    "isCurrentAccount": account_context["accountId"] == current_account_id,
-                }
-            resolved_servers = query_drs_servers_by_tags(region, selection_tags, tag_account_context)
-            resolved_server_ids = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
+            resolved_server_ids = query_inventory_servers_by_tags(account_context["accountId"], region, selection_tags)
             item["sourceServerIds"] = resolved_server_ids  # Store resolved IDs
             print(f"DEBUG: Resolved {len(resolved_server_ids)} servers from tags: {resolved_server_ids}")
         elif has_servers:
@@ -2215,18 +2265,25 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
             # Resolve servers from tags and store the actual server IDs
             print("DEBUG: Resolving servers from tags for protection group update")
-            tag_account_context = None
-            if existing_group.get("accountId"):
-                current_account_id = get_current_account_id()
-                tag_account_context = {
-                    "accountId": existing_group["accountId"],
-                    "assumeRoleName": existing_group.get("assumeRoleName"),
-                    "isCurrentAccount": existing_group["accountId"] == current_account_id,
-                }
-            resolved_servers = query_drs_servers_by_tags(
-                existing_group.get("region"), body["serverSelectionTags"], tag_account_context
+            account_id = existing_group.get("accountId")
+            if not account_id:
+                print("ERROR: Protection group missing accountId, cannot resolve tags")
+                return response(
+                    400,
+                    {
+                        "error": "MISSING_ACCOUNT_ID",
+                        "message": "Protection group must have accountId to resolve tag-based servers",
+                    },
+                )
+
+            # Query inventory database for servers matching tags
+            resolved_server_ids = query_inventory_servers_by_tags(
+                account_id, existing_group.get("region"), body["serverSelectionTags"]
             )
-            resolved_server_ids = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
+
+            if not resolved_server_ids:
+                print(f"WARNING: No servers found matching tags {body['serverSelectionTags']}")
+
             update_expression += ", sourceServerIds = :resolved_servers"
             expression_values[":resolved_servers"] = resolved_server_ids
             print(f"DEBUG: Resolved {len(resolved_server_ids)} servers from tags: {resolved_server_ids}")
@@ -2304,19 +2361,17 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     "serverSelectionTags",
                     existing_group.get("serverSelectionTags", {}),
                 )
-                # Extract account context from existing group
-                account_context = None
-                if existing_group.get("accountId"):
-                    account_context = {
-                        "accountId": existing_group.get("accountId"),
-                        "assumeRoleName": existing_group.get("assumeRoleName"),
-                    }
-                resolved = query_drs_servers_by_tags(
+                # Extract account ID from existing group
+                account_id = existing_group.get("accountId")
+                if not account_id:
+                    raise ValueError("Protection group missing accountId")
+
+                # Query inventory database for servers matching tags
+                server_ids = query_inventory_servers_by_tags(
+                    account_id,
                     region,
                     tags,
-                    account_context,
                 )
-                server_ids = [s.get("sourceServerID") for s in resolved if s.get("sourceServerID")]
 
             # Apply launch configs using new service
             if server_ids:
@@ -3913,6 +3968,22 @@ def create_recovery_plan(event: Dict, body: Dict) -> Dict:
                     "pauseBeforeWave": wave.get("pauseBeforeWave", False),
                     "dependsOnWaves": wave.get("dependsOnWaves", []),
                 }
+
+                # Resolve server IDs from protection group if not provided
+                if not camelcase_wave["serverIds"]:
+                    pg_id = camelcase_wave.get("protectionGroupId")
+                    if pg_id:
+                        try:
+                            pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
+                            pg = pg_result.get("Item")
+                            if pg:
+                                camelcase_wave["serverIds"] = pg.get("sourceServerIds", [])
+                                print(
+                                    f"Resolved {len(camelcase_wave['serverIds'])} servers from protection group {pg_id} for wave {idx}"
+                                )
+                        except Exception as e:
+                            print(f"Warning: Could not resolve servers from protection group {pg_id}: {e}")
+
                 # Only include protectionGroupIds if provided and non-empty
                 if wave.get("protectionGroupIds"):
                     camelcase_wave["protectionGroupIds"] = wave.get("protectionGroupIds")
@@ -4472,20 +4543,21 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 print(f"PG {pg_id} has selection tags: {selection_tags}")
                 if selection_tags:
                     try:
-                        # Extract account context from Protection Group
-                        account_context = None
-                        if pg.get("accountId"):
-                            account_context = {
-                                "accountId": pg.get("accountId"),
-                                "assumeRoleName": pg.get("assumeRoleName"),
-                                "externalId": pg.get("externalId"),
-                            }
-                        resolved = query_drs_servers_by_tags(pg_region, selection_tags, account_context)
-                        print(f"Resolved {len(resolved)} servers from tags")
-                        for server in resolved:
-                            server_id = server.get("sourceServerID")
-                            if server_id:
-                                all_server_ids.add(server_id)
+                        # Extract account ID from Protection Group
+                        account_id = pg.get("accountId")
+                        if not account_id:
+                            print(f"Warning: PG {pg_id} missing accountId, skipping tag resolution")
+                            continue
+
+                        # Query inventory database for servers matching tags
+                        server_ids = query_inventory_servers_by_tags(
+                            account_id,
+                            pg_region,
+                            selection_tags,
+                        )
+                        print(f"Resolved {len(server_ids)} servers from tags")
+                        for server_id in server_ids:
+                            all_server_ids.add(server_id)
                     except Exception as e:
                         print(f"Error resolving tags for PG {pg_id}: {e}")
 
@@ -4831,6 +4903,22 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                     "pauseBeforeWave": wave.get("pauseBeforeWave", False),
                     "dependsOnWaves": wave.get("dependsOnWaves", []),
                 }
+
+                # Resolve server IDs from protection group if not provided
+                if not camelcase_wave["serverIds"]:
+                    pg_id = camelcase_wave.get("protectionGroupId")
+                    if pg_id:
+                        try:
+                            pg_result = get_protection_groups_table().get_item(Key={"groupId": pg_id})
+                            pg = pg_result.get("Item")
+                            if pg:
+                                camelcase_wave["serverIds"] = pg.get("sourceServerIds", [])
+                                print(
+                                    f"Resolved {len(camelcase_wave['serverIds'])} servers from protection group {pg_id} for wave {idx}"
+                                )
+                        except Exception as e:
+                            print(f"Warning: Could not resolve servers from protection group {pg_id}: {e}")
+
                 # Only include protectionGroupIds if provided and non-empty
                 if wave.get("protectionGroupIds"):
                     camelcase_wave["protectionGroupIds"] = wave.get("protectionGroupIds")
@@ -9444,15 +9532,21 @@ def _process_protection_group_import(
     # Validate tag-based selection
     elif server_selection_tags:
         try:
-            # Extract account context from protection group data if available
-            account_context = None
-            if pg.get("accountId"):
-                account_context = {
-                    "accountId": pg.get("accountId"),
-                    "assumeRoleName": pg.get("assumeRoleName"),
-                }
-            resolved = query_drs_servers_by_tags(region, server_selection_tags, account_context)
-            if not resolved:
+            # Extract account ID from protection group data
+            account_id = pg.get("accountId")
+            if not account_id:
+                result["reason"] = "MISSING_ACCOUNT_ID"
+                result["details"] = {"message": "Protection group missing accountId"}
+                print(f"[{correlation_id}] Failed PG '{pg_name}': missing accountId")
+                return result
+
+            # Query inventory database for servers matching tags
+            server_ids = query_inventory_servers_by_tags(
+                account_id,
+                region,
+                server_selection_tags,
+            )
+            if not server_ids:
                 result["reason"] = "NO_TAG_MATCHES"
                 result["details"] = {
                     "tags": server_selection_tags,
@@ -9525,16 +9619,17 @@ def _process_protection_group_import(
                 if source_server_ids:
                     server_ids_to_apply = source_server_ids
                 elif server_selection_tags:
-                    # Extract account context from protection group data if
-                    # available
-                    account_context = None
-                    if pg.get("accountId"):
-                        account_context = {
-                            "accountId": pg.get("accountId"),
-                            "assumeRoleName": pg.get("assumeRoleName"),
-                        }
-                    resolved = query_drs_servers_by_tags(region, server_selection_tags, account_context)
-                    server_ids_to_apply = [s.get("sourceServerId") for s in resolved if s.get("sourceServerId")]
+                    # Extract account ID from protection group data
+                    account_id = pg.get("accountId")
+                    if not account_id:
+                        print(f"Warning: PG {group_id} missing accountId, skipping tag resolution")
+                    else:
+                        # Query inventory database for servers matching tags
+                        server_ids_to_apply = query_inventory_servers_by_tags(
+                            account_id,
+                            region,
+                            server_selection_tags,
+                        )
 
                 if server_ids_to_apply:
                     try:

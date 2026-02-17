@@ -5,7 +5,7 @@ set -e
 # Usage: ./deploy-ssm-document-multi-region.sh [--profile PROFILE] [--dry-run]
 
 DOCUMENT_NAME="DRS-InstallAgent-CrossAccount"
-DOCUMENT_FILE="$(dirname "$0")/../cfn/ssm-document-drs-agent-installer.yaml"
+DOCUMENT_FILE="$(dirname "$0")/ssm-document-drs-agent-installer.yaml"
 
 # 20 DRS-supported standard commercial regions
 DRS_REGIONS=(

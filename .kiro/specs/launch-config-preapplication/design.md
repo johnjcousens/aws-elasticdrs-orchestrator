@@ -2,17 +2,221 @@
 
 ## Overview
 
-This design implements a performance optimization for the DR Orchestration Platform by pre-applying DRS launch configurations when protection groups are created or updated, rather than applying them at runtime during wave execution. This eliminates 30-60 seconds of configuration overhead per wave, reducing total execution time by approximately 80%.
+This design fixes a critical bug in the DR Orchestration Platform where recovery executions fail with "Source server ARN is not in a state that allows recovery" errors. The root cause is duplicate server resolution logic in the execution-handler that re-queries DRS at execution time, discovering new servers that don't have launch configurations applied.
 
-The solution introduces a new shared service (`launch_config_service.py`) that handles configuration application, validation, and status tracking. Configuration status is persisted in DynamoDB with per-server granularity, enabling fast status checks during wave execution and providing visibility into configuration health.
+**Root Cause:**
+When protection groups use tag-based server selection (`serverSelectionTags`), the system resolves servers at two different times:
+1. **Creation Time** (`create_protection_group` in data-management-handler): Queries inventory database, resolves servers, applies launch configs, stores `sourceServerIds`
+2. **Execution Time** (`start_wave_recovery` in execution-handler): Re-queries DRS API directly, may discover different servers
+
+This causes execution-time discovery of new servers (added to DRS after protection group creation) that don't have launch configurations applied, resulting in recovery failures.
+
+**Solution:**
+Remove the duplicate server resolution logic from execution-handler. The execution-handler should use the pre-resolved `sourceServerIds` from the protection group instead of re-querying DRS. This ensures only servers with applied launch configurations are included in recovery operations.
+
+As a secondary optimization, this design also implements performance improvements by pre-applying DRS launch configurations when protection groups are created or updated, rather than applying them at runtime during wave execution. This eliminates 30-60 seconds of configuration overhead per wave, reducing total execution time by approximately 80%.
 
 ### Key Benefits
 
+- **Correctness**: Fixes recovery execution failures caused by duplicate server resolution
+- **Consistency**: Ensures only servers with launch configs are recovered
 - **Performance**: Wave execution time reduced from 30-60s to 5-10s per wave
 - **Visibility**: Configuration status tracked per server with error details
 - **Reliability**: Configuration drift detection prevents stale configs
 - **Flexibility**: Manual re-apply operation for recovery from failures
 - **Backward Compatible**: Falls back to runtime application if configs not pre-applied
+
+## Duplicate Server Resolution Fix
+
+### Current Problematic Flow
+
+```mermaid
+sequenceDiagram
+    participant UI as Frontend
+    participant DM as Data Management Handler
+    participant INV as Inventory Database
+    participant EH as Execution Handler
+    participant DRS as DRS API
+    
+    Note over UI,DRS: Protection Group Creation
+    UI->>DM: Create Protection Group (with tags)
+    DM->>INV: query_inventory_servers_by_tags()
+    INV-->>DM: Returns servers: [s-aaa, s-bbb]
+    DM->>DRS: Apply launch configs to s-aaa, s-bbb
+    DM->>DM: Store sourceServerIds: [s-aaa, s-bbb]
+    DM-->>UI: Protection Group Created
+    
+    Note over UI,DRS: Recovery Plan Creation
+    UI->>DM: Create Recovery Plan (references protection group)
+    DM->>DM: Get sourceServerIds from protection group
+    DM->>DM: Store serverIds in recovery plan wave: [s-aaa, s-bbb]
+    DM-->>UI: Recovery Plan Created
+    
+    Note over UI,DRS: Time Passes - New Server Added to DRS
+    Note over DRS: Server s-ccc added with matching tags
+    
+    Note over UI,DRS: Wave Execution (PROBLEM)
+    UI->>EH: Execute Recovery Plan
+    EH->>EH: Get serverIds from recovery plan wave
+    Note over EH: Wave has explicit serverIds: [s-aaa, s-bbb]
+    Note over EH: BUT execution-handler re-queries DRS!
+    EH->>DRS: query_drs_servers_by_tags()
+    DRS-->>EH: Returns servers: [s-aaa, s-bbb, s-ccc]
+    Note over EH: s-ccc has NO launch config!
+    EH->>DRS: start_recovery([s-aaa, s-bbb, s-ccc])
+    DRS-->>EH: ERROR: s-ccc not in state for recovery
+```
+
+### Fixed Flow
+
+```mermaid
+sequenceDiagram
+    participant UI as Frontend
+    participant DM as Data Management Handler
+    participant INV as Inventory Database
+    participant EH as Execution Handler
+    participant DRS as DRS API
+    
+    Note over UI,DRS: Protection Group Creation
+    UI->>DM: Create Protection Group (with tags)
+    DM->>INV: query_inventory_servers_by_tags()
+    INV-->>DM: Returns servers: [s-aaa, s-bbb]
+    DM->>DRS: Apply launch configs to s-aaa, s-bbb
+    DM->>DM: Store sourceServerIds: [s-aaa, s-bbb]
+    DM-->>UI: Protection Group Created
+    
+    Note over UI,DRS: Recovery Plan Creation
+    UI->>DM: Create Recovery Plan (references protection group)
+    DM->>DM: Get sourceServerIds from protection group
+    DM->>DM: Store serverIds in recovery plan wave: [s-aaa, s-bbb]
+    DM-->>UI: Recovery Plan Created
+    
+    Note over UI,DRS: Time Passes - New Server Added to DRS
+    Note over DRS: Server s-ccc added with matching tags
+    
+    Note over UI,DRS: Wave Execution (FIXED)
+    UI->>EH: Execute Recovery Plan
+    EH->>EH: Get serverIds from recovery plan wave
+    Note over EH: Wave has explicit serverIds: [s-aaa, s-bbb]
+    Note over EH: Use these pre-resolved servers ONLY
+    EH->>DRS: start_recovery([s-aaa, s-bbb])
+    DRS-->>EH: SUCCESS: All servers have launch configs
+```
+
+### Code Changes Required
+
+**File: `lambda/execution-handler/index.py`**
+
+**Location: Line ~1850 in `start_wave_recovery()` function**
+
+**Current Code (PROBLEMATIC):**
+```python
+def start_wave_recovery(state: Dict, wave_number: int) -> None:
+    """Start recovery for a specific wave."""
+    wave = state["waves"][wave_number - 1]
+    
+    # Wave already has explicit serverIds from recovery plan creation
+    # Recovery plan resolved servers from protection group at plan creation time
+    server_ids = wave.get("serverIds", [])
+    
+    # PROBLEM: Execution-handler ignores pre-resolved serverIds
+    # and re-queries DRS using tags from protection group
+    protection_group_id = wave.get("protectionGroupId")
+    protection_group = get_protection_group(protection_group_id)
+    
+    if "serverSelectionTags" in protection_group:
+        # Re-queries DRS API, may find NEW servers without launch configs
+        server_ids = query_drs_servers_by_tags(
+            protection_group["serverSelectionTags"],
+            protection_group["region"]
+        )
+    
+    # Start recovery with potentially incorrect server list
+    start_drs_recovery(server_ids, ...)
+```
+
+**Fixed Code:**
+```python
+def start_wave_recovery(state: Dict, wave_number: int) -> None:
+    """Start recovery for a specific wave."""
+    wave = state["waves"][wave_number - 1]
+    
+    # FIXED: Use pre-resolved serverIds from recovery plan wave
+    # These servers were resolved at recovery plan creation time
+    # from the protection group's sourceServerIds
+    # All these servers have launch configs applied
+    server_ids = wave.get("serverIds", [])
+    
+    if not server_ids:
+        raise ValueError(
+            f"Wave {wave_number} has no server IDs. "
+            "This should not happen - waves must have servers."
+        )
+    
+    logger.info(
+        f"Starting recovery for wave {wave_number} with "
+        f"{len(server_ids)} pre-resolved servers from recovery plan"
+    )
+    
+    # Start recovery with correct server list (all have launch configs)
+    start_drs_recovery(server_ids, ...)
+```
+
+### Why This Fix Is Correct
+
+1. **Server Resolution Happens Twice (Correctly)**:
+   - At protection group creation: Tags → servers → launch configs applied → `sourceServerIds` stored
+   - At recovery plan creation: Protection group `sourceServerIds` → recovery plan wave `serverIds`
+
+2. **Launch Configs Applied Once**: To the resolved servers at protection group creation
+
+3. **Execution Uses Pre-Resolved List**: From recovery plan wave `serverIds`, no re-querying
+
+4. **Consistency Guaranteed**: Only servers with launch configs are recovered
+
+5. **Tag-Based Selection Still Works**: Tags are used at protection group creation time to resolve servers
+
+### Impact on Tag-Based Protection Groups
+
+**Before Fix:**
+- Tags used at protection group creation to resolve servers
+- Server IDs copied to recovery plan at plan creation
+- Tags used AGAIN at wave execution to re-resolve servers
+- New servers discovered at execution time (without launch configs)
+- Recovery fails for new servers
+
+**After Fix:**
+- Tags used ONLY at protection group creation to resolve servers
+- Server IDs copied to recovery plan at plan creation
+- Execution uses pre-resolved server IDs from recovery plan wave
+- No new servers discovered at execution time
+- Recovery succeeds for all servers (all have launch configs)
+
+**To Add New Servers:**
+- User must update the protection group (triggers re-resolution using tags)
+- Launch configs applied to new servers
+- New servers added to `sourceServerIds`
+- User must create NEW recovery plan (or update existing plan)
+- New recovery plan includes updated server list
+- Next execution includes new servers
+
+### Backward Compatibility
+
+**Recovery Plans Without Explicit Server IDs:**
+- Should not exist (recovery plans always resolve servers from protection groups)
+- If they exist, execution will fail with clear error message
+- User must recreate recovery plan
+
+**Recovery Plans With Explicit Server IDs:**
+- Already have `serverIds` in each wave
+- Fix removes execution-time tag resolution
+- Uses existing `serverIds` field from wave
+- Fully compatible with existing data
+
+**Migration:**
+- No data migration required
+- All existing recovery plans have `serverIds` in waves
+- Fix is purely code change in execution-handler
 
 ## Architecture
 

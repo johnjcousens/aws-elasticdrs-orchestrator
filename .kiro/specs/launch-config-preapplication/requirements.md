@@ -16,6 +16,57 @@ Currently, launch configurations and launch template settings are applied at run
 
 This adds significant latency to every wave execution, especially for large protection groups with many servers.
 
+**CRITICAL ISSUE - Tag-Based Server Resolution and Launch Configuration Application:**
+
+The current implementation resolves servers from tags at **protection group creation time** (not execution time) and stores the resolved server IDs in the `sourceServerIds` field. However, there is a critical gap in the launch configuration application logic:
+
+**Current Behavior (from `create_protection_group` in data-management-handler):**
+1. Protection group created with `serverSelectionTags`: `dr:priority=critical`, `dr:wave=1`, `Customer=CustomerA`
+2. System calls `query_inventory_servers_by_tags()` to resolve matching servers from inventory database
+3. Resolved server IDs are stored in `sourceServerIds` field: `["s-abc123", "s-def456", ...]`
+4. Launch configurations are applied to these resolved servers
+5. Protection group is saved with both `serverSelectionTags` AND `sourceServerIds`
+
+**The Problem:**
+When a recovery plan execution starts, the `start_wave_recovery()` function in execution-handler has DUPLICATE server resolution logic:
+
+```python
+# From execution-handler/index.py line ~1850
+selection_tags = pg.get("serverSelectionTags", {})
+
+if selection_tags:
+    # PROBLEM: Re-resolves servers from tags at execution time
+    resolved_servers = query_drs_servers_by_tags(region, selection_tags, account_context)
+    server_ids = [s.get("sourceServerID") for s in resolved_servers]
+else:
+    # Uses explicit serverIds from wave (legacy support)
+    server_ids = wave.get("serverIds", [])
+```
+
+This code queries DRS API directly (`query_drs_servers_by_tags`) instead of using the pre-resolved `sourceServerIds` from the protection group. The DRS query may return DIFFERENT servers than what was resolved at creation time, including servers that:
+- Were NOT in the inventory database when the protection group was created
+- Do NOT have launch configurations applied
+- May not even exist in DRS yet
+
+**Example Failure Scenario:**
+1. Protection group `Wave1-CustomerA-DatabaseServers-BasedOnTags` created with tags
+2. At creation: Inventory query resolves 10 servers, launch configs applied to all 10
+3. Protection group stored with `sourceServerIds: ["s-abc123", ..., "s-xyz789"]` (10 servers)
+4. Later: New server `s-c2e3b2c0e2f0e2c0e` added to DRS with matching tags
+5. Wave execution: `query_drs_servers_by_tags()` queries DRS API and finds 11 servers (including new one)
+6. Wave execution tries to recover server `s-c2e3b2c0e2f0e2c0e` which has NO launch config
+7. DRS rejects with "Source server ARN is not in a state that allows recovery"
+8. Recovery execution fails
+
+**Root Cause:**
+The execution-handler should use the pre-resolved `sourceServerIds` from the protection group (which have launch configs applied), but instead it re-queries DRS at execution time and gets a different set of servers.
+
+**Impact:**
+- ALL protection groups using `serverSelectionTags` are affected
+- Recovery executions fail unpredictably when new servers are added to DRS
+- Launch configuration pre-application is bypassed for newly discovered servers
+- No way to know which servers will be included until execution time
+
 ## User Stories
 
 ### 1. As a DR administrator

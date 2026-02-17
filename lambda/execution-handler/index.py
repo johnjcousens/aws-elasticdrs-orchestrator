@@ -723,6 +723,22 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             # Derive from plan if not provided in request
             account_context = determine_target_account_context(plan)
 
+        # Initialize waves from plan with PENDING status
+        waves = []
+        for wave in plan.get("waves", []):
+            wave_copy = {
+                "waveNumber": wave.get("waveNumber", 0),
+                "waveName": wave.get("waveName", f"Wave {wave.get('waveNumber', 0) + 1}"),
+                "waveDescription": wave.get("waveDescription", ""),
+                "protectionGroupId": wave.get("protectionGroupId"),
+                "protectionGroupIds": wave.get("protectionGroupIds", []),
+                "serverIds": wave.get("serverIds", []),
+                "status": "PENDING",
+                "pauseBeforeWave": wave.get("pauseBeforeWave", False),
+                "dependsOnWaves": wave.get("dependsOnWaves", []),
+            }
+            waves.append(wave_copy)
+
         history_item = {
             "executionId": execution_id,
             "planId": plan_id,
@@ -731,8 +747,8 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             "status": "PENDING",
             "startTime": timestamp,
             "initiatedBy": body["initiatedBy"],
-            "waves": [],
-            "totalWaves": len(plan.get("waves", [])),
+            "waves": waves,
+            "totalWaves": len(waves),
             "accountContext": account_context,
             # Store accountId at top level for efficient filtering
             "accountId": (account_context.get("accountId") if account_context else None),
