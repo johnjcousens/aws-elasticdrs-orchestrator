@@ -1761,9 +1761,11 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
             print("DEBUG: Resolving servers from tags for protection group creation")
             tag_account_context = None
             if account_context.get("accountId"):
+                current_account_id = get_current_account_id()
                 tag_account_context = {
                     "accountId": account_context["accountId"],
                     "assumeRoleName": account_context.get("assumeRoleName"),
+                    "isCurrentAccount": account_context["accountId"] == current_account_id,
                 }
             resolved_servers = query_drs_servers_by_tags(region, selection_tags, tag_account_context)
             resolved_server_ids = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
@@ -2215,9 +2217,11 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             print("DEBUG: Resolving servers from tags for protection group update")
             tag_account_context = None
             if existing_group.get("accountId"):
+                current_account_id = get_current_account_id()
                 tag_account_context = {
                     "accountId": existing_group["accountId"],
                     "assumeRoleName": existing_group.get("assumeRoleName"),
+                    "isCurrentAccount": existing_group["accountId"] == current_account_id,
                 }
             resolved_servers = query_drs_servers_by_tags(
                 existing_group.get("region"), body["serverSelectionTags"], tag_account_context
