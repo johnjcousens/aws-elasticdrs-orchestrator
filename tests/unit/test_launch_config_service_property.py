@@ -25,6 +25,27 @@ from shared.launch_config_service import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_dynamodb_globals():
+    """
+    Reset DynamoDB global variables before each test.
+    
+    This fixture ensures test isolation by resetting the module-level
+    DynamoDB resource and table references that are cached globally.
+    """
+    import shared.launch_config_service as lcs
+    
+    # Reset global variables
+    lcs._dynamodb = None
+    lcs._protection_groups_table = None
+    
+    yield
+    
+    # Clean up after test
+    lcs._dynamodb = None
+    lcs._protection_groups_table = None
+
+
 # Efficient strategy for generating unique server IDs
 # Instead of generating random hex strings and filtering for uniqueness,
 # we generate unique integers and format them as server IDs
@@ -2500,13 +2521,15 @@ class TestProperty5ErrorVisibility:
             max_size=4
         )
     )
-    @settings(deadline=5000)  # 5 second deadline for retry logic testing
+    @settings(deadline=None)  # Disable deadline - retry logic uses time.sleep()
+    @patch("shared.launch_config_service.time.sleep")  # Mock sleep to speed up retries
     @patch("shared.launch_config_service.boto3")
     @patch("shared.launch_config_service._get_protection_groups_table")
     def test_property_5_error_messages_are_descriptive(
         self,
         mock_table,
         mock_boto3,
+        mock_sleep,
         group_id,
         region,
         server_ids,
