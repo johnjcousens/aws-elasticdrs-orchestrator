@@ -71,12 +71,18 @@ def mock_shared_modules():
     """Mock shared modules before importing index"""
     # Mock all shared modules
     sys.modules["shared"] = Mock()
+    sys.modules["shared.account_utils"] = Mock()
     sys.modules["shared.config_merge"] = Mock()
     sys.modules["shared.conflict_detection"] = Mock()
     sys.modules["shared.cross_account"] = Mock()
     sys.modules["shared.drs_limits"] = Mock()
     sys.modules["shared.drs_utils"] = Mock()
     sys.modules["shared.execution_utils"] = Mock()
+
+    # Mock account_utils
+    mock_account_utils = Mock()
+    mock_account_utils.get_account_name = Mock(return_value="test-account")
+    sys.modules["shared.account_utils"] = mock_account_utils
 
     # Mock IAM utilities
     mock_iam_utils = Mock()

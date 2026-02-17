@@ -62,7 +62,7 @@ src_paths = ["lambda", "scripts", "tests"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra -q --strict-markers --strict-config"
+addopts = "-ra -q --strict-markers --strict-config --hypothesis-show-statistics"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
@@ -76,6 +76,10 @@ filterwarnings = [
     "ignore::urllib3.exceptions.SystemTimeWarning",
     "ignore::DeprecationWarning:datetime",
 ]
+
+[tool.hypothesis]
+max_examples = 100
+deadline = 5000  # 5 seconds per test
 
 [tool.coverage.run]
 source = ["lambda"]

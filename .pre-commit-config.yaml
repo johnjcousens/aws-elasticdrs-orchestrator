@@ -5,7 +5,7 @@
 repos:
   # Python security scanning
   - repo: https://github.com/PyCQA/bandit
-    rev: '1.7.5'
+    rev: '1.9.0'
     hooks:
       - id: bandit
         name: Bandit Python security scanner
@@ -15,7 +15,7 @@ repos:
 
   # Multi-language security scanning
   - repo: https://github.com/returntocorp/semgrep
-    rev: 'v1.45.0'
+    rev: 'v1.146.0'
     hooks:
       - id: semgrep
         name: Semgrep security scanner
@@ -42,8 +42,7 @@ repos:
         entry: cfn-lint
         args: ['--format', 'parseable']
         language: system
-        files: '\.ya?ml$'
-        exclude: '^(?!cfn/)'
+        files: '^cfn/.*\.ya?ml$'
 
   # Frontend security scanning
   - repo: local
@@ -69,7 +68,7 @@ repos:
 
   # General code quality (supporting security)
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: check-yaml
         name: Check YAML syntax
@@ -84,22 +83,31 @@ repos:
       - id: end-of-file-fixer
         name: Fix end of files
 
+  # Secret detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: '^(\.git/|\.venv/|node_modules/|\.hypothesis/)'
+
   # Python code formatting (security-adjacent)
   - repo: https://github.com/psf/black
-    rev: '23.7.0'
+    rev: '24.3.0'
     hooks:
       - id: black
         name: Black Python formatter
-        args: ['--line-length=79']
+        args: ['--line-length=120']
         files: '\.py$'
 
   # Import sorting (security-adjacent)
   - repo: https://github.com/pycqa/isort
-    rev: '5.12.0'
+    rev: '5.13.0'
     hooks:
       - id: isort
         name: isort import sorting
-        args: ['--profile=black', '--line-length=79']
+        args: ['--profile=black', '--line-length=120']
         files: '\.py$'
 
 # Configuration

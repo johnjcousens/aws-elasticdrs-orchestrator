@@ -94,6 +94,7 @@ DEPLOY_FRONTEND="true"
 ORCHESTRATION_ROLE_ARN=""
 VALIDATE_ONLY=false
 FULL_TESTS=false  # Run all tests including slow property-based tests
+SKIP_TESTS=false  # Skip all tests (emergency deployment)
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -116,6 +117,7 @@ while [[ $# -gt 0 ]]; do
         --validate-only) VALIDATE_ONLY=true ;;
         --force) FORCE=true ;;
         --full-tests) FULL_TESTS=true ;;
+        --skip-tests) SKIP_TESTS=true ;;
         --no-frontend) DEPLOY_FRONTEND="false" ;;
         --orchestration-role)
             ORCHESTRATION_ROLE_ARN="$2"
@@ -641,7 +643,9 @@ if [ -d "tests" ]; then
     # Run unit tests
     TEST_FAILED=false
     
-    if [ -d "tests/unit" ] && find tests/unit -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+    if [ "$SKIP_TESTS" = true ]; then
+        echo -e "${YELLOW}  ⚠ Skipping all tests (--skip-tests flag)${NC}"
+    elif [ -d "tests/unit" ] && find tests/unit -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
         echo -e "${BLUE}  Running unit tests...${NC}"
         # Skip slow property-based tests by default for faster development
         # Use --full-tests flag or --validate-only to run all tests including property-based tests
@@ -680,7 +684,9 @@ if [ -d "tests" ]; then
 fi
 
 # Frontend tests
-if [ -d "frontend" ]; then
+if [ "$SKIP_TESTS" = true ]; then
+    echo -e "${YELLOW}  ⚠ Skipping frontend tests (--skip-tests flag)${NC}"
+elif [ -d "frontend" ]; then
     cd frontend
     if npm run test:skip-integration --silent 2>/dev/null; then
         echo -e "${GREEN}  ✓ vitest (integration tests skipped)${NC}"

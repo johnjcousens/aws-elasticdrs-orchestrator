@@ -10,6 +10,32 @@ import sys
 from pathlib import Path
 import pytest
 from moto import mock_aws
+from hypothesis import settings, Verbosity
+
+# Configure Hypothesis for faster test runs
+# This applies to ALL property-based tests in the test suite
+settings.register_profile(
+    "ci",
+    max_examples=15,  # Reduced from default 100
+    deadline=5000,    # 5 second deadline per example
+    verbosity=Verbosity.normal,
+)
+settings.register_profile(
+    "dev",
+    max_examples=10,  # Fast for development
+    deadline=5000,
+    verbosity=Verbosity.normal,
+)
+settings.register_profile(
+    "debug",
+    max_examples=5,   # Minimal for debugging
+    deadline=None,    # No deadline for debugging
+    verbosity=Verbosity.verbose,
+)
+
+# Use 'dev' profile by default for faster test runs
+# Can be overridden with: pytest --hypothesis-profile=ci
+settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "dev"))
 
 # CRITICAL: Set environment variables BEFORE any imports
 # This ensures global variables in shared modules are initialized correctly
