@@ -194,7 +194,7 @@ def apply_launch_configs_to_group(
 
         # Apply configuration with retry logic
         try:
-            _apply_config_to_server(drs_client, server_id, launch_config, region)
+            _apply_config_to_server(drs_client, server_id, launch_config, region, account_context=account_context)
 
             # Calculate config hash for drift detection
             config_hash = calculate_config_hash(launch_config)
@@ -255,9 +255,13 @@ def _apply_config_to_server(
     launch_config: Dict,
     region: str,
     max_retries: int = 3,
+    account_context: Optional[Dict] = None,
 ) -> None:
     """
     Apply launch configuration to a single server with retry logic.
+
+    Updates both DRS launch configuration and EC2 launch template.
+    DRS update must happen FIRST to avoid being overwritten.
 
     Uses exponential backoff for DRS API throttling errors.
 
@@ -267,6 +271,7 @@ def _apply_config_to_server(
         launch_config: Launch configuration dictionary
         region: AWS region
         max_retries: Maximum retry attempts
+        account_context: Cross-account context for EC2 client
 
     Raises:
         LaunchConfigApplicationError: When config application fails
@@ -277,13 +282,19 @@ def _apply_config_to_server(
     # DRS update_launch_configuration accepts:
     # - copyPrivateIp, copyTags, launchDisposition, licensing
     # - targetInstanceTypeRightSizingMethod, postLaunchEnabled, name
-    # EC2-specific fields (instanceType, subnetId, securityGroupIds) are
-    # NOT valid for DRS API and must be applied via EC2 launch template
+    # EC2-specific fields (instanceType, subnetId, securityGroupIds, staticPrivateIp)
+    # are NOT valid for DRS API and must be applied via EC2 launch template
     drs_update = {"sourceServerID": server_id}
 
-    # Map only DRS-valid parameters
+    # If static IP is specified, disable copyPrivateIp to prevent DRS
+    # from overriding it
+    if launch_config.get("staticPrivateIp"):
+        drs_update["copyPrivateIp"] = False
+    elif "copyPrivateIp" in launch_config:
+        drs_update["copyPrivateIp"] = launch_config["copyPrivateIp"]
+
+    # Map other DRS-valid parameters
     drs_valid_params = [
-        "copyPrivateIp",
         "copyTags",
         "launchDisposition",
         "licensing",
@@ -296,11 +307,14 @@ def _apply_config_to_server(
         if param in launch_config:
             drs_update[param] = launch_config[param]
 
-    # Retry with exponential backoff
+    # STEP 1: Update DRS launch configuration FIRST
+    # DRS creates new EC2 template versions, so we must call it before
+    # our EC2 updates to avoid being overwritten
     for attempt in range(max_retries):
         try:
-            drs_client.update_launch_configuration(**drs_update)
-            return  # Success
+            if len(drs_update) > 1:  # More than just sourceServerID
+                drs_client.update_launch_configuration(**drs_update)
+            break  # Success
 
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "")
@@ -334,7 +348,146 @@ def _apply_config_to_server(
 
         except Exception as e:
             # Unexpected error
-            raise LaunchConfigApplicationError(f"Unexpected error applying config: {str(e)}")
+            raise LaunchConfigApplicationError(f"Unexpected error applying DRS config: {str(e)}")
+
+    # STEP 2: Update EC2 launch template (after DRS, so our changes stick)
+    # Check if we have EC2-specific settings to apply
+    has_ec2_settings = any(
+        [
+            launch_config.get("instanceType"),
+            launch_config.get("subnetId"),
+            launch_config.get("securityGroupIds"),
+            launch_config.get("instanceProfileName"),
+            launch_config.get("staticPrivateIp"),
+        ]
+    )
+
+    if has_ec2_settings:
+        try:
+            # Get launch template ID from DRS configuration
+            drs_config = drs_client.get_launch_configuration(sourceServerID=server_id)
+            template_id = drs_config.get("ec2LaunchTemplateID")
+
+            if not template_id:
+                logger.warning(f"No EC2 launch template found for server {server_id}, skipping EC2 updates")
+                return
+
+            # Create EC2 client with same account context as DRS
+            if account_context and not account_context.get("isCurrentAccount", True):
+                from shared.cross_account import get_cross_account_session
+
+                account_id = account_context["accountId"]
+                assume_role_name = account_context.get("assumeRoleName")
+                if assume_role_name:
+                    role_arn = f"arn:aws:iam::{account_id}:role/{assume_role_name}"
+                    external_id = account_context.get("externalId")
+                    session = get_cross_account_session(role_arn, external_id)
+                    ec2_client = session.client("ec2", region_name=region)
+                    logger.info(f"Created cross-account EC2 client for account {account_id}")
+                else:
+                    ec2_client = boto3.client("ec2", region_name=region)
+            else:
+                ec2_client = boto3.client("ec2", region_name=region)
+
+            # Build EC2 template data for the new version
+            template_data = {}
+
+            if launch_config.get("instanceType"):
+                template_data["InstanceType"] = launch_config["instanceType"]
+
+            # Network interface settings (subnet, security groups, static IP)
+            if (
+                launch_config.get("subnetId")
+                or launch_config.get("securityGroupIds")
+                or launch_config.get("staticPrivateIp")
+            ):
+                network_interface = {"DeviceIndex": 0}
+
+                # Static private IP support
+                if launch_config.get("staticPrivateIp"):
+                    network_interface["PrivateIpAddress"] = launch_config["staticPrivateIp"]
+
+                if launch_config.get("subnetId"):
+                    network_interface["SubnetId"] = launch_config["subnetId"]
+                if launch_config.get("securityGroupIds"):
+                    network_interface["Groups"] = launch_config["securityGroupIds"]
+                template_data["NetworkInterfaces"] = [network_interface]
+
+            if launch_config.get("instanceProfileName"):
+                template_data["IamInstanceProfile"] = {"Name": launch_config["instanceProfileName"]}
+
+            # Create new launch template version with descriptive metadata
+            version_desc = _build_version_description(launch_config, server_id)
+
+            ec2_client.create_launch_template_version(
+                LaunchTemplateId=template_id,
+                LaunchTemplateData=template_data,
+                VersionDescription=version_desc,
+            )
+
+            # Set new version as default
+            ec2_client.modify_launch_template(LaunchTemplateId=template_id, DefaultVersion="$Latest")
+
+            logger.info(f"Successfully updated EC2 launch template {template_id} for server {server_id}")
+
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            error_msg = e.response.get("Error", {}).get("Message", "")
+            raise LaunchConfigApplicationError(f"EC2 API error ({error_code}): {error_msg}")
+
+        except Exception as e:
+            raise LaunchConfigApplicationError(f"Unexpected error updating EC2 template: {str(e)}")
+
+
+def _build_version_description(launch_config: Dict, server_id: str) -> str:
+    """
+    Build descriptive version description for EC2 launch template.
+
+    Args:
+        launch_config: Launch configuration dictionary
+        server_id: DRS source server ID
+
+    Returns:
+        Version description string (max 255 chars)
+    """
+    from datetime import datetime, timezone
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    desc_parts = [f"DRS Orchestration | {timestamp}"]
+
+    # Add server ID (truncated)
+    desc_parts.append(f"Server: {server_id[:12]}")
+
+    # Add config details
+    config_details = []
+    if launch_config.get("staticPrivateIp"):
+        config_details.append(f"IP:{launch_config['staticPrivateIp']}")
+    if launch_config.get("instanceType"):
+        config_details.append(f"Type:{launch_config['instanceType']}")
+    if launch_config.get("subnetId"):
+        config_details.append(f"Subnet:{launch_config['subnetId'][-8:]}")
+    if launch_config.get("securityGroupIds"):
+        sg_count = len(launch_config["securityGroupIds"])
+        config_details.append(f"SGs:{sg_count}")
+    if launch_config.get("instanceProfileName"):
+        profile = launch_config["instanceProfileName"]
+        if len(profile) > 20:
+            profile = profile[:17] + "..."
+        config_details.append(f"Profile:{profile}")
+    if launch_config.get("copyPrivateIp"):
+        config_details.append("CopyIP")
+    if launch_config.get("copyTags"):
+        config_details.append("CopyTags")
+    if launch_config.get("targetInstanceTypeRightSizingMethod"):
+        config_details.append(f"RightSize:{launch_config['targetInstanceTypeRightSizingMethod']}")
+    if launch_config.get("launchDisposition"):
+        config_details.append(f"Launch:{launch_config['launchDisposition']}")
+
+    if config_details:
+        desc_parts.append(" | ".join(config_details))
+
+    # EC2 version description max 255 chars
+    return " | ".join(desc_parts)[:255]
 
 
 def _get_cross_account_drs_client(region: str, account_context: Dict):
