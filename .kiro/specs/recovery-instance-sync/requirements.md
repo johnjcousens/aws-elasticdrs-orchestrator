@@ -45,17 +45,17 @@ The Recovery Instance Sync feature addresses a critical performance bottleneck i
 4. WHEN writing to Recovery_Instance_Cache, THE Execution_Handler SHALL update existing server information with ec2InstanceId, privateIp, and publicIp
 5. IF DRS_API or EC2_API calls fail, THEN THE Execution_Handler SHALL log the error and continue wave completion without blocking
 
-### Requirement 3: Background Sync Lambda
+### Requirement 3: Background Sync
 
 **User Story:** As a system administrator, I want recovery instance data to be automatically synced in the background, so that the cache stays current without manual intervention.
 
 #### Acceptance Criteria
 
 1. THE Background_Sync SHALL be triggered by EventBridge every 5 minutes
-2. WHEN Background_Sync executes, THE Background_Sync SHALL query DRS_API describe_recovery_instances for all configured regions
-3. WHEN recovery instances are found, THE Background_Sync SHALL enrich each instance with EC2_API details
-4. WHEN enrichment completes, THE Background_Sync SHALL update Recovery_Instance_Cache with current data
-5. WHEN Background_Sync encounters errors, THE Background_Sync SHALL log errors and continue processing remaining regions
+2. WHEN Background_Sync executes, THE Data_Management_Handler SHALL query DRS_API describe_recovery_instances for all configured regions
+3. WHEN recovery instances are found, THE Data_Management_Handler SHALL enrich each instance with EC2_API details
+4. WHEN enrichment completes, THE Data_Management_Handler SHALL update Recovery_Instance_Cache with current data
+5. WHEN Background_Sync encounters errors, THE Data_Management_Handler SHALL log errors and continue processing remaining regions
 6. THE Background_Sync SHALL complete execution within 5 minutes to avoid overlapping invocations
 7. THE Background_Sync SHALL handle Cross_Account scenarios by assuming appropriate IAM roles
 
@@ -100,13 +100,13 @@ The Recovery Instance Sync feature addresses a critical performance bottleneck i
 
 1. THE CloudFormation_Template SHALL create Recovery_Instance_Cache table with appropriate schema including replication and source infrastructure fields
 2. THE CloudFormation_Template SHALL create EventBridge rule to trigger Background_Sync every 5 minutes
-3. THE CloudFormation_Template SHALL grant Background_Sync Lambda permissions to call drs:DescribeRecoveryInstances
-4. THE CloudFormation_Template SHALL grant Background_Sync Lambda permissions to call ec2:DescribeInstances
-5. THE CloudFormation_Template SHALL grant Background_Sync Lambda permissions to write to Recovery_Instance_Cache
+3. THE CloudFormation_Template SHALL grant Data_Management_Handler Lambda permissions to call drs:DescribeRecoveryInstances
+4. THE CloudFormation_Template SHALL grant Data_Management_Handler Lambda permissions to call ec2:DescribeInstances
+5. THE CloudFormation_Template SHALL grant Data_Management_Handler Lambda permissions to write to Recovery_Instance_Cache
 6. THE CloudFormation_Template SHALL grant Execution_Handler Lambda permissions to write to Recovery_Instance_Cache
 7. THE CloudFormation_Template SHALL grant Data_Management_Handler Lambda permissions to read from Recovery_Instance_Cache
 8. THE CloudFormation_Template SHALL grant Data_Management_Handler Lambda permissions to delete from Recovery_Instance_Cache for cleanup after termination
-9. WHERE Cross_Account scenarios exist, THE CloudFormation_Template SHALL grant Background_Sync Lambda permissions to assume cross-account roles
+9. WHERE Cross_Account scenarios exist, THE CloudFormation_Template SHALL grant Data_Management_Handler Lambda permissions to assume cross-account roles
 
 ### Requirement 7: Data Freshness and Accuracy
 
@@ -186,8 +186,8 @@ The Recovery Instance Sync feature addresses a critical performance bottleneck i
 3. WHEN invoked from Frontend with API, THE Manual_Sync_Operation SHALL parse API Gateway event format
 4. WHEN invoked from API Only, THE Manual_Sync_Operation SHALL parse direct API request format
 5. WHEN invoked via Direct Lambda invocation, THE Manual_Sync_Operation SHALL parse direct function call format
-6. WHEN Manual_Sync_Operation executes, THE Manual_Sync_Operation SHALL query DRS_API and EC2_API for current recovery instance data
-7. WHEN Manual_Sync_Operation completes, THE Manual_Sync_Operation SHALL update Recovery_Instance_Cache with fresh data
+6. WHEN Manual_Sync_Operation executes, THE Data_Management_Handler SHALL query DRS_API and EC2_API for current recovery instance data
+7. WHEN Manual_Sync_Operation completes, THE Data_Management_Handler SHALL update Recovery_Instance_Cache with fresh data
 8. THE Manual_Sync_Operation SHALL return sync status including number of instances processed and any errors
 9. THE Manual_Sync_Operation SHALL complete within 30 seconds for up to 100 recovery instances
 

@@ -10,6 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Query Handler Read-Only Audit Spec**: Created comprehensive specification for enforcing read-only operations in query-handler
+  - Moves 3 sync operations (inventory sync, staging sync, wave polling) from query-handler to data-management-handler
+  - Ensures query-handler maintains strict read-only semantics for security and architectural clarity
+  - Documents 18 existing shared utilities in `lambda/shared/` for code reuse
+  - Includes detailed refactoring plan with 17 tasks across 5 phases
+  - Validates Requirements FR1 (read-only enforcement), FR5 (shared utilities), NFR1 (maintainability)
+  - See [Spec](.kiro/specs/query-handler-read-only-audit/requirements.md)
+- **Recovery Instance Sync Spec**: Created comprehensive specification for real-time DRS recovery instance synchronization
+  - Implements automatic synchronization of DRS recovery instances with DynamoDB for accurate status tracking
+  - Adds new `recovery-instances` DynamoDB table with GSI for efficient querying
+  - Provides 5 new API endpoints for recovery instance management
+  - Includes EventBridge integration for automated sync triggers
+  - Supports cross-account recovery instance discovery and monitoring
+  - Validates Requirements FR1 (real-time sync), FR2 (DynamoDB storage), FR3 (API endpoints), FR4 (EventBridge integration)
+  - See [Spec](.kiro/specs/recovery-instance-sync/requirements.md)
+
+### Added
 - **Combined Target/Staging Account Setup Stack**: Simplified deployment for target and staging accounts
   - New `drs-target-account-setup-stack.yaml` combines cross-account role and SSM agent installer
   - Single CloudFormation deployment creates both DRSOrchestrationRole and DRS agent installer document

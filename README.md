@@ -810,6 +810,8 @@ The following features are planned or in development. Each enhancement is docume
 | 📋 Planned | **Deploy Script Test Detection Fix** | Fixes deploy script test failure detection using exit codes instead of string parsing | 0/18 | [Spec](.kiro/specs/deploy-script-test-detection-fix/requirements.md) |
 | 📋 Planned | **Documentation Accuracy Audit** | Fixes broken links and corrects architecture/API documentation across 8 files | 0/9 | [Spec](.kiro/specs/documentation-accuracy-audit/requirements.md) |
 | 📋 Planned | **Inventory Sync Refactoring** | Decomposes monolithic sync_source_server_inventory function into 7 focused functions | 0/15 | [Spec](.kiro/specs/inventory-sync-refactoring/requirements.md) |
+| 📋 Planned | **Query Handler Read-Only Audit** | Enforces read-only operations in query-handler by moving sync operations to data-management-handler | 0/17 | [Spec](.kiro/specs/query-handler-read-only-audit/requirements.md) |
+| 📋 Planned | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple | [Spec](.kiro/specs/recovery-instance-sync/requirements.md) |
 
 ### Enhancement Categories
 
@@ -825,9 +827,10 @@ The following features are planned or in development. Each enhancement is docume
 - Performance optimizations (active region filtering)
 - Code quality improvements (test isolation)
 
-**Planned (5 specs - 25%)**
+**Planned (7 specs - 35%)**
 - Frontend modernization (CloudScape components, CSS refactoring)
 - Documentation improvements
+- Code architecture improvements (query handler read-only audit, recovery instance sync)
 
 **High Priority (3 specs - 15%)**
 - Advanced DRS features (rate limiting, agent deployment, AllowLaunchingIntoInstance)

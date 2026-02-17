@@ -630,6 +630,7 @@ Resources:
         TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
         SourceServerInventoryTableName: !GetAtt DatabaseStack.Outputs.SourceServerInventoryTableName
         DRSRegionStatusTableName: !GetAtt DatabaseStack.Outputs.DRSRegionStatusTableName
+        RecoveryInstancesCacheTableName: !GetAtt DatabaseStack.Outputs.RecoveryInstancesCacheTableName
         ExecutionNotificationsTopicArn: !If
           - EnableNotificationsCondition
           - !GetAtt NotificationStack.Outputs.ExecutionNotificationsTopicArn
@@ -1105,6 +1106,18 @@ Outputs:
     Value: !GetAtt DatabaseStack.Outputs.TargetAccountsTableArn
     Export:
       Name: !Sub '${AWS::StackName}-TargetAccountsTableArn'
+
+  RecoveryInstancesCacheTableName:
+    Description: 'DynamoDB table for Recovery Instances Cache'
+    Value: !GetAtt DatabaseStack.Outputs.RecoveryInstancesCacheTableName
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryInstancesCacheTable'
+
+  RecoveryInstancesCacheTableArn:
+    Description: 'DynamoDB table ARN for Recovery Instances Cache'
+    Value: !GetAtt DatabaseStack.Outputs.RecoveryInstancesCacheTableArn
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryInstancesCacheTableArn'
 
   # Lambda Stack Outputs
   DataManagementHandlerFunctionArn:
