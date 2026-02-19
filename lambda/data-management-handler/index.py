@@ -7950,7 +7950,7 @@ def auto_extend_staging_servers(target_accounts: List[Dict], active_regions: Lis
                 # Find servers not yet extended
                 for server in staging_servers:
                     server_id = server.get("sourceServerID")
-                    server_arn = server.get("arn")
+                    server_arn = server.get("sourceServerArn")
 
                     # Check if already extended
                     if server_arn in existing_extended:
@@ -8115,8 +8115,7 @@ def get_staging_account_servers(
         servers = query_inventory_by_staging_account(staging_account_id=staging_account_id, regions=active_regions)
         if servers:
             print(
-                f"Retrieved {len(servers)} servers from inventory database "
-                f"for staging account {staging_account_id}"
+                f"Retrieved {len(servers)} servers from inventory database " f"for staging account {staging_account_id}"
             )
             return servers
         else:
