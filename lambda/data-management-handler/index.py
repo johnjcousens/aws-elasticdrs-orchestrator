@@ -7950,7 +7950,8 @@ def auto_extend_staging_servers(target_accounts: List[Dict], active_regions: Lis
                 # Find servers not yet extended
                 for server in staging_servers:
                     server_id = server.get("sourceServerID")
-                    server_arn = server.get("sourceServerArn")
+                    # Handle both inventory database (arn) and DRS API (sourceServerArn) formats
+                    server_arn = server.get("sourceServerArn") or server.get("arn")
 
                     # Check if already extended
                     if server_arn in existing_extended:
