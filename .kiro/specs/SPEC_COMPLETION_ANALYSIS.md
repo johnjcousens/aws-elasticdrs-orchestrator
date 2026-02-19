@@ -1,81 +1,17 @@
 # Spec Completion Analysis
 
 **Analysis Date**: 2026-02-10  
-**Total Specs**: 29  
-**Completed**: 10 (34%)  
-**In Progress**: 2 (7%)  
-**Planned**: 14 (48%)  
-**Priority**: 3 (10%)
+**Total Specs**: 19 (active specs only)  
+**Completed**: 10 (archived)  
+**In Progress**: 2 (11%)  
+**Planned**: 14 (74%)  
+**Priority**: 3 (16%)
+
+**Note**: Completed specs have been moved to `archive/kiro/specs/complete/` and are not tracked in GitHub.
 
 ---
 
-## ✅ TRULY COMPLETE (10 specs - 34%)
-
-These specs have ALL tasks marked complete and are deployed to production:
-
-### 1. **account-context-improvements** ✅
-- **Status**: 15/15 tasks complete
-- **Evidence**: All checkboxes marked, deployed to test environment
-- **Verification**: Tasks 15.1-15.6 show deployment and live drill testing completed
-- **Conclusion**: TRULY COMPLETE
-
-### 2. **direct-lambda-invocation-mode** ✅
-- **Status**: 8/8 phases complete, 678/678 tests passing
-- **Evidence**: Deployed to test environment (2026-02-08), 100% test pass rate
-- **Verification**: Phase 12 completion shows all test failures fixed
-- **Conclusion**: TRULY COMPLETE
-
-### 3. **fix-broken-tests** ✅
-- **Status**: 7/7 phases complete
-- **Evidence**: Referenced in direct-lambda-invocation-mode completion
-- **Verification**: Test suite stabilized, 678 tests passing
-- **Conclusion**: TRULY COMPLETE
-
-### 4. **granular-progress-tracking** ✅
-- **Status**: 5/5 tasks complete (Tasks 1-4)
-- **Evidence**: Implementation complete, 64 tests passing (25 unit + 39 integration)
-- **Note**: Task 5 (Deploy and Validate) marked pending but implementation is complete
-- **Conclusion**: IMPLEMENTATION COMPLETE, needs deployment validation
-
-### 5. **notification-formatter-consolidation** ✅
-- **Status**: 5/5 tasks complete
-- **Evidence**: Consolidated HTML email formatting into shared module
-- **Verification**: Removed standalone Lambda, all tests passing
-- **Conclusion**: TRULY COMPLETE
-
-### 6. **polling-accountcontext-fix** ✅
-- **Status**: 3/3 tasks complete
-- **Evidence**: Fixed cross-account DRS query failures during polling
-- **Verification**: CloudWatch verification guide included
-- **Conclusion**: TRULY COMPLETE
-
-### 7. **staging-accounts-management** ✅
-- **Status**: Multiple phases complete
-- **Evidence**: COMPLETION_SUMMARY.md shows all features implemented
-- **Verification**: Multiple staging accounts per target account working
-- **Conclusion**: TRULY COMPLETE
-
-### 8. **standardized-cross-account-role-naming** ✅
-- **Status**: 6+ tasks complete
-- **Evidence**: IMPLEMENTATION_COMPLETE.md confirms deployment
-- **Verification**: DRSOrchestrationRole pattern standardized
-- **Conclusion**: TRULY COMPLETE
-
-### 9. **generic-orchestration-refactoring** ✅
-- **Status**: Complete
-- **Evidence**: CLEANUP_COMPLETE.md shows refactoring finished
-- **Verification**: DRS-specific functions moved to handler Lambdas
-- **Conclusion**: TRULY COMPLETE
-
-### 10. **wave-completion-display** ✅
-- **Status**: 6/6 tasks complete
-- **Evidence**: Backend and frontend fixes implemented
-- **Verification**: Test execution report shows all tests passing
-- **Conclusion**: TRULY COMPLETE
-
----
-
-## 🔄 IN PROGRESS (2 specs - 7%)
+## 🔄 IN PROGRESS (2 specs - 11%)
 
 These specs have some tasks complete but significant work remaining:
 
@@ -178,15 +114,16 @@ These specs are documented but not yet started:
 
 ## 📊 SUMMARY BY CATEGORY
 
-| Category | Complete | In Progress | Planned | Priority | Total |
-|----------|----------|-------------|---------|----------|-------|
-| Core Features | 5 | 0 | 1 | 3 | 9 |
-| Frontend | 1 | 0 | 2 | 0 | 3 |
-| Code Quality | 3 | 2 | 5 | 0 | 10 |
-| Documentation | 0 | 0 | 1 | 0 | 1 |
-| Infrastructure | 1 | 0 | 0 | 0 | 1 |
-| Unknown | 0 | 0 | 5 | 0 | 5 |
-| **TOTAL** | **10** | **2** | **14** | **3** | **29** |
+| Category | In Progress | Planned | Priority | Total |
+|----------|-------------|---------|----------|-------|
+| Core Features | 0 | 1 | 3 | 4 |
+| Frontend | 0 | 2 | 0 | 2 |
+| Code Quality | 2 | 5 | 0 | 7 |
+| Documentation | 0 | 1 | 0 | 1 |
+| Unknown | 0 | 5 | 0 | 5 |
+| **TOTAL** | **2** | **14** | **3** | **19** |
+
+**Note**: 10 completed specs archived in `archive/kiro/specs/complete/`
 
 ---
 
@@ -238,10 +175,9 @@ These specs are documented but not yet started:
 
 ## 📝 NOTES
 
-- **README.md is accurate** for completed specs (10 specs marked ✅)
-- **README.md is INACCURATE** for in-progress specs:
-  - active-region-filtering: 0/17 tasks but marked "In Progress"
-  - test-isolation-refactoring: Unclear status but marked "In Progress"
+- **Completed specs**: 10 specs archived in `archive/kiro/specs/complete/` (not in GitHub)
+- **Active specs**: 19 specs tracked in `.kiro/specs/` (01-15 numbered + 4 guides)
+- **README.md is accurate** for in-progress specs (2 specs marked 🔄)
 - **README.md is ACCURATE** for priority specs (3 specs marked 🎯)
 - **Test suite health**: 678 tests passing in direct-lambda-invocation-mode
 - **Deployment status**: Most completed specs deployed to test environment
@@ -260,5 +196,6 @@ To verify a spec is truly complete:
 - [ ] Documentation updated
 - [ ] No blocking issues or test failures
 - [ ] Completion summary document exists (optional but recommended)
+- [ ] Spec moved to `archive/kiro/specs/complete/`
 
-**Specs meeting ALL criteria**: 10/29 (34%)
+**Specs meeting ALL criteria**: 10 (archived)
