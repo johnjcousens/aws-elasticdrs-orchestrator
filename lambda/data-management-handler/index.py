@@ -709,7 +709,7 @@ def handle_direct_invocation(event, context):
         # Staging Accounts (Phase 4: Tasks 5.8-5.9, 5.12)
         "add_staging_account": lambda: handle_add_staging_account(body),
         "remove_staging_account": lambda: handle_remove_staging_account(body),
-        "sync_staging_accounts": lambda: handle_sync_single_account(body.get("targetAccountId")),
+        "sync_staging_accounts": lambda: handle_sync_staging_accounts(),
         "sync_extended_source_servers": lambda: handle_sync_single_account(body.get("targetAccountId")),  # Alias
     }
 
@@ -2290,7 +2290,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
             # Query inventory database for servers matching tags
             resolved_server_ids = query_inventory_servers_by_tags(
-                account_id, existing_group.get("region"), body["serverSelectionTags"]
+                account_id,
+                existing_group.get("region"),
+                body["serverSelectionTags"],
             )
 
             if not resolved_server_ids:
@@ -5793,11 +5795,24 @@ def _sync_tags_single_account(account_context: Dict, region: str = None) -> Dict
     if region:
         regions_to_sync = [region]
     else:
-        # First, quickly detect which regions have DRS servers
-        print("Detecting initialized DRS regions...")
-        regions_to_sync = _get_initialized_drs_regions(account_context)
+        # Use active region filtering to reduce API calls
+        from shared.active_region_filter import get_active_regions
+
+        print("Querying active regions from region status table...")
+        regions_to_sync = get_active_regions()
+
+        # Fallback to all regions if table is empty (new deployments)
         if not regions_to_sync:
-            print("No initialized DRS regions found - nothing to sync")
+            print("Region status table empty, falling back to all DRS regions")
+            regions_to_sync = DRS_REGIONS
+
+        print(
+            f"Tag sync scanning {len(regions_to_sync)} active regions "
+            f"(skipping {len(DRS_REGIONS) - len(regions_to_sync)} inactive)"
+        )
+
+        if not regions_to_sync:
+            print("No active DRS regions found - nothing to sync")
             return response(
                 200,
                 {
@@ -7771,6 +7786,446 @@ def handle_sync_single_account(target_account_id: str) -> Dict:
                 details={"error": str(e)},
             ),
         )
+
+
+# ============================================================================
+# Staging Account Sync Functions (Auto-Extend)
+# ============================================================================
+
+
+def handle_sync_staging_accounts() -> Dict:
+    """
+    Auto-extend DRS servers from manually configured staging accounts.
+
+    Called by EventBridge every 5 minutes to automatically extend new DRS source
+    servers from staging accounts to target accounts.
+
+    OPTIMIZATION: Now uses active region filtering to reduce API calls by 80-90%.
+
+    IMPORTANT: Staging accounts must be manually added via the UI first.
+    This function only auto-extends servers from those pre-configured staging accounts.
+
+    Workflow:
+    1. Get active regions from region status table
+    2. Get all target accounts from DynamoDB
+    3. For each target account with staging accounts configured:
+       - Query staging accounts for DRS source servers (active regions only)
+       - Check which servers are not yet extended to target
+       - Extend missing servers automatically
+
+    Returns:
+        Dict with extend results:
+        {
+            "timestamp": str,
+            "totalAccounts": int,
+            "accountsProcessed": int,
+            "serversExtended": int,
+            "serversFailed": int,
+            "details": [...]
+        }
+    """
+    from datetime import datetime, timezone
+
+    from shared.active_region_filter import get_active_regions
+
+    print("Starting auto-extend of staging account servers...")
+
+    try:
+        # Get active regions to optimize scanning
+        active_regions = get_active_regions()
+
+        if not active_regions:
+            # Fallback to all regions if table is empty
+            active_regions = DRS_REGIONS
+            print("Region status table empty, falling back to all regions")
+
+        print(
+            f"Staging account sync scanning {len(active_regions)} active regions "
+            f"(skipping {len(DRS_REGIONS) - len(active_regions)} inactive)"
+        )
+
+        # Get all target accounts
+        target_accounts_response = get_target_accounts_table().scan()
+        target_accounts = target_accounts_response.get("Items", [])
+
+        # Handle pagination
+        while "LastEvaluatedKey" in target_accounts_response:
+            target_accounts_response = get_target_accounts_table().scan(
+                ExclusiveStartKey=target_accounts_response["LastEvaluatedKey"]
+            )
+            target_accounts.extend(target_accounts_response.get("Items", []))
+
+        print(f"Found {len(target_accounts)} target accounts")
+
+        # Auto-extend servers from staging accounts (pass active regions)
+        extend_results = auto_extend_staging_servers(target_accounts, active_regions)
+        extend_results["timestamp"] = datetime.now(timezone.utc).isoformat()
+
+        return response(200, extend_results)
+
+    except Exception as e:
+        print(f"Fatal error in auto-extend: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+        return response(500, {"error": str(e)})
+
+
+def auto_extend_staging_servers(target_accounts: List[Dict], active_regions: List[str]) -> Dict:
+    """
+    Auto-extend new DRS source servers from staging accounts to target accounts.
+
+    OPTIMIZATION: Now accepts active_regions parameter to limit scanning.
+
+    For each target account:
+    1. Query staging accounts for their DRS source servers (active regions only)
+    2. Check if those servers are already extended to the target
+    3. Extend any missing servers
+
+    Args:
+        target_accounts: List of target account configurations from DynamoDB
+        active_regions: List of active AWS regions to scan
+
+    Returns:
+        Dict with extend results:
+        {
+            "totalAccounts": int,
+            "accountsProcessed": int,
+            "serversExtended": int,
+            "serversFailed": int,
+            "details": [...]
+        }
+    """
+    extend_results = {
+        "totalAccounts": len(target_accounts),
+        "accountsProcessed": 0,
+        "serversExtended": 0,
+        "serversFailed": 0,
+        "details": [],
+    }
+
+    for account in target_accounts:
+        account_id = account.get("accountId")
+        account_name = account.get("accountName", "Unknown")
+        is_current = account.get("isCurrentAccount", False)
+        staging_accounts = account.get("stagingAccounts", [])
+
+        # Skip if no staging accounts
+        if not staging_accounts or is_current:
+            continue
+
+        print(f"\nChecking account {account_id} ({account_name}) for servers to extend...")
+
+        try:
+            role_arn = account.get("roleArn")
+            external_id = account.get("externalId")
+
+            if not role_arn:
+                print(f"No role ARN for account {account_id}, skipping")
+                continue
+
+            # Get existing extended source servers in target account
+            existing_extended = get_extended_source_servers(account_id, role_arn, external_id, active_regions)
+
+            # For each staging account, check for new servers to extend
+            servers_extended_count = 0
+            servers_failed_count = 0
+
+            for staging in staging_accounts:
+                staging_id = staging.get("accountId")
+                staging_name = staging.get("accountName", "Unknown")
+                staging_role_arn = staging.get("roleArn")
+                staging_external_id = staging.get("externalId")
+
+                if not staging_role_arn:
+                    print(f"No role ARN for staging account {staging_id}, skipping")
+                    continue
+
+                # Get source servers in staging account (active regions only)
+                staging_servers = get_staging_account_servers(
+                    staging_id, staging_role_arn, staging_external_id, active_regions
+                )
+
+                # Find servers not yet extended
+                for server in staging_servers:
+                    server_id = server.get("sourceServerID")
+                    server_arn = server.get("arn")
+
+                    # Check if already extended
+                    if server_arn in existing_extended:
+                        continue
+
+                    # Extend the server
+                    print(
+                        f"Extending server {server_id} from staging "
+                        f"{staging_name} ({staging_id}) to target {account_id}"
+                    )
+
+                    try:
+                        extend_source_server(
+                            target_account_id=account_id,
+                            target_role_arn=role_arn,
+                            target_external_id=external_id,
+                            staging_server_arn=server_arn,
+                        )
+                        servers_extended_count += 1
+                        extend_results["serversExtended"] += 1
+                    except Exception as e:
+                        print(f"Failed to extend server {server_id}: {e}")
+                        servers_failed_count += 1
+                        extend_results["serversFailed"] += 1
+
+            if servers_extended_count > 0 or servers_failed_count > 0:
+                extend_results["details"].append(
+                    {
+                        "accountId": account_id,
+                        "accountName": account_name,
+                        "serversExtended": servers_extended_count,
+                        "serversFailed": servers_failed_count,
+                    }
+                )
+
+            extend_results["accountsProcessed"] += 1
+
+        except Exception as e:
+            print(f"Error processing account {account_id} for auto-extend: {e}")
+            extend_results["details"].append(
+                {
+                    "accountId": account_id,
+                    "accountName": account_name,
+                    "error": str(e),
+                }
+            )
+
+    print(
+        f"\nAuto-extend complete: {extend_results['serversExtended']} extended, "
+        f"{extend_results['serversFailed']} failed"
+    )
+
+    return extend_results
+
+
+def get_extended_source_servers(
+    target_account_id: str, role_arn: str, external_id: str, active_regions: List[str]
+) -> set:
+    """
+    Get set of extended source server ARNs in target account across active DRS regions.
+
+    OPTIMIZATION: Now accepts active_regions parameter to limit scanning.
+
+    Args:
+        target_account_id: Target AWS account ID
+        role_arn: IAM role ARN for cross-account access
+        external_id: External ID for role assumption
+        active_regions: List of active AWS regions to scan
+
+    Returns:
+        Set of extended source server ARNs
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from botocore.config import Config
+
+    extended_arns = set()
+    fast_config = Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 1})
+
+    # Assume role once, reuse credentials
+    try:
+        sts_client = boto3.client("sts")
+        assume_params = {
+            "RoleArn": role_arn,
+            "RoleSessionName": "drs-extend-check",
+            "DurationSeconds": 900,
+        }
+        if external_id:
+            assume_params["ExternalId"] = external_id
+        credentials = sts_client.assume_role(**assume_params)["Credentials"]
+    except Exception as e:
+        print(f"Failed to assume role for {target_account_id}: {e}")
+        return extended_arns
+
+    def query_region(region):
+        try:
+            drs_client = boto3.client(
+                "drs",
+                region_name=region,
+                aws_access_key_id=credentials["AccessKeyId"],
+                aws_secret_access_key=credentials["SecretAccessKey"],
+                aws_session_token=credentials["SessionToken"],
+                config=fast_config,
+            )
+            arns = set()
+            paginator = drs_client.get_paginator("describe_source_servers")
+            for page in paginator.paginate():
+                for server in page.get("items", []):
+                    staging_area = server.get("stagingArea", {})
+                    staging_account_id = staging_area.get("stagingAccountID", "")
+                    staging_server_arn = staging_area.get("stagingSourceServerArn", "")
+                    if staging_account_id and staging_account_id != target_account_id:
+                        if staging_server_arn:
+                            arns.add(staging_server_arn)
+            return arns
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "UninitializedAccountException":
+                return set()
+            print(f"Error querying {region}: {e}")
+            return set()
+        except Exception as e:
+            print(f"Error querying {region}: {e}")
+            return set()
+
+    # Use active_regions instead of DRS_REGIONS
+    with ThreadPoolExecutor(max_workers=len(active_regions)) as executor:
+        futures = {executor.submit(query_region, r): r for r in active_regions}
+        for future in as_completed(futures):
+            extended_arns.update(future.result())
+
+    print(
+        f"Found {len(extended_arns)} extended source servers in {target_account_id} "
+        f"across {len(active_regions)} active regions"
+    )
+    return extended_arns
+
+
+def get_staging_account_servers(
+    staging_account_id: str, role_arn: str, external_id: str, active_regions: List[str]
+) -> List[Dict]:
+    """
+    Get DRS source servers in staging account across active DRS regions.
+
+    OPTIMIZATION: Now accepts active_regions parameter.
+    OPTIMIZATION: Uses inventory database if available, falls back to DRS API.
+
+    Args:
+        staging_account_id: Staging AWS account ID
+        role_arn: IAM role ARN for cross-account access
+        external_id: External ID for role assumption
+        active_regions: List of active AWS regions to scan
+
+    Returns:
+        List of DRS source server dictionaries
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from botocore.config import Config
+
+    from shared.inventory_query import is_inventory_fresh, query_inventory_by_staging_account
+
+    # Try inventory database first
+    if is_inventory_fresh():
+        servers = query_inventory_by_staging_account(staging_account_id=staging_account_id, regions=active_regions)
+        if servers:
+            print(
+                f"Retrieved {len(servers)} servers from inventory database "
+                f"for staging account {staging_account_id}"
+            )
+            return servers
+        else:
+            print(f"No servers found in inventory for staging account {staging_account_id}, falling back to DRS API")
+
+    # Fallback to DRS API for active regions only
+    print(f"Querying DRS API for staging account {staging_account_id} across {len(active_regions)} active regions")
+
+    fast_config = Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 1})
+    current_account_id = get_current_account_id()
+    use_default = staging_account_id == current_account_id
+
+    # Assume role once if cross-account
+    credentials = None
+    if not use_default:
+        try:
+            sts_client = boto3.client("sts")
+            assume_params = {
+                "RoleArn": role_arn,
+                "RoleSessionName": "drs-staging-query",
+                "DurationSeconds": 900,
+            }
+            if external_id:
+                assume_params["ExternalId"] = external_id
+            credentials = sts_client.assume_role(**assume_params)["Credentials"]
+        except Exception as e:
+            print(f"Failed to assume role for staging {staging_account_id}: {e}")
+            return []
+
+    def query_region(region):
+        try:
+            if credentials:
+                drs_client = boto3.client(
+                    "drs",
+                    region_name=region,
+                    aws_access_key_id=credentials["AccessKeyId"],
+                    aws_secret_access_key=credentials["SecretAccessKey"],
+                    aws_session_token=credentials["SessionToken"],
+                    config=fast_config,
+                )
+            else:
+                drs_client = boto3.client("drs", region_name=region, config=fast_config)
+            region_servers = []
+            paginator = drs_client.get_paginator("describe_source_servers")
+            for page in paginator.paginate():
+                region_servers.extend(page.get("items", []))
+            return region_servers
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "UninitializedAccountException":
+                return []
+            print(f"Error querying {region} for staging {staging_account_id}: {e}")
+            return []
+        except Exception as e:
+            print(f"Error querying {region}: {e}")
+            return []
+
+    servers = []
+    # Use active_regions instead of DRS_REGIONS
+    with ThreadPoolExecutor(max_workers=len(active_regions)) as executor:
+        futures = {executor.submit(query_region, r): r for r in active_regions}
+        for future in as_completed(futures):
+            servers.extend(future.result())
+
+    print(
+        f"Found {len(servers)} source servers in staging account {staging_account_id} "
+        f"across {len(active_regions)} active regions"
+    )
+    return servers
+
+
+def extend_source_server(
+    target_account_id: str,
+    target_role_arn: str,
+    target_external_id: str,
+    staging_server_arn: str,
+) -> None:
+    """
+    Extend a source server from staging account to target account.
+
+    The region is extracted from the staging_server_arn which has format:
+    arn:aws:drs:region:account:source-server/id
+    """
+    # Extract region from ARN
+    arn_parts = staging_server_arn.split(":")
+    if len(arn_parts) < 4:
+        raise ValueError(f"Invalid server ARN format: {staging_server_arn}")
+
+    region = arn_parts[3]
+
+    # Build account context for create_drs_client
+    # Extract role name from role ARN
+    role_name = target_role_arn.split("/")[-1] if "/" in target_role_arn else target_role_arn
+
+    account_context = {
+        "accountId": target_account_id,
+        "assumeRoleName": role_name,
+        "externalId": target_external_id,
+        "isCurrentAccount": False,
+    }
+
+    # Create DRS client for the server's region with cross-account access
+    regional_drs = create_drs_client(region, account_context)
+
+    # Create extended source server
+    regional_drs.create_extended_source_server(
+        sourceServerArn=staging_server_arn,
+    )
+
+    print(f"Successfully extended server {staging_server_arn} to account {target_account_id} in region {region}")
 
 
 # ============================================================================

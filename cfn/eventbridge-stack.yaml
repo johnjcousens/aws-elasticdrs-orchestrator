@@ -2,26 +2,27 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: |
   AWS DRS Orchestration - EventBridge Scheduled Rules
   
-  Provides automated scheduling for DR operations and data synchronization.
+  Automated scheduling for DR operations and data synchronization.
   
   Scheduled Operations:
-  - Tag Sync (hourly): Synchronizes DRS tags from source servers to DynamoDB
-  - Staging Account Sync (5 min): Discovers and syncs staging account configurations
+  - Tag Sync (hourly): Synchronizes DRS tags to DynamoDB
+  - Staging Account Sync (5 min): Discovers staging accounts
   - Weekly DR Drill (optional): Automated Wave 1 recovery drill
   - Monthly Full Drill (optional): Automated all-waves recovery drill
   
   Event-Driven Operations:
-  - Manual Trigger: Custom EventBridge events to start DR orchestration
+  - Manual Trigger: Custom EventBridge events for DR orchestration
   
   Integration Points:
-  - Step Functions: DR orchestration state machine for drills
-  - API Handler Lambda: Tag synchronization operations
-  - Query Handler Lambda: Staging account discovery
+  - Step Functions: DR orchestration state machine
+  - API Handler: Tag synchronization operations
+  - Data Management Handler: Staging account sync (write operations)
+  - Query Handler: Read-only query operations
   
   Conditional Resources:
-  - EnableTagSync: Controls hourly tag synchronization (default: true)
-  - EnableStagingAccountSync: Controls staging account discovery (default: true)
-  - EnableWeeklyDrill: Controls scheduled DR drills (default: false)
+  - EnableTagSync: Controls tag synchronization (default: true)
+  - EnableStagingAccountSync: Controls staging sync (default: true)
+  - EnableWeeklyDrill: Controls scheduled drills (default: false)
 
 # =============================================================================
 # PARAMETERS
@@ -88,7 +89,11 @@ Parameters:
   # ---------------------------------------------------------------------------
   QueryHandlerFunctionArn:
     Type: String
-    Description: ARN of the Query Handler Lambda for staging account discovery
+    Description: ARN of the Query Handler Lambda for read-only operations
+
+  DataManagementHandlerFunctionArn:
+    Type: String
+    Description: ARN of the Data Management Handler Lambda for staging account sync operations
 
   EnableStagingAccountSync:
     Type: String
@@ -148,6 +153,7 @@ Resources:
                 Resource:
                   - !Ref ApiHandlerFunctionArn
                   - !Ref QueryHandlerFunctionArn
+                  - !Ref DataManagementHandlerFunctionArn
 
   # ===========================================================================
   # SCHEDULED DR DRILL RULES
@@ -286,6 +292,7 @@ Resources:
   # Automatic discovery and sync of staging account configurations.
   # Runs every 5 minutes to detect new DRS staging accounts.
   # Populates TargetAccounts table with discovered account/region pairs.
+  # Routes to Data Management Handler (write operations).
   StagingAccountSyncScheduleRule:
     Type: AWS::Events::Rule
     Condition: EnableStagingAccountSyncCondition
@@ -296,16 +303,16 @@ Resources:
       State: ENABLED
       Targets:
         - Id: StagingAccountSyncTarget
-          Arn: !Ref QueryHandlerFunctionArn
+          Arn: !Ref DataManagementHandlerFunctionArn
           RoleArn: !GetAtt EventBridgeInvokeRole.Arn
           Input: '{"operation": "sync_staging_accounts"}'
 
-  # Lambda permission for EventBridge to invoke Query Handler
+  # Lambda permission for EventBridge to invoke Data Management Handler
   StagingAccountSyncSchedulePermission:
     Type: AWS::Lambda::Permission
     Condition: EnableStagingAccountSyncCondition
     Properties:
-      FunctionName: !Ref QueryHandlerFunctionArn
+      FunctionName: !Ref DataManagementHandlerFunctionArn
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt StagingAccountSyncScheduleRule.Arn

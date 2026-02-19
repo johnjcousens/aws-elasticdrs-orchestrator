@@ -999,6 +999,7 @@ Resources:
         EnableStagingAccountSync: 'true'  # Enable automatic staging account sync
         ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
         QueryHandlerFunctionArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
+        DataManagementHandlerFunctionArn: !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
