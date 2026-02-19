@@ -53,8 +53,8 @@ Parameters:
 
   Environment:
     Type: String
-    Description: Environment name (dev, test, prod)
-    AllowedValues: [dev, test, prod]
+    Description: Environment name (dev, test, qa, uat, prod)
+    AllowedValues: [dev, test, qa, uat, prod]
     Default: dev
 
   RestApiId:
