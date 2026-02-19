@@ -71,8 +71,8 @@ Parameters:
 
   Environment:
     Type: String
-    Description: Environment name (dev, test, prod) for resource tagging
-    AllowedValues: [dev, test, prod]
+    Description: Environment name (dev, test, qa, uat, prod) for resource tagging
+    AllowedValues: [dev, test, qa, uat, prod]
     Default: dev
 
 # =============================================================================

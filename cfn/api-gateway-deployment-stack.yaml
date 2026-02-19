@@ -59,7 +59,7 @@ Parameters:
   Environment:
     Type: String
     Description: Environment name passed from master template
-    AllowedValues: [dev, test, prod]
+    AllowedValues: [dev, test, qa, uat, prod]
     Default: dev
 
   RestApiId:

@@ -11,6 +11,9 @@ import sys
 from pathlib import Path
 
 
+
+
+
 def package_lambda(function_name: str, source_dir: Path, output_dir: Path):
     """
     Package a Lambda function with its dependencies.
@@ -80,6 +83,22 @@ def package_lambda(function_name: str, source_dir: Path, output_dir: Path):
                     shutil.copytree(
                         item, target_shared_dir / item.name, dirs_exist_ok=True
                     )
+        
+        # Special handling for frontend-deployer: include frontend/dist/
+        if function_name == "frontend-deployer":
+            frontend_dist = source_dir.parent.parent / "frontend" / "dist"
+            if frontend_dist.exists():
+                target_frontend_dir = build_dir / "frontend"
+                target_frontend_dir.mkdir(exist_ok=True)
+                shutil.copytree(
+                    frontend_dist,
+                    target_frontend_dir / "dist",
+                    dirs_exist_ok=True
+                )
+                print(f"  ✓ Included frontend/dist/ in package")
+            else:
+                print(f"  ⚠ Warning: frontend/dist/ not found - "
+                      f"run 'npm run build' in frontend/ first")
         
         # Create ZIP file
         zip_file = output_dir / f"{function_name}.zip"

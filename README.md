@@ -9,6 +9,10 @@ Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wav
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+> **🎯 Current Working Environment**: QA stack (`aws-drs-orchestration-qa`) in account `438465159935`, region `us-east-1`
+> 
+> **⚠️ Legacy Test Stack**: The `aws-drs-orchestration-test` stack is in `UPDATE_ROLLBACK_FAILED` state and should not be used
+
 > **🎯 Current Sprint Priorities**: This sprint focuses on three high-priority DRS enhancements to improve rate limit handling, agent deployment, and targeted recovery capabilities. See [Future Enhancements](#future-enhancements) for implementation details and dependencies.
 >
 > **📌 Stable Checkpoint**: Tag `v6.0.1-PreSpecRefactoring` marks a stable state before sprint refactoring begins. If issues arise during implementation, rollback with:
@@ -147,35 +151,35 @@ All Lambda functions use a **single unified IAM role** that consolidates permiss
 # Mode 1: Default Standalone (Full Stack with Frontend)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name hrp-drs-tech-adapter-dev \
+  --stack-name aws-drs-orchestration-qa \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=hrp-drs-tech-adapter \
-    Environment=dev \
-    SourceBucket=hrp-drs-tech-adapter-dev \
+    ProjectName=aws-drs-orchestration \
+    Environment=qa \
+    SourceBucket=aws-drs-orchestration-qa \
     AdminEmail=admin@example.com
 
 # Mode 2: API-Only Standalone (No Frontend)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name hrp-drs-tech-adapter-dev \
+  --stack-name aws-drs-orchestration-qa \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=hrp-drs-tech-adapter \
-    Environment=dev \
-    SourceBucket=hrp-drs-tech-adapter-dev \
+    ProjectName=aws-drs-orchestration \
+    Environment=qa \
+    SourceBucket=aws-drs-orchestration-qa \
     AdminEmail=admin@example.com \
     DeployFrontend=false
 
 # Mode 3: External IAM Role Integration
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name hrp-drs-tech-adapter-dev \
+  --stack-name aws-drs-orchestration-qa \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=hrp-drs-tech-adapter \
-    Environment=dev \
-    SourceBucket=hrp-drs-tech-adapter-dev \
+    ProjectName=aws-drs-orchestration \
+    Environment=qa \
+    SourceBucket=aws-drs-orchestration-qa \
     AdminEmail=admin@example.com \
     OrchestrationRoleArn=arn:aws:iam::111122223333:role/ExternalOrchestrationRole \
     DeployFrontend=false
@@ -197,12 +201,12 @@ aws cloudformation deploy \
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name hrp-drs-tech-adapter-dev \
+  --stack-name aws-drs-orchestration-qa \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=hrp-drs-tech-adapter \
-    Environment=dev \
-    SourceBucket=hrp-drs-tech-adapter-dev \
+    ProjectName=aws-drs-orchestration \
+    Environment=qa \
+    SourceBucket=aws-drs-orchestration-qa \
     AdminEmail=admin@example.com \
     DeployFrontend=true
 ```
@@ -359,7 +363,7 @@ Below is an example configuration showing a 3-tier application recovery plan wit
 ```bash
 # Clone repository
 git clone https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator.git
-cd hrp-drs-tech-adapter
+cd aws-drs-orchestration
 
 # Setup Python virtual environment (optional but recommended)
 python3 -m venv .venv
@@ -429,34 +433,34 @@ curl -X POST https://api-endpoint/accounts/target \
 ### CloudFormation Deployment
 
 ```bash
-# CloudFormation deployment
+# CloudFormation deployment (QA environment)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name hrp-drs-tech-adapter-dev \
+  --stack-name aws-drs-orchestration-qa \
   --parameter-overrides \
-    ProjectName=hrp-drs-tech-adapter \
-    Environment=dev \
-    SourceBucket=hrp-drs-tech-adapter-dev \
+    ProjectName=aws-drs-orchestration \
+    Environment=qa \
+    SourceBucket=aws-drs-orchestration-qa \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-2
+  --region us-east-1
 ```
 
 ### Get Stack Outputs
 
 ```bash
 aws cloudformation describe-stacks \
-  --stack-name hrp-drs-tech-adapter-dev \
+  --stack-name aws-drs-orchestration-qa \
   --query 'Stacks[0].Outputs' \
   --output table
 ```
 
-| Output           | Description              |
-| ---------------- | ------------------------ |
-| CloudFrontURL    | Frontend application URL |
-| ApiEndpoint      | REST API endpoint        |
-| UserPoolId       | Cognito User Pool ID     |
-| UserPoolClientId | Cognito App Client ID    |
+| Output           | Description              | QA Environment Value |
+| ---------------- | ------------------------ | -------------------- |
+| CloudFrontURL    | Frontend application URL | https://d2km02vao8dqje.cloudfront.net |
+| ApiEndpoint      | REST API endpoint        | https://k8uzkghqrf.execute-api.us-east-1.amazonaws.com/qa |
+| UserPoolId       | Cognito User Pool ID     | us-east-1_GnwhL77aq |
+| UserPoolClientId | Cognito App Client ID    | (from stack outputs) |
 
 ## AWS DRS Regional Availability
 
@@ -472,7 +476,7 @@ The solution orchestrates disaster recovery in all **30 AWS regions** where Elas
 
 ## Infrastructure
 
-### CloudFormation Stacks (16 Templates)
+### CloudFormation Stacks (17 Templates)
 
 The solution uses a modular nested stack architecture. The API Gateway is split across 6 stacks due to CloudFormation limits (500 resources/stack, 51,200 bytes template body, 1MB S3 template) and best practices for maintainability:
 
@@ -480,7 +484,7 @@ The solution uses a modular nested stack architecture. The API Gateway is split 
 | ----- | ------- | ------------- |
 | `master-template.yaml` | Root orchestrator | Parameter propagation, nested stack coordination, **UnifiedOrchestrationRole** |
 | `database-stack.yaml` | Data persistence | 4 DynamoDB tables with encryption (camelCase schema) |
-| `lambda-stack.yaml` | Compute layer | 6 Lambda functions with reserved concurrency (100) |
+| `lambda-stack.yaml` | Compute layer | 5 Lambda functions with reserved concurrency (100) |
 | `api-auth-stack.yaml` | Authentication | Cognito User Pool, Identity Pool, RBAC groups |
 | `api-gateway-core-stack.yaml` | API Gateway base | REST API, Cognito authorizer |
 | `api-gateway-resources-stack.yaml` | API paths | URL path resources for all endpoints |
@@ -496,7 +500,7 @@ The solution uses a modular nested stack architecture. The API Gateway is split 
 | `drs-target-account-setup-stack.yaml` | Target/Staging setup | Cross-account IAM role + SSM agent installer |
 | `github-oidc-stack.yaml` | CI/CD | OIDC authentication (optional) |
 
-### Lambda Functions (6 Handlers)
+### Lambda Functions (5 Handlers)
 
 All Lambda functions use the **UnifiedOrchestrationRole** (or externally-provided role in external integration mode). Shared utilities in `lambda/shared/` provide common functionality across all functions.
 
@@ -505,11 +509,12 @@ All Lambda functions use the **UnifiedOrchestrationRole** (or externally-provide
 | `data-management-handler` | `lambda/data-management-handler/` | Protection groups, recovery plans, configuration management | 21 |
 | `execution-handler` | `lambda/execution-handler/` | Recovery execution control, pause/resume, termination | 11 |
 | `query-handler` | `lambda/query-handler/` | Read-only queries, DRS status, EC2 resource discovery | 12 |
-| `orchestration-stepfunctions` | `lambda/orchestration-stepfunctions/` | Step Functions orchestration with launch config sync | N/A |
+| `dr-orchestration-stepfunction` | `lambda/dr-orchestration-stepfunction/` | Step Functions orchestration with launch config sync | N/A |
 | `frontend-deployer` | `lambda/frontend-deployer/` | Frontend deployment automation (CloudFormation Custom Resource) | N/A |
-| `notification-formatter` | `lambda/notification-formatter/` | SNS notification formatting | N/A |
 
-**Total API Endpoints**: 58 endpoints across 3 API handlers
+**Total API Endpoints**: 44 endpoints across 3 API handlers
+
+**Note**: `drs-agent-deployer` is in development (spec 06-drs-agent-deployer) and not yet deployed.
 
 #### Shared Modules (`lambda/shared/`)
 
@@ -655,17 +660,17 @@ The project uses CloudFormation for infrastructure deployment with comprehensive
 Deploy the complete solution using AWS CloudFormation:
 
 ```bash
-# Full deployment
+# Full deployment (QA environment)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name hrp-drs-tech-adapter-dev \
+  --stack-name aws-drs-orchestration-qa \
   --parameter-overrides \
-    ProjectName=hrp-drs-tech-adapter \
-    Environment=dev \
-    SourceBucket=hrp-drs-tech-adapter-dev \
+    ProjectName=aws-drs-orchestration \
+    Environment=qa \
+    SourceBucket=aws-drs-orchestration-qa \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-2
+  --region us-east-1
 ```
 
 ### Built-in Protections
@@ -785,37 +790,53 @@ Complete working examples for AWS service integration:
 
 The following features are planned or in development. Each enhancement is documented in `.kiro/specs/` with detailed requirements, design, and implementation tasks.
 
-**🎯 Current Sprint Priorities:** Launch Config Pre-Application is the #1 priority to complete today. The three DRS enhancements below are targeted for completion this sprint. DRS Rate Limit Handling must be completed first as it's a dependency for AllowLaunchingIntoInstance.
+**📊 Status Summary**: 10 specs complete (34%), 2 in progress (7%), 3 high priority (10%), 14 planned (48%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
+
+### 🎯 Immediate Actions Needed
+
+1. **Fix 03-launch-config-preapplication test failures** (Task 10.1)
+   - 23 test failures blocking completion
+   - DynamoDB mocking broken (~10 tests)
+   - Missing function references (5 errors)
+   - Test isolation issues
+
+2. **Start 01-active-region-filtering** (currently 0/17 despite "In Progress" label)
+   - Blocks 04-inventory-sync-refactoring
+   - Reduces DRS API calls by 80-90%
+
+3. **Complete 02-drs-rate-limit-handling** (blocks 05-drs-allow-launching-into-instance)
+   - Sprint priority dependency
+   - Required before targeted recovery implementation
 
 | Status | Enhancement | Description | Tasks | Spec |
 |--------|-------------|-------------|-------|------|
-| 🎯 Priority | **Launch Config Pre-Application** | Pre-apply and persist DRS launch configurations when protection groups are created/updated, eliminating 30-60s per-wave overhead during recovery execution | 0/multiple | [Spec](.kiro/specs/launch-config-preapplication/requirements.md) |
-| 🎯 Priority | **DRS Rate Limit Handling** | Implements comprehensive DRS API rate limit handling with retry logic and metrics | 0/multiple | [Spec](.kiro/specs/drs-rate-limit-handling/requirements.md) |
-| 🎯 Priority | **DRS Agent Deployer** | Deploys DRS agents to target instances via SSM with cross-account support | Phase 1.5+ | [Spec](.kiro/specs/drs-agent-deployer/requirements.md) |
-| 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements DRS AllowLaunchingIntoInstance pattern for targeted recovery | 0/234 | [Spec](.kiro/specs/drs-allow-launching-into-instance/requirements.md) |
-| ✅ Complete | **Account Context Improvements** | Adds direct `accountId` on Protection Groups/Recovery Plans, SNS notifications, and pause/resume with task tokens | 15/15 | [Spec](.kiro/specs/account-context-improvements/requirements.md) |
-| ✅ Complete | **Direct Lambda Invocation Mode** | Standardizes direct Lambda invocation across handlers with IAM authorization and audit logging | 8/8 phases | [Spec](.kiro/specs/direct-lambda-invocation-mode/requirements.md) |
-| ✅ Complete | **Fix Broken Tests** | Fixes 37 failing tests across query-handler, data-management, and execution-handler | 7/7 phases | [Spec](.kiro/specs/fix-broken-tests/requirements.md) |
-| ✅ Complete | **Granular Progress Tracking** | Maps DRS job events to progress percentages for wave execution tracking | 5/5 | [Spec](.kiro/specs/granular-progress-tracking/requirements.md) |
-| ✅ Complete | **Notification Formatter Consolidation** | Consolidates HTML email formatting into shared module and removes standalone Lambda | 5/5 | [Spec](.kiro/specs/notification-formatter-consolidation/requirements.md) |
-| ✅ Complete | **Polling AccountContext Fix** | Fixes cross-account DRS query failures during polling by passing accountContext | 3/3 | [Spec](.kiro/specs/polling-accountcontext-fix/requirements.md) |
-| ✅ Complete | **Staging Accounts Management** | Enables multiple staging accounts per target account for expanded replication capacity | 2+ | [Spec](.kiro/specs/staging-accounts-management/requirements.md) |
-| ✅ Complete | **Standardized Cross-Account Role Naming** | Standardizes cross-account role naming to `DRSOrchestrationRole` pattern | 6+ | [Spec](.kiro/specs/standardized-cross-account-role-naming/requirements.md) |
-| ✅ Complete | **Generic Orchestration Refactoring** | Moves DRS-specific functions from orchestration Lambda into handler Lambdas | Complete | [Spec](.kiro/specs/generic-orchestration-refactoring/requirements.md) |
-| ✅ Complete | **Wave Completion Display** | Fixes wave status display and server column headers in frontend | 6/6 | [Spec](.kiro/specs/wave-completion-display/requirements.md) |
-| 🔄 In Progress | **Active Region Filtering** | Filters DRS queries to active regions only, reducing API calls by 80-90% | 0/17 | [Spec](.kiro/specs/active-region-filtering/requirements.md) |
-| 🔄 In Progress | **Test Isolation Refactoring** | Refactors 15 failing tests to use proper mocking instead of @mock_aws decorator | 7/7 phases | [Spec](.kiro/specs/test-isolation-refactoring/requirements.md) |
-| 📋 Planned | **CloudScape Component Improvements** | Adopts additional CloudScape components (Wizard, Cards, CodeEditor, etc.) | 0/~100 | [Spec](.kiro/specs/cloudscape-component-improvements/requirements.md) |
-| 📋 Planned | **CSS Refactoring** | Removes all inline styles, replaces with CSS modules and CloudScape design tokens | 0/35 | [Spec](.kiro/specs/css-refactoring/requirements.md) |
-| 📋 Planned | **Deploy Script Test Detection Fix** | Fixes deploy script test failure detection using exit codes instead of string parsing | 0/18 | [Spec](.kiro/specs/deploy-script-test-detection-fix/requirements.md) |
-| 📋 Planned | **Documentation Accuracy Audit** | Fixes broken links and corrects architecture/API documentation across 8 files | 0/9 | [Spec](.kiro/specs/documentation-accuracy-audit/requirements.md) |
-| 📋 Planned | **Inventory Sync Refactoring** | Decomposes monolithic sync_source_server_inventory function into 7 focused functions | 0/15 | [Spec](.kiro/specs/inventory-sync-refactoring/requirements.md) |
-| 📋 Planned | **Query Handler Read-Only Audit** | Enforces read-only operations in query-handler by moving sync operations to data-management-handler | 0/17 | [Spec](.kiro/specs/query-handler-read-only-audit/requirements.md) |
-| 📋 Planned | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple | [Spec](.kiro/specs/recovery-instance-sync/requirements.md) |
+| 🎯 Priority | **Launch Config Pre-Application** | Pre-apply and persist DRS launch configurations when protection groups are created/updated, eliminating 30-60s per-wave overhead during recovery execution | 0/multiple | [Spec](.kiro/specs/03-launch-config-preapplication/requirements.md) |
+| 🎯 Priority | **DRS Rate Limit Handling** | Implements comprehensive DRS API rate limit handling with retry logic and metrics | 0/multiple | [Spec](.kiro/specs/02-drs-rate-limit-handling/requirements.md) |
+| 🎯 Priority | **DRS Agent Deployer** | Deploys DRS agents to target instances via SSM with cross-account support | Phase 1.5+ | [Spec](.kiro/specs/06-drs-agent-deployer/requirements.md) |
+| 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements DRS AllowLaunchingIntoInstance pattern for targeted recovery | 0/234 | [Spec](.kiro/specs/05-drs-allow-launching-into-instance/requirements.md) |
+| ✅ Complete | **Account Context Improvements** | Adds direct `accountId` on Protection Groups/Recovery Plans, SNS notifications, and pause/resume with task tokens | 15/15 | [Spec](.kiro/specs/complete/account-context-improvements/requirements.md) |
+| ✅ Complete | **Direct Lambda Invocation Mode** | Standardizes direct Lambda invocation across handlers with IAM authorization and audit logging | 8/8 phases | [Spec](.kiro/specs/complete/direct-lambda-invocation-mode/requirements.md) |
+| ✅ Complete | **Fix Broken Tests** | Fixes 37 failing tests across query-handler, data-management, and execution-handler | 7/7 phases | [Spec](.kiro/specs/complete/fix-broken-tests/requirements.md) |
+| ✅ Complete | **Granular Progress Tracking** | Maps DRS job events to progress percentages for wave execution tracking | 5/5 | [Spec](.kiro/specs/complete/granular-progress-tracking/requirements.md) |
+| ✅ Complete | **Notification Formatter Consolidation** | Consolidates HTML email formatting into shared module and removes standalone Lambda | 5/5 | [Spec](.kiro/specs/complete/notification-formatter-consolidation/requirements.md) |
+| ✅ Complete | **Polling AccountContext Fix** | Fixes cross-account DRS query failures during polling by passing accountContext | 3/3 | [Spec](.kiro/specs/complete/polling-accountcontext-fix/requirements.md) |
+| ✅ Complete | **Staging Accounts Management** | Enables multiple staging accounts per target account for expanded replication capacity | 2+ | [Spec](.kiro/specs/complete/staging-accounts-management/requirements.md) |
+| ✅ Complete | **Standardized Cross-Account Role Naming** | Standardizes cross-account role naming to `DRSOrchestrationRole` pattern | 6+ | [Spec](.kiro/specs/complete/standardized-cross-account-role-naming/requirements.md) |
+| ✅ Complete | **Generic Orchestration Refactoring** | Moves DRS-specific functions from orchestration Lambda into handler Lambdas | Complete | [Spec](.kiro/specs/complete/generic-orchestration-refactoring/requirements.md) |
+| ✅ Complete | **Wave Completion Display** | Fixes wave status display and server column headers in frontend | 6/6 | [Spec](.kiro/specs/complete/wave-completion-display/requirements.md) |
+| 🔄 In Progress | **Active Region Filtering** | Filters DRS queries to active regions only, reducing API calls by 80-90% | 0/17 | [Spec](.kiro/specs/01-active-region-filtering/requirements.md) |
+| 🔄 In Progress | **Test Isolation Refactoring** | Refactors 15 failing tests to use proper mocking instead of @mock_aws decorator | 7/7 phases | [Spec](.kiro/specs/15-test-isolation-refactoring/requirements.md) |
+| 📋 Planned | **CloudScape Component Improvements** | Adopts additional CloudScape components (Wizard, Cards, CodeEditor, etc.) | 0/~100 | [Spec](.kiro/specs/13-cloudscape-component-improvements/requirements.md) |
+| 📋 Planned | **CSS Refactoring** | Removes all inline styles, replaces with CSS modules and CloudScape design tokens | 0/35 | [Spec](.kiro/specs/14-css-refactoring/requirements.md) |
+| 📋 Planned | **Deploy Script Test Detection Fix** | Fixes deploy script test failure detection using exit codes instead of string parsing | 0/18 | [Spec](.kiro/specs/12-deploy-script-test-detection-fix/requirements.md) |
+| 📋 Planned | **Documentation Accuracy Audit** | Fixes broken links and corrects architecture/API documentation across 8 files | 0/9 | [Spec](.kiro/specs/11-documentation-accuracy-audit/requirements.md) |
+| 📋 Planned | **Inventory Sync Refactoring** | Decomposes monolithic sync_source_server_inventory function into 7 focused functions | 0/15 | [Spec](.kiro/specs/04-inventory-sync-refactoring/requirements.md) |
+| 📋 Planned | **Query Handler Read-Only Audit** | Enforces read-only operations in query-handler by moving sync operations to data-management-handler | 0/17 | [Spec](.kiro/specs/10-query-handler-read-only-audit/requirements.md) |
+| 📋 Planned | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple | [Spec](.kiro/specs/09-recovery-instance-sync/requirements.md) |
 
 ### Enhancement Categories
 
-**Completed (10 specs - 50%)**
+**Completed (10 specs - 34%)**
 - Core functionality improvements and bug fixes
 - Direct Lambda invocation support
 - Cross-account role standardization
@@ -823,32 +844,35 @@ The following features are planned or in development. Each enhancement is docume
 - Code architecture improvements (orchestration refactoring)
 - Frontend fixes (wave completion display)
 
-**In Progress (2 specs - 10%)**
-- Performance optimizations (active region filtering)
-- Code quality improvements (test isolation)
+**In Progress (2 specs - 7%)**
+- 01-active-region-filtering: Performance optimizations
+- 15-test-isolation-refactoring: Code quality improvements
 
-**Planned (7 specs - 35%)**
-- Frontend modernization (CloudScape components, CSS refactoring)
-- Documentation improvements
-- Code architecture improvements (query handler read-only audit, recovery instance sync)
+**Priority (4 specs - 14%)**
+- 02-drs-rate-limit-handling: DRS API rate limit handling
+- 03-launch-config-preapplication: Launch config pre-application
+- 05-drs-allow-launching-into-instance: AllowLaunchingIntoInstance pattern
+- 06-drs-agent-deployer: DRS agent deployment
 
-**High Priority (3 specs - 15%)**
-- Advanced DRS features (rate limiting, agent deployment, AllowLaunchingIntoInstance)
-- Targeted for completion in next week
+**Planned (13 specs - 45%)**
+- Frontend modernization (13-cloudscape-component-improvements, 14-css-refactoring)
+- Documentation improvements (11-documentation-accuracy-audit)
+- Code architecture improvements (04-inventory-sync-refactoring, 09-recovery-instance-sync, 10-query-handler-read-only-audit)
+- Testing improvements (12-deploy-script-test-detection-fix)
 
 ### Key Dependencies
 
-- **DRS AllowLaunchingIntoInstance** depends on **DRS Rate Limit Handling** (must complete first)
-- **Inventory Sync Refactoring** depends on **Active Region Filtering** (must complete first)
-- **Deploy Script Test Detection Fix** provides test isolation fixtures needed by other specs
+- **05-drs-allow-launching-into-instance** depends on **02-drs-rate-limit-handling** (must complete first)
+- **04-inventory-sync-refactoring** depends on **01-active-region-filtering** (must complete first)
+- **12-deploy-script-test-detection-fix** provides test isolation fixtures needed by other specs
 
 ### Next Week Priorities
 
 The following three DRS enhancements are targeted for completion in the next week:
 
-1. **DRS Rate Limit Handling** (foundational) - Must complete first to unblock AllowLaunchingIntoInstance
-2. **DRS Agent Deployer** - Can be developed in parallel with rate limiting
-3. **DRS AllowLaunchingIntoInstance** - Depends on rate limit handling completion
+1. **02-drs-rate-limit-handling** (foundational) - Must complete first to unblock 05-drs-allow-launching-into-instance
+2. **06-drs-agent-deployer** - Can be developed in parallel with rate limiting
+3. **05-drs-allow-launching-into-instance** - Depends on rate limit handling completion
 
 ### Contributing
 
@@ -880,7 +904,7 @@ To contribute to any enhancement:
 ```bash
 # Clone repository
 git clone https://code.aws.dev/personal_projects/alias_j/jocousen/aws-elasticdrs-orchestrator.git
-cd hrp-drs-tech-adapter
+cd aws-drs-orchestration
 
 # Setup Python virtual environment
 python3 -m venv .venv
@@ -892,16 +916,17 @@ cd frontend
 npm install
 npm run dev  # Development server at localhost:5173
 
-# CloudFormation deployment
+# CloudFormation deployment (QA environment)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name hrp-drs-tech-adapter-dev \
+  --stack-name aws-drs-orchestration-qa \
   --parameter-overrides \
-    ProjectName=hrp-drs-tech-adapter \
-    Environment=dev \
-    SourceBucket=hrp-drs-tech-adapter-dev \
+    ProjectName=aws-drs-orchestration \
+    Environment=qa \
+    SourceBucket=aws-drs-orchestration-qa \
     AdminEmail=your-email@example.com \
-  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+  --region us-east-1
 ```
 
 ## Upcoming Features
@@ -928,7 +953,7 @@ A comprehensive implementation of AWS DRS AllowLaunchingIntoThisInstance pattern
 ## Directory Structure
 
 ```text
-hrp-drs-tech-adapter/
+aws-drs-orchestration/
 ├── cfn/                          # CloudFormation IaC (16 templates)
 │   ├── master-template.yaml      # Root orchestrator for nested stacks
 │   └── github-oidc-stack.yaml    # OIDC integration (optional)
