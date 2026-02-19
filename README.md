@@ -829,35 +829,35 @@ The following features are planned or in development. Each enhancement is docume
 - Code architecture improvements (orchestration refactoring)
 - Frontend fixes (wave completion display)
 
-**In Progress (2 specs - 7%)**
+**In Progress (1 spec - 7%)**
+- 13-test-isolation-refactoring: Code quality improvements
+
+**Priority (7 specs - 47%)**
 - 01-active-region-filtering: Performance optimizations
-- 15-test-isolation-refactoring: Code quality improvements
-
-**Priority (4 specs - 14%)**
 - 02-drs-rate-limit-handling: DRS API rate limit handling
-- 03-launch-config-preapplication: Launch config pre-application
-- 05-drs-allow-launching-into-instance: AllowLaunchingIntoInstance pattern
-- 06-drs-agent-deployer: DRS agent deployment
+- 03-drs-allow-launching-into-instance: AllowLaunchingIntoInstance pattern
+- 04-recovery-instance-sync: Real-time recovery instance sync
+- 05-inventory-sync-refactoring: Monolithic function decomposition
+- 06-query-handler-read-only-audit: Read-only enforcement
+- 07-drs-agent-deployer: DRS agent deployment
 
-**Planned (13 specs - 45%)**
-- Frontend modernization (13-cloudscape-component-improvements, 14-css-refactoring)
-- Documentation improvements (11-documentation-accuracy-audit)
-- Code architecture improvements (04-inventory-sync-refactoring, 09-recovery-instance-sync, 10-query-handler-read-only-audit)
-- Testing improvements (12-deploy-script-test-detection-fix)
+**Planned (7 specs - 46%)**
+- Testing improvements (08-cross-file-test-isolation-fix, 09-launch-config-preapplication, 10-dynamodb-mock-structure-fix, 11-deploy-script-test-detection-fix)
+- Frontend modernization (12-cloudscape-component-improvements, 14-css-refactoring)
+- Documentation improvements (15-documentation-accuracy-audit)
 
 ### Key Dependencies
 
-- **05-drs-allow-launching-into-instance** depends on **02-drs-rate-limit-handling** (must complete first)
-- **04-inventory-sync-refactoring** depends on **01-active-region-filtering** (must complete first)
-- **12-deploy-script-test-detection-fix** provides test isolation fixtures needed by other specs
+- **03-drs-allow-launching-into-instance** depends on **02-drs-rate-limit-handling** (must complete first)
+- **05-inventory-sync-refactoring** depends on **01-active-region-filtering** (must complete first)
 
 ### Next Week Priorities
 
 The following three DRS enhancements are targeted for completion in the next week:
 
-1. **02-drs-rate-limit-handling** (foundational) - Must complete first to unblock 05-drs-allow-launching-into-instance
-2. **06-drs-agent-deployer** - Can be developed in parallel with rate limiting
-3. **05-drs-allow-launching-into-instance** - Depends on rate limit handling completion
+1. **02-drs-rate-limit-handling** (foundational) - Must complete first to unblock 03-drs-allow-launching-into-instance
+2. **07-drs-agent-deployer** - Can be developed in parallel with rate limiting
+3. **03-drs-allow-launching-into-instance** - Depends on rate limit handling completion
 
 ### Contributing
 
