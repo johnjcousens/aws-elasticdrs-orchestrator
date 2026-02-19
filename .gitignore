@@ -18,6 +18,8 @@
 # -------------------------
 .amazonq/
 .cline_memory/
+.kiro/settings/
+.kiro/steering/
 history/
 
 # -------------------------
