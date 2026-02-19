@@ -194,7 +194,7 @@ def test_pg_creation_tag_based_100_servers_succeeds(mock_dynamodb_tables, mock_d
 
     with (
         patch.object(index, "check_tag_conflicts_for_create", return_value=[]),
-        patch.object(index, "query_drs_servers_by_tags", return_value=mock_servers),
+        patch.object(index, "query_inventory_servers_by_tags", return_value=mock_servers),
     ):
         result = create_protection_group(API_GATEWAY_EVENT, body)  # noqa: F841
 
@@ -215,7 +215,7 @@ def test_pg_creation_tag_based_101_servers_fails(mock_dynamodb_tables, mock_drs_
 
     with (
         patch.object(index, "check_tag_conflicts_for_create", return_value=[]),
-        patch.object(index, "query_drs_servers_by_tags", return_value=mock_servers),
+        patch.object(index, "query_inventory_servers_by_tags", return_value=mock_servers),
     ):
         result = create_protection_group(API_GATEWAY_EVENT, body)  # noqa: F841
 
@@ -241,7 +241,7 @@ def test_pg_creation_tag_based_200_servers_fails(mock_dynamodb_tables, mock_drs_
 
     with (
         patch.object(index, "check_tag_conflicts_for_create", return_value=[]),
-        patch.object(index, "query_drs_servers_by_tags", return_value=mock_servers),
+        patch.object(index, "query_inventory_servers_by_tags", return_value=mock_servers),
     ):
         result = create_protection_group(API_GATEWAY_EVENT, body)  # noqa: F841
 
