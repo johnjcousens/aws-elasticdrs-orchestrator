@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "builder-mcp": {
+      "command": "/Users/jocousen/.toolbox/bin/builder-mcp",
+      "args": [],
+      "disabled": false,
+      "autoApprove": [
+        "ReadInternalWebsites"
+      ]
+    }
+  }
+}
