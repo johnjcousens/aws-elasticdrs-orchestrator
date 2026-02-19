@@ -24,8 +24,6 @@ from unittest.mock import Mock, patch
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
-
 
 # Module-level setup to load data-management-handler index
 lambda_dir = os.path.join(os.path.dirname(__file__), "../../lambda")
@@ -354,6 +352,10 @@ def mock_all_handlers():
     }
 
     return [patch(name, return_value=value) for name, value in patches.items()]
+
+
+# Skip all tests in this file for CI/CD
+pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Property 12: Data Management Handler Operation Routing
