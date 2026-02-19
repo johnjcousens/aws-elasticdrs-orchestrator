@@ -206,24 +206,16 @@ echo ""
 
 # Set AWS profile if not already set
 if [ -z "$AWS_PROFILE" ]; then
-    # Check if credentials file exists
-    if [ -f ~/.aws/credentials ]; then
-        # Look for profile matching orchestration account (891376951562)
-        if grep -q '\[891376951562_AdministratorAccess\]' ~/.aws/credentials; then
-            export AWS_PROFILE="891376951562_AdministratorAccess"
-            echo -e "${BLUE}Using AWS profile: $AWS_PROFILE${NC}"
-        elif grep -q '\[profile AWSAdministratorAccess-891376951562\]' ~/.aws/config; then
-            export AWS_PROFILE="AWSAdministratorAccess-891376951562"
-            echo -e "${BLUE}Using AWS profile: $AWS_PROFILE${NC}"
-        fi
-    fi
+    # Use AdministratorAccess-438465159935 profile for orchestration account (438465159935)
+    export AWS_PROFILE="AdministratorAccess-438465159935"
+    echo -e "${BLUE}Using AWS profile: $AWS_PROFILE${NC}"
 fi
 
 # Verify AWS credentials
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
 if [[ "$ACCOUNT_ID" == *"SSO session"* ]] || [[ "$ACCOUNT_ID" == *"expired"* ]]; then
     echo -e "${YELLOW}⚠ SSO session expired - logging in...${NC}"
-    aws sso login --profile ${AWS_PROFILE:-AWSAdministratorAccess-891376951562}
+    aws sso login --profile ${AWS_PROFILE:-AdministratorAccess-438465159935}
     ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
 fi
 

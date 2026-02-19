@@ -107,7 +107,6 @@ docs/SESSION_*.md
 docs/archive/
 docs/security/
 docs/logs/
-tests/
 REVIEW/
 
 # Internal documentation - not for public

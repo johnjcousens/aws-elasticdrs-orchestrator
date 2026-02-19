@@ -2218,7 +2218,7 @@ def list_executions(query_params: Dict) -> Dict:
         # Sort by startTime descending (most recent first)
         executions.sort(key=lambda x: x.get("startTime", 0), reverse=True)
 
-        # Enrich with recovery plan names
+        # Enrich with recovery plan names and account names
         for execution in executions:
             try:
                 # Use stored planName first (preserved even if plan deleted)
@@ -2237,6 +2237,18 @@ def list_executions(query_params: Dict) -> Dict:
 
                 # Add recoveryPlanId for frontend compatibility
                 execution["recoveryPlanId"] = execution.get("planId")
+
+                # Enrich with account name from target accounts table
+                exec_account_id = execution.get("accountId")
+                if not exec_account_id:
+                    # Fall back to accountContext.accountId
+                    account_context = execution.get("accountContext", {})
+                    exec_account_id = account_context.get("accountId")
+
+                if exec_account_id:
+                    account_name = get_target_account_name(exec_account_id)
+                    if account_name:
+                        execution["accountName"] = account_name
 
                 # Determine selection mode from protection groups
                 plan_id = execution.get("planId")
@@ -2355,6 +2367,18 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
                     execution["totalWaves"] = len(plan.get("waves", []))
                 elif not execution.get("recoveryPlanName"):
                     execution["recoveryPlanName"] = "Deleted Plan"
+
+            # Enrich with account name from target accounts table
+            exec_account_id = execution.get("accountId")
+            if not exec_account_id:
+                # Fall back to accountContext.accountId
+                account_context = execution.get("accountContext", {})
+                exec_account_id = account_context.get("accountId")
+
+            if exec_account_id:
+                account_name = get_target_account_name(exec_account_id)
+                if account_name:
+                    execution["accountName"] = account_name
         except Exception as e:
             print(f"Error enriching execution with plan details: {str(e)}")
 
@@ -4185,6 +4209,22 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
             print(f"Execution {execution_id} is not active, skipping real-time data")
             execution["dataSource"] = "cached"
             execution["lastUpdated"] = execution.get("updatedAt", int(time.time()))
+
+            # Enrich with account name from target accounts table
+            try:
+                exec_account_id = execution.get("accountId")
+                if not exec_account_id:
+                    # Fall back to accountContext.accountId
+                    account_context = execution.get("accountContext", {})
+                    exec_account_id = account_context.get("accountId")
+
+                if exec_account_id:
+                    account_name = get_target_account_name(exec_account_id)
+                    if account_name:
+                        execution["accountName"] = account_name
+            except Exception as account_error:
+                print(f"Error enriching with account name: {account_error}")
+
             # Add termination metadata for frontend button visibility
             execution["terminationMetadata"] = can_terminate_execution(execution)
             return response(200, execution)
@@ -4262,6 +4302,21 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         # Add termination metadata for frontend button visibility
         # Centralized logic prevents frontend/backend inconsistencies
         execution["terminationMetadata"] = can_terminate_execution(execution)
+
+        # Enrich with account name from target accounts table
+        try:
+            exec_account_id = execution.get("accountId")
+            if not exec_account_id:
+                # Fall back to accountContext.accountId
+                account_context = execution.get("accountContext", {})
+                exec_account_id = account_context.get("accountId")
+
+            if exec_account_id:
+                account_name = get_target_account_name(exec_account_id)
+                if account_name:
+                    execution["accountName"] = account_name
+        except Exception as account_error:
+            print(f"Error enriching with account name: {account_error}")
 
         # CRITICAL FIX: Persist wave status updates to DynamoDB
         # Uses merge to prevent clobbering waves added by other processes

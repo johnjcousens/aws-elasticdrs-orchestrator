@@ -1880,10 +1880,22 @@ def create_protection_group(event: Dict, body: Dict) -> Dict:
                         current_account_id = get_current_account_id()
                         target_account_id = account_context["accountId"]
                         if current_account_id != target_account_id:
+                            # Look up external ID from target accounts table
+                            external_id = None
+                            try:
+                                target_accounts_table = get_target_accounts_table()
+                                account_result = target_accounts_table.get_item(Key={"accountId": target_account_id})
+                                if "Item" in account_result:
+                                    external_id = account_result["Item"].get("externalId")
+                            except Exception as e:
+                                print(f"Warning: Could not fetch externalId for account {target_account_id}: {e}")
+
                             lc_account_context = {
                                 "accountId": target_account_id,
-                                "roleName": account_context.get("assumeRoleName", "OrchestrationRole"),
+                                "assumeRoleName": account_context.get("assumeRoleName", "OrchestrationRole"),
                             }
+                            if external_id:
+                                lc_account_context["externalId"] = external_id
 
                     # Apply configurations with timeout (allow group creation to succeed even if this times out)
                     apply_result = apply_launch_configs_to_group(
@@ -2387,10 +2399,22 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                         current_account_id = get_current_account_id()
                         target_account_id = existing_group["accountId"]
                         if current_account_id != target_account_id:
+                            # Look up external ID from target accounts table
+                            external_id = None
+                            try:
+                                target_accounts_table = get_target_accounts_table()
+                                account_result = target_accounts_table.get_item(Key={"accountId": target_account_id})
+                                if "Item" in account_result:
+                                    external_id = account_result["Item"].get("externalId")
+                            except Exception as e:
+                                print(f"Warning: Could not fetch externalId for account {target_account_id}: {e}")
+
                             lc_account_context = {
                                 "accountId": target_account_id,
-                                "roleName": existing_group.get("assumeRoleName", "OrchestrationRole"),
+                                "assumeRoleName": existing_group.get("assumeRoleName", "OrchestrationRole"),
                             }
+                            if external_id:
+                                lc_account_context["externalId"] = external_id
 
                     # Apply with timeout (allow update to succeed)
                     apply_result = apply_launch_configs_to_group(

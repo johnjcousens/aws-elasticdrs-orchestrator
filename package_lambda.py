@@ -66,17 +66,19 @@ def package_lambda(function_name: str, source_dir: Path, output_dir: Path):
                     print(f"    {result.stderr[:200]}")
                     # Continue anyway - some functions may not need dependencies
         
-        # Copy shared code if it exists
+        # Copy shared code if it exists (maintain directory structure)
         shared_dir = source_dir.parent / "shared"
         if shared_dir.exists():
+            target_shared_dir = build_dir / "shared"
+            target_shared_dir.mkdir(exist_ok=True)
             for item in shared_dir.iterdir():
                 if item.name == "__pycache__":
                     continue
                 if item.is_file():
-                    shutil.copy2(item, build_dir / item.name)
+                    shutil.copy2(item, target_shared_dir / item.name)
                 elif item.is_dir():
                     shutil.copytree(
-                        item, build_dir / item.name, dirs_exist_ok=True
+                        item, target_shared_dir / item.name, dirs_exist_ok=True
                     )
         
         # Create ZIP file
