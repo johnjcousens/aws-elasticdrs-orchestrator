@@ -110,7 +110,8 @@ def main():
         ("query-handler", "query-handler"),
         ("dr-orchestration-stepfunction", "dr-orchestration-stepfunction"),
         ("frontend-deployer", "frontend-deployer"),
-        ("notification-formatter", "drs-agent-deployer"),
+        # Note: drs-agent-deployer not yet implemented in CloudFormation
+        # Note: notification functionality moved to lambda/shared/notifications.py
     ]
     
     # Package each function
