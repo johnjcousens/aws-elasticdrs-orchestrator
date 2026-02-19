@@ -223,6 +223,7 @@ Resources:
         
         # DRS write operations for recovery execution and configuration updates
         # Includes CreateRecoveryInstanceForDrs for AllowLaunchingIntoThisInstance pattern
+        # Includes CreateExtendedSourceServer for staging account sync
         - PolicyName: DRSWriteAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -246,6 +247,7 @@ Resources:
                   - drs:GetAgentInstallationAssetsForDrs
                   - drs:IssueAgentCertificateForDrs
                   - drs:CreateSourceServerForDrs
+                  - drs:CreateExtendedSourceServer
                 Resource: "*"
         
         # EC2 access for instance queries and launch template management
