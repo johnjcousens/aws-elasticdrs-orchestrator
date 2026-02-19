@@ -739,6 +739,20 @@ if git remote get-url codeaws >/dev/null 2>&1; then
         echo -e "${YELLOW}  ⚠ Push to codeaws failed or nothing to push${NC}"
     fi
 fi
+
+# Sync to GitHub mirror if remote exists
+if git remote get-url github >/dev/null 2>&1; then
+    # Ensure SSH key is loaded
+    if [ -f ~/.ssh/id_ed25519_johnjcousens ] && ! ssh-add -l | grep -q johnjcousens; then
+        ssh-add ~/.ssh/id_ed25519_johnjcousens 2>/dev/null || true
+    fi
+    
+    if git push github HEAD --quiet 2>/dev/null; then
+        echo -e "${GREEN}  ✓ Pushed to github${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Push to github failed or nothing to push${NC}"
+    fi
+fi
 echo ""
 
 # Stage 5: Deploy
