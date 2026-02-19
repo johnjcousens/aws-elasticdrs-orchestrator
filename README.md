@@ -786,7 +786,7 @@ Complete working examples for AWS service integration:
 
 The following features are planned or in development. Each enhancement is documented in `.kiro/specs/` with detailed requirements, design, and implementation tasks.
 
-**📊 Status Summary**: 10 specs complete (34%), 2 in progress (7%), 3 high priority (10%), 14 planned (48%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
+**📊 Status Summary**: 2 in progress (11%), 3 high priority (16%), 14 planned (74%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
 
 ### 🎯 Immediate Actions Needed
 
@@ -806,29 +806,22 @@ The following features are planned or in development. Each enhancement is docume
 
 | Status | Enhancement | Description | Tasks | Spec |
 |--------|-------------|-------------|-------|------|
-| 🎯 Priority | **Launch Config Pre-Application** | Pre-apply and persist DRS launch configurations when protection groups are created/updated, eliminating 30-60s per-wave overhead during recovery execution | 0/multiple | [Spec](.kiro/specs/03-launch-config-preapplication/requirements.md) |
+| 🎯 Priority | **Launch Config Pre-Application** | Pre-apply and persist DRS launch configurations when protection groups are created/updated, eliminating 30-60s per-wave overhead during recovery execution | 18/20 (90%) | [Spec](.kiro/specs/03-launch-config-preapplication/requirements.md) |
 | 🎯 Priority | **DRS Rate Limit Handling** | Implements comprehensive DRS API rate limit handling with retry logic and metrics | 0/multiple | [Spec](.kiro/specs/02-drs-rate-limit-handling/requirements.md) |
 | 🎯 Priority | **DRS Agent Deployer** | Deploys DRS agents to target instances via SSM with cross-account support | Phase 1.5+ | [Spec](.kiro/specs/06-drs-agent-deployer/requirements.md) |
 | 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements DRS AllowLaunchingIntoInstance pattern for targeted recovery | 0/234 | [Spec](.kiro/specs/05-drs-allow-launching-into-instance/requirements.md) |
-| ✅ Complete | **Account Context Improvements** | Adds direct `accountId` on Protection Groups/Recovery Plans, SNS notifications, and pause/resume with task tokens | 15/15 | [Spec](.kiro/specs/complete/account-context-improvements/requirements.md) |
-| ✅ Complete | **Direct Lambda Invocation Mode** | Standardizes direct Lambda invocation across handlers with IAM authorization and audit logging | 8/8 phases | [Spec](.kiro/specs/complete/direct-lambda-invocation-mode/requirements.md) |
-| ✅ Complete | **Fix Broken Tests** | Fixes 37 failing tests across query-handler, data-management, and execution-handler | 7/7 phases | [Spec](.kiro/specs/complete/fix-broken-tests/requirements.md) |
-| ✅ Complete | **Granular Progress Tracking** | Maps DRS job events to progress percentages for wave execution tracking | 5/5 | [Spec](.kiro/specs/complete/granular-progress-tracking/requirements.md) |
-| ✅ Complete | **Notification Formatter Consolidation** | Consolidates HTML email formatting into shared module and removes standalone Lambda | 5/5 | [Spec](.kiro/specs/complete/notification-formatter-consolidation/requirements.md) |
-| ✅ Complete | **Polling AccountContext Fix** | Fixes cross-account DRS query failures during polling by passing accountContext | 3/3 | [Spec](.kiro/specs/complete/polling-accountcontext-fix/requirements.md) |
-| ✅ Complete | **Staging Accounts Management** | Enables multiple staging accounts per target account for expanded replication capacity | 2+ | [Spec](.kiro/specs/complete/staging-accounts-management/requirements.md) |
-| ✅ Complete | **Standardized Cross-Account Role Naming** | Standardizes cross-account role naming to `DRSOrchestrationRole` pattern | 6+ | [Spec](.kiro/specs/complete/standardized-cross-account-role-naming/requirements.md) |
-| ✅ Complete | **Generic Orchestration Refactoring** | Moves DRS-specific functions from orchestration Lambda into handler Lambdas | Complete | [Spec](.kiro/specs/complete/generic-orchestration-refactoring/requirements.md) |
-| ✅ Complete | **Wave Completion Display** | Fixes wave status display and server column headers in frontend | 6/6 | [Spec](.kiro/specs/complete/wave-completion-display/requirements.md) |
+
 | 🔄 In Progress | **Active Region Filtering** | Filters DRS queries to active regions only, reducing API calls by 80-90% | 0/17 | [Spec](.kiro/specs/01-active-region-filtering/requirements.md) |
-| 🔄 In Progress | **Test Isolation Refactoring** | Refactors 15 failing tests to use proper mocking instead of @mock_aws decorator | 7/7 phases | [Spec](.kiro/specs/15-test-isolation-refactoring/requirements.md) |
+| 🔄 In Progress | **Test Isolation Refactoring** | Refactors 15 failing tests to use proper mocking instead of @mock_aws decorator | 7/7 phases | [Spec](.kiro/specs/07-test-isolation-refactoring/requirements.md) |
 | 📋 Planned | **CloudScape Component Improvements** | Adopts additional CloudScape components (Wizard, Cards, CodeEditor, etc.) | 0/~100 | [Spec](.kiro/specs/13-cloudscape-component-improvements/requirements.md) |
 | 📋 Planned | **CSS Refactoring** | Removes all inline styles, replaces with CSS modules and CloudScape design tokens | 0/35 | [Spec](.kiro/specs/14-css-refactoring/requirements.md) |
-| 📋 Planned | **Deploy Script Test Detection Fix** | Fixes deploy script test failure detection using exit codes instead of string parsing | 0/18 | [Spec](.kiro/specs/12-deploy-script-test-detection-fix/requirements.md) |
-| 📋 Planned | **Documentation Accuracy Audit** | Fixes broken links and corrects architecture/API documentation across 8 files | 0/9 | [Spec](.kiro/specs/11-documentation-accuracy-audit/requirements.md) |
+| 📋 Planned | **Cross-File Test Isolation Fix** | Fixes test isolation issues causing failures when tests run together | 0/multiple | [Spec](.kiro/specs/08-cross-file-test-isolation-fix/requirements.md) |
+| 📋 Planned | **DynamoDB Mock Structure Fix** | Fixes DynamoDB mock structure to match AWS SDK v3 format | 0/multiple | [Spec](.kiro/specs/09-dynamodb-mock-structure-fix/requirements.md) |
+| 📋 Planned | **Deploy Script Test Detection Fix** | Fixes deploy script test failure detection using exit codes instead of string parsing | 0/18 | [Spec](.kiro/specs/10-deploy-script-test-detection-fix/requirements.md) |
+| 📋 Planned | **Documentation Accuracy Audit** | Fixes broken links and corrects architecture/API documentation across 8 files | 0/9 | [Spec](.kiro/specs/15-documentation-accuracy-audit/requirements.md) |
 | 📋 Planned | **Inventory Sync Refactoring** | Decomposes monolithic sync_source_server_inventory function into 7 focused functions | 0/15 | [Spec](.kiro/specs/04-inventory-sync-refactoring/requirements.md) |
-| 📋 Planned | **Query Handler Read-Only Audit** | Enforces read-only operations in query-handler by moving sync operations to data-management-handler | 0/17 | [Spec](.kiro/specs/10-query-handler-read-only-audit/requirements.md) |
-| 📋 Planned | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple | [Spec](.kiro/specs/09-recovery-instance-sync/requirements.md) |
+| 📋 Planned | **Query Handler Read-Only Audit** | Enforces read-only operations in query-handler by moving sync operations to data-management-handler | 0/17 | [Spec](.kiro/specs/11-query-handler-read-only-audit/requirements.md) |
+| 📋 Planned | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple | [Spec](.kiro/specs/12-recovery-instance-sync/requirements.md) |
 
 ### Enhancement Categories
 
