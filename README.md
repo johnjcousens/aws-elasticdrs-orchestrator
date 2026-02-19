@@ -9,10 +9,6 @@ Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wav
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> **🎯 Current Working Environment**: QA stack (`aws-drs-orchestration-qa`) in account `438465159935`, region `us-east-1`
-> 
-> **⚠️ Legacy Test Stack**: The `aws-drs-orchestration-test` stack is in `UPDATE_ROLLBACK_FAILED` state and should not be used
-
 > **🎯 Current Sprint Priorities**: This sprint focuses on three high-priority DRS enhancements to improve rate limit handling, agent deployment, and targeted recovery capabilities. See [Future Enhancements](#future-enhancements) for implementation details and dependencies.
 >
 > **📌 Stable Checkpoint**: Tag `v6.0.1-PreSpecRefactoring` marks a stable state before sprint refactoring begins. If issues arise during implementation, rollback with:
