@@ -786,7 +786,7 @@ Complete working examples for AWS service integration:
 
 The following features are planned or in development. Each enhancement is documented in `.kiro/specs/` with detailed requirements, design, and implementation tasks.
 
-**📊 Status Summary**: 1 in progress (7%), 6 high priority (40%), 8 planned (53%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
+**📊 Status Summary**: 1 in progress (7%), 8 high priority (53%), 6 planned (40%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
 
 ### 🎯 Immediate Actions Needed
 
@@ -812,15 +812,15 @@ The following features are planned or in development. Each enhancement is docume
 | 🎯 Priority | **Inventory Sync Refactoring** | Decomposes monolithic sync_source_server_inventory function into 7 focused functions | 0/15 | [Spec](.kiro/specs/04-inventory-sync-refactoring/requirements.md) |
 | 🎯 Priority | **Query Handler Read-Only Audit** | Enforces read-only operations in query-handler by moving sync operations to data-management-handler | 0/17 | [Spec](.kiro/specs/05-query-handler-read-only-audit/requirements.md) |
 | 🎯 Priority | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple | [Spec](.kiro/specs/06-recovery-instance-sync/requirements.md) |
-| 🔄 In Progress | **Test Isolation Refactoring** | Refactors 15 failing tests to use proper mocking instead of @mock_aws decorator | 7/7 phases | [Spec](.kiro/specs/11-test-isolation-refactoring/requirements.md) |
-| 📋 Planned | **Cross-File Test Isolation Fix** | Fixes test isolation issues causing failures when tests run together | 0/multiple | [Spec](.kiro/specs/07-cross-file-test-isolation-fix/requirements.md) |
-| 📋 Planned | **DynamoDB Mock Structure Fix** | Fixes DynamoDB mock structure to match AWS SDK v3 format | 0/multiple | [Spec](.kiro/specs/08-dynamodb-mock-structure-fix/requirements.md) |
-| 📋 Planned | **Deploy Script Test Detection Fix** | Fixes deploy script test failure detection using exit codes instead of string parsing | 0/18 | [Spec](.kiro/specs/09-deploy-script-test-detection-fix/requirements.md) |
-| 📋 Planned | **CloudScape Component Improvements** | Adopts additional CloudScape components (Wizard, Cards, CodeEditor, etc.) | 0/~100 | [Spec](.kiro/specs/10-cloudscape-component-improvements/requirements.md) |
-| 📋 Planned | **CSS Refactoring** | Removes all inline styles, replaces with CSS modules and CloudScape design tokens | 0/35 | [Spec](.kiro/specs/12-css-refactoring/requirements.md) |
-| 📋 Planned | **Documentation Accuracy Audit** | Fixes broken links and corrects architecture/API documentation across 8 files | 0/9 | [Spec](.kiro/specs/13-documentation-accuracy-audit/requirements.md) |
-| 📋 Planned | **DRS AllowLaunchingIntoInstance** | Implements DRS AllowLaunchingIntoInstance pattern for targeted recovery | 0/234 | [Spec](.kiro/specs/14-drs-allow-launching-into-instance/requirements.md) |
-| 📋 Planned | **DRS Agent Deployer** | Deploys DRS agents to target instances via SSM with cross-account support | Phase 1.5+ | [Spec](.kiro/specs/15-drs-agent-deployer/requirements.md) |
+| 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements DRS AllowLaunchingIntoInstance pattern for targeted recovery (blocked by 02) | 0/234 | [Spec](.kiro/specs/07-drs-allow-launching-into-instance/requirements.md) |
+| 🎯 Priority | **DRS Agent Deployer** | Deploys DRS agents to target instances via SSM with cross-account support | Phase 1.5+ | [Spec](.kiro/specs/08-drs-agent-deployer/requirements.md) |
+| 🔄 In Progress | **Test Isolation Refactoring** | Refactors 15 failing tests to use proper mocking instead of @mock_aws decorator | 7/7 phases | [Spec](.kiro/specs/13-test-isolation-refactoring/requirements.md) |
+| 📋 Planned | **Cross-File Test Isolation Fix** | Fixes test isolation issues causing failures when tests run together | 0/multiple | [Spec](.kiro/specs/09-cross-file-test-isolation-fix/requirements.md) |
+| 📋 Planned | **DynamoDB Mock Structure Fix** | Fixes DynamoDB mock structure to match AWS SDK v3 format | 0/multiple | [Spec](.kiro/specs/10-dynamodb-mock-structure-fix/requirements.md) |
+| 📋 Planned | **Deploy Script Test Detection Fix** | Fixes deploy script test failure detection using exit codes instead of string parsing | 0/18 | [Spec](.kiro/specs/11-deploy-script-test-detection-fix/requirements.md) |
+| 📋 Planned | **CloudScape Component Improvements** | Adopts additional CloudScape components (Wizard, Cards, CodeEditor, etc.) | 0/~100 | [Spec](.kiro/specs/12-cloudscape-component-improvements/requirements.md) |
+| 📋 Planned | **CSS Refactoring** | Removes all inline styles, replaces with CSS modules and CloudScape design tokens | 0/35 | [Spec](.kiro/specs/14-css-refactoring/requirements.md) |
+| 📋 Planned | **Documentation Accuracy Audit** | Fixes broken links and corrects architecture/API documentation across 8 files | 0/9 | [Spec](.kiro/specs/15-documentation-accuracy-audit/requirements.md) |
 
 ### Enhancement Categories
 
