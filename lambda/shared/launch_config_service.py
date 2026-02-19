@@ -194,7 +194,13 @@ def apply_launch_configs_to_group(
 
         # Apply configuration with retry logic
         try:
-            _apply_config_to_server(drs_client, server_id, launch_config, region, account_context=account_context)
+            _apply_config_to_server(
+                drs_client,
+                server_id,
+                launch_config,
+                region,
+                account_context=account_context,
+            )
 
             # Calculate config hash for drift detection
             config_hash = calculate_config_hash(launch_config)

@@ -17,7 +17,6 @@ lambda/ @jocousen
 
 # Deployment scripts and CI/CD
 scripts/ @jocousen
-.gitlab-ci.yml @jocousen
 
 # Steering and project config
 .kiro/ @jocousen
