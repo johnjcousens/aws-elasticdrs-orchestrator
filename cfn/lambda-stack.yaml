@@ -55,6 +55,10 @@ Parameters:
     Type: String
     Description: "DynamoDB table name for DRS Region Status"
 
+  RecoveryInstancesCacheTableName:
+    Type: String
+    Description: "DynamoDB table name for Recovery Instances Cache"
+
   LambdaCodeVersion:
     Type: String
     Description: "Version identifier to force Lambda code updates (timestamp)"
@@ -138,6 +142,7 @@ Resources:
           TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
           SOURCE_SERVER_INVENTORY_TABLE: !Ref SourceServerInventoryTableName
           DRS_REGION_STATUS_TABLE: !Ref DRSRegionStatusTableName
+          RECOVERY_INSTANCES_CACHE_TABLE: !Ref RecoveryInstancesCacheTableName
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
           STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
@@ -212,6 +217,7 @@ Resources:
           TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
           SOURCE_SERVER_INVENTORY_TABLE: !Ref SourceServerInventoryTableName
           DRS_REGION_STATUS_TABLE: !Ref DRSRegionStatusTableName
+          RECOVERY_INSTANCES_CACHE_TABLE: !Ref RecoveryInstancesCacheTableName
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
           EXECUTION_HANDLER_ARN: !GetAtt ExecutionHandlerFunction.Arn
