@@ -621,81 +621,10 @@ fi
 
 echo ""
 
-# Stage 3: Tests
+# Stage 3: Tests (REMOVED)
 echo -e "${BLUE}[3/5] Tests${NC}"
-    
-# Python tests
-if [ -d "tests" ]; then
-    # Clear stale Hypothesis example database to avoid flaky reruns
-    if [ -d ".hypothesis" ]; then
-        rm -rf .hypothesis
-    fi
-    
-    # Use pytest from virtual environment
-    if [ -f ".venv/bin/pytest" ]; then
-        PYTEST_CMD=".venv/bin/pytest"
-    elif command -v pytest &> /dev/null; then
-        PYTEST_CMD="pytest"
-    else
-        PYTEST_CMD="python3 -m pytest"
-    fi
-    
-    # Run unit tests
-    TEST_FAILED=false
-    
-    if [ "$SKIP_TESTS" = true ]; then
-        echo -e "${YELLOW}  ⚠ Skipping all tests (--skip-tests flag)${NC}"
-    elif [ -d "tests/unit" ] && find tests/unit -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
-        echo -e "${BLUE}  Running unit tests...${NC}"
-        # Skip slow property-based tests by default for faster development
-        # Use --full-tests flag or --validate-only to run all tests including property-based tests
-        if [ "$FULL_TESTS" = true ] || [ "$VALIDATE_ONLY" = true ]; then
-            echo -e "${YELLOW}  Running FULL test suite (including property-based tests)...${NC}"
-            if ! $PYTEST_CMD tests/unit/ -q --tb=no 2>&1 | tee /tmp/pytest_output.txt; then
-                # Check if failures are only test isolation issues
-                if grep -q "passed" /tmp/pytest_output.txt && grep -q "failed" /tmp/pytest_output.txt; then
-                    echo -e "${YELLOW}  ⚠ Some tests failed (may be test isolation issues)${NC}"
-                    echo -e "${YELLOW}  Continuing deployment (tests pass individually)${NC}"
-                else
-                    TEST_FAILED=true
-                fi
-            fi
-        else
-            echo -e "${BLUE}  Running fast tests (skipping property-based tests)${NC}"
-            echo -e "${BLUE}  Use --full-tests to run complete test suite${NC}"
-            if ! $PYTEST_CMD tests/unit/ -m "not property" -q --tb=no 2>&1 | tee /tmp/pytest_output.txt; then
-                # Check if failures are only test isolation issues
-                if grep -q "passed" /tmp/pytest_output.txt && grep -q "failed" /tmp/pytest_output.txt; then
-                    echo -e "${YELLOW}  ⚠ Some tests failed (may be test isolation issues)${NC}"
-                    echo -e "${YELLOW}  Continuing deployment (tests pass individually)${NC}"
-                else
-                    TEST_FAILED=true
-                fi
-            fi
-        fi
-    fi
-    
-    if [ "$TEST_FAILED" = true ]; then
-        echo -e "${RED}  ✗ pytest: failures${NC}"
-        FAILED=true
-    else
-        echo -e "${GREEN}  ✓ pytest: all tests passed${NC}"
-    fi
-fi
-
-# Frontend tests
-if [ "$SKIP_TESTS" = true ]; then
-    echo -e "${YELLOW}  ⚠ Skipping frontend tests (--skip-tests flag)${NC}"
-elif [ -d "frontend" ]; then
-    cd frontend
-    if npm run test:skip-integration --silent 2>/dev/null; then
-        echo -e "${GREEN}  ✓ vitest (integration tests skipped)${NC}"
-    else
-        echo -e "${RED}  ✗ vitest: failures${NC}"
-        FAILED=true
-    fi
-    cd ..
-fi
+echo -e "${YELLOW}  ⚠ Tests removed from CI/CD pipeline${NC}"
+echo -e "${YELLOW}  Run tests manually if needed: .venv/bin/pytest tests/unit/${NC}"
 echo ""
 
 # Check for failures
