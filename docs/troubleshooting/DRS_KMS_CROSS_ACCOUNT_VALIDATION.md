@@ -2,7 +2,7 @@
 
 ## Current Setup Analysis
 
-**Source Account**: 777788889999  
+**Source Account**: 123456789012  
 **Target Account**: 111122223333  
 **KMS Key**: ab256143-c334-4d8b-bd7d-67475d8721d0  
 **Region**: us-west-2
@@ -13,7 +13,7 @@ Your current policy includes all required permissions for DRS cross-account reco
 
 ### Statement 1: Root Account Permissions ✅
 - **Purpose**: Allow source account full control
-- **Principal**: `arn:aws:iam::777788889999:root`
+- **Principal**: `arn:aws:iam::123456789012:root`
 - **Actions**: `kms:*`
 - **Status**: ✅ Correct
 
@@ -60,9 +60,9 @@ Your current policy includes all required permissions for DRS cross-account reco
 Check if snapshots can be shared with target account:
 
 ```bash
-# In source account (777788889999)
+# In source account (123456789012)
 aws ec2 describe-snapshots \
-  --owner-ids 777788889999 \
+  --owner-ids 123456789012 \
   --region us-west-2 \
   --filters "Name=tag:aws:drs:source-server-id,Values=s-*" \
   --query 'Snapshots[0].SnapshotId' \
@@ -79,7 +79,7 @@ aws ec2 modify-snapshot-attribute \
   --operation-add \
   --user-ids 111122223333 \
   --region us-west-2 \
-  --profile 777788889999_AdministratorAccess
+  --profile 123456789012_AdministratorAccess
 ```
 
 ### 2. Verify Target Account Can Access Key
@@ -87,7 +87,7 @@ aws ec2 modify-snapshot-attribute \
 ```bash
 # In target account (111122223333)
 aws kms describe-key \
-  --key-id arn:aws:kms:us-west-2:777788889999:key/ab256143-c334-4d8b-bd7d-67475d8721d0 \
+  --key-id arn:aws:kms:us-west-2:123456789012:key/ab256143-c334-4d8b-bd7d-67475d8721d0 \
   --region us-west-2 \
   --profile 111122223333_AdministratorAccess
 ```
@@ -99,7 +99,7 @@ Expected: Should return key metadata without errors.
 ```bash
 # In target account
 aws kms create-grant \
-  --key-id arn:aws:kms:us-west-2:777788889999:key/ab256143-c334-4d8b-bd7d-67475d8721d0 \
+  --key-id arn:aws:kms:us-west-2:123456789012:key/ab256143-c334-4d8b-bd7d-67475d8721d0 \
   --grantee-principal arn:aws:iam::111122223333:role/aws-service-role/drs.amazonaws.com/AWSServiceRoleForElasticDisasterRecovery \
   --operations Decrypt DescribeKey CreateGrant \
   --region us-west-2 \
@@ -128,7 +128,7 @@ aws ec2 describe-volumes \
   --filters "Name=encrypted,Values=true" \
   --query 'Volumes[*].[VolumeId,KmsKeyId]' \
   --output table \
-  --profile 777788889999_AdministratorAccess
+  --profile 123456789012_AdministratorAccess
 ```
 
 **Action Required**: If other KMS keys are found, repeat the policy update for each key.
@@ -145,7 +145,7 @@ aws ec2 modify-image-attribute \
   --image-id ami-xxxxx \
   --launch-permission "Add=[{UserId=111122223333}]" \
   --region us-west-2 \
-  --profile 777788889999_AdministratorAccess
+  --profile 123456789012_AdministratorAccess
 ```
 
 ### Issue 2: Multiple KMS Keys
@@ -175,7 +175,7 @@ aws ec2 modify-image-attribute \
 aws kms enable-key-rotation \
   --key-id ab256143-c334-4d8b-bd7d-67475d8721d0 \
   --region us-west-2 \
-  --profile 777788889999_AdministratorAccess
+  --profile 123456789012_AdministratorAccess
 ```
 
 ### 3. Monitor Key Usage
@@ -184,7 +184,7 @@ aws kms enable-key-rotation \
 aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=ResourceType,AttributeValue=AWS::KMS::Key \
   --region us-west-2 \
-  --profile 777788889999_AdministratorAccess
+  --profile 123456789012_AdministratorAccess
 ```
 
 ### 4. Tag KMS Keys
@@ -192,10 +192,10 @@ aws cloudtrail lookup-events \
 aws kms tag-resource \
   --key-id ab256143-c334-4d8b-bd7d-67475d8721d0 \
   --tags TagKey=Purpose,TagValue=DRS-CrossAccount \
-         TagKey=SourceAccount,TagValue=777788889999 \
+         TagKey=SourceAccount,TagValue=123456789012 \
          TagKey=TargetAccount,TagValue=111122223333 \
   --region us-west-2 \
-  --profile 777788889999_AdministratorAccess
+  --profile 123456789012_AdministratorAccess
 ```
 
 ## Verification Script
@@ -206,7 +206,7 @@ Run this to verify complete setup:
 #!/bin/bash
 set -e
 
-SOURCE_ACCOUNT="777788889999"
+SOURCE_ACCOUNT="123456789012"
 TARGET_ACCOUNT="111122223333"
 KEY_ID="ab256143-c334-4d8b-bd7d-67475d8721d0"
 REGION="us-west-2"
