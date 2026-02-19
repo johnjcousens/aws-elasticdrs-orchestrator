@@ -66,9 +66,9 @@ NC='\033[0m'
 # ============================================================================
 
 # Required Parameters
-ENVIRONMENT="${1:-dev}"
-AWS_REGION="us-east-2"
-PROJECT_NAME="${PROJECT_NAME:-hrp-drs-tech-adapter}"
+ENVIRONMENT="${1:-test}"
+AWS_REGION="us-east-1"
+PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestration}"
 STACK_NAME="${STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
 DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-${PROJECT_NAME}-${ENVIRONMENT}}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-jocousen@amazon.com}"
@@ -655,33 +655,36 @@ else
 fi
 
 if git push origin HEAD --quiet 2>/dev/null; then
-    echo -e "${GREEN}  ✓ Pushed to origin${NC}"
+    echo -e "${GREEN}  ✓ Pushed to origin (GitHub)${NC}"
 else
     echo -e "${YELLOW}  ⚠ Push to origin failed or nothing to push${NC}"
 fi
 
-# Sync to Code.AWS mirror if remote exists
-if git remote get-url codeaws >/dev/null 2>&1; then
-    if git push codeaws HEAD --quiet 2>/dev/null; then
-        echo -e "${GREEN}  ✓ Pushed to codeaws${NC}"
-    else
-        echo -e "${YELLOW}  ⚠ Push to codeaws failed or nothing to push${NC}"
-    fi
-fi
+# NOTE: This is the primary GitHub repository
+# Mirror sync sections commented out as they are not needed
 
-# Sync to GitHub mirror if remote exists
-if git remote get-url github >/dev/null 2>&1; then
-    # Ensure SSH key is loaded
-    if [ -f ~/.ssh/id_ed25519_johnjcousens ] && ! ssh-add -l | grep -q johnjcousens; then
-        ssh-add ~/.ssh/id_ed25519_johnjcousens 2>/dev/null || true
-    fi
-    
-    if git push github HEAD --quiet 2>/dev/null; then
-        echo -e "${GREEN}  ✓ Pushed to github${NC}"
-    else
-        echo -e "${YELLOW}  ⚠ Push to github failed or nothing to push${NC}"
-    fi
-fi
+# # Sync to Code.AWS mirror if remote exists
+# if git remote get-url codeaws >/dev/null 2>&1; then
+#     if git push codeaws HEAD --quiet 2>/dev/null; then
+#         echo -e "${GREEN}  ✓ Pushed to codeaws${NC}"
+#     else
+#         echo -e "${YELLOW}  ⚠ Push to codeaws failed or nothing to push${NC}"
+#     fi
+# fi
+
+# # Sync to GitHub mirror if remote exists
+# if git remote get-url github >/dev/null 2>&1; then
+#     # Ensure SSH key is loaded
+#     if [ -f ~/.ssh/id_ed25519_johnjcousens ] && ! ssh-add -l | grep -q johnjcousens; then
+#         ssh-add ~/.ssh/id_ed25519_johnjcousens 2>/dev/null || true
+#     fi
+#     
+#     if git push github HEAD --quiet 2>/dev/null; then
+#         echo -e "${GREEN}  ✓ Pushed to github${NC}"
+#     else
+#         echo -e "${YELLOW}  ⚠ Push to github failed or nothing to push${NC}"
+#     fi
+# fi
 echo ""
 
 # Stage 5: Deploy
