@@ -868,7 +868,7 @@ export const ExecutionDetailsPage: React.FC = () => {
           <Container header={<Header variant="h3">Wave Progress</Header>}>
             <WaveProgress 
               waves={mapWavesToWaveExecutions(execution)} 
-              currentWave={execution.currentWave}
+              currentWave={calculateCurrentWaveDisplay(execution) - 1}
               totalWaves={execution.totalWaves}
               jobLogs={jobLogs}
             />
