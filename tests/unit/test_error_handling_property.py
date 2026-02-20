@@ -27,6 +27,7 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
 from botocore.exceptions import ClientError
 from hypothesis import given, settings, strategies as st
 
@@ -34,9 +35,6 @@ from hypothesis import given, settings, strategies as st
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
 from shared.response_utils import (  # noqa: E402
-
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
-
     ERROR_AUTHORIZATION_FAILED,
     ERROR_DRS_ERROR,
     ERROR_DYNAMODB_ERROR,
@@ -46,6 +44,8 @@ pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolat
     ERROR_MISSING_PARAMETER,
     ERROR_NOT_FOUND,
 )
+
+pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 def get_lambda_handler_module(handler_name):

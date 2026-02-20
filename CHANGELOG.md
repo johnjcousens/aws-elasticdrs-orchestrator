@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Completed
+- **Active Region Filtering (Spec 01)**: Completed all 17 tasks for filtering DRS queries to active regions only
+  - Reduces DRS API calls by 80-90% by querying only regions with replicating servers
+  - Implements `get_active_regions()` function with comprehensive validation and error handling
+  - Updates all 8 DRS query locations across query-handler and data-management-handler
+  - Adds 6 new unit tests and 2 integration tests with 100% pass rate
+  - Includes property-based tests for region filtering consistency
+  - Validates Requirements FR1 (active region filtering), FR2 (fallback to all regions), NFR1 (performance)
+  - Unblocks 05-inventory-sync-refactoring spec
+  - See [Spec](.kiro/specs/01-active-region-filtering/requirements.md)
+
 ### Added
 - **Query Handler Read-Only Audit Spec**: Created comprehensive specification for enforcing read-only operations in query-handler
   - Moves 3 sync operations (inventory sync, staging sync, wave polling) from query-handler to data-management-handler

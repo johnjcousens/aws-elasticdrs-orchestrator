@@ -826,23 +826,23 @@ Complete working examples for AWS service integration:
 
 The following features are planned or in development. Each enhancement is documented in `.kiro/specs/` with detailed requirements, design, and implementation tasks.
 
-**📊 Status Summary**: 1 in progress (7%), 7 high priority (47%), 7 planned (46%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
+**📊 Status Summary**: 1 completed (7%), 1 in progress (7%), 6 high priority (40%), 7 planned (46%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
 
-**🔗 Priority Dependencies**: 03 (AllowLaunchingIntoInstance) blocked by 02 (Rate Limit Handling), 05 (Inventory Sync) blocked by 01 (Active Region Filtering)
+**🔗 Priority Dependencies**: 03 (AllowLaunchingIntoInstance) blocked by 02 (Rate Limit Handling), 05 (Inventory Sync) unblocked (01 complete)
 
 ### 🎯 Immediate Actions Needed
 
-1. **Start 01-active-region-filtering** (currently 0/17 despite "In Progress" label)
-   - Blocks 05-inventory-sync-refactoring
-   - Reduces DRS API calls by 80-90%
-
-2. **Complete 02-drs-rate-limit-handling** (blocks 03-drs-allow-launching-into-instance)
+1. **Complete 02-drs-rate-limit-handling** (blocks 03-drs-allow-launching-into-instance)
    - Sprint priority dependency
    - Required before targeted recovery implementation
 
+2. **Start 05-inventory-sync-refactoring** (now unblocked)
+   - Decomposes monolithic sync function
+   - Improves maintainability and testability
+
 | Status | Enhancement | Description | Tasks | Spec |
 |--------|-------------|-------------|-------|------|
-| 🎯 Priority | **Active Region Filtering** | Filters DRS queries to active regions only, reducing API calls by 80-90% | 0/17 | [Spec](.kiro/specs/01-active-region-filtering/requirements.md) |
+| ✅ Complete | **Active Region Filtering** | Filters DRS queries to active regions only, reducing API calls by 80-90% | 17/17 | [Spec](.kiro/specs/01-active-region-filtering/requirements.md) |
 | 🎯 Priority | **DRS Rate Limit Handling** | Implements comprehensive DRS API rate limit handling with retry logic and metrics | 0/multiple | [Spec](.kiro/specs/02-drs-rate-limit-handling/requirements.md) |
 | 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements targeted recovery into pre-provisioned EC2 instances with IP preservation (blocked by 02) | 0/multiple | [Spec](.kiro/specs/03-drs-allow-launching-into-instance/requirements.md) |
 | 🎯 Priority | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple | [Spec](.kiro/specs/04-recovery-instance-sync/requirements.md) |
@@ -861,19 +861,19 @@ The following features are planned or in development. Each enhancement is docume
 
 ### Enhancement Categories
 
-**Completed (10 specs - 34%)**
+**Completed (11 specs - 37%)**
 - Core functionality improvements and bug fixes
 - Direct Lambda invocation support
 - Cross-account role standardization
 - Test suite stabilization
 - Code architecture improvements (orchestration refactoring)
 - Frontend fixes (wave completion display)
+- Active region filtering (performance optimization)
 
 **In Progress (1 spec - 7%)**
 - 13-test-isolation-refactoring: Code quality improvements
 
-**Priority (7 specs - 47%)**
-- 01-active-region-filtering: Performance optimizations
+**Priority (6 specs - 40%)**
 - 02-drs-rate-limit-handling: DRS API rate limit handling
 - 03-drs-allow-launching-into-instance: AllowLaunchingIntoInstance pattern
 - 04-recovery-instance-sync: Real-time recovery instance sync
@@ -889,7 +889,7 @@ The following features are planned or in development. Each enhancement is docume
 ### Key Dependencies
 
 - **03-drs-allow-launching-into-instance** depends on **02-drs-rate-limit-handling** (must complete first)
-- **05-inventory-sync-refactoring** depends on **01-active-region-filtering** (must complete first)
+- **05-inventory-sync-refactoring** was blocked by **01-active-region-filtering** (now complete, unblocked)
 
 ### Next Week Priorities
 

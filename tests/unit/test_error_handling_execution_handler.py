@@ -27,9 +27,6 @@ from botocore.exceptions import ClientError
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
 from shared.response_utils import (  # noqa: E402
-
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
-
     ERROR_AUTHORIZATION_FAILED,
     ERROR_DRS_ERROR,
     ERROR_DYNAMODB_ERROR,
@@ -42,6 +39,8 @@ pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolat
     ERROR_NOT_FOUND,
     ERROR_STEP_FUNCTIONS_ERROR,
 )
+
+pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 def get_lambda_handler():

@@ -64,6 +64,32 @@ def get_region_status_table():
     return _region_status_table
 
 
+def publish_metric(metric_name: str, value: float, unit: str = "Count") -> None:
+    """
+    Publish custom CloudWatch metric for active region filtering.
+
+    Publishes metrics to the DRSOrchestration/ActiveRegionFiltering namespace
+    for monitoring region filtering effectiveness and performance.
+
+    Args:
+        metric_name: Name of the metric (e.g., 'ActiveRegionCount')
+        value: Metric value to publish
+        unit: CloudWatch unit (default: 'Count')
+
+    Example:
+        >>> publish_metric('ActiveRegionCount', 3)
+        >>> publish_metric('RegionsSkipped', 25)
+    """
+    try:
+        cloudwatch.put_metric_data(
+            Namespace="DRSOrchestration/ActiveRegionFiltering",
+            MetricData=[{"MetricName": metric_name, "Value": value, "Unit": unit}],
+        )
+        logger.debug(f"Published CloudWatch metric: {metric_name}={value} {unit}")
+    except Exception as e:
+        logger.warning(f"Failed to publish CloudWatch metric {metric_name}: {e}")
+
+
 def _is_cache_valid(cache_ttl: int) -> bool:
     """
     Check if cached region data is still valid.
@@ -156,6 +182,11 @@ def get_active_regions(region_status_table=None, cache_ttl: int = CACHE_TTL) -> 
             f"Found {len(active_regions)} active regions "
             f"(skipping {len(DRS_REGIONS) - len(active_regions)} inactive)"
         )
+
+        # Publish CloudWatch metrics for monitoring
+        publish_metric("ActiveRegionCount", len(active_regions))
+        publish_metric("RegionsSkipped", len(DRS_REGIONS) - len(active_regions))
+
         return active_regions
 
     except ClientError as e:
