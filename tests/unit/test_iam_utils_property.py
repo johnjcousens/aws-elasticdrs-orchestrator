@@ -27,6 +27,7 @@ import os
 # Add lambda directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
+import pytest
 from hypothesis import given, strategies as st, assume, settings
 from unittest.mock import Mock
 import re

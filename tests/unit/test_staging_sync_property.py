@@ -77,9 +77,9 @@ def test_property_11_handle_sync_staging_accounts_uses_region_filtering(active_r
 
     Validates: Requirements 11.12
     """
-    with patch("data-management-handler.index.get_active_regions") as mock_get_active:
-        with patch("data-management-handler.index.get_target_accounts_table") as mock_table:
-            with patch("data-management-handler.index.auto_extend_staging_servers") as mock_extend:
+    with patch("shared.active_region_filter.get_active_regions") as mock_get_active:
+        with patch.object(dm_handler, "get_target_accounts_table") as mock_table:
+            with patch.object(dm_handler, "auto_extend_staging_servers") as mock_extend:
                 # Setup: Mock get_active_regions to return filtered list
                 mock_get_active.return_value = active_regions
 
@@ -125,8 +125,8 @@ def test_property_11_auto_extend_staging_servers_uses_region_filtering(active_re
 
     Validates: Requirements 11.12
     """
-    with patch("data-management-handler.index.get_extended_source_servers") as mock_get_extended:
-        with patch("data-management-handler.index.get_staging_account_servers") as mock_get_staging:
+    with patch.object(dm_handler, "get_extended_source_servers") as mock_get_extended:
+        with patch.object(dm_handler, "get_staging_account_servers") as mock_get_staging:
             # Setup: Mock helper functions
             mock_get_extended.return_value = set()
             mock_get_staging.return_value = []
@@ -165,7 +165,7 @@ def test_property_5_api_call_reduction(active_region_count):
     active_regions = DRS_REGIONS[:active_region_count]
 
     with patch("boto3.client") as mock_boto_client:
-        with patch("data-management-handler.index.get_current_account_id") as mock_account_id:
+        with patch.object(dm_handler, "get_current_account_id") as mock_account_id:
             # Setup: Mock boto3 client
             mock_drs_client = MagicMock()
             mock_sts_client = MagicMock()

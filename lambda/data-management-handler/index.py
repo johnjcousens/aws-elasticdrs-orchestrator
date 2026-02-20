@@ -228,6 +228,7 @@ from shared.response_utils import (
 )
 
 from shared.drs_regions import DRS_REGIONS
+from shared.active_region_filter import get_region_status_table
 from shared.launch_config_service import (
     apply_launch_configs_to_group,
     persist_config_status,
@@ -711,6 +712,8 @@ def handle_direct_invocation(event, context):
         "remove_staging_account": lambda: handle_remove_staging_account(body),
         "sync_staging_accounts": lambda: handle_sync_staging_accounts(),
         "sync_extended_source_servers": lambda: handle_sync_single_account(body.get("targetAccountId")),  # Alias
+        # Inventory Sync (Task 7.1)
+        "sync_source_server_inventory": lambda: handle_sync_source_server_inventory(),
     }
 
     if operation in operations:
@@ -8226,6 +8229,424 @@ def extend_source_server(
     )
 
     print(f"Successfully extended server {staging_server_arn} to account {target_account_id} in region {region}")
+
+
+# ============================================================================
+# Source Server Inventory Sync Functions
+# ============================================================================
+
+
+def handle_sync_source_server_inventory() -> Dict:
+    """
+    Sync source server inventory from DRS and EC2 into DynamoDB.
+
+    Queries all target and staging accounts for DRS source servers,
+    enriches with EC2 instance metadata (network, tags, profile),
+    and upserts into the source-server-inventory table.
+
+    This function is called by EventBridge every 15 minutes to maintain
+    an up-to-date inventory of all DRS source servers across all accounts.
+
+    Returns:
+        Dict with sync results:
+        {
+            "message": str,
+            "totalSynced": int,
+            "totalErrors": int,
+            "timestamp": str
+        }
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from botocore.config import Config
+
+    print("Starting source server inventory sync...")
+
+    inventory_table_name = os.environ.get("SOURCE_SERVER_INVENTORY_TABLE")
+    if not inventory_table_name:
+        return response(500, {"error": "SOURCE_SERVER_INVENTORY_TABLE not configured"})
+
+    inventory_table = boto3.resource("dynamodb").Table(inventory_table_name)
+    fast_config = Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 1})
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Get all target accounts
+    target_accounts_response = get_target_accounts_table().scan()
+    target_accounts = target_accounts_response.get("Items", [])
+
+    total_synced = 0
+    total_errors = 0
+
+    # Collect all accounts to query (target + staging)
+    accounts_to_query = []
+    for target in target_accounts:
+        target_id = target.get("accountId")
+        target_role = target.get("roleArn")
+        target_ext_id = target.get("externalId")
+        accounts_to_query.append(
+            {
+                "accountId": target_id,
+                "roleArn": target_role,
+                "externalId": target_ext_id,
+                "accountType": "target",
+            }
+        )
+        for staging in target.get("stagingAccounts", []):
+            accounts_to_query.append(
+                {
+                    "accountId": staging.get("accountId"),
+                    "roleArn": staging.get("roleArn"),
+                    "externalId": staging.get("externalId"),
+                    "accountType": "staging",
+                }
+            )
+
+    for acct in accounts_to_query:
+        acct_id = acct["accountId"]
+        role_arn = acct.get("roleArn")
+        ext_id = acct.get("externalId")
+        current_account = get_current_account_id()
+
+        # Get credentials
+        credentials = None
+        if acct_id != current_account and role_arn:
+            try:
+                sts = boto3.client("sts")
+                params = {"RoleArn": role_arn, "RoleSessionName": "inventory-sync", "DurationSeconds": 900}
+                if ext_id:
+                    params["ExternalId"] = ext_id
+                credentials = sts.assume_role(**params)["Credentials"]
+            except Exception as e:
+                print(f"Cannot assume role for {acct_id}: {e}")
+                continue
+
+        # Query DRS in all regions in parallel, tracking region status
+        region_statuses = {}
+
+        def query_drs_region(region):
+            try:
+                if credentials:
+                    drs = boto3.client(
+                        "drs",
+                        region_name=region,
+                        aws_access_key_id=credentials["AccessKeyId"],
+                        aws_secret_access_key=credentials["SecretAccessKey"],
+                        aws_session_token=credentials["SessionToken"],
+                        config=fast_config,
+                    )
+                else:
+                    drs = boto3.client("drs", region_name=region, config=fast_config)
+                servers = []
+                paginator = drs.get_paginator("describe_source_servers")
+                for page in paginator.paginate():
+                    for srv in page.get("items", []):
+                        srv["_queryRegion"] = region
+                        srv["_queryAccount"] = acct_id
+                        servers.append(srv)
+                return {
+                    "servers": servers,
+                    "status": "ACTIVE",
+                    "serverCount": len(servers),
+                    "errorMessage": None,
+                }
+            except ClientError as e:
+                code = e.response.get("Error", {}).get("Code", "")
+                msg = str(e)
+                error_msg = e.response.get("Error", {}).get("Message", msg)
+
+                # DRS not initialized
+                if code == "UninitializedAccountException" or "not initialized" in msg.lower():
+                    return {
+                        "servers": [],
+                        "status": "NOT_INITIALIZED",
+                        "serverCount": 0,
+                        "errorMessage": "DRS not initialized in region",
+                    }
+
+                # IAM permission denied
+                if "AccessDeniedException" in msg or code == "AccessDeniedException":
+                    return {
+                        "servers": [],
+                        "status": "IAM_PERMISSION_DENIED",
+                        "serverCount": 0,
+                        "errorMessage": f"IAM permissions denied: {error_msg}",
+                    }
+
+                # Service Control Policy
+                if "service control policy" in msg.lower() or "scp" in msg.lower():
+                    return {
+                        "servers": [],
+                        "status": "SCP_DENIED",
+                        "serverCount": 0,
+                        "errorMessage": "Blocked by Service Control Policy",
+                    }
+
+                # Throttling
+                if code in ["ThrottlingException", "TooManyRequestsException"]:
+                    return {
+                        "servers": [],
+                        "status": "THROTTLED",
+                        "serverCount": 0,
+                        "errorMessage": "API rate limit exceeded",
+                    }
+
+                # Region not opted-in
+                if code == "OptInRequired":
+                    return {
+                        "servers": [],
+                        "status": "REGION_NOT_OPTED_IN",
+                        "serverCount": 0,
+                        "errorMessage": "Region not enabled in account",
+                    }
+
+                # Generic error
+                return {
+                    "servers": [],
+                    "status": "ERROR",
+                    "serverCount": 0,
+                    "errorMessage": f"{code}: {error_msg}" if code else error_msg[:500],
+                }
+            except Exception as e:
+                msg = str(e)
+
+                # Region not enabled
+                if "UnrecognizedClientException" in msg or "security token" in msg.lower():
+                    return {
+                        "servers": [],
+                        "status": "REGION_NOT_ENABLED",
+                        "serverCount": 0,
+                        "errorMessage": "Region not enabled in account",
+                    }
+
+                # Endpoint unreachable
+                if "Could not connect" in msg or "EndpointConnectionError" in msg:
+                    return {
+                        "servers": [],
+                        "status": "ENDPOINT_UNREACHABLE",
+                        "serverCount": 0,
+                        "errorMessage": "Cannot connect to DRS endpoint",
+                    }
+
+                # Generic error
+                return {
+                    "servers": [],
+                    "status": "ERROR",
+                    "serverCount": 0,
+                    "errorMessage": msg[:500],
+                }
+
+        all_servers = []
+        with ThreadPoolExecutor(max_workers=28) as executor:
+            futures = {executor.submit(query_drs_region, r): r for r in DRS_REGIONS}
+            for future in as_completed(futures):
+                region = futures[future]
+                result = future.result()
+                all_servers.extend(result["servers"])
+                region_statuses[region] = {
+                    "status": result["status"],
+                    "serverCount": result["serverCount"],
+                }
+
+        # Write region statuses to region status table
+        region_status_table = get_region_status_table()
+        if region_status_table:
+            with region_status_table.batch_writer() as batch:
+                for region, status_info in region_statuses.items():
+                    item = {
+                        "region": region,
+                        "accountId": acct_id,
+                        "status": status_info["status"],
+                        "serverCount": status_info["serverCount"],
+                        "lastUpdated": now,
+                    }
+                    # Add error message if present
+                    if status_info.get("errorMessage"):
+                        item["errorMessage"] = status_info["errorMessage"]
+                    batch.put_item(Item=item)
+
+        print(f"Account {acct_id}: found {len(all_servers)} source servers")
+
+        # Get EC2 details for source instances
+        # Group servers by source account + region for EC2 queries
+        # EC2 instances may be in a different account than the DRS staging account
+        servers_by_account_region = {}
+        for srv in all_servers:
+            src_props = srv.get("sourceProperties", {})
+            instance_id = src_props.get("identificationHints", {}).get("awsInstanceID", "")
+            src_region = srv.get("sourceCloudProperties", {}).get("originRegion", srv["_queryRegion"])
+            src_account = srv.get("sourceCloudProperties", {}).get("originAccountID", acct_id)
+            if instance_id:
+                key = (src_account, src_region)
+                servers_by_account_region.setdefault(key, []).append(srv)
+
+        # Query EC2 for instance details, assuming role into source account if needed
+        ec2_details = {}
+        for (src_account, region), region_servers in servers_by_account_region.items():
+            instance_ids = [
+                s.get("sourceProperties", {}).get("identificationHints", {}).get("awsInstanceID", "")
+                for s in region_servers
+                if s.get("sourceProperties", {}).get("identificationHints", {}).get("awsInstanceID")
+            ]
+            if not instance_ids:
+                continue
+            try:
+                # Get credentials for the source account (where EC2 instances live)
+                current = get_current_account_id()
+                if src_account == current:
+                    ec2 = boto3.client("ec2", region_name=region, config=fast_config)
+                else:
+                    # Look up role for source account from target accounts table
+                    src_role_arn = f"arn:aws:iam::{src_account}:role/DRSOrchestrationRole"
+                    src_ext_id = "drs-orchestration-cross-account"
+                    try:
+                        src_acct_item = get_target_accounts_table().get_item(Key={"accountId": src_account}).get("Item")
+                        if src_acct_item:
+                            src_role_arn = src_acct_item.get("roleArn", src_role_arn)
+                            src_ext_id = src_acct_item.get("externalId", src_ext_id)
+                    except Exception:
+                        pass
+                    sts = boto3.client("sts")
+                    src_creds = sts.assume_role(
+                        RoleArn=src_role_arn,
+                        RoleSessionName="inventory-ec2-query",
+                        ExternalId=src_ext_id,
+                        DurationSeconds=900,
+                    )["Credentials"]
+                    ec2 = boto3.client(
+                        "ec2",
+                        region_name=region,
+                        aws_access_key_id=src_creds["AccessKeyId"],
+                        aws_secret_access_key=src_creds["SecretAccessKey"],
+                        aws_session_token=src_creds["SessionToken"],
+                        config=fast_config,
+                    )
+                # Batch describe (max 1000 per call)
+                for i in range(0, len(instance_ids), 100):
+                    batch = instance_ids[i : i + 100]
+                    try:
+                        resp = ec2.describe_instances(InstanceIds=batch)
+                        for res in resp.get("Reservations", []):
+                            for inst in res.get("Instances", []):
+                                iid = inst["InstanceId"]
+                                ec2_details[iid] = {
+                                    "vpcId": inst.get("VpcId", ""),
+                                    "subnetId": inst.get("SubnetId", ""),
+                                    "privateIp": inst.get("PrivateIpAddress", ""),
+                                    "securityGroups": [sg["GroupId"] for sg in inst.get("SecurityGroups", [])],
+                                    "instanceProfile": inst.get("IamInstanceProfile", {}).get("Arn", ""),
+                                    "tags": {t["Key"]: t["Value"] for t in inst.get("Tags", [])},
+                                }
+                    except ClientError:
+                        # Batch failed (likely invalid instance ID), query individually
+                        for iid in batch:
+                            try:
+                                resp = ec2.describe_instances(InstanceIds=[iid])
+                                for res in resp.get("Reservations", []):
+                                    for inst in res.get("Instances", []):
+                                        ec2_details[inst["InstanceId"]] = {
+                                            "vpcId": inst.get("VpcId", ""),
+                                            "subnetId": inst.get("SubnetId", ""),
+                                            "privateIp": inst.get("PrivateIpAddress", ""),
+                                            "securityGroups": [sg["GroupId"] for sg in inst.get("SecurityGroups", [])],
+                                            "instanceProfile": inst.get("IamInstanceProfile", {}).get("Arn", ""),
+                                            "tags": {t["Key"]: t["Value"] for t in inst.get("Tags", [])},
+                                        }
+                            except Exception:
+                                pass  # Instance terminated or doesn't exist
+            except Exception as e:
+                print(f"EC2 query failed for account {src_account} region {region}: {e}")
+
+        # Write to DynamoDB
+        with inventory_table.batch_writer() as batch:
+            for srv in all_servers:
+                try:
+                    server_arn = srv.get("arn", "")
+                    server_id = srv.get("sourceServerID", "")
+                    staging_area = srv.get("stagingArea", {})
+                    staging_acct = staging_area.get("stagingAccountID", acct_id)
+                    src_props = srv.get("sourceProperties", {})
+                    hints = src_props.get("identificationHints", {})
+                    instance_id = hints.get("awsInstanceID", "")
+                    hostname = hints.get("hostname", "")
+                    fqdn = hints.get("fqdn", "")
+                    agent_info = srv.get("agentVersion", "")
+                    repl_info = srv.get("dataReplicationInfo", {})
+                    repl_state = repl_info.get("dataReplicationState", "")
+                    lag_duration = repl_info.get("lagDuration", "")
+                    last_snapshot = repl_info.get("lastSnapshotDateTime", "")
+                    src_region = srv.get("sourceCloudProperties", {}).get("originRegion", srv["_queryRegion"])
+                    src_account = srv.get("sourceCloudProperties", {}).get("originAccountID", acct_id)
+
+                    # Hardware details from sourceProperties
+                    cpus = src_props.get("cpus", [])
+                    cpu_model = cpus[0].get("modelName", "") if cpus else ""
+                    cpu_cores = sum(c.get("cores", 0) for c in cpus) if cpus else 0
+                    ram_bytes = src_props.get("ramBytes", 0)
+                    disks = src_props.get("disks", [])
+                    total_storage_bytes = sum(d.get("bytes", 0) for d in disks) if disks else 0
+                    os_info = src_props.get("os", {})
+                    os_name = os_info.get("fullString", "")
+
+                    # Network from sourceProperties
+                    nics = src_props.get("networkInterfaces", [])
+                    primary_ip = nics[0].get("ips", [""])[0] if nics else ""
+                    mac_address = nics[0].get("macAddress", "") if nics else ""
+
+                    # Recovery readiness
+                    life_cycle = srv.get("lifeCycle", {})
+                    last_seen = life_cycle.get("lastSeenByServiceDateTime", "")
+
+                    ec2_info = ec2_details.get(instance_id, {})
+
+                    item = {
+                        "sourceServerArn": server_arn,
+                        "stagingAccountId": staging_acct,
+                        "sourceServerID": server_id,
+                        "sourceAccountId": src_account,
+                        "sourceRegion": src_region,
+                        "hostname": hostname,
+                        "fqdn": fqdn,
+                        "instanceId": instance_id,
+                        "agentVersion": agent_info,
+                        "replicationRegion": srv["_queryRegion"],
+                        "replicationState": repl_state,
+                        "lagDuration": lag_duration,
+                        "lastSnapshot": last_snapshot,
+                        "lastSeen": last_seen,
+                        "lastUpdated": now,
+                        "cpuModel": cpu_model,
+                        "cpuCores": cpu_cores,
+                        "ramBytes": int(ram_bytes) if ram_bytes else 0,
+                        "totalStorageBytes": int(total_storage_bytes),
+                        "osName": os_name,
+                        "primaryIp": primary_ip,
+                        "macAddress": mac_address,
+                        "disks": [{"deviceName": d.get("deviceName", ""), "bytes": d.get("bytes", 0)} for d in disks],
+                    }
+
+                    if ec2_info:
+                        item["networkConfig"] = {
+                            "vpcId": ec2_info.get("vpcId", ""),
+                            "subnetId": ec2_info.get("subnetId", ""),
+                            "privateIp": ec2_info.get("privateIp", ""),
+                            "securityGroups": ec2_info.get("securityGroups", []),
+                            "instanceProfile": ec2_info.get("instanceProfile", ""),
+                        }
+                        item["sourceTags"] = ec2_info.get("tags", {})
+
+                    batch.put_item(Item=item)
+                    total_synced += 1
+                except Exception as e:
+                    print(f"Error writing {srv.get('sourceServerID', '?')}: {e}")
+                    total_errors += 1
+
+    result = {
+        "message": "Source server inventory sync complete",
+        "totalSynced": total_synced,
+        "totalErrors": total_errors,
+        "timestamp": now,
+    }
+    print(f"Inventory sync: {total_synced} synced, {total_errors} errors")
+    return response(200, result)
 
 
 # ============================================================================

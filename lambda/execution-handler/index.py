@@ -386,6 +386,164 @@ def get_cognito_user_from_event(event: Dict) -> Dict:
         return {"email": "unknown", "userId": "unknown", "username": "unknown"}
 
 
+def update_wave_completion_status(
+    execution_id: str,
+    plan_id: str,
+    status: str,
+    wave_data: Optional[Dict] = None,
+) -> Dict:
+    """
+    Update execution history with wave completion status.
+
+    This function was created as part of the query-handler read-only audit
+    (FR4) to move DynamoDB write operations from query-handler to
+    execution-handler. Query-handler polls DRS job status (read-only) and
+    returns wave data, then Step Functions calls this function to persist
+    the status updates.
+
+    MOVED FROM query-handler poll_wave_status():
+    - Line 2697-2706: Updates execution status to CANCELLED
+    - Line 2933-2943: Updates execution status to CANCELLED (duplicate check)
+    - Line 2973-2983: Updates execution status to PAUSED
+
+    Args:
+        execution_id: Unique execution identifier
+        plan_id: Recovery plan identifier
+        status: Wave status (CANCELLED, PAUSED, COMPLETED, FAILED)
+        wave_data: Optional wave status data from poll_wave_status()
+            - wave_number: Current wave number
+            - launched_count: Number of successfully launched servers
+            - failed_count: Number of failed server launches
+            - total_count: Total number of servers in wave
+            - wave_completed: Boolean indicating wave completion
+            - server_statuses: List of server status dictionaries
+
+    Returns:
+        Dictionary with statusCode and message
+
+    Raises:
+        ClientError: If DynamoDB update fails
+    """
+    try:
+        # Normalize status to uppercase
+        normalized_status = status.upper()
+
+        # Build update expression based on status
+        update_expression_parts = ["SET #status = :status"]
+        expression_attribute_names = {"#status": "status"}
+        expression_attribute_values = {":status": normalized_status}
+
+        # Add timestamp
+        current_time = int(time.time())
+        update_expression_parts.append("lastUpdated = :last_updated")
+        expression_attribute_values[":last_updated"] = current_time
+
+        # Handle CANCELLED status
+        if normalized_status == "CANCELLED":
+            update_expression_parts.append("endTime = :end_time")
+            expression_attribute_values[":end_time"] = current_time
+
+            print(f"⚠️ Updating execution {execution_id} status to CANCELLED")
+
+        # Handle PAUSED status
+        elif normalized_status == "PAUSED":
+            if wave_data and "paused_before_wave" in wave_data:
+                update_expression_parts.append("pausedBeforeWave = :wave")
+                expression_attribute_values[":wave"] = wave_data["paused_before_wave"]
+
+            paused_wave_info = ""
+            if wave_data and "paused_before_wave" in wave_data:
+                paused_wave_info = f" before wave {wave_data['paused_before_wave']}"
+            print(f"⏸️ Updating execution {execution_id} status to PAUSED{paused_wave_info}")
+
+        # Handle COMPLETED status
+        elif normalized_status == "COMPLETED":
+            update_expression_parts.append("endTime = :end_time")
+            expression_attribute_values[":end_time"] = current_time
+
+            if wave_data:
+                # Update completed waves count
+                if "completed_waves" in wave_data:
+                    update_expression_parts.append("completedWaves = :completed_waves")
+                    expression_attribute_values[":completed_waves"] = wave_data["completed_waves"]
+
+                # Update duration if start time available
+                if "start_time" in wave_data:
+                    duration = current_time - wave_data["start_time"]
+                    update_expression_parts.append("durationSeconds = :duration")
+                    expression_attribute_values[":duration"] = duration
+
+            print(f"✅ Updating execution {execution_id} status to COMPLETED")
+
+        # Handle FAILED status
+        elif normalized_status == "FAILED":
+            update_expression_parts.append("endTime = :end_time")
+            expression_attribute_values[":end_time"] = current_time
+
+            if wave_data:
+                # Add error information
+                if "error" in wave_data:
+                    update_expression_parts.append("errorMessage = :error")
+                    expression_attribute_values[":error"] = wave_data["error"]
+
+                if "error_code" in wave_data:
+                    update_expression_parts.append("errorCode = :error_code")
+                    expression_attribute_values[":error_code"] = wave_data["error_code"]
+
+                # Update failed waves count
+                if "failed_waves" in wave_data:
+                    update_expression_parts.append("failedWaves = :failed_waves")
+                    expression_attribute_values[":failed_waves"] = wave_data["failed_waves"]
+
+                # Update duration if start time available
+                if "start_time" in wave_data:
+                    duration = current_time - wave_data["start_time"]
+                    update_expression_parts.append("durationSeconds = :duration")
+                    expression_attribute_values[":duration"] = duration
+
+            print(f"❌ Updating execution {execution_id} status to FAILED")
+
+        # Combine update expression
+        update_expression = ", ".join(update_expression_parts)
+
+        # Update execution history table
+        get_execution_history_table().update_item(
+            Key={"executionId": execution_id, "planId": plan_id},
+            UpdateExpression=update_expression,
+            ExpressionAttributeNames=expression_attribute_names,
+            ExpressionAttributeValues=expression_attribute_values,
+            ConditionExpression="attribute_exists(executionId)",
+        )
+
+        print(f"✅ Successfully updated execution {execution_id} status to {normalized_status}")
+
+        return {
+            "statusCode": 200,
+            "message": f"Execution {execution_id} status updated to {normalized_status}",
+        }
+
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        error_message = e.response["Error"]["Message"]
+
+        if error_code == "ConditionalCheckFailedException":
+            print(f"❌ Execution {execution_id} not found in DynamoDB")
+            return {
+                "statusCode": 404,
+                "error": f"Execution {execution_id} not found",
+            }
+        else:
+            print(f"❌ DynamoDB error updating execution {execution_id}: {error_code} - {error_message}")
+            raise
+
+    except Exception as e:
+        print(f"❌ Error updating wave completion status: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
+
+
 def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
     """
     Start DRS recovery plan execution (API Gateway entry point).
@@ -4017,13 +4175,37 @@ def lambda_handler(event, context):
                     state["status"] = "failed"
                     state["error"] = str(e)
                 return state
+            elif action == "update_wave_completion_status":
+                # Extract parameters from event
+                execution_id = event.get("execution_id")
+                plan_id = event.get("plan_id")
+                status = event.get("status")
+                wave_data = event.get("wave_data")
+
+                # Validate required parameters
+                if not execution_id or not plan_id or not status:
+                    return response(
+                        400,
+                        {
+                            "error": "MISSING_PARAMETERS",
+                            "message": "execution_id, plan_id, and status are required",
+                        },
+                    )
+
+                # Call update function
+                return update_wave_completion_status(
+                    execution_id=execution_id,
+                    plan_id=plan_id,
+                    status=status,
+                    wave_data=wave_data,
+                )
             else:
                 return response(
                     400,
                     {
                         "error": "UNKNOWN_ACTION",
                         "message": f"Unknown action: {action}",
-                        "supportedActions": ["start_wave_recovery"],
+                        "supportedActions": ["start_wave_recovery", "update_wave_completion_status"],
                     },
                 )
 

@@ -308,34 +308,39 @@ Performance:
 """
 
 import json
+import logging
 import os
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import boto3
 from botocore.exceptions import ClientError
 
+# Initialize logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 # Import shared utilities
-from shared.account_utils import (
+from shared.account_utils import (  # noqa: E402
     construct_role_arn,
     get_account_name,
     get_target_accounts,
 )
-from shared.cross_account import (
+from shared.cross_account import (  # noqa: E402
     create_drs_client,
     get_cross_account_session,
     get_current_account_id,
 )
-from shared.drs_limits import (
+from shared.drs_limits import (  # noqa: E402
     DRS_LIMITS,
     validate_concurrent_jobs,
     validate_servers_in_all_jobs,
 )
-from shared.drs_regions import DRS_REGIONS
-from shared.drs_utils import map_replication_state_to_display
-from shared.response_utils import (
+from shared.drs_regions import DRS_REGIONS  # noqa: E402
+from shared.drs_utils import map_replication_state_to_display  # noqa: E402
+from shared.response_utils import (  # noqa: E402
     response,
     error_response,
     ERROR_INVALID_OPERATION,
@@ -669,32 +674,72 @@ def lambda_handler(event, context):
     }
     """
     try:
-        # Detect invocation pattern
+        # Import IAM utilities for principal extraction
+        from shared.iam_utils import extract_iam_principal
+
+        # Detect invocation pattern and extract principal information
         if "requestContext" in event:
+            # API Gateway invocation (standalone mode) - Cognito JWT authentication
+            invocation_mode = "API_GATEWAY"
+
+            # Extract Cognito user from JWT claims
+            try:
+                user_email = event["requestContext"]["authorizer"]["claims"]["email"]
+                principal_info = {
+                    "invocation_mode": invocation_mode,
+                    "principal_type": "CognitoUser",
+                    "principal_arn": f"cognito:user:{user_email}",
+                    "session_name": None,
+                    "account_id": os.environ.get("AWS_ACCOUNT_ID", "unknown"),
+                }
+            except (KeyError, TypeError) as e:
+                logger.warning(f"Failed to extract Cognito user from requestContext: {e}")
+                principal_info = {
+                    "invocation_mode": invocation_mode,
+                    "principal_type": "Unknown",
+                    "principal_arn": "unknown",
+                    "session_name": None,
+                    "account_id": os.environ.get("AWS_ACCOUNT_ID", "unknown"),
+                }
+
             # API Gateway invocation (standalone mode)
             return handle_api_gateway_request(event, context)
-        elif "action" in event:
-            # Orchestration invocation (action-based)
-            action = event.get("action")
-            if action == "poll_wave_status":
-                state = event.get("state", {})
-                result = poll_wave_status(state)
-                return result
-            elif action == "query_servers_by_tags":
-                region = event.get("region")
-                tags = event.get("tags", {})
-                account_context = event.get("account_context")
-                result = query_drs_servers_by_tags(region, tags, account_context)
-                return {"server_ids": result}
-            else:
-                return error_response(
-                    ERROR_INVALID_OPERATION,
-                    f"Unknown action: {action}",
-                    details={"action": action},
-                )
-        elif "operation" in event:
-            # Direct invocation (direct Lambda mode)
-            return handle_direct_invocation(event, context)
+        elif "action" in event or "operation" in event:
+            # Direct Lambda invocation - IAM authentication
+            invocation_mode = "DIRECT_LAMBDA"
+
+            # Extract IAM principal from Lambda context
+            principal_arn = extract_iam_principal(context)
+
+            # Parse principal ARN to extract type, session name, and account ID
+            principal_info = _parse_principal_arn(principal_arn, invocation_mode)
+
+            # Log direct invocation for audit trail
+            logger.info(f"Direct Lambda invocation: {json.dumps(principal_info)}")
+
+            # Handle action-based or operation-based invocation
+            if "action" in event:
+                # Orchestration invocation (action-based)
+                action = event.get("action")
+                if action == "poll_wave_status":
+                    state = event.get("state", {})
+                    result = poll_wave_status(state)
+                    return result
+                elif action == "query_servers_by_tags":
+                    region = event.get("region")
+                    tags = event.get("tags", {})
+                    account_context = event.get("account_context")
+                    result = query_drs_servers_by_tags(region, tags, account_context)
+                    return {"server_ids": result}
+                else:
+                    return error_response(
+                        ERROR_INVALID_OPERATION,
+                        f"Unknown action: {action}",
+                        details={"action": action},
+                    )
+            elif "operation" in event:
+                # Direct invocation (direct Lambda mode)
+                return handle_direct_invocation(event, context)
         else:
             # Invalid invocation - return wrapped error for consistency
             return response(
@@ -717,6 +762,105 @@ def lambda_handler(event, context):
                 details={"error": str(e)},
             ),
         )
+
+
+def _parse_principal_arn(principal_arn: str, invocation_mode: str) -> Dict[str, Any]:
+    """
+    Parse IAM principal ARN to extract type, session name, and account ID.
+
+    Supports:
+    - AssumedRole: arn:aws:sts::123456789012:assumed-role/RoleName/session-name
+    - IAM Role: arn:aws:iam::123456789012:role/RoleName
+    - IAM User: arn:aws:iam::123456789012:user/UserName
+    - Service: arn:aws:events::123456789012:rule/RuleName
+
+    Args:
+        principal_arn: IAM principal ARN from Lambda context
+        invocation_mode: Invocation mode (DIRECT_LAMBDA)
+
+    Returns:
+        Dictionary with principal_type, principal_arn, session_name, account_id
+    """
+    import re
+
+    principal_info = {
+        "invocation_mode": invocation_mode,
+        "principal_type": "Unknown",
+        "principal_arn": principal_arn,
+        "session_name": None,
+        "account_id": "unknown",
+    }
+
+    if not principal_arn or principal_arn == "unknown":
+        return principal_info
+
+    # Extract account ID from ARN
+    account_match = re.search(r":(\d{12}):", principal_arn)
+    if account_match:
+        principal_info["account_id"] = account_match.group(1)
+
+    # Parse AssumedRole (Step Functions, Lambda-to-Lambda)
+    # Format: arn:aws:sts::123456789012:assumed-role/RoleName/session-name
+    assumed_role_match = re.match(r"arn:aws:sts::(\d{12}):assumed-role/([^/]+)/(.+)", principal_arn)
+    if assumed_role_match:
+        account_id = assumed_role_match.group(1)
+        role_name = assumed_role_match.group(2)
+        session_name = assumed_role_match.group(3)
+
+        principal_info.update(
+            {
+                "principal_type": "AssumedRole",
+                "principal_arn": f"arn:aws:iam::{account_id}:role/{role_name}",
+                "session_name": session_name,
+                "account_id": account_id,
+            }
+        )
+        return principal_info
+
+    # Parse IAM Role
+    # Format: arn:aws:iam::123456789012:role/RoleName
+    role_match = re.match(r"arn:aws:iam::(\d{12}):role/(.+)", principal_arn)
+    if role_match:
+        account_id = role_match.group(1)
+        role_name = role_match.group(2)
+
+        principal_info.update(
+            {"principal_type": "Role", "principal_arn": principal_arn, "session_name": None, "account_id": account_id}
+        )
+        return principal_info
+
+    # Parse IAM User
+    # Format: arn:aws:iam::123456789012:user/UserName
+    user_match = re.match(r"arn:aws:iam::(\d{12}):user/(.+)", principal_arn)
+    if user_match:
+        account_id = user_match.group(1)
+        _user_name = user_match.group(2)  # noqa: F841
+
+        principal_info.update(
+            {"principal_type": "User", "principal_arn": principal_arn, "session_name": None, "account_id": account_id}
+        )
+        return principal_info
+
+    # Parse AWS Service (EventBridge, etc.)
+    # Format: arn:aws:events::123456789012:rule/RuleName
+    service_match = re.match(r"arn:aws:([^:]+)::(\d{12}):(.+)", principal_arn)
+    if service_match:
+        _service_name = service_match.group(1)  # noqa: F841
+        account_id = service_match.group(2)
+        _resource = service_match.group(3)  # noqa: F841
+
+        principal_info.update(
+            {
+                "principal_type": "Service",
+                "principal_arn": principal_arn,
+                "session_name": None,
+                "account_id": account_id,
+            }
+        )
+        return principal_info
+
+    # Unknown format - return as-is
+    return principal_info
 
 
 def handle_api_gateway_request(event, context):
@@ -2699,16 +2843,7 @@ def poll_wave_status(state: Dict) -> Dict:
                 state["all_waves_completed"] = True
                 state["wave_completed"] = True
                 state["status"] = "cancelled"
-                get_execution_history_table().update_item(
-                    Key={"executionId": execution_id, "planId": plan_id},
-                    UpdateExpression="SET #status = :status, endTime = :end",
-                    ExpressionAttributeNames={"#status": "status"},
-                    ExpressionAttributeValues={
-                        ":status": "CANCELLED",
-                        ":end": int(time.time()),
-                    },
-                    ConditionExpression="attribute_exists(executionId)",
-                )
+                # NOTE: DynamoDB update handled by execution-handler update_wave_completion_status()
                 return state
         except Exception as e:
             print(f"Error checking cancellation status: {e}")
@@ -2935,16 +3070,7 @@ def poll_wave_status(state: Dict) -> Dict:
                     state["end_time"] = end_time
                     if state.get("start_time"):
                         state["duration_seconds"] = end_time - state["start_time"]
-                    get_execution_history_table().update_item(
-                        Key={"executionId": execution_id, "planId": plan_id},
-                        UpdateExpression=("SET #status = :status, endTime = :end"),
-                        ExpressionAttributeNames={"#status": "status"},
-                        ExpressionAttributeValues={
-                            ":status": "CANCELLED",
-                            ":end": int(time.time()),
-                        },
-                        ConditionExpression="attribute_exists(executionId)",
-                    )
+                    # NOTE: DynamoDB update handled by execution-handler update_wave_completion_status()
                     return state
             except Exception as e:
                 print(f"Error checking execution status: {e}")
@@ -2962,27 +3088,10 @@ def poll_wave_status(state: Dict) -> Dict:
                     state["status"] = "paused"
                     state["paused_before_wave"] = next_wave
 
-                    # Mark execution as PAUSED for manual resume
-                    try:
-                        get_execution_history_table().update_item(
-                            Key={
-                                "executionId": execution_id,
-                                "planId": plan_id,
-                            },
-                            UpdateExpression=("SET #status = :status, " "pausedBeforeWave = :wave"),
-                            ExpressionAttributeNames={"#status": "status"},
-                            ExpressionAttributeValues={
-                                ":status": "PAUSED",
-                                ":wave": next_wave,
-                            },
-                            ConditionExpression=("attribute_exists(executionId)"),
-                        )
-                        print(f"✅ Execution paused before wave {next_wave}, " f"waiting for manual resume")
-                    except Exception as e:
-                        print(f"Error pausing execution: {e}")
+                    # NOTE: DynamoDB update handled by execution-handler update_wave_completion_status()
+                    print(f"✅ Execution paused before wave {next_wave}, waiting for manual resume")
 
-                    # Return immediately when paused - don't continue to
-                    # next wave
+                    # Return immediately when paused - don't continue to next wave
                     return state
 
                 print(f"Starting next wave: {next_wave}")
@@ -3027,16 +3136,7 @@ def poll_wave_status(state: Dict) -> Dict:
                 state["completed_waves"] = len(waves_list)
                 if state.get("start_time"):
                     state["duration_seconds"] = end_time - state["start_time"]
-                get_execution_history_table().update_item(
-                    Key={"executionId": execution_id, "planId": plan_id},
-                    UpdateExpression="SET #status = :status, endTime = :end",
-                    ExpressionAttributeNames={"#status": "status"},
-                    ExpressionAttributeValues={
-                        ":status": "COMPLETED",
-                        ":end": end_time,
-                    },
-                    ConditionExpression="attribute_exists(executionId)",
-                )
+                # NOTE: DynamoDB update handled by execution-handler update_wave_completion_status()
 
         elif failed_count > 0:
             print(f"❌ Wave {wave_number} FAILED - {failed_count} servers " f"failed")

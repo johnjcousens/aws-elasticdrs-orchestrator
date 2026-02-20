@@ -20,6 +20,7 @@
 .cline_memory/
 .kiro/settings/
 .kiro/steering/
+.kiro/specs/
 history/
 
 # -------------------------
