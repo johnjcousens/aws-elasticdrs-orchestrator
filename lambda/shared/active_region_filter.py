@@ -40,6 +40,9 @@ DRS_REGION_STATUS_TABLE = os.environ.get("DRS_REGION_STATUS_TABLE")
 dynamodb = boto3.resource("dynamodb")
 _region_status_table = None
 
+# CloudWatch client (lazy initialization)
+cloudwatch = boto3.client("cloudwatch")
+
 # Cache for active regions (prevents repeated DynamoDB queries)
 _region_cache: Dict[str, any] = {}
 CACHE_TTL = 60  # Cache time-to-live in seconds
@@ -176,7 +179,6 @@ def invalidate_region_cache() -> None:
         >>> invalidate_region_cache()
         >>> # Next call to get_active_regions() will query DynamoDB
     """
-    global _region_cache
     if "active_regions" in _region_cache:
         logger.debug("Invalidating region status cache")
         _region_cache.clear()

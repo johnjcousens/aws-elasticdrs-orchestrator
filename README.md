@@ -426,6 +426,46 @@ curl -X POST https://api-endpoint/accounts/target \
 
 **See**: [DRS Cross-Account Setup Guide](docs/guides/DRS_CROSS_ACCOUNT_SETUP_VERIFICATION.md) for complete setup instructions.
 
+#### Updating Existing Target Accounts for Staging Account Sync
+
+**CRITICAL**: If you deployed target accounts before v6.1.0, you must update the IAM role to support staging account sync (extended source servers).
+
+**Required Permission**: `drs:CreateExtendedSourceServer`
+
+**Update Methods**:
+
+**Option 1: Redeploy CloudFormation Stack** (Recommended)
+```bash
+# Redeploy the target account setup stack
+aws cloudformation deploy \
+  --template-file cfn/drs-target-account-setup-stack.yaml \
+  --stack-name drs-target-account-setup \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    OrchestrationAccountId=YOUR_ORCHESTRATION_ACCOUNT_ID \
+    ExternalId=YOUR_UNIQUE_EXTERNAL_ID \
+    Environment=prod
+```
+
+**Option 2: Manual IAM Policy Update**
+1. Navigate to IAM Console in the target account
+2. Find the `DRSOrchestrationRole` role
+3. Locate the `DRSOrchestrationPolicy` inline policy
+4. Verify the `DRSCoreOperations` statement includes `drs:*` (which covers `drs:CreateExtendedSourceServer`)
+5. If using a custom policy, add `drs:CreateExtendedSourceServer` to the allowed actions
+
+**Verification**:
+```bash
+# Test the permission from orchestration account
+aws drs create-extended-source-server \
+  --source-server-arn arn:aws:drs:us-east-1:STAGING_ACCOUNT:source-server/s-xxxxx \
+  --region us-east-1
+```
+
+**Error Symptoms**: If you see `AccessDeniedException` on `CreateExtendedSourceServer` in CloudWatch logs, the target account IAM role needs updating.
+
+**See**: [Staging Account Sync IAM Requirements](docs/STAGING_ACCOUNT_SYNC_IAM_REQUIREMENTS.md) for detailed troubleshooting.
+
 ### CloudFormation Deployment
 
 ```bash

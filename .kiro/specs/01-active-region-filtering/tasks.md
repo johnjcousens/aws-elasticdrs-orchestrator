@@ -139,16 +139,9 @@ This implementation plan breaks down the active region filtering feature into di
 - [x] 10.1 Write unit test for CloudFormation template validation
   - Validate EventBridge rule targets correct Lambda function
   - **Validates: Requirements 11.6, 11.7**
+ar you passing role
 
-- [x] 11. Checkpoint - Verify staging account sync refactoring
-  - Deploy CloudFormation changes using `./scripts/deploy.sh dev`
-  - Verify EventBridge rule targets data-management-handler
-  - Trigger staging account sync and verify it executes correctly
-  - Verify only active regions are scanned
-  - Check CloudWatch logs for successful execution
-  - Ask the user if questions arise
-
-- [~] 12. Remove old staging account sync functions from query-handler
+- [x] 12. Remove old staging account sync functions from query-handler
   - Remove `handle_sync_staging_accounts()` from query-handler
   - Remove `auto_extend_staging_servers()` from query-handler
   - Remove `extend_source_server()` from query-handler
@@ -157,18 +150,30 @@ This implementation plan breaks down the active region filtering feature into di
   - Verify query-handler contains only read-only operations
   - _Requirements: 11.13_
 
-- [~] 12.1 Write unit test to verify query-handler has no write operations
+- [x] 12.1 Write unit test to verify query-handler has no write operations
   - Test that query-handler does not contain staging account sync functions
   - **Validates: Requirements 11.13**
 
-- [~] 13. Add CloudWatch metrics for monitoring
+- [-] 13. Add CloudWatch metrics for monitoring
   - Add custom metrics to `get_active_regions()` for active region count
   - Add custom metrics for regions skipped
   - Add custom metrics for API call reduction percentage
   - Add custom metrics for inventory database usage
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
+  
+  **Implementation Details:**
+  - Create `publish_metric()` helper function in both `active_region_filter.py` and `inventory_query.py`
+  - Use CloudWatch namespace: `DRSOrchestration/ActiveRegionFiltering`
+  - Metrics to publish:
+    - `ActiveRegionCount` - Number of active regions found (in `get_active_regions()`)
+    - `RegionsSkipped` - Number of regions skipped (28 - active_count) (in `get_active_regions()`)
+    - `InventoryDatabaseHits` - Queries served from inventory DB (in `query_inventory_by_regions()`)
+    - `InventoryDatabaseMisses` - Queries that fell back to DRS API (in `_fallback_to_drs_api_and_update()`)
+    - `APICallReduction` - Percentage of API calls saved (calculated in operations)
+  - All metric publishing should be wrapped in try/except to avoid breaking operations if CloudWatch fails
+  - Log metric publishing failures as warnings, not errors
 
-- [~] 14. Update inventory database during fallback queries and preserve failback topology
+- [x] 14. Update inventory database during fallback queries and preserve failback topology
   - Modify fallback logic in `query_inventory_by_regions()` to update inventory database
   - Ensure DRS API queries populate inventory for future use
   - **CRITICAL**: Preserve original replication topology (originalSourceRegion, originalAccountId, originalReplicationConfigTemplateId)
@@ -178,7 +183,7 @@ This implementation plan breaks down the active region filtering feature into di
   - Update inventory sync to capture and preserve topology information
   - _Requirements: 12.10, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 13.10_
 
-- [~] 14.1 Write property test for inventory database updates during fallback and topology preservation
+- [x] 14.1 Write property test for inventory database updates during fallback and topology preservation
   - **Property 10: Inventory Database Updates During Fallback**
   - **Property 13: Failback Topology Preservation** - Verify original topology is preserved across inventory updates
   - **Validates: Requirements 12.10, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9**
