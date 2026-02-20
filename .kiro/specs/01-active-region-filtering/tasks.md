@@ -154,7 +154,7 @@ ar you passing role
   - Test that query-handler does not contain staging account sync functions
   - **Validates: Requirements 11.13**
 
-- [-] 13. Add CloudWatch metrics for monitoring
+- [x] 13. Add CloudWatch metrics for monitoring
   - Add custom metrics to `get_active_regions()` for active region count
   - Add custom metrics for regions skipped
   - Add custom metrics for API call reduction percentage
@@ -188,7 +188,7 @@ ar you passing role
   - **Property 13: Failback Topology Preservation** - Verify original topology is preserved across inventory updates
   - **Validates: Requirements 12.10, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9**
 
-- [~] 15. Add integration tests for end-to-end workflows
+- [x] 15. Add integration tests for end-to-end workflows
   - Test tag sync with region filtering end-to-end
   - Test staging account sync after refactoring end-to-end
   - Test inventory sync updates region status table
@@ -196,15 +196,51 @@ ar you passing role
   - Test API Gateway routing after refactoring
   - Test direct Lambda invocation routing
   - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.10_
+  
+  **Implementation Details:**
+  - Create `tests/integration/test_active_region_filtering_integration.py`
+  - Use real AWS resources (DynamoDB, Lambda) in test environment
+  - Mock DRS API calls to avoid actual AWS DRS operations
+  - Test scenarios:
+    1. **Tag Sync Integration**: Verify `handle_drs_tag_sync()` uses active regions, updates region status, logs correctly
+    2. **Staging Sync Integration**: Verify `handle_sync_staging_accounts()` in data-management-handler uses active regions, queries inventory DB first, falls back to DRS API when stale
+    3. **Inventory Sync Integration**: Verify `handle_sync_source_server_inventory()` updates region status table, invalidates cache, preserves topology
+    4. **Fallback Behavior**: Verify system falls back to all 28 regions when region status table is empty
+    5. **API Gateway Routing**: Verify API Gateway routes staging sync requests to data-management-handler
+    6. **Direct Invocation Routing**: Verify direct Lambda invocation of data-management-handler with `sync_staging_accounts` operation works
+  - Each test should verify:
+    - Correct function is called
+    - Active regions are used (not all 28 regions)
+    - Region status table is updated (where applicable)
+    - Cache is invalidated (where applicable)
+    - CloudWatch metrics are published
+    - Error handling works correctly
+  - Use `pytest` fixtures for setup/teardown of test resources
+  - Use `moto` library for mocking AWS services where appropriate
+  - Integration tests should run in < 30 seconds total
 
-- [~] 16. Add performance validation tests
+- [x] 16. Add performance validation tests
   - Measure API call reduction (target: 80-90%)
   - Measure response time improvement (target: 70-80%)
   - Measure inventory database query performance (target: < 500ms)
   - Measure cache effectiveness (target: > 90% hit rate)
   - _Requirements: 13.12_
+  
+  **Implementation Details:**
+  - Create `tests/performance/test_active_region_filtering_performance.py`
+  - Use pytest-benchmark for performance measurements
+  - Test scenarios:
+    1. **API Call Reduction**: Compare DRS API calls before/after optimization (baseline: 28 regions, optimized: 2-5 active regions)
+    2. **Response Time**: Measure end-to-end response times for tag sync, staging sync, inventory sync
+    3. **Inventory Database Performance**: Measure query response times from DynamoDB
+    4. **Cache Effectiveness**: Measure cache hit rate for `get_active_regions()` calls
+  - Use moto for mocking AWS services
+  - Mock DRS API calls to avoid actual AWS charges
+  - Performance tests should complete in < 60 seconds total
+  - Generate performance report with metrics vs targets
+  - All measurements should be repeatable and deterministic
 
-- [~] 17. Final checkpoint - Comprehensive validation
+- [x] 17. Final checkpoint - Comprehensive validation
   - Run all unit tests: `pytest tests/unit/ -v`
   - Run all property tests: `pytest -k property --hypothesis-show-statistics`
   - Run all integration tests: `pytest tests/integration/ -v`

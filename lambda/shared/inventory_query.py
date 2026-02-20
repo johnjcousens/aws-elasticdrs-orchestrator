@@ -42,6 +42,9 @@ SOURCE_SERVER_INVENTORY_TABLE = os.environ.get("SOURCE_SERVER_INVENTORY_TABLE")
 dynamodb = boto3.resource("dynamodb")
 _inventory_table = None
 
+# CloudWatch client (lazy initialization)
+cloudwatch = boto3.client("cloudwatch")
+
 # DRS client (lazy initialization per region)
 _drs_clients = {}
 
@@ -63,6 +66,32 @@ def get_inventory_table():
         else:
             logger.warning("SOURCE_SERVER_INVENTORY_TABLE environment variable not set")
     return _inventory_table
+
+
+def publish_metric(metric_name: str, value: float, unit: str = "Count") -> None:
+    """
+    Publish custom CloudWatch metric for inventory database usage.
+
+    Publishes metrics to the DRSOrchestration/ActiveRegionFiltering namespace
+    for monitoring inventory database hits and misses.
+
+    Args:
+        metric_name: Name of the metric (e.g., 'InventoryDatabaseHits')
+        value: Metric value to publish
+        unit: CloudWatch unit (default: 'Count')
+
+    Example:
+        >>> publish_metric('InventoryDatabaseHits', 1)
+        >>> publish_metric('InventoryDatabaseMisses', 1)
+    """
+    try:
+        cloudwatch.put_metric_data(
+            Namespace="DRSOrchestration/ActiveRegionFiltering",
+            MetricData=[{"MetricName": metric_name, "Value": value, "Unit": unit}],
+        )
+        logger.debug(f"Published CloudWatch metric: {metric_name}={value} {unit}")
+    except Exception as e:
+        logger.warning(f"Failed to publish CloudWatch metric {metric_name}: {e}")
 
 
 def _get_drs_client(region: str):
@@ -240,6 +269,9 @@ def query_inventory_by_regions(
             servers.extend(response.get("Items", []))
 
         logger.info(f"Retrieved {len(servers)} servers from inventory database for {len(regions)} regions")
+
+        # Publish CloudWatch metric for inventory database hit
+        publish_metric("InventoryDatabaseHits", 1)
 
         return servers
 
@@ -544,6 +576,9 @@ def _fallback_to_drs_api_and_update(
         >>> print(f"Retrieved and updated {len(servers)} servers")
     """
     logger.info(f"Falling back to DRS API for {len(regions)} regions and updating inventory")
+
+    # Publish CloudWatch metric for inventory database miss
+    publish_metric("InventoryDatabaseMisses", 1)
 
     all_servers = []
 

@@ -22,9 +22,6 @@ lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "shared"
 sys.path.insert(0, str(lambda_dir))
 
 from conflict_detection import (  # noqa: E402
-
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
-
     check_concurrent_jobs_limit,
     check_server_conflicts,
     check_total_servers_in_jobs_limit,
@@ -35,6 +32,7 @@ pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolat
     validate_wave_server_count,
 )
 
+pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 # ============================================================================
 # Test Fixtures
