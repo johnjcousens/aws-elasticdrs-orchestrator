@@ -42,6 +42,9 @@ SOURCE_SERVER_INVENTORY_TABLE = os.environ.get("SOURCE_SERVER_INVENTORY_TABLE")
 dynamodb = boto3.resource("dynamodb")
 _inventory_table = None
 
+# DRS client (lazy initialization per region)
+_drs_clients = {}
+
 # Freshness threshold (15 minutes - matches sync interval)
 INVENTORY_FRESHNESS_MINUTES = 15
 
@@ -60,6 +63,22 @@ def get_inventory_table():
         else:
             logger.warning("SOURCE_SERVER_INVENTORY_TABLE environment variable not set")
     return _inventory_table
+
+
+def _get_drs_client(region: str):
+    """
+    Get or initialize DRS client for specified region.
+
+    Args:
+        region: AWS region name
+
+    Returns:
+        boto3 DRS client for the region
+    """
+    global _drs_clients
+    if region not in _drs_clients:
+        _drs_clients[region] = boto3.client("drs", region_name=region)
+    return _drs_clients[region]
 
 
 def is_inventory_fresh(
@@ -130,13 +149,19 @@ def is_inventory_fresh(
         return False
 
 
-def query_inventory_by_regions(regions: List[str], filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+def query_inventory_by_regions(
+    regions: List[str], filters: Optional[Dict[str, Any]] = None, update_on_fallback: bool = False
+) -> List[Dict[str, Any]]:
     """
     Query source server inventory database for specified regions.
 
     Provides fast access to server data without DRS API calls.
     Falls back to empty list if inventory is stale or unavailable
     (caller should handle fallback to DRS API).
+
+    OPTIMIZATION: When update_on_fallback=True and inventory is stale,
+    this function will query DRS API directly and update the inventory
+    database before returning results.
 
     Args:
         regions: List of AWS regions to query (e.g., ['us-east-1', 'us-west-2'])
@@ -147,10 +172,11 @@ def query_inventory_by_regions(regions: List[str], filters: Optional[Dict[str, A
             - sourceAccountId: Filter by source account ID
             - minCpuCores: Minimum CPU cores
             - minRamBytes: Minimum RAM in bytes
+        update_on_fallback: If True, query DRS API and update inventory when stale
 
     Returns:
         List of server dictionaries in frontend-compatible format.
-        Returns empty list if inventory is unavailable or stale.
+        Returns empty list if inventory is unavailable or stale (unless update_on_fallback=True).
 
     Example:
         >>> servers = query_inventory_by_regions(
@@ -168,8 +194,12 @@ def query_inventory_by_regions(regions: List[str], filters: Optional[Dict[str, A
 
     # Check if inventory is fresh before querying
     if not is_inventory_fresh():
-        logger.warning("Inventory is stale, returning empty list for DRS API fallback")
-        return []
+        if update_on_fallback:
+            logger.info("Inventory is stale, falling back to DRS API and updating database")
+            return _fallback_to_drs_api_and_update(regions, filters)
+        else:
+            logger.warning("Inventory is stale, returning empty list for DRS API fallback")
+            return []
 
     try:
         # Build filter expression for regions
@@ -209,7 +239,7 @@ def query_inventory_by_regions(regions: List[str], filters: Optional[Dict[str, A
             )
             servers.extend(response.get("Items", []))
 
-        logger.info(f"Retrieved {len(servers)} servers from inventory database " f"for {len(regions)} regions")
+        logger.info(f"Retrieved {len(servers)} servers from inventory database for {len(regions)} regions")
 
         return servers
 
@@ -341,3 +371,270 @@ def get_server_by_id(source_server_id: str, replication_region: Optional[str] = 
     except Exception as e:
         logger.error(f"Unexpected error getting server by ID: {e}")
         return None
+
+
+def get_failback_topology(source_server_id: str, replication_region: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieve original replication topology for failback operations.
+
+    During disaster recovery failback, the DRS agent must be reinstalled on
+    recovered servers. This function retrieves the original source region,
+    account ID, and replication configuration to guide agent installation.
+
+    Args:
+        source_server_id: DRS source server ID (e.g., 's-1234567890abcdef0')
+        replication_region: Current replication region
+
+    Returns:
+        Dictionary containing original topology information:
+        - originalSourceRegion: AWS region where server was originally replicated from
+        - originalAccountId: AWS account ID where replication was configured
+        - originalReplicationConfigTemplateId: DRS replication config template ID
+        - topologyLastUpdated: ISO timestamp when topology was last captured
+        Returns None if server not found or topology not available
+
+    Example:
+        >>> topology = get_failback_topology('s-1234567890abcdef0', 'us-west-2')
+        >>> if topology:
+        ...     print(f"Original region: {topology['originalSourceRegion']}")
+        ...     print(f"Original account: {topology['originalAccountId']}")
+    """
+    inventory_table = get_inventory_table()
+
+    if not inventory_table:
+        logger.warning("Inventory table not configured")
+        return None
+
+    try:
+        # Get server record from inventory
+        response = inventory_table.get_item(
+            Key={"sourceServerID": source_server_id, "replicationRegion": replication_region}
+        )
+
+        server = response.get("Item")
+        if not server:
+            logger.warning(f"Server {source_server_id} not found in inventory database")
+            return None
+
+        # Check if topology information is available
+        if not server.get("originalSourceRegion"):
+            logger.warning(f"Server {source_server_id} missing original topology information (legacy server)")
+            return None
+
+        return {
+            "originalSourceRegion": server.get("originalSourceRegion"),
+            "originalAccountId": server.get("originalAccountId"),
+            "originalReplicationConfigTemplateId": server.get("originalReplicationConfigTemplateId"),
+            "topologyLastUpdated": server.get("topologyLastUpdated"),
+        }
+
+    except ClientError as e:
+        logger.error(f"DynamoDB error retrieving failback topology: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error retrieving failback topology: {e}")
+        return None
+
+
+def _update_inventory_with_topology_preservation(server_data: Dict[str, Any], region: str) -> None:
+    """
+    Update inventory database while preserving original topology information.
+
+    This helper function ensures that when inventory is updated (either during
+    scheduled sync or fallback API queries), the original replication topology
+    is preserved for failback operations.
+
+    Topology Preservation Logic:
+    - If server exists in inventory with topology: Preserve existing topology
+    - If server is new: Capture current region/account as original topology
+    - If server exists without topology: Add topology from current state
+
+    Args:
+        server_data: DRS source server data from API
+        region: AWS region where server is replicated
+
+    Example:
+        >>> server = drs_client.describe_source_servers()[0]
+        >>> _update_inventory_with_topology_preservation(server, 'us-east-1')
+    """
+    inventory_table = get_inventory_table()
+
+    if not inventory_table:
+        logger.warning("Inventory table not configured, skipping update")
+        return
+
+    try:
+        source_server_id = server_data.get("sourceServerID")
+        if not source_server_id:
+            logger.warning("Server data missing sourceServerID, skipping update")
+            return
+
+        # Check if server already exists in inventory
+        existing_response = inventory_table.get_item(
+            Key={"sourceServerID": source_server_id, "replicationRegion": region}
+        )
+
+        existing_server = existing_response.get("Item")
+
+        # Prepare updated server record
+        updated_server = dict(server_data)
+        updated_server["replicationRegion"] = region
+        updated_server["lastUpdated"] = datetime.now(timezone.utc).isoformat()
+
+        if existing_server and existing_server.get("originalSourceRegion"):
+            # Preserve existing topology information
+            updated_server["originalSourceRegion"] = existing_server["originalSourceRegion"]
+            updated_server["originalAccountId"] = existing_server["originalAccountId"]
+            updated_server["originalReplicationConfigTemplateId"] = existing_server.get(
+                "originalReplicationConfigTemplateId"
+            )
+            updated_server["topologyLastUpdated"] = existing_server.get("topologyLastUpdated")
+            logger.debug(f"Preserved existing topology for server {source_server_id}")
+        else:
+            # Capture current state as original topology (new server or legacy server)
+            updated_server["originalSourceRegion"] = region
+            updated_server["originalAccountId"] = (
+                server_data.get("sourceProperties", {})
+                .get("identificationHints", {})
+                .get("awsInstanceID", "")
+                .split(":")[4]
+                if ":"
+                in server_data.get("sourceProperties", {}).get("identificationHints", {}).get("awsInstanceID", "")
+                else None
+            )
+            updated_server["originalReplicationConfigTemplateId"] = server_data.get(
+                "replicationConfigurationTemplateID"
+            )
+            updated_server["topologyLastUpdated"] = datetime.now(timezone.utc).isoformat()
+            logger.debug(f"Captured new topology for server {source_server_id}")
+
+        # Write updated record to DynamoDB
+        inventory_table.put_item(Item=updated_server)
+        logger.debug(f"Updated inventory for server {source_server_id} in region {region}")
+
+    except ClientError as e:
+        logger.error(f"DynamoDB error updating inventory with topology preservation: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error updating inventory with topology preservation: {e}")
+
+
+def _fallback_to_drs_api_and_update(
+    regions: List[str], filters: Optional[Dict[str, Any]] = None
+) -> List[Dict[str, Any]]:
+    """
+    Fallback to DRS API when inventory is stale, then update inventory database.
+
+    This function is called when inventory data is stale (older than 15 minutes).
+    It queries the DRS API directly for fresh data, updates the inventory database
+    with topology preservation, and returns the results.
+
+    CRITICAL: This function preserves original replication topology for failback
+    operations. When updating inventory, existing topology fields are preserved.
+
+    Args:
+        regions: List of AWS regions to query
+        filters: Optional filters to apply (same as query_inventory_by_regions)
+
+    Returns:
+        List of server dictionaries in frontend-compatible format
+
+    Example:
+        >>> # Called automatically when inventory is stale
+        >>> servers = _fallback_to_drs_api_and_update(['us-east-1', 'us-west-2'])
+        >>> print(f"Retrieved and updated {len(servers)} servers")
+    """
+    logger.info(f"Falling back to DRS API for {len(regions)} regions and updating inventory")
+
+    all_servers = []
+
+    for region in regions:
+        try:
+            drs_client = _get_drs_client(region)
+
+            # Query DRS API for source servers
+            logger.debug(f"Querying DRS API in region {region}")
+            response = drs_client.describe_source_servers()
+
+            servers = response.get("items", [])
+
+            # Handle pagination
+            while "nextToken" in response:
+                response = drs_client.describe_source_servers(nextToken=response["nextToken"])
+                servers.extend(response.get("items", []))
+
+            logger.info(f"Retrieved {len(servers)} servers from DRS API in region {region}")
+
+            # Update inventory database with topology preservation
+            for server in servers:
+                _update_inventory_with_topology_preservation(server, region)
+
+            # Apply filters if specified
+            if filters:
+                servers = _apply_filters(servers, filters)
+
+            all_servers.extend(servers)
+
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            if error_code == "UninitializedAccountException":
+                logger.info(f"DRS not initialized in region {region}, skipping")
+            else:
+                logger.error(f"DRS API error in region {region}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error querying DRS API in region {region}: {e}")
+
+    logger.info(f"Fallback complete: Retrieved {len(all_servers)} servers total, inventory updated")
+    return all_servers
+
+
+def _apply_filters(servers: List[Dict[str, Any]], filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Apply filters to server list (used during DRS API fallback).
+
+    Args:
+        servers: List of server dictionaries
+        filters: Filter criteria (same as query_inventory_by_regions)
+
+    Returns:
+        Filtered list of servers
+    """
+    filtered_servers = servers
+
+    if "hostname" in filters:
+        filtered_servers = [s for s in filtered_servers if s.get("hostname") == filters["hostname"]]
+
+    if "replicationState" in filters:
+        filtered_servers = [
+            s
+            for s in filtered_servers
+            if s.get("dataReplicationInfo", {}).get("dataReplicationState") == filters["replicationState"]
+        ]
+
+    if "stagingAccountId" in filters:
+        filtered_servers = [
+            s
+            for s in filtered_servers
+            if s.get("stagingArea", {}).get("stagingAccountID") == filters["stagingAccountId"]
+        ]
+
+    if "sourceAccountId" in filters:
+        filtered_servers = [
+            s
+            for s in filtered_servers
+            if s.get("sourceProperties", {}).get("identificationHints", {}).get("awsInstanceID", "").split(":")[4]
+            == filters["sourceAccountId"]
+        ]
+
+    if "minCpuCores" in filters:
+        filtered_servers = [
+            s
+            for s in filtered_servers
+            if s.get("sourceProperties", {}).get("cpus", [{}])[0].get("cores", 0) >= filters["minCpuCores"]
+        ]
+
+    if "minRamBytes" in filters:
+        filtered_servers = [
+            s for s in filtered_servers if s.get("sourceProperties", {}).get("ramBytes", 0) >= filters["minRamBytes"]
+        ]
+
+    return filtered_servers
