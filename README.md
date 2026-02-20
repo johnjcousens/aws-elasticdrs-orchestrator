@@ -826,9 +826,11 @@ Complete working examples for AWS service integration:
 
 The following features are planned or in development. Each enhancement is documented in `.kiro/specs/` with detailed requirements, design, and implementation tasks.
 
-**📊 Status Summary**: 1 completed (7%), 1 in progress (7%), 6 high priority (40%), 7 planned (46%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
+**📊 Status Summary**: 1 completed (7%), 1 in progress (7%), 5 high priority (33%), 7 planned (46%), 1 archived (7%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
 
-**🔗 Priority Dependencies**: 03 (AllowLaunchingIntoInstance) blocked by 02 (Rate Limit Handling), 05 (Inventory Sync) unblocked (01 complete)
+**🔗 Priority Dependencies**: 03 (AllowLaunchingIntoInstance) blocked by 02 (Rate Limit Handling)
+
+**🗄️ Archived Specs**: 05 (Inventory Sync Refactoring) - based on incorrect assumptions about codebase
 
 ### 🎯 Immediate Actions Needed
 
@@ -836,9 +838,9 @@ The following features are planned or in development. Each enhancement is docume
    - Sprint priority dependency
    - Required before targeted recovery implementation
 
-2. **Start 05-inventory-sync-refactoring** (now unblocked)
-   - Decomposes monolithic sync function
-   - Improves maintainability and testability
+2. **Investigate inventory sync functionality** (05 archived due to incorrect assumptions)
+   - Determine if inventory sync needs to be implemented from scratch
+   - Create new spec based on accurate understanding of codebase
 
 | Status | Enhancement | Description | Tasks | Spec |
 |--------|-------------|-------------|-------|------|
@@ -846,7 +848,7 @@ The following features are planned or in development. Each enhancement is docume
 | 🎯 Priority | **DRS Rate Limit Handling** | Implements comprehensive DRS API rate limit handling with retry logic and metrics | 0/multiple | [Spec](.kiro/specs/02-drs-rate-limit-handling/requirements.md) |
 | 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements targeted recovery into pre-provisioned EC2 instances with IP preservation (blocked by 02) | 0/multiple | [Spec](.kiro/specs/03-drs-allow-launching-into-instance/requirements.md) |
 | 🎯 Priority | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple | [Spec](.kiro/specs/04-recovery-instance-sync/requirements.md) |
-| 🎯 Priority | **Inventory Sync Refactoring** | Decomposes monolithic sync_source_server_inventory function into 7 focused functions (blocked by 01) | 0/15 | [Spec](.kiro/specs/05-inventory-sync-refactoring/requirements.md) |
+| 🗄️ Archived | **Inventory Sync Refactoring** | Spec archived - based on incorrect assumptions about codebase (function doesn't exist) | N/A | [Archive](archive/kiro/specs/05-inventory-sync-refactoring/README.md) |
 | 🎯 Priority | **Query Handler Read-Only Audit** | Enforces read-only operations in query-handler by moving sync operations to data-management-handler | 0/17 | [Spec](.kiro/specs/06-query-handler-read-only-audit/requirements.md) |
 | 🎯 Priority | **DRS Agent Deployer** | Automates DRS agent deployment to staging accounts with SSM Document orchestration | 0/multiple | [Spec](.kiro/specs/07-drs-agent-deployer/requirements.md) |
 | 📋 Planned | **Cross-File Test Isolation Fix** | Fixes pytest collection errors and cross-file test pollution | 0/8 | [Spec](.kiro/specs/08-cross-file-test-isolation-fix/requirements.md) |
@@ -873,11 +875,10 @@ The following features are planned or in development. Each enhancement is docume
 **In Progress (1 spec - 7%)**
 - 13-test-isolation-refactoring: Code quality improvements
 
-**Priority (6 specs - 40%)**
+**Priority (5 specs - 33%)**
 - 02-drs-rate-limit-handling: DRS API rate limit handling
 - 03-drs-allow-launching-into-instance: AllowLaunchingIntoInstance pattern
 - 04-recovery-instance-sync: Real-time recovery instance sync
-- 05-inventory-sync-refactoring: Monolithic function decomposition
 - 06-query-handler-read-only-audit: Read-only enforcement
 - 07-drs-agent-deployer: DRS agent deployment
 
@@ -886,10 +887,12 @@ The following features are planned or in development. Each enhancement is docume
 - Frontend modernization (12-cloudscape-component-improvements, 14-css-refactoring)
 - Documentation improvements (15-documentation-accuracy-audit)
 
+**Archived (1 spec - 7%)**
+- 05-inventory-sync-refactoring: Based on incorrect assumptions about codebase (function doesn't exist)
+
 ### Key Dependencies
 
 - **03-drs-allow-launching-into-instance** depends on **02-drs-rate-limit-handling** (must complete first)
-- **05-inventory-sync-refactoring** was blocked by **01-active-region-filtering** (now complete, unblocked)
 
 ### Next Week Priorities
 

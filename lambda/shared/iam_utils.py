@@ -249,15 +249,25 @@ def extract_iam_principal(context) -> str:
         "arn:aws:lambda:us-east-1:123:function:handler"
     """
     try:
+        # Handle None context
+        if context is None:
+            return "unknown"
+
         # Try to get principal from context identity (for assumed roles)
         if hasattr(context, "identity") and context.identity:
-            if hasattr(context.identity, "user_arn"):
-                return context.identity.user_arn
+            if hasattr(context.identity, "user_arn") and context.identity.user_arn:
+                user_arn = context.identity.user_arn
+                # Ensure it's a string, not a Mock object
+                if isinstance(user_arn, str):
+                    return user_arn
 
         # For Step Functions and direct invocations, use invoked_function_arn
         # This contains the execution role information
         if hasattr(context, "invoked_function_arn"):
-            return context.invoked_function_arn
+            function_arn = context.invoked_function_arn
+            # Ensure it's a string and not None or Mock
+            if isinstance(function_arn, str):
+                return function_arn
 
         # Fallback: try to extract from request context
         if hasattr(context, "request_context"):
@@ -410,6 +420,9 @@ def _mask_sensitive_params(params: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dictionary with sensitive values masked
     """
+    if params is None:
+        return None
+
     if not isinstance(params, dict):
         return params
 
@@ -431,14 +444,35 @@ def _mask_sensitive_params(params: Dict[str, Any]) -> Dict[str, Any]:
         is_sensitive = any(sensitive_key in key_lower for sensitive_key in sensitive_keys)
 
         if is_sensitive and isinstance(value, str) and len(value) > 4:
-            # Mask all but first 4 characters
-            masked[key] = value[:4] + "*" * (len(value) - 4)
+            # Mask all but first 4 characters with exactly 7 asterisks
+            masked[key] = value[:4] + "*******"
         elif isinstance(value, dict):
             masked[key] = _mask_sensitive_params(value)
         else:
             masked[key] = value
 
     return masked
+
+
+def mask_sensitive_parameters(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Public function to mask sensitive parameters in audit logs.
+
+    This is the public API for parameter masking used by audit logging.
+    Delegates to _mask_sensitive_params for the actual masking logic.
+
+    Args:
+        params: Parameters dictionary to mask
+
+    Returns:
+        Dictionary with sensitive values masked
+
+    Examples:
+        >>> params = {"username": "admin", "password": "secret123"}
+        >>> mask_sensitive_parameters(params)
+        {"username": "admin", "password": "secr*******"}
+    """
+    return _mask_sensitive_params(params)
 
 
 def _truncate_result(result: Any, max_length: int = 1000) -> Any:

@@ -193,7 +193,7 @@ Resources:
           WaitForWaveUpdate:
             Type: Wait
             SecondsPath: '$.current_wave_update_time'
-            Next: 'UpdateWaveStatus'
+            Next: 'PollWaveStatus'
           
           # Pause state: Wait for external resume signal via callback pattern
           # 1-year timeout supports long-term pauses for manual approval workflows
@@ -241,10 +241,10 @@ Resources:
                 MaxAttempts: 6
                 BackoffRate: 2
           
-          # Poll DRS job status and check server launch progress
-          # Lambda queries DRS API and updates state with current status
-          # Returns complete state with wave_completed flag for Choice state
-          UpdateWaveStatus:
+          # Poll DRS job status and check server launch progress (READ-ONLY)
+          # Query-handler polls DRS API and returns wave status WITHOUT DynamoDB writes
+          # Returns wave data for UpdateWaveStatus to persist
+          PollWaveStatus:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
             Parameters:
@@ -252,6 +252,32 @@ Resources:
               Payload:
                 action: 'poll_wave_status'
                 application.$: '$'
+            OutputPath: '$.Payload'
+            Next: 'UpdateWaveStatus'
+            Retry:
+              - ErrorEquals:
+                  - 'Lambda.ServiceException'
+                  - 'Lambda.AWSLambdaException'
+                  - 'Lambda.SdkClientException'
+                IntervalSeconds: 2
+                MaxAttempts: 6
+                BackoffRate: 2
+          
+          # Update execution history with wave completion status (WRITE)
+          # Execution-handler persists wave status updates to DynamoDB
+          # Separates read (poll_wave_status) from write (update_wave_completion_status)
+          # per query-handler read-only audit (FR4)
+          UpdateWaveStatus:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'update_wave_completion_status'
+                execution_id.$: '$.execution_id'
+                plan_id.$: '$.plan_id'
+                status.$: '$.status'
+                wave_data.$: '$'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
             Retry:

@@ -1,5 +1,6 @@
 ---
-inclusion: always
+inclusion: fileMatch
+fileMatchPattern: 'frontend/**/*.{tsx,ts,css}'
 ---
 
 # CloudScape Design Practices for AWS DRS Orchestration

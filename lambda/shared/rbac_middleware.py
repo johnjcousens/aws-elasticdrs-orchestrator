@@ -281,6 +281,8 @@ class DRSRole(Enum):
       operators)
     - DRSReadOnly: View-only access for auditing and monitoring (like
       compliance officers)
+    - DRSAuditor: Audit log access plus read-only operational data (like
+      security auditors)
     """
 
     # DRS Orchestration Roles (intuitive for disaster recovery teams)
@@ -289,6 +291,7 @@ class DRSRole(Enum):
     DRS_PLAN_MANAGER = "DRSPlanManager"
     DRS_OPERATOR = "DRSOperator"
     DRS_READ_ONLY = "DRSReadOnly"
+    DRS_AUDITOR = "DRSAuditor"
 
     # Legacy AWS-style aliases for security test compatibility
     AWS_ADMIN = "aws:admin"
@@ -328,6 +331,9 @@ class DRSPermission(Enum):
     # Configuration Management
     EXPORT_CONFIGURATION = "export_configuration"
     IMPORT_CONFIGURATION = "import_configuration"
+
+    # Audit Logging
+    AUDIT_READ = "audit_read"
 
 
 # Role-Permission Matrix (focused on DRS orchestration business functionality)
@@ -430,6 +436,19 @@ ROLE_PERMISSIONS = {
         DRSPermission.VIEW_PROTECTION_GROUPS,
         # Recovery Plans - View only
         DRSPermission.VIEW_RECOVERY_PLANS,
+    ],
+    # DRSAuditor - Audit log access plus read-only operational data (like security auditors)
+    DRSRole.DRS_AUDITOR: [
+        # Account Management - View only
+        DRSPermission.VIEW_ACCOUNTS,
+        # Recovery Operations - View only
+        DRSPermission.VIEW_EXECUTIONS,
+        # Protection Groups - View only
+        DRSPermission.VIEW_PROTECTION_GROUPS,
+        # Recovery Plans - View only
+        DRSPermission.VIEW_RECOVERY_PLANS,
+        # Audit Logging - Read access (unique to Auditor)
+        DRSPermission.AUDIT_READ,
     ],
 }
 
@@ -580,6 +599,7 @@ def get_user_roles(user: Dict) -> List[DRSRole]:
         "DRSPlanManager": DRSRole.DRS_PLAN_MANAGER,
         "DRSOperator": DRSRole.DRS_OPERATOR,
         "DRSReadOnly": DRSRole.DRS_READ_ONLY,
+        "DRSAuditor": DRSRole.DRS_AUDITOR,
         # Legacy AWS-style role names for security test compatibility
         "aws:admin": DRSRole.DRS_ORCHESTRATION_ADMIN,  # Maps to full admin
         "aws:admin-limited": DRSRole.DRS_RECOVERY_MANAGER,  # Maps to recovery manager
@@ -592,6 +612,7 @@ def get_user_roles(user: Dict) -> List[DRSRole]:
         "DRS-Recovery-Plan-Manager": DRSRole.DRS_PLAN_MANAGER,
         "DRS-Operator": DRSRole.DRS_OPERATOR,
         "DRS-Read-Only": DRSRole.DRS_READ_ONLY,
+        "DRS-Auditor": DRSRole.DRS_AUDITOR,
     }
 
     for group in user_groups:
@@ -844,15 +865,53 @@ def check_authorization(event: Dict) -> Dict:
         }
 
 
-def require_permission(required_permission: DRSPermission):
-    """Decorator to require specific permission for a function"""
+def require_permission(required_permission):
+    """
+    Decorator to require specific permission for a function.
+
+    Accepts both DRSPermission enum values and string permission names for backward compatibility.
+    """
 
     def decorator(func: Callable):
         @wraps(func)
         def wrapper(event: Dict, *args, **kwargs):
-            auth_result = check_authorization(event)
+            # Ensure httpMethod and path are present in event for authorization check
+            if "httpMethod" not in event:
+                event["httpMethod"] = "GET"
+            if "path" not in event:
+                event["path"] = "/"
 
-            if not auth_result["authorized"]:
+            # Convert string permission to enum if needed
+            if isinstance(required_permission, str):
+                # Try to find matching enum value
+                permission_enum = None
+                for perm in DRSPermission:
+                    if perm.value == required_permission:
+                        permission_enum = perm
+                        break
+                if permission_enum is None:
+                    return {
+                        "statusCode": 500,
+                        "headers": {
+                            "Content-Type": "application/json",
+                            "Access-Control-Allow-Origin": "*",
+                            "Access-Control-Allow-Headers": "Content-Type,Authorization",
+                            "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+                        },
+                        "body": json.dumps(
+                            {
+                                "error": "Internal Server Error",
+                                "message": f"Invalid permission: {required_permission}",
+                            }
+                        ),
+                    }
+                check_permission = permission_enum
+            else:
+                check_permission = required_permission
+
+            # Get user and check permission
+            user = get_user_from_event(event)
+            if not has_permission(user, check_permission):
                 return {
                     "statusCode": 403,
                     "headers": {
@@ -864,14 +923,14 @@ def require_permission(required_permission: DRSPermission):
                     "body": json.dumps(
                         {
                             "error": "Forbidden",
-                            "message": auth_result["reason"],
-                            "required_permission": required_permission.value,
+                            "message": f"Missing required permission: {check_permission.value}",
+                            "required_permission": check_permission.value,
                         }
                     ),
                 }
 
             # Add user info to event for use in the function
-            event["user"] = auth_result["user"]
+            event["user"] = user
             return func(event, *args, **kwargs)
 
         return wrapper

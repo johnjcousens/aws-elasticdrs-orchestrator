@@ -330,7 +330,7 @@ Resources:
       State: ENABLED
       Targets:
         - Id: InventorySyncTarget
-          Arn: !Ref QueryHandlerFunctionArn
+          Arn: !Ref DataManagementHandlerFunctionArn
           RoleArn: !GetAtt EventBridgeInvokeRole.Arn
           Input: '{"operation": "sync_source_server_inventory"}'
 
@@ -338,7 +338,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Condition: EnableInventorySyncCondition
     Properties:
-      FunctionName: !Ref QueryHandlerFunctionArn
+      FunctionName: !Ref DataManagementHandlerFunctionArn
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt InventorySyncScheduleRule.Arn

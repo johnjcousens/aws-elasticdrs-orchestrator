@@ -11,4 +11,7 @@ exclude =
     build,
     dist,
     node_modules,
-    .hypothesis
+    .hypothesis,
+    archive,
+    scripts/fix_*.py,
+    docs/examples

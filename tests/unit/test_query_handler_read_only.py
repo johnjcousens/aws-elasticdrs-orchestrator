@@ -150,6 +150,11 @@ def test_query_handler_contains_only_read_operations():
     known_exceptions = {
         "DecimalEncoder",  # JSON encoder class
         "response",  # Response helper
+        "poll_wave_status",  # Polling operation (read-only after refactoring)
+        "generate_warnings",  # Helper function for warnings
+        "clear_cache",  # Cache management (in-memory only)
+        "export_configuration",  # Export operation (read-only)
+        "set_cached_response",  # Cache management (in-memory only)
     }
 
     # Remove known exceptions
