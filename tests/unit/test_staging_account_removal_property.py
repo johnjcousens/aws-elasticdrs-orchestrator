@@ -34,7 +34,6 @@ from shared.staging_account_models import (  # noqa: E402
     get_staging_accounts,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Strategy for generating valid AWS account IDs

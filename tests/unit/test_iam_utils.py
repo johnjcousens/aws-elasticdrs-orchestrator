@@ -13,7 +13,6 @@ from unittest.mock import Mock, patch
 
 import pytest  # noqa: F401
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Add lambda directory to path
@@ -229,10 +228,10 @@ def test_mask_sensitive_params():
     masked = _mask_sensitive_params(params)
 
     assert masked["region"] == "us-east-1"
-    # Password is 9 chars, mask all but first 4: "secr" + 5 asterisks
-    assert masked["password"] == "secr*****"
-    # Token is 12 chars, mask all but first 4: "abc1" + 8 asterisks
-    assert masked["api_token"] == "abc1********"
+    # Password is masked with first 4 chars + 7 asterisks (fixed length)
+    assert masked["password"] == "secr*******"
+    # Token is masked with first 4 chars + 7 asterisks (fixed length)
+    assert masked["api_token"] == "abc1*******"
     assert masked["accountId"] == "123456789012"
 
 
@@ -251,10 +250,10 @@ def test_mask_sensitive_params_nested():
     masked = _mask_sensitive_params(params)
 
     assert masked["region"] == "us-east-1"
-    # access_key is 20 chars, mask all but first 4: "AKIA" + 16 asterisks
-    assert masked["credentials"]["access_key"] == "AKIA****************"
-    # secret_key is 40 chars, mask all but first 4: "wJal" + 36 asterisks
-    assert masked["credentials"]["secret_key"] == "wJal************************************"
+    # access_key is masked with first 4 chars + 7 asterisks (fixed length)
+    assert masked["credentials"]["access_key"] == "AKIA*******"
+    # secret_key is masked with first 4 chars + 7 asterisks (fixed length)
+    assert masked["credentials"]["secret_key"] == "wJal*******"
 
 
 def test_truncate_result_small():

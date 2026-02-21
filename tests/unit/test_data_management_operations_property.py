@@ -355,7 +355,6 @@ def mock_all_handlers():
 
 
 # Skip all tests in this file for CI/CD
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Property 12: Data Management Handler Operation Routing

@@ -49,7 +49,6 @@ from shared.launch_config_service import (
     LaunchConfigTimeoutError,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 @pytest.fixture(autouse=True)
@@ -694,4 +693,4 @@ def test_create_protection_group_cross_account_config_application():
                                 account_context = call_args[1]["account_context"]
                                 assert account_context is not None
                                 assert account_context["accountId"] == "999888777666"
-                                assert account_context["roleName"] == "OrchestrationRole"
+                                assert account_context["assumeRoleName"] == "OrchestrationRole"

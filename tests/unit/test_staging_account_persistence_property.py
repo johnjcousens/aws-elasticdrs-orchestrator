@@ -32,7 +32,6 @@ from staging_account_models import (  # noqa: E402
 )
 
 # Skip all tests in this file for CI/CD
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Strategy for generating valid 12-digit AWS account IDs

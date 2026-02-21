@@ -38,7 +38,6 @@ sys.path.insert(0, str(query_handler_dir))
 
 from index import handle_validate_staging_account  # noqa: E402
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 

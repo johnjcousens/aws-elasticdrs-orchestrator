@@ -28,7 +28,6 @@ import pytest  # noqa: F401
 # Import the function under test
 from index import calculate_combined_metrics  # noqa: E402
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 

@@ -18,7 +18,6 @@ import os
 from pathlib import Path
 import importlib.util
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Mock environment variables before importing handler

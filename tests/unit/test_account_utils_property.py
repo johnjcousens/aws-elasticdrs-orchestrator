@@ -38,7 +38,6 @@ from shared.security_utils import (  # noqa: E402
     InputValidationError,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Strategy for valid AWS account IDs (12 digits)

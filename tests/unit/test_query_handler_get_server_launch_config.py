@@ -24,7 +24,6 @@ os.environ["EXECUTION_HANDLER_ARN"] = "arn:aws:lambda:us-east-1:123456789012:fun
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda"))
 import importlib
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 query_handler_index = importlib.import_module("query-handler.index")

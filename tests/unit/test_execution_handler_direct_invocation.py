@@ -18,7 +18,6 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Module-level setup to load execution-handler index

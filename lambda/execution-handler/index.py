@@ -2051,24 +2051,28 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         pg = pg_response["Item"]
         region = pg.get("region", "us-east-1")
 
-        # Tag-based server resolution at execution time
-        selection_tags = pg.get("serverSelectionTags", {})
-
-        if selection_tags:
-            print(f"Resolving servers for PG {protection_group_id} " f"with tags: {selection_tags}")
-            account_context = state.get("accountContext") or state.get("account_context", {})
-            resolved_servers = query_drs_servers_by_tags(region, selection_tags, account_context)
-            server_ids = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
-            print(f"Resolved {len(server_ids)} servers from tags")
-        else:
-            # Fallback: explicit serverIds from wave (legacy support)
-            server_ids = wave.get("serverIds", [])
-            print(f"Using explicit serverIds from wave: " f"{len(server_ids)} servers")
+        # FIXED: Use pre-resolved serverIds from recovery plan wave
+        # Recovery plan waves always have serverIds populated from protection group's
+        # sourceServerIds at plan creation time. These servers have launch configs applied.
+        # DO NOT re-query DRS at execution time - this causes discovery of new servers
+        # without launch configs, resulting in recovery failures.
+        server_ids = wave.get("serverIds", [])
 
         if not server_ids:
-            print(f"Wave {wave_number} has no servers (no tags matched), " f"marking complete")
+            # This should not happen - waves must have servers
+            print(
+                f"ERROR: Wave {wave_number} has no server IDs. "
+                f"Recovery plan waves must have serverIds populated from protection group."
+            )
             state["wave_completed"] = True
+            state["status"] = "failed"
+            state["error"] = f"Wave {wave_number} has no server IDs"
             return
+
+        print(
+            f"Starting recovery for wave {wave_number} with "
+            f"{len(server_ids)} pre-resolved servers from recovery plan"
+        )
 
         print(f"Starting DRS recovery for wave {wave_number} " f"({wave_name})")
         print(f"Region: {region}, Servers: {server_ids}, " f"isDrill: {is_drill}")

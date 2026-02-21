@@ -9,16 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [6.2.0] - 2026-02-20 - Query Handler Read-Only Audit
+
 ### Completed
-- **Active Region Filtering (Spec 01)**: Completed all 17 tasks for filtering DRS queries to active regions only
-  - Reduces DRS API calls by 80-90% by querying only regions with replicating servers
-  - Implements `get_active_regions()` function with comprehensive validation and error handling
-  - Updates all 8 DRS query locations across query-handler and data-management-handler
-  - Adds 6 new unit tests and 2 integration tests with 100% pass rate
-  - Includes property-based tests for region filtering consistency
-  - Validates Requirements FR1 (active region filtering), FR2 (fallback to all regions), NFR1 (performance)
-  - Unblocks 05-inventory-sync-refactoring spec
-  - See [Spec](.kiro/specs/01-active-region-filtering/requirements.md)
+
+**Query Handler Read-Only Audit (Spec 06)**: Completed all 17 tasks for enforcing read-only operations in query-handler
+- Migrated inventory sync from query-handler to data-management-handler
+- Migrated staging account sync from query-handler to data-management-handler
+- Split wave status polling (read vs write) between query-handler and execution-handler
+- Removed all DynamoDB writes from query-handler (now strictly read-only)
+- Added IAM principal extraction for dual invocation modes (API Gateway + Direct Lambda)
+- Added parameter masking for sensitive data in audit logs
+- Added comprehensive unit tests for invocation modes, audit logging, and IAM extraction
+- Updated .gitignore for .kiro/specs/ directory
+- Created lambda/__init__.py for proper Python package structure
+- 248 files changed, 20,323 insertions(+), 84,759 deletions(-)
+- Validates Requirements FR1 (read-only enforcement), FR5 (shared utilities), NFR1 (maintainability)
+- See [Archive](archive/kiro/specs/complete/06-query-handler-read-only-audit/README.md)
+
+**Active Region Filtering (Spec 01)**: Completed all 17 tasks for filtering DRS queries to active regions only
+- Reduces DRS API calls by 80-90% by querying only regions with replicating servers
+- Implements `get_active_regions()` function with comprehensive validation and error handling
+- Updates all 8 DRS query locations across query-handler and data-management-handler
+- Adds 6 new unit tests and 2 integration tests with 100% pass rate
+- Includes property-based tests for region filtering consistency
+- Validates Requirements FR1 (active region filtering), FR2 (fallback to all regions), NFR1 (performance)
+- Unblocks 05-inventory-sync-refactoring spec
+- See [Archive](archive/kiro/specs/complete/01-active-region-filtering/requirements.md)
 
 ### Added
 - **Query Handler Read-Only Audit Spec**: Created comprehensive specification for enforcing read-only operations in query-handler

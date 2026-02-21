@@ -14,7 +14,6 @@ from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 import pytest
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 os.environ["PROTECTION_GROUPS_TABLE"] = "test-pg"

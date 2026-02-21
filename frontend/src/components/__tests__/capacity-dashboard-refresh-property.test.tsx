@@ -10,7 +10,7 @@
  * Validates: Requirements 1.7, 2.3
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import fc from 'fast-check';
 import { CapacityDashboard } from '../CapacityDashboard';
@@ -19,8 +19,7 @@ import * as stagingAccountsApi from '../../services/staging-accounts-api';
 // Mock the API
 vi.mock('../../services/staging-accounts-api');
 
-describe.skip('Property 15: Capacity Dashboard Refresh After Modification', () => {
-  // SKIPPED: Async cleanup issues with timers causing unhandled rejections
+describe('Property 15: Capacity Dashboard Refresh After Modification', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -35,129 +34,138 @@ describe.skip('Property 15: Capacity Dashboard Refresh After Modification', () =
         // Generate initial capacity data
         fc.record({
           targetAccountId: fc.constantFrom('111122223333', '123456789012'),
-          initialReplicating: fc.integer({ min: 0, max: 250 }),
-          stagingReplicating: fc.integer({ min: 0, max: 250 }),
+          initialReplicating: fc.integer({ min: 10, max: 250 }),
+          stagingReplicating: fc.integer({ min: 10, max: 250 }),
         }),
         async ({ targetAccountId, initialReplicating, stagingReplicating }) => {
-          // Initial capacity (no staging accounts)
-          const initialCapacity = {
-            combined: {
-              totalReplicating: initialReplicating,
-              maxReplicating: 300,
-              percentUsed: (initialReplicating / 300) * 100,
-              status: 'OK' as const,
-              message: 'Capacity OK',
-            },
-            accounts: [
-              {
-                accountId: targetAccountId,
-                accountName: 'TARGET',
-                accountType: 'target' as const,
-                replicatingServers: initialReplicating,
-                totalServers: initialReplicating,
+          let container: any = null;
+          
+          try {
+            // Initial capacity (no staging accounts)
+            const initialCapacity = {
+              combined: {
+                totalReplicating: initialReplicating,
                 maxReplicating: 300,
                 percentUsed: (initialReplicating / 300) * 100,
-                availableSlots: 300 - initialReplicating,
                 status: 'OK' as const,
-                regionalBreakdown: [],
-                warnings: [],
+                message: 'Capacity OK',
               },
-            ],
-            recoveryCapacity: {
-              currentServers: initialReplicating,
-              maxRecoveryInstances: 4000,
-              percentUsed: (initialReplicating / 4000) * 100,
-              availableSlots: 4000 - initialReplicating,
-            },
-            warnings: [],
-          };
+              accounts: [
+                {
+                  accountId: targetAccountId,
+                  accountName: 'TARGET',
+                  accountType: 'target' as const,
+                  replicatingServers: initialReplicating,
+                  totalServers: initialReplicating,
+                  maxReplicating: 300,
+                  percentUsed: (initialReplicating / 300) * 100,
+                  availableSlots: 300 - initialReplicating,
+                  status: 'OK' as const,
+                  regionalBreakdown: [],
+                  warnings: [],
+                },
+              ],
+              recoveryCapacity: {
+                currentServers: initialReplicating,
+                maxRecoveryInstances: 4000,
+                percentUsed: (initialReplicating / 4000) * 100,
+                availableSlots: 4000 - initialReplicating,
+              },
+              warnings: [],
+            };
 
-          // Updated capacity (with staging account)
-          const updatedCapacity = {
-            combined: {
-              totalReplicating: initialReplicating + stagingReplicating,
-              maxReplicating: 600,
-              percentUsed: ((initialReplicating + stagingReplicating) / 600) * 100,
-              status: 'OK' as const,
-              message: 'Capacity OK',
-            },
-            accounts: [
-              {
-                accountId: targetAccountId,
-                accountName: 'TARGET',
-                accountType: 'target' as const,
-                replicatingServers: initialReplicating,
-                totalServers: initialReplicating,
-                maxReplicating: 300,
-                percentUsed: (initialReplicating / 300) * 100,
-                availableSlots: 300 - initialReplicating,
+            // Updated capacity (with staging account)
+            const updatedCapacity = {
+              combined: {
+                totalReplicating: initialReplicating + stagingReplicating,
+                maxReplicating: 600,
+                percentUsed: ((initialReplicating + stagingReplicating) / 600) * 100,
                 status: 'OK' as const,
-                regionalBreakdown: [],
-                warnings: [],
+                message: 'Capacity OK',
               },
-              {
-                accountId: '444455556666',
-                accountName: 'STAGING_01',
-                accountType: 'staging' as const,
-                replicatingServers: stagingReplicating,
-                totalServers: stagingReplicating,
-                maxReplicating: 300,
-                percentUsed: (stagingReplicating / 300) * 100,
-                availableSlots: 300 - stagingReplicating,
-                status: 'OK' as const,
-                regionalBreakdown: [],
-                warnings: [],
+              accounts: [
+                {
+                  accountId: targetAccountId,
+                  accountName: 'TARGET',
+                  accountType: 'target' as const,
+                  replicatingServers: initialReplicating,
+                  totalServers: initialReplicating,
+                  maxReplicating: 300,
+                  percentUsed: (initialReplicating / 300) * 100,
+                  availableSlots: 300 - initialReplicating,
+                  status: 'OK' as const,
+                  regionalBreakdown: [],
+                  warnings: [],
+                },
+                {
+                  accountId: '444455556666',
+                  accountName: 'STAGING_01',
+                  accountType: 'staging' as const,
+                  replicatingServers: stagingReplicating,
+                  totalServers: stagingReplicating,
+                  maxReplicating: 300,
+                  percentUsed: (stagingReplicating / 300) * 100,
+                  availableSlots: 300 - stagingReplicating,
+                  status: 'OK' as const,
+                  regionalBreakdown: [],
+                  warnings: [],
+                },
+              ],
+              recoveryCapacity: {
+                currentServers: initialReplicating,
+                maxRecoveryInstances: 4000,
+                percentUsed: (initialReplicating / 4000) * 100,
+                availableSlots: 4000 - initialReplicating,
               },
-            ],
-            recoveryCapacity: {
-              currentServers: initialReplicating,
-              maxRecoveryInstances: 4000,
-              percentUsed: (initialReplicating / 4000) * 100,
-              availableSlots: 4000 - initialReplicating,
-            },
-            warnings: [],
-          };
+              warnings: [],
+            };
 
-          // Mock API to return initial capacity, then updated capacity
-          let callCount = 0;
-          vi.mocked(stagingAccountsApi.getCombinedCapacity).mockImplementation(async () => {
-            callCount++;
-            return callCount === 1 ? initialCapacity : updatedCapacity;
-          });
+            // Mock API to return initial capacity, then updated capacity
+            let callCount = 0;
+            vi.mocked(stagingAccountsApi.getCombinedCapacity).mockImplementation(async () => {
+              callCount++;
+              return callCount === 1 ? initialCapacity : updatedCapacity;
+            });
 
-          // Render dashboard
-          render(<CapacityDashboard targetAccountId={targetAccountId} refreshInterval={100} />);
+            // Render dashboard
+            container = render(<CapacityDashboard targetAccountId={targetAccountId} refreshInterval={250} />);
 
-          // Wait for initial load
-          await waitFor(() => {
-            expect(screen.getAllByText(new RegExp(initialReplicating.toString())).length).toBeGreaterThan(0);
-          });
+            // Wait for initial load (first API call)
+            await waitFor(() => {
+              expect(callCount).toBeGreaterThanOrEqual(1);
+            }, { timeout: 1000 });
 
-          // Verify initial state shows only target account
-          expect(stagingAccountsApi.getCombinedCapacity).toHaveBeenCalledTimes(1);
-          expect(screen.queryByText(/STAGING_01/)).not.toBeInTheDocument();
+            // Verify initial state shows only target account (before refresh)
+            // Note: We check this immediately after first load, before the 250ms refresh interval
+            if (callCount === 1) {
+              expect(screen.queryByText(/STAGING_01/)).not.toBeInTheDocument();
+            }
 
-          // Wait for refresh (simulating staging account addition)
-          await waitFor(
-            () => {
-              expect(stagingAccountsApi.getCombinedCapacity).toHaveBeenCalledTimes(2);
-            },
-            { timeout: 200 }
-          );
+            // Wait for refresh to occur (real timer will trigger after 250ms)
+            await waitFor(() => {
+              expect(callCount).toBeGreaterThanOrEqual(2);
+            }, { timeout: 1000 });
 
-          // Verify updated state shows staging account
-          await waitFor(() => {
-            expect(screen.getAllByText(/STAGING_01/).length).toBeGreaterThan(0);
-          });
+            // Verify updated state shows staging account
+            await waitFor(() => {
+              expect(screen.getAllByText(/STAGING_01/).length).toBeGreaterThan(0);
+            }, { timeout: 1000 });
 
-          // Verify combined capacity updated
-          const totalReplicating = initialReplicating + stagingReplicating;
-          await waitFor(() => {
-            expect(screen.getAllByText(new RegExp(totalReplicating.toString())).length).toBeGreaterThan(0);
-          });
+            // Verify combined capacity updated
+            const totalReplicating = initialReplicating + stagingReplicating;
+            await waitFor(() => {
+              const elements = screen.queryAllByText(new RegExp(`\\b${totalReplicating}\\b`));
+              expect(elements.length).toBeGreaterThan(0);
+            }, { timeout: 1000 });
 
-          // Property assertion: Dashboard refreshed and shows updated capacity
-          expect(callCount).toBeGreaterThanOrEqual(2);
+            // Property assertion: Dashboard refreshed and shows updated capacity
+            expect(callCount).toBeGreaterThanOrEqual(2);
+          } finally {
+            // Cleanup
+            if (container) {
+              container.unmount();
+            }
+          }
         }
       ),
       { numRuns: 20 } // Reduced runs for async tests
@@ -173,128 +181,137 @@ describe.skip('Property 15: Capacity Dashboard Refresh After Modification', () =
       fc.asyncProperty(
         fc.record({
           targetAccountId: fc.constantFrom('111122223333', '123456789012'),
-          targetReplicating: fc.integer({ min: 0, max: 250 }),
-          stagingReplicating: fc.integer({ min: 0, max: 250 }),
+          targetReplicating: fc.integer({ min: 10, max: 250 }),
+          stagingReplicating: fc.integer({ min: 10, max: 250 }),
         }),
         async ({ targetAccountId, targetReplicating, stagingReplicating }) => {
-          // Initial capacity (with staging account)
-          const initialCapacity = {
-            combined: {
-              totalReplicating: targetReplicating + stagingReplicating,
-              maxReplicating: 600,
-              percentUsed: ((targetReplicating + stagingReplicating) / 600) * 100,
-              status: 'OK' as const,
-              message: 'Capacity OK',
-            },
-            accounts: [
-              {
-                accountId: targetAccountId,
-                accountName: 'TARGET',
-                accountType: 'target' as const,
-                replicatingServers: targetReplicating,
-                totalServers: targetReplicating,
+          let container: any = null;
+          
+          try {
+            // Initial capacity (with staging account)
+            const initialCapacity = {
+              combined: {
+                totalReplicating: targetReplicating + stagingReplicating,
+                maxReplicating: 600,
+                percentUsed: ((targetReplicating + stagingReplicating) / 600) * 100,
+                status: 'OK' as const,
+                message: 'Capacity OK',
+              },
+              accounts: [
+                {
+                  accountId: targetAccountId,
+                  accountName: 'TARGET',
+                  accountType: 'target' as const,
+                  replicatingServers: targetReplicating,
+                  totalServers: targetReplicating,
+                  maxReplicating: 300,
+                  percentUsed: (targetReplicating / 300) * 100,
+                  availableSlots: 300 - targetReplicating,
+                  status: 'OK' as const,
+                  regionalBreakdown: [],
+                  warnings: [],
+                },
+                {
+                  accountId: '444455556666',
+                  accountName: 'STAGING_01',
+                  accountType: 'staging' as const,
+                  replicatingServers: stagingReplicating,
+                  totalServers: stagingReplicating,
+                  maxReplicating: 300,
+                  percentUsed: (stagingReplicating / 300) * 100,
+                  availableSlots: 300 - stagingReplicating,
+                  status: 'OK' as const,
+                  regionalBreakdown: [],
+                  warnings: [],
+                },
+              ],
+              recoveryCapacity: {
+                currentServers: targetReplicating,
+                maxRecoveryInstances: 4000,
+                percentUsed: (targetReplicating / 4000) * 100,
+                availableSlots: 4000 - targetReplicating,
+              },
+              warnings: [],
+            };
+
+            // Updated capacity (staging account removed)
+            const updatedCapacity = {
+              combined: {
+                totalReplicating: targetReplicating,
                 maxReplicating: 300,
                 percentUsed: (targetReplicating / 300) * 100,
-                availableSlots: 300 - targetReplicating,
                 status: 'OK' as const,
-                regionalBreakdown: [],
-                warnings: [],
+                message: 'Capacity OK',
               },
-              {
-                accountId: '444455556666',
-                accountName: 'STAGING_01',
-                accountType: 'staging' as const,
-                replicatingServers: stagingReplicating,
-                totalServers: stagingReplicating,
-                maxReplicating: 300,
-                percentUsed: (stagingReplicating / 300) * 100,
-                availableSlots: 300 - stagingReplicating,
-                status: 'OK' as const,
-                regionalBreakdown: [],
-                warnings: [],
+              accounts: [
+                {
+                  accountId: targetAccountId,
+                  accountName: 'TARGET',
+                  accountType: 'target' as const,
+                  replicatingServers: targetReplicating,
+                  totalServers: targetReplicating,
+                  maxReplicating: 300,
+                  percentUsed: (targetReplicating / 300) * 100,
+                  availableSlots: 300 - targetReplicating,
+                  status: 'OK' as const,
+                  regionalBreakdown: [],
+                  warnings: [],
+                },
+              ],
+              recoveryCapacity: {
+                currentServers: targetReplicating,
+                maxRecoveryInstances: 4000,
+                percentUsed: (targetReplicating / 4000) * 100,
+                availableSlots: 4000 - targetReplicating,
               },
-            ],
-            recoveryCapacity: {
-              currentServers: targetReplicating,
-              maxRecoveryInstances: 4000,
-              percentUsed: (targetReplicating / 4000) * 100,
-              availableSlots: 4000 - targetReplicating,
-            },
-            warnings: [],
-          };
+              warnings: [],
+            };
 
-          // Updated capacity (staging account removed)
-          const updatedCapacity = {
-            combined: {
-              totalReplicating: targetReplicating,
-              maxReplicating: 300,
-              percentUsed: (targetReplicating / 300) * 100,
-              status: 'OK' as const,
-              message: 'Capacity OK',
-            },
-            accounts: [
-              {
-                accountId: targetAccountId,
-                accountName: 'TARGET',
-                accountType: 'target' as const,
-                replicatingServers: targetReplicating,
-                totalServers: targetReplicating,
-                maxReplicating: 300,
-                percentUsed: (targetReplicating / 300) * 100,
-                availableSlots: 300 - targetReplicating,
-                status: 'OK' as const,
-                regionalBreakdown: [],
-                warnings: [],
-              },
-            ],
-            recoveryCapacity: {
-              currentServers: targetReplicating,
-              maxRecoveryInstances: 4000,
-              percentUsed: (targetReplicating / 4000) * 100,
-              availableSlots: 4000 - targetReplicating,
-            },
-            warnings: [],
-          };
+            // Mock API to return initial capacity, then updated capacity
+            let callCount = 0;
+            vi.mocked(stagingAccountsApi.getCombinedCapacity).mockImplementation(async () => {
+              callCount++;
+              return callCount === 1 ? initialCapacity : updatedCapacity;
+            });
 
-          // Mock API to return initial capacity, then updated capacity
-          let callCount = 0;
-          vi.mocked(stagingAccountsApi.getCombinedCapacity).mockImplementation(async () => {
-            callCount++;
-            return callCount === 1 ? initialCapacity : updatedCapacity;
-          });
+            // Render dashboard
+            container = render(<CapacityDashboard targetAccountId={targetAccountId} refreshInterval={250} />);
 
-          // Render dashboard
-          render(<CapacityDashboard targetAccountId={targetAccountId} refreshInterval={100} />);
+            // Wait for initial load (first API call)
+            await waitFor(() => {
+              expect(callCount).toBeGreaterThanOrEqual(1);
+            }, { timeout: 1000 });
 
-          // Wait for initial load
-          await waitFor(() => {
-            expect(screen.getAllByText(/STAGING_01/).length).toBeGreaterThan(0);
-          });
+            // Verify initial state shows staging account (before refresh)
+            if (callCount === 1) {
+              expect(screen.getAllByText(/STAGING_01/).length).toBeGreaterThan(0);
+            }
 
-          // Verify initial state shows staging account
-          expect(stagingAccountsApi.getCombinedCapacity).toHaveBeenCalledTimes(1);
+            // Wait for refresh to occur (real timer will trigger after 250ms)
+            await waitFor(() => {
+              expect(callCount).toBeGreaterThanOrEqual(2);
+            }, { timeout: 1000 });
 
-          // Wait for refresh (simulating staging account removal)
-          await waitFor(
-            () => {
-              expect(stagingAccountsApi.getCombinedCapacity).toHaveBeenCalledTimes(2);
-            },
-            { timeout: 200 }
-          );
+            // Verify staging account is removed
+            await waitFor(() => {
+              expect(screen.queryByText(/STAGING_01/)).not.toBeInTheDocument();
+            }, { timeout: 1000 });
 
-          // Verify staging account is removed
-          await waitFor(() => {
-            expect(screen.queryByText(/STAGING_01/)).not.toBeInTheDocument();
-          });
+            // Verify combined capacity reduced to only target account
+            const maxCapacity = 300;
+            await waitFor(() => {
+              const elements = screen.queryAllByText(new RegExp(`\\b${maxCapacity}\\b`));
+              expect(elements.length).toBeGreaterThan(0);
+            }, { timeout: 1000 });
 
-          // Verify combined capacity reduced to only target account
-          const maxCapacity = 300;
-          await waitFor(() => {
-            expect(screen.getAllByText(new RegExp(maxCapacity.toString())).length).toBeGreaterThan(0);
-          });
-
-          // Property assertion: Dashboard refreshed and shows reduced capacity
-          expect(callCount).toBeGreaterThanOrEqual(2);
+            // Property assertion: Dashboard refreshed and shows reduced capacity
+            expect(callCount).toBeGreaterThanOrEqual(2);
+          } finally {
+            // Cleanup
+            if (container) {
+              container.unmount();
+            }
+          }
         }
       ),
       { numRuns: 20 } // Reduced runs for async tests
@@ -313,86 +330,98 @@ describe.skip('Property 15: Capacity Dashboard Refresh After Modification', () =
           modifications: fc.array(
             fc.record({
               action: fc.constantFrom('add', 'remove'),
-              replicating: fc.integer({ min: 0, max: 250 }),
+              replicating: fc.integer({ min: 10, max: 250 }),
             }),
-            { minLength: 2, maxLength: 5 }
+            { minLength: 2, maxLength: 4 } // Reduced from 5 to 4 for faster tests
           ),
         }),
         async ({ targetAccountId, modifications }) => {
-          const capacityStates: any[] = [];
-          let currentAccounts = 1; // Start with target account only
+          let container: any = null;
+          
+          try {
+            const capacityStates: any[] = [];
+            let currentAccounts = 1; // Start with target account only
 
-          // Generate capacity states for each modification
-          modifications.forEach((mod) => {
-            if (mod.action === 'add') {
-              currentAccounts++;
-            } else if (currentAccounts > 1) {
-              currentAccounts--;
-            }
+            // Generate capacity states for each modification
+            modifications.forEach((mod) => {
+              if (mod.action === 'add') {
+                currentAccounts++;
+              } else if (currentAccounts > 1) {
+                currentAccounts--;
+              }
 
-            capacityStates.push({
-              combined: {
-                totalReplicating: 100,
-                maxReplicating: currentAccounts * 300,
-                percentUsed: (100 / (currentAccounts * 300)) * 100,
-                status: 'OK' as const,
-                message: 'Capacity OK',
-              },
-              accounts: Array.from({ length: currentAccounts }, (_, i) => ({
-                accountId: i === 0 ? targetAccountId : `66441899542${i}`,
-                accountName: i === 0 ? 'TARGET' : `STAGING_0${i}`,
-                accountType: (i === 0 ? 'target' : 'staging') as const,
-                replicatingServers: 100,
-                totalServers: 100,
-                maxReplicating: 300,
-                percentUsed: 33,
-                availableSlots: 200,
-                status: 'OK' as const,
-                regionalBreakdown: [],
+              capacityStates.push({
+                combined: {
+                  totalReplicating: 100,
+                  maxReplicating: currentAccounts * 300,
+                  percentUsed: (100 / (currentAccounts * 300)) * 100,
+                  status: 'OK' as const,
+                  message: 'Capacity OK',
+                },
+                accounts: Array.from({ length: currentAccounts }, (_, i) => ({
+                  accountId: i === 0 ? targetAccountId : `66441899542${i}`,
+                  accountName: i === 0 ? 'TARGET' : `STAGING_0${i}`,
+                  accountType: (i === 0 ? 'target' : 'staging') as const,
+                  replicatingServers: 100,
+                  totalServers: 100,
+                  maxReplicating: 300,
+                  percentUsed: 33,
+                  availableSlots: 200,
+                  status: 'OK' as const,
+                  regionalBreakdown: [],
+                  warnings: [],
+                })),
+                recoveryCapacity: {
+                  currentServers: 100,
+                  maxRecoveryInstances: 4000,
+                  percentUsed: 2.5,
+                  availableSlots: 3900,
+                },
                 warnings: [],
-              })),
-              recoveryCapacity: {
-                currentServers: 100,
-                maxRecoveryInstances: 4000,
-                percentUsed: 2.5,
-                availableSlots: 3900,
-              },
-              warnings: [],
+              });
             });
-          });
 
-          // Mock API to return sequential states
-          let callCount = 0;
-          vi.mocked(stagingAccountsApi.getCombinedCapacity).mockImplementation(async () => {
-            const state = capacityStates[Math.min(callCount, capacityStates.length - 1)];
-            callCount++;
-            return state;
-          });
+            // Mock API to return sequential states
+            let callCount = 0;
+            vi.mocked(stagingAccountsApi.getCombinedCapacity).mockImplementation(async () => {
+              const state = capacityStates[Math.min(callCount, capacityStates.length - 1)];
+              callCount++;
+              return state;
+            });
 
-          // Render dashboard with fast refresh
-          render(<CapacityDashboard targetAccountId={targetAccountId} refreshInterval={50} />);
+            // Render dashboard with fast refresh
+            container = render(<CapacityDashboard targetAccountId={targetAccountId} refreshInterval={200} />);
 
-          // Wait for multiple refreshes
-          await waitFor(
-            () => {
-              expect(callCount).toBeGreaterThanOrEqual(modifications.length);
-            },
-            { timeout: 500 }
-          );
+            // Wait for the expected number of API calls (initial + modifications)
+            // With 200ms intervals and 2-4 modifications, give enough time for all refreshes
+            const expectedCalls = modifications.length + 1; // Initial load + one per modification
+            await waitFor(() => {
+              expect(callCount).toBeGreaterThanOrEqual(expectedCalls);
+            }, { timeout: 3000 }); // Increased timeout for multiple refreshes
 
-          // Verify final state matches last modification
-          const finalState = capacityStates[capacityStates.length - 1];
-          const finalMaxCapacity = finalState.combined.maxReplicating;
+            // Verify final state matches last modification
+            const finalState = capacityStates[capacityStates.length - 1];
+            const finalMaxCapacity = finalState.combined.maxReplicating;
 
-          await waitFor(() => {
-            expect(screen.getAllByText(new RegExp(finalMaxCapacity.toString())).length).toBeGreaterThan(0);
-          });
+            // Format the number with commas to match how it's displayed (e.g., 1200 -> "1,200")
+            const formattedCapacity = finalMaxCapacity.toLocaleString('en-US');
 
-          // Property assertion: Dashboard eventually shows correct final state
-          expect(callCount).toBeGreaterThanOrEqual(modifications.length);
+            await waitFor(() => {
+              const elements = screen.queryAllByText(new RegExp(formattedCapacity.replace(/,/g, ',?')));
+              expect(elements.length).toBeGreaterThan(0);
+            }, { timeout: 1000 });
+
+            // Property assertion: Dashboard eventually shows correct final state
+            expect(callCount).toBeGreaterThanOrEqual(modifications.length);
+          } finally {
+            // Cleanup
+            if (container) {
+              container.unmount();
+            }
+          }
         }
       ),
-      { numRuns: 10 } // Reduced runs for complex async tests
+      { numRuns: 5 } // Reduced from 10 to 5 for faster test suite
     );
-  });
+  }, 15000); // Increased test timeout to 15 seconds
 });

@@ -28,7 +28,6 @@ from shared.staging_account_models import (  # noqa: E402
     remove_staging_account,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 def setup_dynamodb_table():

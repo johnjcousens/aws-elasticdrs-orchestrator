@@ -44,7 +44,6 @@ from shared.launch_config_service import (
     LaunchConfigTimeoutError,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 @pytest.fixture(autouse=True)

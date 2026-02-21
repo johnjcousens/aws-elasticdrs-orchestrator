@@ -28,7 +28,6 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from botocore.exceptions import ClientError
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 
@@ -105,6 +104,7 @@ def sample_state():
                 "waveNumber": 0,
                 "waveName": "Wave 1",
                 "protectionGroupId": "pg-789",
+                # Note: serverIds not included by default - tests add them as needed
             }
         ],
         "wave_results": [],
@@ -193,6 +193,9 @@ class TestStartWaveRecoverySuccessful:
     ):
         """Test successful wave start with tag-based server resolution"""
         from index import start_wave_recovery
+
+        # Add serverIds to wave for this test
+        sample_state["waves"][0]["serverIds"] = ["s-001", "s-002", "s-003"]
 
         # Mock Protection Group lookup
         pg_table = mock_dynamodb_tables["protection_groups_table"]
@@ -398,10 +401,10 @@ class TestStartWaveRecoveryEmptyServerList:
             with patch("index.query_drs_servers_by_tags", return_value=[]):
                 start_wave_recovery(sample_state, 0)
 
-        # Verify wave marked complete without error
+        # Verify wave marked complete with error (no servers to launch)
         assert sample_state["wave_completed"] is True
-        assert "status" not in sample_state or sample_state.get("status") != "failed"
-        assert "error" not in sample_state
+        assert sample_state["status"] == "failed"
+        assert "error" in sample_state
 
     def test_empty_server_list_no_explicit_ids(self, mock_env_vars, mock_dynamodb_tables, sample_state):
         """Test handling when wave has no serverIds and PG has no tags"""
@@ -423,9 +426,10 @@ class TestStartWaveRecoveryEmptyServerList:
         with patch("index.protection_groups_table", pg_table):
             start_wave_recovery(sample_state, 0)
 
-        # Verify wave marked complete without error
+        # Verify wave marked complete with error (no servers to launch)
         assert sample_state["wave_completed"] is True
-        assert "status" not in sample_state or sample_state.get("status") != "failed"
+        assert sample_state["status"] == "failed"
+        assert "error" in sample_state
 
 
 class TestStartWaveRecoveryDRSAPIError:
@@ -530,6 +534,9 @@ class TestStartWaveRecoveryDRSAPIError:
         """Test that DynamoDB update errors don't fail wave start"""
         from index import start_wave_recovery
 
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -589,6 +596,9 @@ class TestStartWaveRecoveryCrossAccountContext:
         """Test that cross-account context is passed to DRS client"""
         from index import start_wave_recovery
 
+        # Add serverIds to wave for this test
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -640,6 +650,7 @@ class TestStartWaveRecoveryCrossAccountContext:
                     "waveNumber": 0,
                     "waveName": "Wave 1",
                     "protectionGroupId": "pg-789",
+                    "serverIds": ["s-001"],  # Add serverIds for this test
                 }
             ],
             "wave_results": [],
@@ -689,6 +700,9 @@ class TestStartWaveRecoveryCrossAccountContext:
         """Test handling when using current account (no role assumption)"""
         from index import start_wave_recovery
 
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         # State with current account context
         sample_state["accountContext"] = {
             "accountId": "123456789012",
@@ -737,6 +751,9 @@ class TestStartWaveRecoveryLaunchConfig:
     ):
         """Test that launch config is applied when present in PG and status not ready"""
         from index import start_wave_recovery
+
+        # Add serverIds to wave for this test (2 servers as expected by test)
+        sample_state["waves"][0]["serverIds"] = ["s-001", "s-002"]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -840,6 +857,9 @@ class TestStartWaveRecoveryStateUpdates:
         """Test that state is modified in-place (archive pattern)"""
         from index import start_wave_recovery
 
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -932,6 +952,7 @@ class TestStartWaveRecoveryStateUpdates:
                 "waveNumber": 1,
                 "waveName": "Wave 2",
                 "protectionGroupId": "pg-789",
+                "serverIds": ["s-001"],  # Add serverIds for this test
             }
         )
 
@@ -965,6 +986,9 @@ class TestStartWaveRecoveryStateUpdates:
     ):
         """Test that server statuses are initialized with correct structure"""
         from index import start_wave_recovery
+
+        # Add serverIds to wave for this test
+        sample_state["waves"][0]["serverIds"] = ["s-001", "s-002"]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -1026,6 +1050,211 @@ class TestStartWaveRecoveryStateUpdates:
             assert "launchTime" in status
 
 
+class TestStartWaveRecoveryDuplicateResolutionFix:
+    """Test duplicate server resolution fix (Task 0 and 0.1)"""
+
+    def test_wave_execution_uses_wave_server_ids(
+        self,
+        mock_env_vars,
+        mock_dynamodb_tables,
+        mock_drs_client,
+        sample_state,
+        sample_protection_group,
+        mock_launch_config_service,
+    ):
+        """Test that wave execution uses pre-resolved serverIds from recovery plan wave"""
+        from index import start_wave_recovery
+
+        # Wave has explicit serverIds from recovery plan
+        sample_state["waves"][0]["serverIds"] = ["s-100", "s-101", "s-102"]
+
+        pg_table = mock_dynamodb_tables["protection_groups_table"]
+        pg_table.get_item.return_value = {"Item": sample_protection_group}
+
+        exec_table = mock_dynamodb_tables["execution_history_table"]
+        exec_table.update_item.return_value = {}
+
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {
+                    "sourceServerId": "s-100",
+                    "serverName": "server-100",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+                {
+                    "sourceServerId": "s-101",
+                    "serverName": "server-101",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+                {
+                    "sourceServerId": "s-102",
+                    "serverName": "server-102",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
+        }
+
+        with patch("index.protection_groups_table", pg_table):
+            with patch("index.execution_history_table", exec_table):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
+                    with patch(
+                        "index.start_drs_recovery_for_wave",
+                        return_value=mock_wave_job_result,
+                    ):
+                        with patch("time.time", return_value=1234567890):
+                            start_wave_recovery(sample_state, 0)
+
+        # Verify wave used pre-resolved serverIds
+        assert sample_state["server_ids"] == ["s-100", "s-101", "s-102"]
+        assert sample_state["job_id"] == "drsjob-abc123"
+        assert sample_state["wave_completed"] is False
+
+    def test_wave_execution_fails_gracefully_without_server_ids(
+        self,
+        mock_env_vars,
+        mock_dynamodb_tables,
+        sample_state,
+        sample_protection_group,
+    ):
+        """Test that wave execution fails gracefully if wave has no serverIds"""
+        from index import start_wave_recovery
+
+        # Wave has NO serverIds (should not happen in practice)
+        sample_state["waves"][0]["serverIds"] = []
+
+        pg_table = mock_dynamodb_tables["protection_groups_table"]
+        pg_table.get_item.return_value = {"Item": sample_protection_group}
+
+        with patch("index.protection_groups_table", pg_table):
+            start_wave_recovery(sample_state, 0)
+
+        # Verify wave marked as failed with clear error
+        assert sample_state["wave_completed"] is True
+        assert sample_state["status"] == "failed"
+        assert "no server IDs" in sample_state["error"]
+
+    def test_wave_execution_does_not_call_query_drs_servers_by_tags(
+        self,
+        mock_env_vars,
+        mock_dynamodb_tables,
+        mock_drs_client,
+        sample_state,
+        sample_protection_group,
+        mock_launch_config_service,
+    ):
+        """Test that wave execution does NOT call query_drs_servers_by_tags()"""
+        from index import start_wave_recovery
+
+        # Wave has explicit serverIds
+        sample_state["waves"][0]["serverIds"] = ["s-200", "s-201"]
+
+        pg_table = mock_dynamodb_tables["protection_groups_table"]
+        pg_table.get_item.return_value = {"Item": sample_protection_group}
+
+        exec_table = mock_dynamodb_tables["execution_history_table"]
+        exec_table.update_item.return_value = {}
+
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-xyz789",
+            "servers": [
+                {
+                    "sourceServerId": "s-200",
+                    "serverName": "server-200",
+                    "RecoveryJobId": "drsjob-xyz789",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+                {
+                    "sourceServerId": "s-201",
+                    "serverName": "server-201",
+                    "RecoveryJobId": "drsjob-xyz789",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                },
+            ],
+        }
+
+        # Mock query_drs_servers_by_tags to track if it's called
+        mock_query_drs = Mock()
+
+        with patch("index.protection_groups_table", pg_table):
+            with patch("index.execution_history_table", exec_table):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
+                    with patch("index.query_drs_servers_by_tags", mock_query_drs):
+                        with patch(
+                            "index.start_drs_recovery_for_wave",
+                            return_value=mock_wave_job_result,
+                        ):
+                            with patch("time.time", return_value=1234567890):
+                                start_wave_recovery(sample_state, 0)
+
+        # CRITICAL: Verify query_drs_servers_by_tags was NOT called
+        mock_query_drs.assert_not_called()
+
+        # Verify wave used pre-resolved serverIds
+        assert sample_state["server_ids"] == ["s-200", "s-201"]
+
+    def test_wave_execution_logs_correct_server_count(
+        self,
+        mock_env_vars,
+        mock_dynamodb_tables,
+        mock_drs_client,
+        sample_state,
+        sample_protection_group,
+        mock_launch_config_service,
+        capsys,
+    ):
+        """Test that wave execution logs the correct server count from pre-resolved list"""
+        from index import start_wave_recovery
+
+        # Wave has 5 pre-resolved servers
+        sample_state["waves"][0]["serverIds"] = ["s-001", "s-002", "s-003", "s-004", "s-005"]
+
+        pg_table = mock_dynamodb_tables["protection_groups_table"]
+        pg_table.get_item.return_value = {"Item": sample_protection_group}
+
+        exec_table = mock_dynamodb_tables["execution_history_table"]
+        exec_table.update_item.return_value = {}
+
+        # Mock start_drs_recovery_for_wave response
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {
+                    "sourceServerId": f"s-00{i}",
+                    "serverName": f"server-00{i}",
+                    "RecoveryJobId": "drsjob-abc123",
+                    "status": "LAUNCHING",
+                    "launchTime": 1234567890,
+                }
+                for i in range(1, 6)
+            ],
+        }
+
+        with patch("index.protection_groups_table", pg_table):
+            with patch("index.execution_history_table", exec_table):
+                with patch("index.create_drs_client", return_value=mock_drs_client):
+                    with patch(
+                        "index.start_drs_recovery_for_wave",
+                        return_value=mock_wave_job_result,
+                    ):
+                        with patch("time.time", return_value=1234567890):
+                            start_wave_recovery(sample_state, 0)
+
+        # Verify log message contains correct server count (using print statements)
+        captured = capsys.readouterr()
+        assert "5 pre-resolved servers" in captured.out
+
+
 class TestStartWaveRecoveryDrillVsRecovery:
     """Test drill vs recovery execution type"""
 
@@ -1039,6 +1268,9 @@ class TestStartWaveRecoveryDrillVsRecovery:
     ):
         """Test that isDrill=True is passed for drill executions"""
         from index import start_wave_recovery
+
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
 
         sample_state["is_drill"] = True
 
@@ -1093,6 +1325,9 @@ class TestStartWaveRecoveryDrillVsRecovery:
     ):
         """Test that isDrill=False is passed for recovery executions"""
         from index import start_wave_recovery
+
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
 
         sample_state["is_drill"] = False
 

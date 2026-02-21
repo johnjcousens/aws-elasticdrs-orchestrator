@@ -40,7 +40,6 @@ from shared.response_utils import (  # noqa: E402
     ERROR_STEP_FUNCTIONS_ERROR,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 def get_lambda_handler():

@@ -32,7 +32,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
 from shared.account_utils import STANDARD_ROLE_NAME, construct_role_arn  # noqa: E402
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Start mocking AWS BEFORE loading the module

@@ -28,7 +28,6 @@ from shared.account_utils import (  # noqa: E402
 )
 from shared.security_utils import InputValidationError  # noqa: E402
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 

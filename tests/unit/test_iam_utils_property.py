@@ -39,7 +39,6 @@ from shared.iam_utils import (
 )
 
 # Skip all tests in this file for CI/CD
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Strategy for generating AWS account IDs (12 digits)
