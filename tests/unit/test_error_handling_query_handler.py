@@ -370,7 +370,7 @@ class TestDynamoDBErrors:
     @patch("shared.iam_utils.validate_iam_authorization")
     @patch("shared.account_utils.get_current_account_id")
     @patch("shared.account_utils.get_account_name")
-    def test_dynamodb_throttling_error(self, mock_get_name, mock_get_id, mock_validate, mock_aws_services):
+    def test_dynamodb_throttling_error(self, mock_get_name, mock_get_id, mock_validate, mock_aws_services, reset_module_caches):
         """Test error when DynamoDB throttles requests."""
         lambda_handler = get_lambda_handler()
         mock_validate.return_value = True
@@ -424,7 +424,7 @@ class TestDynamoDBErrors:
     @patch("shared.iam_utils.validate_iam_authorization")
     @patch("shared.account_utils.get_current_account_id")
     @patch("shared.account_utils.get_account_name")
-    def test_dynamodb_resource_not_found(self, mock_get_name, mock_get_id, mock_validate, mock_aws_services):
+    def test_dynamodb_resource_not_found(self, mock_get_name, mock_get_id, mock_validate, mock_aws_services, reset_module_caches):
         """Test error when DynamoDB table doesn't exist."""
         lambda_handler = get_lambda_handler()
         mock_validate.return_value = True
@@ -664,7 +664,7 @@ class TestErrorResponseStructure:
     @patch("shared.account_utils.get_current_account_id")
     @patch("shared.account_utils.get_account_name")
     def test_retryable_errors_include_retry_guidance(
-        self, mock_get_name, mock_get_id, mock_validate, mock_aws_services
+        self, mock_get_name, mock_get_id, mock_validate, mock_aws_services, reset_logger_state, reset_module_caches
     ):
         """Test retryable errors include retry guidance."""
         lambda_handler = get_lambda_handler()

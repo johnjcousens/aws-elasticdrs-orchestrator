@@ -225,7 +225,7 @@ class TestDirectInvocationResponseFormat:
                 assert result["groupName"] == "Test Group"
                 assert "region" in result
 
-    def test_create_protection_group_direct_format(self, mock_dynamodb, mock_iam_utils, lambda_context):
+    def test_create_protection_group_direct_format(self, reset_environment_variables, mock_dynamodb, mock_iam_utils, lambda_context):
         """Direct invocation CREATE should return raw created item"""
         mock_pg_table, mock_rp_table = mock_dynamodb
 
