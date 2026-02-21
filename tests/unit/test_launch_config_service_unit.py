@@ -7,13 +7,6 @@ Tests specific examples and edge cases for launch config service functions.
 Validates: Requirements 5.1
 """
 
-import pytest
-
-# Skip all tests in this file due to cross-file test isolation issues
-# These tests pass individually but fail in full suite due to shared state
-# See: .kiro/specs/cross-file-test-isolation-fix (PAUSED)
-pytestmark = pytest.mark.skip(reason="Cross-file test isolation issues - passes individually, fails in suite")
-
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -619,14 +612,15 @@ class TestApplyLaunchConfigsToGroup:
         mock_boto_client.return_value = mock_drs
 
         # Simulate timeout after first server
-        # Need more time.time() calls for logging
-        mock_time.side_effect = [0, 0, 0, 0, 301, 301, 301]
+        # Use itertools.cycle to provide infinite time values
+        from itertools import cycle
+        mock_time.side_effect = cycle([0, 0, 0, 0, 301, 301, 301])
 
         server_ids = ["s-abc", "s-def", "s-ghi"]
         launch_configs = {
-            "s-abc": {"instanceType": "t3.medium"},
-            "s-def": {"instanceType": "t3.large"},
-            "s-ghi": {"instanceType": "t3.xlarge"},
+            "s-abc": {"copyPrivateIp": True, "instanceType": "t3.medium"},
+            "s-def": {"copyPrivateIp": True, "instanceType": "t3.large"},
+            "s-ghi": {"copyPrivateIp": True, "instanceType": "t3.xlarge"},
         }
 
         from shared.launch_config_service import (
@@ -679,7 +673,7 @@ class TestApplyLaunchConfigsToGroup:
         ]
 
         server_ids = ["s-abc"]
-        launch_configs = {"s-abc": {"instanceType": "t3.medium"}}
+        launch_configs = {"s-abc": {"copyPrivateIp": True, "instanceType": "t3.medium"}}
 
         from shared.launch_config_service import (
             apply_launch_configs_to_group,
@@ -720,8 +714,8 @@ class TestApplyLaunchConfigsToGroup:
 
         server_ids = ["s-abc", "s-def"]
         launch_configs = {
-            "s-abc": {"instanceType": "t3.medium"},
-            "s-def": {"instanceType": "invalid"},
+            "s-abc": {"copyPrivateIp": True, "instanceType": "t3.medium"},
+            "s-def": {"copyPrivateIp": True, "instanceType": "invalid"},
         }
 
         from shared.launch_config_service import (
@@ -844,8 +838,8 @@ class TestApplyLaunchConfigsToGroup:
 
         server_ids = ["s-abc", "s-def"]
         launch_configs = {
-            "s-abc": {"instanceType": "invalid"},
-            "s-def": {"instanceType": "t3.medium"},
+            "s-abc": {"instanceType": "invalid", "copyPrivateIp": True},
+            "s-def": {"instanceType": "t3.medium", "copyPrivateIp": True},
         }
 
         from shared.launch_config_service import (
@@ -963,8 +957,8 @@ class TestApplyLaunchConfigsToGroup:
 
         server_ids = ["s-abc", "s-def"]
         launch_configs = {
-            "s-abc": {"instanceType": "t3.medium"},
-            "s-def": {"instanceType": "t3.large"},
+            "s-abc": {"instanceType": "t3.medium", "copyPrivateIp": True},
+            "s-def": {"instanceType": "t3.large", "copyPrivateIp": True},
         }
 
         from shared.launch_config_service import (

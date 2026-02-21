@@ -32,7 +32,6 @@ from conflict_detection import (  # noqa: E402
     validate_wave_server_count,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 # ============================================================================
 # Test Fixtures

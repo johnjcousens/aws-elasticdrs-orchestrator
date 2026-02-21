@@ -24,7 +24,6 @@ from hypothesis import (
 )
 from hypothesis import strategies as st
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Environment variables must be set before importing handler

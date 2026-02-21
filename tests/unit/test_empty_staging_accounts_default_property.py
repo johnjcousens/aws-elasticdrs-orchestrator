@@ -19,7 +19,6 @@ from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: 
 from moto import mock_aws  # noqa: E402
 from hypothesis import given, settings, strategies as st  # noqa: E402
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Set environment variables BEFORE importing index

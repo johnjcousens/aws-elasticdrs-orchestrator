@@ -30,7 +30,6 @@ sys.path.insert(1, str(shared_dir))
 
 from index import handle_get_combined_capacity, handle_validate_staging_account  # noqa: E402
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 

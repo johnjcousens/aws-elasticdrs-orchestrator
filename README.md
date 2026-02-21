@@ -11,9 +11,9 @@ Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wav
 
 > **🎯 Current Sprint Priorities**: This sprint focuses on three high-priority DRS enhancements to improve rate limit handling, agent deployment, and targeted recovery capabilities. See [Future Enhancements](#future-enhancements) for implementation details and dependencies.
 >
-> **📌 Stable Checkpoint**: Tag `v6.0.1-PreSpecRefactoring` marks a stable state before sprint refactoring begins. If issues arise during implementation, rollback with:
+> **📌 Stable Checkpoint**: Tag `spec-05-inventory-sync-refactoring` marks the latest stable state with query handler read-only audit complete. If issues arise during implementation, rollback with:
 > ```bash
-> git checkout v6.0.1-PreSpecRefactoring
+> git checkout spec-05-inventory-sync-refactoring
 > ./scripts/deploy.sh dev
 > ```
 
@@ -826,11 +826,9 @@ Complete working examples for AWS service integration:
 
 The following features are planned or in development. Each enhancement is documented in `.kiro/specs/` with detailed requirements, design, and implementation tasks.
 
-**📊 Status Summary**: 1 completed (7%), 1 in progress (7%), 5 high priority (33%), 7 planned (46%), 1 archived (7%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
+**📊 Status Summary**: 3 completed (23%), 1 in progress (8%), 4 high priority (31%), 4 planned (31%), 1 archived (8%). See [Spec Analysis](.kiro/specs/SPEC_COMPLETION_ANALYSIS.md) for detailed status.
 
 **🔗 Priority Dependencies**: 03 (AllowLaunchingIntoInstance) blocked by 02 (Rate Limit Handling)
-
-**🗄️ Archived Specs**: 05 (Inventory Sync Refactoring) - based on incorrect assumptions about codebase
 
 ### 🎯 Immediate Actions Needed
 
@@ -842,20 +840,16 @@ The following features are planned or in development. Each enhancement is docume
    - Determine if inventory sync needs to be implemented from scratch
    - Create new spec based on accurate understanding of codebase
 
-| Status | Enhancement | Description | Tasks | Spec |
-|--------|-------------|-------------|-------|------|
-| ✅ Complete | **Active Region Filtering** | Filters DRS queries to active regions only, reducing API calls by 80-90% | 17/17 | [Spec](.kiro/specs/01-active-region-filtering/requirements.md) |
-| 🎯 Priority | **DRS Rate Limit Handling** | Implements comprehensive DRS API rate limit handling with retry logic and metrics | 0/multiple | [Spec](.kiro/specs/02-drs-rate-limit-handling/requirements.md) |
-| 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements targeted recovery into pre-provisioned EC2 instances with IP preservation (blocked by 02) | 0/multiple | [Spec](.kiro/specs/03-drs-allow-launching-into-instance/requirements.md) |
-| 🎯 Priority | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple | [Spec](.kiro/specs/04-recovery-instance-sync/requirements.md) |
-| 🗄️ Archived | **Inventory Sync Refactoring** | Spec archived - based on incorrect assumptions about codebase (function doesn't exist) | N/A | [Archive](archive/kiro/specs/05-inventory-sync-refactoring/README.md) |
-| 🎯 Priority | **Query Handler Read-Only Audit** | Enforces read-only operations in query-handler by moving sync operations to data-management-handler | 0/17 | [Spec](.kiro/specs/06-query-handler-read-only-audit/requirements.md) |
-| 🎯 Priority | **DRS Agent Deployer** | Automates DRS agent deployment to staging accounts with SSM Document orchestration | 0/multiple | [Spec](.kiro/specs/07-drs-agent-deployer/requirements.md) |
-| 📋 Planned | **Cross-File Test Isolation Fix** | Fixes pytest collection errors and cross-file test pollution | 0/8 | [Spec](.kiro/specs/08-cross-file-test-isolation-fix/requirements.md) |
-| 📋 Planned | **Launch Config Pre-Application** | Pre-apply and persist DRS launch configurations when protection groups are created/updated, eliminating 30-60s per-wave overhead during recovery execution | 18/20 (90%) | [Spec](.kiro/specs/09-launch-config-preapplication/requirements.md) |
-| 🚧 In Progress | **Test Isolation Refactoring** | Fixes cross-file test isolation issues causing 23 test failures in launch-config-preapplication | 0/13 | [Spec](.kiro/specs/13-test-isolation-refactoring/requirements.md) |
-| 📋 Planned | **Cross-File Test Isolation Fix** | Fixes test isolation issues causing failures when tests run together | 0/multiple | [Spec](.kiro/specs/09-cross-file-test-isolation-fix/requirements.md) |
-| 📋 Planned | **DynamoDB Mock Structure Fix** | Fixes DynamoDB mock structure to match AWS SDK v3 format | 0/multiple | [Spec](.kiro/specs/10-dynamodb-mock-structure-fix/requirements.md) |
+| Status | Enhancement | Description | Tasks |
+|--------|-------------|-------------|-------|
+| ✅ Complete | **Active Region Filtering** | Filters DRS queries to active regions only, reducing API calls by 80-90% | 17/17 |
+| ✅ Complete | **Query Handler Read-Only Audit** | Enforced read-only operations in query-handler by moving sync operations to data-management-handler | 17/17 |
+| ✅ Complete | **Launch Config Pre-Application** | Pre-apply and persist DRS launch configurations when protection groups are created/updated, eliminating 30-60s per-wave overhead during recovery execution | 20/20 | [Spec](archive/kiro/specs/complete/09-launch-config-preapplication/requirements.md) |
+| ✅ Complete | **Test Isolation Refactoring** | Fixed cross-file test isolation issues by refactoring 15 tests to use explicit mocking pattern instead of @mock_aws decorator | 17/17 | [Spec](archive/kiro/specs/complete/13-test-isolation-refactoring/requirements.md) |
+| 🎯 Priority | **DRS Rate Limit Handling** | Implements comprehensive DRS API rate limit handling with retry logic and metrics | 0/multiple |
+| 🎯 Priority | **DRS AllowLaunchingIntoInstance** | Implements targeted recovery into pre-provisioned EC2 instances with IP preservation (blocked by 02) | 0/multiple |
+| 🎯 Priority | **Recovery Instance Sync** | Implements real-time DRS recovery instance synchronization with DynamoDB for accurate status tracking | 0/multiple |
+| 🎯 Priority | **DRS Agent Deployer** | Automates DRS agent deployment to staging accounts with SSM Document orchestration | 0/multiple |
 | 📋 Planned | **Deploy Script Test Detection Fix** | Fixes deploy script test failure detection using exit codes instead of string parsing | 0/18 | [Spec](.kiro/specs/11-deploy-script-test-detection-fix/requirements.md) |
 | 📋 Planned | **CloudScape Component Improvements** | Adopts additional CloudScape components (Wizard, Cards, CodeEditor, etc.) | 0/~100 | [Spec](.kiro/specs/12-cloudscape-component-improvements/requirements.md) |
 | 📋 Planned | **CSS Refactoring** | Removes all inline styles, replaces with CSS modules and CloudScape design tokens | 0/35 | [Spec](.kiro/specs/14-css-refactoring/requirements.md) |
@@ -863,7 +857,7 @@ The following features are planned or in development. Each enhancement is docume
 
 ### Enhancement Categories
 
-**Completed (11 specs - 37%)**
+**Completed (14 specs - 47%)**
 - Core functionality improvements and bug fixes
 - Direct Lambda invocation support
 - Cross-account role standardization
@@ -871,24 +865,23 @@ The following features are planned or in development. Each enhancement is docume
 - Code architecture improvements (orchestration refactoring)
 - Frontend fixes (wave completion display)
 - Active region filtering (performance optimization)
+- Query handler read-only audit (architectural clarity)
+- Launch config pre-application (performance optimization)
+- Test isolation refactoring (code quality)
 
-**In Progress (1 spec - 7%)**
-- 13-test-isolation-refactoring: Code quality improvements
-
-**Priority (5 specs - 33%)**
+**Priority (4 specs - 27%)**
 - 02-drs-rate-limit-handling: DRS API rate limit handling
 - 03-drs-allow-launching-into-instance: AllowLaunchingIntoInstance pattern
 - 04-recovery-instance-sync: Real-time recovery instance sync
-- 06-query-handler-read-only-audit: Read-only enforcement
 - 07-drs-agent-deployer: DRS agent deployment
 
-**Planned (7 specs - 46%)**
-- Testing improvements (08-cross-file-test-isolation-fix, 09-launch-config-preapplication, 10-dynamodb-mock-structure-fix, 11-deploy-script-test-detection-fix)
+**Planned (4 specs - 27%)**
+- Testing improvements (11-deploy-script-test-detection-fix)
 - Frontend modernization (12-cloudscape-component-improvements, 14-css-refactoring)
 - Documentation improvements (15-documentation-accuracy-audit)
 
-**Archived (1 spec - 7%)**
-- 05-inventory-sync-refactoring: Based on incorrect assumptions about codebase (function doesn't exist)
+**Archived (1 spec - 8%)**
+- 08-cross-file-test-isolation-fix: Superseded by spec 13 (test-isolation-refactoring) which addresses root cause
 
 ### Key Dependencies
 

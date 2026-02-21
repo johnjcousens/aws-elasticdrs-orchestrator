@@ -22,7 +22,6 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Add lambda paths for imports

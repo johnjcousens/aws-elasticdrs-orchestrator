@@ -313,14 +313,12 @@ class TestLogDirectInvocation:
         log_data = json.loads(log_call)
 
         # Verify sensitive parameters are masked
-        # "secret123" -> "secr" + "*****" (9 chars total, first 4 kept, 5 masked)
+        # "secret123" -> "secr" + "*******" (11 chars total, first 4 kept, 7 asterisks)
         assert log_data["parameters"]["password"].startswith("secr")
-        assert "*" in log_data["parameters"]["password"]
-        assert len(log_data["parameters"]["password"]) == len("secret123")
-        # "abc123def456" -> "abc1" + "********" (12 chars total, first 4 kept, 8 masked)
+        assert log_data["parameters"]["password"] == "secr*******"
+        # "abc123def456" -> "abc1" + "*******" (11 chars total, first 4 kept, 7 asterisks)
         assert log_data["parameters"]["token"].startswith("abc1")
-        assert "*" in log_data["parameters"]["token"]
-        assert len(log_data["parameters"]["token"]) == len("abc123def456")
+        assert log_data["parameters"]["token"] == "abc1*******"
         # Non-sensitive parameter should not be masked
         assert log_data["parameters"]["region"] == "us-east-1"
 
@@ -385,15 +383,13 @@ class TestLogDirectInvocation:
         log_data = json.loads(log_call)
 
         # Verify nested sensitive parameters are masked
-        # "secret123" -> "secr" + "*****" (9 chars total, first 4 kept, 5 masked)
+        # "secret123" -> "secr" + "*******" (11 chars total, first 4 kept, 7 asterisks)
         assert log_data["parameters"]["config"]["password"].startswith("secr")
-        assert "*" in log_data["parameters"]["config"]["password"]
-        assert len(log_data["parameters"]["config"]["password"]) == len("secret123")
+        assert log_data["parameters"]["config"]["password"] == "secr*******"
         assert log_data["parameters"]["config"]["region"] == "us-east-1"
-        # "abc123" -> "abc1" + "**" (6 chars total, first 4 kept, 2 masked)
+        # "abc123" -> "abc1" + "*******" (11 chars total, first 4 kept, 7 asterisks)
         assert log_data["parameters"]["token"].startswith("abc1")
-        assert "*" in log_data["parameters"]["token"]
-        assert len(log_data["parameters"]["token"]) == len("abc123")
+        assert log_data["parameters"]["token"] == "abc1*******"
 
     @patch("shared.iam_utils.logger")
     def test_log_handles_exception(self, mock_logger):

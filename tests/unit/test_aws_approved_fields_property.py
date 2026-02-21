@@ -27,7 +27,6 @@ from shared.launch_config_validation import (  # noqa: E402
     BLOCKED_FIELDS,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 @given(

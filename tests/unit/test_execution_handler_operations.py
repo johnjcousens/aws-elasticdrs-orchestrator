@@ -14,7 +14,6 @@ from unittest.mock import MagicMock, Mock, patch  # noqa: F401  # noqa: F401  # 
 import pytest  # noqa: F401
 from botocore.exceptions import ClientError  # noqa: F401
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 

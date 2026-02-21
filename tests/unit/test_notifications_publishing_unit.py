@@ -15,7 +15,6 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Add lambda directory to path

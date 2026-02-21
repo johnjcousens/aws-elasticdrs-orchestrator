@@ -38,7 +38,6 @@ from shared.response_utils import (  # noqa: E402
     ERROR_NOT_FOUND,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 # Import the query-handler module for patching
 query_handler_index = importlib.import_module("query-handler.index")

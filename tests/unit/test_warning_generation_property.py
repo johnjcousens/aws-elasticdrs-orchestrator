@@ -33,7 +33,6 @@ from index import (  # noqa: E402
     calculate_account_status,
 )
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # ============================================================================

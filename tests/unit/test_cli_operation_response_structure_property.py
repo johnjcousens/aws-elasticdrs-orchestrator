@@ -37,7 +37,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "shared"
 # Import data management handler
 import importlib  # noqa: F401
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda"))

@@ -1,104 +1,88 @@
 ---
-inclusion: manual
+inclusion: always
 ---
 
 # AWS Stack Protection Rules
 
-## Stack Naming Convention
+## ⛔⛔⛔ ABSOLUTE PROHIBITION - READ FIRST ⛔⛔⛔
 
-**Primary Working Stack**: `aws-drs-orchestration-qa`
-- AWS Account: `438465159935`
-- Region: `us-east-1`
-- Stack ARN: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-drs-orchestration-qa/ae2732a0-0da7-11f1-81ab-0ebf70dc8dab`
-- This is the main working environment
-- All development and testing happens here
-- S3 Deployment Bucket: `aws-drs-orchestration-qa`
-- API Endpoint: `https://k8uzkghqrf.execute-api.us-east-1.amazonaws.com/qa`
-- CloudFront URL: `https://d2km02vao8dqje.cloudfront.net`
-- Nested Stacks:
-  - DatabaseStack: `aws-drs-orchestration-qa-DatabaseStack-1MY9XMZ4LI7DQ`
-  - NotificationStack: `aws-drs-orchestration-qa-NotificationStack-O9MFLSH6IP5U`
-  - LambdaStack: `aws-drs-orchestration-qa-LambdaStack-4AU80AY53S7T`
-  - StepFunctionsStack: `aws-drs-orchestration-qa-StepFunctionsStack-1JI5C6MSZ243F`
-  - ApiAuthStack: `aws-drs-orchestration-qa-ApiAuthStack-H3JNU260ZT6U`
-  - ApiGatewayCoreStack: `aws-drs-orchestration-qa-ApiGatewayCoreStack-10G1O9XGTTLWL`
-  - ApiGatewayResourcesStack: `aws-drs-orchestration-qa-ApiGatewayResourcesStack-8NRG9RV4E2L9`
-  - ApiGatewayCoreMethodsStack: `aws-drs-orchestration-qa-ApiGatewayCoreMethodsStack-U5WVD72NA5HV`
-  - ApiGatewayInfrastructureMethodsStack: `aws-drs-orchestration-qa-ApiGatewayInfrastructureMethodsStack-3F6359CJ219S`
-  - ApiGatewayOperationsMethodsStack: `aws-drs-orchestration-qa-ApiGatewayOperationsMethodsStack-EFJQXPVTXR3Q`
-  - ApiGatewayDeploymentStack: `aws-drs-orchestration-qa-ApiGatewayDeploymentStack-1E6CGF61XYWA3`
-  - EventBridgeStack: `aws-drs-orchestration-qa-EventBridgeStack-1MIBA851ECMMR`
-  - FrontendStack: `aws-drs-orchestration-qa-FrontendStack-BRP6S2Y63M1W`
-  - WAFStack: `aws-drs-orchestration-qa-WAFStack-1FCIM8KKTSR1H`
+**STOP. Before executing ANY AWS CLI or CloudFormation command:**
 
-**Legacy Stack (UPDATE_ROLLBACK_FAILED)**: `aws-drs-orchestration-test`
-- Status: UPDATE_ROLLBACK_FAILED (do not use)
-- Stack ARN: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-drs-orchestration-test/e1e00cb0-fe49-11f0-a956-0ef4995d315b`
-
-## Current Working Environment
-
-**Always deploy to**: `qa` environment
-```bash
-./scripts/deploy.sh qa
+### BANNED PATTERNS - NEVER EXECUTE:
+```
+❌ ANY command containing "elasticdrs-orchestrator-test"
+❌ ANY command containing "-test" stack suffix
+❌ aws dynamodb * --table-name *-test
+❌ aws lambda * --function-name *-test
+❌ aws cloudformation * --stack-name *-test
 ```
 
-## Best Practices
+### ALLOWED PATTERNS - DEV ONLY:
+```
+✅ aws dynamodb * --table-name *-dev
+✅ aws lambda * --function-name *-dev  
+✅ Stack names ending in "-dev"
+```
 
-### Before Any Stack Operation
+**If you see "-test" in any resource name, STOP IMMEDIATELY.**
 
-1. **Verify the stack name** matches your intended environment
-2. **Check the AWS account** you're deploying to
-3. **Review the parameters** before deployment
-4. **Use appropriate environment variables** from `.env.{environment}`
+---
 
-### Deployment Safety
+## CRITICAL: Protected CloudFormation Stacks
 
-- Always use the deploy script: `./scripts/deploy.sh {environment}`
-- Run validation first: `./scripts/deploy.sh {environment} --validate-only`
-- Check stack status before deploying: `aws cloudformation describe-stacks --stack-name {stack-name}`
+### NEVER TOUCH THESE STACKS
 
-### Environment Isolation
+The following CloudFormation stacks are **PRODUCTION CRITICAL** and must **NEVER** be modified, updated, or deleted under any circumstances:
 
-Each environment should have:
-- Separate S3 deployment bucket: `aws-drs-orchestration-{environment}`
-- Separate DynamoDB tables: `aws-drs-orchestration-*-{environment}`
-- Separate Lambda functions: `aws-drs-orchestration-*-{environment}`
-- Separate CloudFront distribution
-- Separate Cognito User Pool
-- Separate API Gateway deployment
+- `hrp-drs-tech-adapter-dev` (master stack)
+- `hrp-drs-tech-adapter-dev-*` (all nested stacks)
+- `hrp-drs-tech-adapter-github-oidc-dev` (OIDC authentication stack)
 
-**Supported Environments**: `dev`, `test`, `qa`, `uat`, `prod`
+### Why These Stacks Are Protected
 
-## Emergency Procedures
+These stacks contain:
+- Production authentication infrastructure (GitHub/GitLab OIDC)
+- Live API Gateway endpoints
+- Active Lambda functions
+- Production databases with live data
+- CloudFront distributions serving production traffic
+- Cognito user pools with real user accounts
 
-If you accidentally deploy to the wrong environment:
+### Consequences of Modification
 
-1. **IMMEDIATELY** check what was deployed:
-   ```bash
-   aws cloudformation describe-stacks --stack-name {stack-name}
-   ```
+Modifying these stacks would:
+- Break production authentication
+- Cause service outages
+- Delete production data
+- Disrupt active user sessions
+- Require manual recovery procedures
 
-2. **If wrong environment**, delete the stack:
-   ```bash
-   aws cloudformation delete-stack --stack-name {stack-name}
-   ```
+### Correct Development Stack
 
-3. **Document the incident** and review deployment process
+For development and testing, use:
+- Stack name: `aws-drs-orch-dev`
+- Environment: `dev`
+- Deployment bucket: `aws-drs-orch-dev`
+- Stack ARN: `arn:aws:cloudformation:us-east-2:891376951562:stack/aws-drs-orch-dev/0f8d1db0-f3d7-11f0-af5c-0eb8e4e8f475`
 
-## Verification Checklist
+### Verification Before Any Stack Operation
 
-Before deploying to production:
+Before ANY CloudFormation operation, verify:
+1. Stack name ends with `-dev` (not `-test`)
+2. Environment parameter is `dev` (not `test`)
+3. You are NOT operating on protected stacks
 
-- [ ] Code reviewed and approved
-- [ ] All tests passing
-- [ ] Security scans completed
-- [ ] Deployed and tested in dev environment
-- [ ] Deployed and tested in test/staging environment
-- [ ] Backup plan in place
-- [ ] Rollback procedure documented
-- [ ] Team notified of deployment
+### Emergency Procedures
 
-## Related Documentation
+If you accidentally target a protected stack:
+1. IMMEDIATELY cancel the operation
+2. Do NOT proceed with any changes
+3. Notify the team immediately
+4. Document the incident
 
-- [CI/CD Workflow Enforcement](cicd-workflow-enforcement.md) - Deployment workflow
-- [Deployment Flexibility Guide](../../docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) - Deployment modes
+## Always Follow Rules
+
+- **ALWAYS** verify stack name before any CloudFormation operation
+- **ALWAYS** use `-dev` environment for development work
+- **NEVER** assume a stack is safe to modify without verification
+- **NEVER** use wildcards or patterns that could match protected stacks

@@ -34,7 +34,6 @@ sys.path.insert(1, str(shared_dir))
 # Import the data management handler
 import index  # noqa: E402
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Get the functions we need

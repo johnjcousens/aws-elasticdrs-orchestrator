@@ -16,7 +16,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, call
 from datetime import datetime, timezone
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # Set up environment variables before importing handler

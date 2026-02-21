@@ -23,7 +23,6 @@ from shared.notifications import (
 )
 
 # Skip all tests in this file for CI/CD
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # ── Shared test fixtures ────────────────────────────────────────

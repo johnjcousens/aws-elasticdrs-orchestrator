@@ -29,7 +29,6 @@ from conflict_detection import (  # noqa: E402
 )
 
 # Skip all tests in this file for CI/CD
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 # ============================================================================

@@ -17,7 +17,6 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-pytestmark = pytest.mark.skip(reason="Skipped for CI/CD - cross-file test isolation issues")
 
 
 
@@ -94,6 +93,7 @@ def sample_state():
                 "waveNumber": 0,
                 "waveName": "Wave 1",
                 "protectionGroupId": "pg-789",
+                # Note: serverIds not included by default - tests add them as needed
             }
         ],
         "wave_results": [],
@@ -168,6 +168,9 @@ class TestWaveExecutionFastPath:
         """
         from index import start_wave_recovery
 
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001", "s-002"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -235,6 +238,9 @@ class TestWaveExecutionFastPath:
     ):
         """Test that fast path logs appropriate message."""
         from index import start_wave_recovery
+
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -309,6 +315,9 @@ class TestWaveExecutionFallbackPath:
         """
         from index import start_wave_recovery
 
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001", "s-002"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -375,6 +384,9 @@ class TestWaveExecutionFallbackPath:
         """
         from index import start_wave_recovery
 
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -439,6 +451,9 @@ class TestWaveExecutionFallbackPath:
         """
         from index import start_wave_recovery
 
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -493,6 +508,9 @@ class TestWaveExecutionFallbackPath:
     ):
         """Test that fallback path skips config when PG has no launchConfig."""
         from index import start_wave_recovery
+
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
 
         # Protection Group without launchConfig
         pg_no_config = {
@@ -560,6 +578,9 @@ class TestWaveExecutionConfigStatusCheckFailure:
         """Test that config status check failure falls back to runtime app."""
         from index import start_wave_recovery
 
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -613,6 +634,9 @@ class TestWaveExecutionConfigStatusCheckFailure:
         """Test that config status check failure logs warning."""
         from index import start_wave_recovery
 
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -658,6 +682,9 @@ class TestWaveExecutionMissingConfigStatus:
     ):
         """Test that missing config status triggers runtime application."""
         from index import start_wave_recovery
+
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -715,6 +742,9 @@ class TestWaveExecutionConfigStatusIntegration:
     ):
         """Test that config status check uses correct protection group ID."""
         from index import start_wave_recovery
+
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -778,6 +808,9 @@ class TestWaveExecutionConfigStatusIntegration:
     ):
         """Test that wave execution continues after config status check."""
         from index import start_wave_recovery
+
+        # Add explicit serverIds to wave
+        sample_state["waves"][0]["serverIds"] = ["s-001", "s-002"]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -852,6 +885,9 @@ class TestWaveExecutionDriftDetection:
         - No re-application of configs occurs
         """
         from index import start_wave_recovery
+
+        # Add serverIds to the wave
+        sample_state["waves"][0]["serverIds"] = ["s-001", "s-002"]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -943,6 +979,9 @@ class TestWaveExecutionDriftDetection:
         - Only drifted servers have configs re-applied
         """
         from index import start_wave_recovery
+
+        # Add serverIds to the wave
+        sample_state["waves"][0]["serverIds"] = ["s-001", "s-002"]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -1063,6 +1102,9 @@ class TestWaveExecutionDriftDetection:
         """
         from index import start_wave_recovery
 
+        # Add serverIds to the wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -1154,6 +1196,9 @@ class TestWaveExecutionDriftDetection:
         - Status includes appliedBy="drift-detection"
         """
         from index import start_wave_recovery
+
+        # Add serverIds to the wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
 
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
@@ -1262,6 +1307,9 @@ class TestWaveExecutionDriftDetection:
         """
         from index import start_wave_recovery
 
+        # Add serverIds to the wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
         pg_table.get_item.return_value = {"Item": sample_protection_group}
 
@@ -1345,6 +1393,9 @@ class TestWaveExecutionDriftDetection:
         - Recovery starts immediately
         """
         from index import start_wave_recovery
+
+        # Add serverIds to the wave
+        sample_state["waves"][0]["serverIds"] = ["s-001"]
 
         # Protection Group without launchConfig
         pg_no_config = {
