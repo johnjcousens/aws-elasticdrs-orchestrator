@@ -201,3 +201,40 @@ implementing module reload pattern for @mock_aws compatibility.
 
 Test results: 232 passing (+32), 27 failing (-2)
 ```
+
+
+## Deploy Script Test Detection Fix (2024-02-11)
+
+### Issue
+Deploy script incorrectly handled test failures, allowing broken code to deploy. The script checked for both "passed" and "failed" strings in output, assumed "test isolation issues", and continued deployment despite failures.
+
+### Root Cause
+1. Script used string parsing instead of pytest exit code
+2. Script assumed test failures were "cross-file isolation issues"
+3. No actual test isolation fixtures existed to prevent state leakage
+4. Tests were genuinely failing due to global state leakage
+
+### Solution
+1. **Deploy Script Fix**: Updated test detection to use pytest exit code instead of string parsing
+2. **Test Isolation**: Added 5 autouse fixtures to reset global state between tests
+3. **Test Fixes**: Updated 5 failing tests to use appropriate isolation fixtures
+
+### Files Changed
+- `scripts/deploy.sh` (lines 636-663): Fixed test detection in 3 locations
+- `tests/unit/conftest.py`: Added 5 autouse fixtures
+- `tests/unit/test_data_management_response_format.py`: Added reset_environment_variables fixture
+- `tests/unit/test_error_handling_query_handler.py`: Added reset_module_caches fixture to 3 tests
+- `tests/unit/test_iam_audit_logging_property.py`: Added reset_logger_state and reset_environment_variables fixtures
+
+### Result
+- All tests now pass consistently in both individual and batch execution
+- Deploy script properly detects and reports test failures
+- No more false "test isolation issues" warnings
+- Deployment blocked when tests actually fail
+
+### Lessons Learned
+1. Always use exit codes for command success/failure detection
+2. Never parse command output strings for error detection
+3. Test isolation is critical for reliable test suites
+4. Autouse fixtures provide consistent test isolation
+5. Global state in Lambda handlers requires careful management

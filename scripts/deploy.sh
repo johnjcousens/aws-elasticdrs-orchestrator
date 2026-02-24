@@ -631,34 +631,123 @@ else
     fi
 
     if [ -n "$PYTEST_CMD" ]; then
+        # ============================================================================
+        # Test Detection Logic
+        # ============================================================================
+        # CRITICAL: Use pytest exit code to detect failures, NOT string parsing
+        # 
+        # - Exit code 0 = all tests passed
+        # - Exit code non-zero = one or more tests failed
+        # 
+        # We capture the exit code using set +e / set -e wrapper, then check it
+        # explicitly. This is more reliable than parsing output strings.
+        #
+        # NEVER ignore test failures or assume they are "test isolation issues".
+        # If tests fail, the deployment MUST be blocked.
+        # ============================================================================
+        
         # Determine test mode
         if [ "$VALIDATE_ONLY" = true ]; then
             # Validate-only mode: Run ALL tests with process isolation (slow but comprehensive)
             echo "  Running full test suite with process isolation (this may take several minutes)..."
-            if $PYTEST_CMD tests/unit/ -v --forked --hypothesis-show-statistics; then
-                echo -e "${GREEN}  ✓ pytest (full suite, isolated)${NC}"
-            else
-                echo -e "${RED}  ✗ pytest: tests failed${NC}"
+            
+            # Run unit tests and capture exit code
+            set +e
+            $PYTEST_CMD tests/unit/ -v --forked --hypothesis-show-statistics 2>&1 | tee /tmp/pytest_output.txt
+            PYTEST_EXIT_CODE=$?
+            set -e
+            
+            if [ $PYTEST_EXIT_CODE -ne 0 ]; then
+                echo -e "${RED}  ✗ Unit tests failed (exit code: $PYTEST_EXIT_CODE)${NC}"
+                
+                # Count failures
+                FAILED_COUNT=$(grep -c "FAILED" /tmp/pytest_output.txt || echo "0")
+                PASSED_COUNT=$(grep -c "PASSED" /tmp/pytest_output.txt || echo "0")
+                echo -e "${RED}  Failed: $FAILED_COUNT tests${NC}"
+                echo -e "${GREEN}  Passed: $PASSED_COUNT tests${NC}"
+                
+                # Show which tests failed
+                echo -e "${YELLOW}  Failed test details:${NC}"
+                grep "FAILED" /tmp/pytest_output.txt | head -20 || true
+                
+                echo ""
+                echo -e "${YELLOW}  To debug:${NC}"
+                echo -e "${YELLOW}    1. Run full suite: source .venv/bin/activate && pytest tests/unit/ -v${NC}"
+                echo -e "${YELLOW}    2. Run specific test: pytest tests/unit/test_file.py::test_name -v${NC}"
+                echo -e "${YELLOW}    3. Check test output: cat /tmp/pytest_output.txt${NC}"
+                
                 FAILED=true
+            else
+                PASSED_COUNT=$(grep -c "PASSED" /tmp/pytest_output.txt || echo "0")
+                echo -e "${GREEN}  ✓ Unit tests passed ($PASSED_COUNT tests)${NC}"
             fi
         elif [ "$FULL_TESTS" = true ]; then
             # Full tests mode: Run all tests including slow ones, with isolation
             echo "  Running full test suite with process isolation..."
-            if $PYTEST_CMD tests/unit/ -v --forked --hypothesis-show-statistics; then
-                echo -e "${GREEN}  ✓ pytest (full suite, isolated)${NC}"
-            else
-                echo -e "${RED}  ✗ pytest: tests failed${NC}"
+            
+            # Run unit tests and capture exit code
+            set +e
+            $PYTEST_CMD tests/unit/ -v --forked --hypothesis-show-statistics 2>&1 | tee /tmp/pytest_output.txt
+            PYTEST_EXIT_CODE=$?
+            set -e
+            
+            if [ $PYTEST_EXIT_CODE -ne 0 ]; then
+                echo -e "${RED}  ✗ Unit tests failed (exit code: $PYTEST_EXIT_CODE)${NC}"
+                
+                # Count failures
+                FAILED_COUNT=$(grep -c "FAILED" /tmp/pytest_output.txt || echo "0")
+                PASSED_COUNT=$(grep -c "PASSED" /tmp/pytest_output.txt || echo "0")
+                echo -e "${RED}  Failed: $FAILED_COUNT tests${NC}"
+                echo -e "${GREEN}  Passed: $PASSED_COUNT tests${NC}"
+                
+                # Show which tests failed
+                echo -e "${YELLOW}  Failed test details:${NC}"
+                grep "FAILED" /tmp/pytest_output.txt | head -20 || true
+                
+                echo ""
+                echo -e "${YELLOW}  To debug:${NC}"
+                echo -e "${YELLOW}    1. Run full suite: source .venv/bin/activate && pytest tests/unit/ -v --forked${NC}"
+                echo -e "${YELLOW}    2. Run specific test: pytest tests/unit/test_file.py::test_name -v${NC}"
+                echo -e "${YELLOW}    3. Check test output: cat /tmp/pytest_output.txt${NC}"
+                
                 FAILED=true
+            else
+                PASSED_COUNT=$(grep -c "PASSED" /tmp/pytest_output.txt || echo "0")
+                echo -e "${GREEN}  ✓ Unit tests passed ($PASSED_COUNT tests)${NC}"
             fi
         else
-            # Fast deployment mode: Run without isolation (some cross-file tests may fail, but fast)
-            echo "  Running fast unit tests (without isolation)..."
-            if $PYTEST_CMD tests/unit/ -v -m "not slow"; then
-                echo -e "${GREEN}  ✓ pytest (fast tests)${NC}"
+            # Fast deployment mode: Run without isolation (skip property-based tests for speed)
+            echo "  Running fast unit tests (skip property-based tests)..."
+            
+            # Run fast unit tests (skip property-based tests) and capture exit code
+            set +e
+            $PYTEST_CMD tests/unit/ -m "not property" -v --tb=short 2>&1 | tee /tmp/pytest_output.txt
+            PYTEST_EXIT_CODE=$?
+            set -e
+            
+            if [ $PYTEST_EXIT_CODE -ne 0 ]; then
+                echo -e "${RED}  ✗ Unit tests failed (exit code: $PYTEST_EXIT_CODE)${NC}"
+                
+                # Count failures
+                FAILED_COUNT=$(grep -c "FAILED" /tmp/pytest_output.txt || echo "0")
+                PASSED_COUNT=$(grep -c "PASSED" /tmp/pytest_output.txt || echo "0")
+                echo -e "${RED}  Failed: $FAILED_COUNT tests${NC}"
+                echo -e "${GREEN}  Passed: $PASSED_COUNT tests${NC}"
+                
+                # Show which tests failed
+                echo -e "${YELLOW}  Failed test details:${NC}"
+                grep "FAILED" /tmp/pytest_output.txt | head -20 || true
+                
+                echo ""
+                echo -e "${YELLOW}  To debug:${NC}"
+                echo -e "${YELLOW}    1. Run fast suite: source .venv/bin/activate && pytest tests/unit/ -m 'not property' -v${NC}"
+                echo -e "${YELLOW}    2. Run specific test: pytest tests/unit/test_file.py::test_name -v${NC}"
+                echo -e "${YELLOW}    3. Check test output: cat /tmp/pytest_output.txt${NC}"
+                
+                FAILED=true
             else
-                echo -e "${YELLOW}  ⚠ pytest: some tests failed (cross-file isolation issues)${NC}"
-                echo -e "${YELLOW}     Run with --validate-only for isolated test execution${NC}"
-                # Don't fail deployment for cross-file test issues in fast mode
+                PASSED_COUNT=$(grep -c "PASSED" /tmp/pytest_output.txt || echo "0")
+                echo -e "${GREEN}  ✓ Unit tests passed ($PASSED_COUNT tests)${NC}"
             fi
         fi
     else

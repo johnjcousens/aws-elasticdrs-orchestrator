@@ -150,11 +150,15 @@ class TestPersistConfigStatus:
         mock_table.update_item.assert_called_once()
         call_args = mock_table.update_item.call_args
         assert call_args[1]["Key"] == {"groupId": "pg-123"}
-        assert ":status" in call_args[1]["ExpressionAttributeValues"]
-        assert (
-            call_args[1]["ExpressionAttributeValues"][":status"]
-            == config_status
-        )
+        
+        # Verify all fields are in attribute values (partial update format)
+        attr_values = call_args[1]["ExpressionAttributeValues"]
+        assert ":status" in attr_values
+        assert attr_values[":status"] == "ready"
+        assert ":lastApplied" in attr_values
+        assert ":appliedBy" in attr_values
+        assert ":serverConfigs" in attr_values
+        assert ":errors" in attr_values
 
     @patch("shared.launch_config_service._get_protection_groups_table")
     def test_persist_with_server_configs(self, mock_get_table):
@@ -239,36 +243,6 @@ class TestPersistConfigStatus:
         ):
             persist_config_status("pg-123", {})
 
-    def test_persist_missing_status_field_raises_error(self):
-        """Test persisting without status field raises validation error."""
-        config_status = {"serverConfigs": {}, "errors": []}
-
-        with pytest.raises(
-            LaunchConfigValidationError,
-            match="config_status missing required field: status",
-        ):
-            persist_config_status("pg-123", config_status)
-
-    def test_persist_missing_server_configs_field_raises_error(self):
-        """Test persisting without serverConfigs field raises error."""
-        config_status = {"status": "ready", "errors": []}
-
-        with pytest.raises(
-            LaunchConfigValidationError,
-            match="config_status missing required field: serverConfigs",
-        ):
-            persist_config_status("pg-123", config_status)
-
-    def test_persist_missing_errors_field_raises_error(self):
-        """Test persisting without errors field raises validation error."""
-        config_status = {"status": "ready", "serverConfigs": {}}
-
-        with pytest.raises(
-            LaunchConfigValidationError,
-            match="config_status missing required field: errors",
-        ):
-            persist_config_status("pg-123", config_status)
-
     @patch("shared.launch_config_service._get_protection_groups_table")
     def test_persist_dynamodb_client_error_raises_application_error(
         self, mock_get_table
@@ -313,6 +287,138 @@ class TestPersistConfigStatus:
         call_args = mock_table.update_item.call_args
         assert "UpdateExpression" in call_args[1]
         assert "SET launchConfigStatus" in call_args[1]["UpdateExpression"]
+
+    @patch("shared.launch_config_service._get_protection_groups_table")
+    def test_persist_partial_update_single_field(self, mock_get_table):
+        """Test partial update with only status field.
+        
+        Validates: Requirements 8.4 (partial updates)
+        """
+        mock_table = MagicMock()
+        mock_get_table.return_value = mock_table
+
+        # Partial update - only status field
+        config_status = {"status": "pending"}
+
+        persist_config_status("pg-123", config_status)
+
+        mock_table.update_item.assert_called_once()
+        call_args = mock_table.update_item.call_args
+        
+        # Verify UpdateExpression uses partial update syntax
+        assert "UpdateExpression" in call_args[1]
+        assert "launchConfigStatus.#status" in call_args[1]["UpdateExpression"]
+        
+        # Verify attribute names and values
+        assert "#status" in call_args[1]["ExpressionAttributeNames"]
+        assert call_args[1]["ExpressionAttributeNames"]["#status"] == "status"
+        assert ":status" in call_args[1]["ExpressionAttributeValues"]
+        assert call_args[1]["ExpressionAttributeValues"][":status"] == "pending"
+
+    @patch("shared.launch_config_service._get_protection_groups_table")
+    def test_persist_partial_update_multiple_fields(self, mock_get_table):
+        """Test partial update with multiple fields.
+        
+        Validates: Requirements 8.4 (partial updates)
+        """
+        mock_table = MagicMock()
+        mock_get_table.return_value = mock_table
+
+        # Partial update - status and lastApplied only
+        config_status = {
+            "status": "ready",
+            "lastApplied": "2025-02-16T10:30:00Z"
+        }
+
+        persist_config_status("pg-123", config_status)
+
+        mock_table.update_item.assert_called_once()
+        call_args = mock_table.update_item.call_args
+        
+        # Verify both fields are in UpdateExpression
+        update_expr = call_args[1]["UpdateExpression"]
+        assert "launchConfigStatus.#status" in update_expr
+        assert "launchConfigStatus.#lastApplied" in update_expr
+        
+        # Verify attribute names
+        attr_names = call_args[1]["ExpressionAttributeNames"]
+        assert "#status" in attr_names
+        assert "#lastApplied" in attr_names
+        
+        # Verify attribute values
+        attr_values = call_args[1]["ExpressionAttributeValues"]
+        assert ":status" in attr_values
+        assert ":lastApplied" in attr_values
+        assert attr_values[":status"] == "ready"
+        assert attr_values[":lastApplied"] == "2025-02-16T10:30:00Z"
+
+    @patch("shared.launch_config_service._get_protection_groups_table")
+    def test_persist_with_condition_expression(self, mock_get_table):
+        """Test conditional update with condition expression.
+        
+        Validates: Requirements 8.4 (concurrency control)
+        """
+        mock_table = MagicMock()
+        mock_get_table.return_value = mock_table
+
+        config_status = {"status": "ready"}
+        condition = "launchConfigStatus.#status = :pending"
+
+        persist_config_status("pg-123", config_status, condition_expression=condition)
+
+        mock_table.update_item.assert_called_once()
+        call_args = mock_table.update_item.call_args
+        
+        # Verify condition expression is passed
+        assert "ConditionExpression" in call_args[1]
+        assert call_args[1]["ConditionExpression"] == condition
+
+    @patch("shared.launch_config_service._get_protection_groups_table")
+    def test_persist_conditional_check_failure_raises_error(self, mock_get_table):
+        """Test conditional check failure raises appropriate error.
+        
+        Validates: Requirements 8.4 (concurrency control)
+        """
+        from botocore.exceptions import ClientError
+
+        mock_table = MagicMock()
+        mock_get_table.return_value = mock_table
+        mock_table.update_item.side_effect = ClientError(
+            {
+                "Error": {
+                    "Code": "ConditionalCheckFailedException",
+                    "Message": "The conditional request failed"
+                }
+            },
+            "UpdateItem",
+        )
+
+        config_status = {"status": "ready"}
+        condition = "launchConfigStatus.#status = :pending"
+
+        with pytest.raises(
+            LaunchConfigApplicationError, match="Conditional update failed"
+        ):
+            persist_config_status("pg-123", config_status, condition_expression=condition)
+
+    @patch("shared.launch_config_service._get_protection_groups_table")
+    def test_persist_without_condition_expression(self, mock_get_table):
+        """Test update without condition expression (unconditional).
+        
+        Validates: Requirements 8.4 (partial updates)
+        """
+        mock_table = MagicMock()
+        mock_get_table.return_value = mock_table
+
+        config_status = {"status": "ready"}
+
+        persist_config_status("pg-123", config_status)
+
+        mock_table.update_item.assert_called_once()
+        call_args = mock_table.update_item.call_args
+        
+        # Verify no condition expression
+        assert "ConditionExpression" not in call_args[1]
 
 
 class TestGetConfigStatus:
@@ -612,9 +718,14 @@ class TestApplyLaunchConfigsToGroup:
         mock_boto_client.return_value = mock_drs
 
         # Simulate timeout after first server
-        # Use itertools.cycle to provide infinite time values
+        # Time sequence (each time.time() call):
+        # 1. start_time = 0
+        # 2. last_callback_time = 0
+        # 3. elapsed check for s-abc (idx=0) = 0 - start_time = 0 (no timeout, process)
+        # 4. callback time check after s-abc = 0 - last_callback_time = 0 (no callback)
+        # 5. elapsed check for s-def (idx=1) = 301 - start_time = 301 (TIMEOUT!)
         from itertools import cycle
-        mock_time.side_effect = cycle([0, 0, 0, 0, 301, 301, 301])
+        mock_time.side_effect = cycle([0, 0, 0, 0, 301, 301, 301, 301])
 
         server_ids = ["s-abc", "s-def", "s-ghi"]
         launch_configs = {

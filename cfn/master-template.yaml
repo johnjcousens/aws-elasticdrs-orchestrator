@@ -673,6 +673,7 @@ Resources:
         Environment: !Ref Environment
         # Refactored DR orchestration Lambda (no DRS code)
         OrchestrationLambdaArn: !GetAtt LambdaStack.Outputs.DrOrchestrationStepFunctionArn
+        ExecutionHandlerArn: !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
         OrchestrationRoleArn: !If
           - CreateOrchestrationRole
           - !GetAtt UnifiedOrchestrationRole.Arn
@@ -1002,6 +1003,33 @@ Resources:
         ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
         QueryHandlerFunctionArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
         DataManagementHandlerFunctionArn: !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
+
+  # CloudWatch dashboard and alarms for recovery instance sync monitoring
+  # Tracks sync duration, cache performance, DynamoDB throttling, and error rates
+  MonitoringStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - LambdaStack
+      - DatabaseStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/monitoring-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        DataManagementHandlerFunctionName: !Sub '${ProjectName}-data-management-handler-${Environment}'
+        RecoveryInstancesCacheTableName: !GetAtt DatabaseStack.Outputs.RecoveryInstancesCacheTableName
+        AlarmSnsTopicArn: !If
+          - EnableNotificationsCondition
+          - !GetAtt NotificationStack.Outputs.DRSOperationalAlertsTopicArn
+          - ''
       Tags:
         - Key: Project
           Value: !Ref ProjectName

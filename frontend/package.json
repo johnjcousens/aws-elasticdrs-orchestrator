@@ -65,6 +65,7 @@
     "@aws-amplify/ui-react-core": {
       "lodash": "^4.17.21"
     },
-    "fast-xml-parser": ">=4.5.0"
+    "fast-xml-parser": ">=5.3.6",
+    "minimatch": ">=10.2.1"
   }
 }

@@ -38,3 +38,9 @@ hypothesis==6.122.3
 # Lambda runtime provides its own boto3 at deployment time
 boto3>=1.35.49
 botocore>=1.35.49
+
+# Security fixes for CVEs (grype scan 2026-02-21)
+protobuf>=6.33.5  # CVE-2026-0994 (HIGH): JSON recursion depth bypass
+cryptography>=46.0.5  # CVE-2026-26007 (HIGH): subgroup attack on SECT curves
+filelock>=3.20.3  # CVE-2026-22701 (MEDIUM), CVE-2025-68146 (MEDIUM): TOCTOU vulnerabilities
+werkzeug>=3.1.6  # CVE-2026-27199 (MEDIUM): Windows special device names

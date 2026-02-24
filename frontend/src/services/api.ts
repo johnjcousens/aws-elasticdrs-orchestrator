@@ -28,6 +28,7 @@ import type {
   InstanceTypeOption,
   DRSServer,
   LaunchConfig,
+  LaunchConfigStatus,
 } from '../types';
 
 // API configuration
@@ -347,6 +348,39 @@ class ApiClient {
    */
   public async deleteProtectionGroup(id: string): Promise<void> {
     return this.delete<void>(`/protection-groups/${id}`);
+  }
+
+  /**
+   * Get launch configuration sync status for a protection group
+   * 
+   * Returns the current status of launch configuration synchronization,
+   * including progress information and per-server status.
+   * 
+   * @param id - Protection group ID
+   * @returns Launch configuration status with progress details
+   */
+  public async getLaunchConfigStatus(id: string): Promise<LaunchConfigStatus> {
+    return this.get<LaunchConfigStatus>(`/protection-groups/${id}/launch-config-status`);
+  }
+
+  /**
+   * Apply launch configurations to all servers in a protection group
+   * 
+   * Triggers asynchronous application of launch configurations to DRS and EC2.
+   * Returns immediately with HTTP 202 and a syncJobId for tracking progress.
+   * 
+   * @param id - Protection group ID
+   * @param force - If true, re-apply configs to all servers regardless of current status
+   * @returns Launch configuration status with syncJobId
+   */
+  public async applyLaunchConfigs(
+    id: string,
+    options?: { force?: boolean }
+  ): Promise<LaunchConfigStatus> {
+    return this.post<LaunchConfigStatus>(
+      `/protection-groups/${id}/apply-launch-configs`,
+      options || {}
+    );
   }
 
   /**
@@ -1451,6 +1485,8 @@ export const {
   createProtectionGroup,
   updateProtectionGroup,
   deleteProtectionGroup,
+  getLaunchConfigStatus,
+  applyLaunchConfigs,
   resolveProtectionGroupTags,
   listRecoveryPlans,
   getRecoveryPlan,

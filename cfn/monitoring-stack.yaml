@@ -1,0 +1,336 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Recovery Instance Sync - Monitoring and Alarms
+  
+  CloudWatch dashboard and alarms for recovery instance cache operations:
+  - Dashboard: Sync duration, cache query latency, DynamoDB metrics
+  - Alarms: Sync errors, DynamoDB throttling, handler duration, cache miss rate
+  
+  Alarm notifications route to the DRS Operational Alerts SNS topic.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+
+  DataManagementHandlerFunctionName:
+    Type: String
+    Description: 'Data management handler Lambda function name'
+
+  RecoveryInstancesCacheTableName:
+    Type: String
+    Description: 'Recovery instances DynamoDB cache table name'
+
+  AlarmSnsTopicArn:
+    Type: String
+    Default: ''
+    Description: 'SNS topic ARN for alarm notifications (optional)'
+
+Conditions:
+  HasAlarmTopic: !Not [!Equals [!Ref AlarmSnsTopicArn, '']]
+
+Resources:
+  # =============================================================================
+  # CLOUDWATCH DASHBOARD
+  # =============================================================================
+  # Displays recovery instance sync metrics:
+  # - Data management handler duration and errors
+  # - DynamoDB read/write capacity and throttling
+  # - Lambda invocation count and concurrent executions
+
+  RecoveryInstanceSyncDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-recovery-instance-sync-${Environment}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text",
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 1,
+              "properties": {
+                "markdown": "# Recovery Instance Sync - ${Environment}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 1,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Data Management Handler Duration",
+                "metrics": [
+                  ["AWS/Lambda", "Duration", "FunctionName", "${DataManagementHandlerFunctionName}", {"stat": "Average", "label": "Average"}],
+                  ["AWS/Lambda", "Duration", "FunctionName", "${DataManagementHandlerFunctionName}", {"stat": "p99", "label": "p99"}],
+                  ["AWS/Lambda", "Duration", "FunctionName", "${DataManagementHandlerFunctionName}", {"stat": "Maximum", "label": "Maximum"}]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "period": 300,
+                "yAxis": {"left": {"label": "ms"}}
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 1,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Data Management Handler Errors",
+                "metrics": [
+                  ["AWS/Lambda", "Errors", "FunctionName", "${DataManagementHandlerFunctionName}", {"stat": "Sum", "color": "#d62728", "label": "Errors"}],
+                  ["AWS/Lambda", "Throttles", "FunctionName", "${DataManagementHandlerFunctionName}", {"stat": "Sum", "color": "#ff7f0e", "label": "Throttles"}]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "period": 300,
+                "yAxis": {"left": {"label": "Count"}}
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 7,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "DynamoDB Cache - Read/Write Capacity",
+                "metrics": [
+                  ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${RecoveryInstancesCacheTableName}", {"stat": "Sum", "label": "Read Units"}],
+                  ["AWS/DynamoDB", "ConsumedWriteCapacityUnits", "TableName", "${RecoveryInstancesCacheTableName}", {"stat": "Sum", "label": "Write Units"}]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "period": 300,
+                "yAxis": {"left": {"label": "Units"}}
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 7,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "DynamoDB Cache - Throttled Requests",
+                "metrics": [
+                  ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "${RecoveryInstancesCacheTableName}", {"stat": "Sum", "color": "#d62728", "label": "Read Throttles"}],
+                  ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "${RecoveryInstancesCacheTableName}", {"stat": "Sum", "color": "#ff7f0e", "label": "Write Throttles"}]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "period": 300,
+                "yAxis": {"left": {"label": "Count"}}
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 13,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Data Management Handler Invocations",
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${DataManagementHandlerFunctionName}", {"stat": "Sum", "label": "Invocations"}],
+                  ["AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${DataManagementHandlerFunctionName}", {"stat": "Maximum", "label": "Concurrent"}]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "period": 300,
+                "yAxis": {"left": {"label": "Count"}}
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 13,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "DynamoDB Cache - Latency",
+                "metrics": [
+                  ["AWS/DynamoDB", "SuccessfulRequestLatency", "TableName", "${RecoveryInstancesCacheTableName}", "Operation", "GetItem", {"stat": "Average", "label": "GetItem Avg"}],
+                  ["AWS/DynamoDB", "SuccessfulRequestLatency", "TableName", "${RecoveryInstancesCacheTableName}", "Operation", "PutItem", {"stat": "Average", "label": "PutItem Avg"}],
+                  ["AWS/DynamoDB", "SuccessfulRequestLatency", "TableName", "${RecoveryInstancesCacheTableName}", "Operation", "BatchWriteItem", {"stat": "Average", "label": "BatchWrite Avg"}]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "period": 300,
+                "yAxis": {"left": {"label": "ms"}}
+              }
+            }
+          ]
+        }
+
+  # =============================================================================
+  # CLOUDWATCH ALARMS
+  # =============================================================================
+
+  # Alarm: Sync errors in data-management-handler
+  # Triggers when Lambda errors exceed 0 for 15 minutes (3 consecutive 5-min periods)
+  SyncErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-sync-errors-${Environment}'
+      AlarmDescription: 'Recovery instance sync errors detected in data-management-handler'
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref DataManagementHandlerFunctionName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If
+        - HasAlarmTopic
+        - [!Ref AlarmSnsTopicArn]
+        - !Ref AWS::NoValue
+      OKActions: !If
+        - HasAlarmTopic
+        - [!Ref AlarmSnsTopicArn]
+        - !Ref AWS::NoValue
+
+  # Alarm: DynamoDB throttling on recovery instances cache table
+  # Triggers when read or write throttle events exceed 0 for 5 minutes
+  DynamoDBThrottlingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-cache-throttling-${Environment}'
+      AlarmDescription: 'DynamoDB throttling detected on recovery instances cache table'
+      Namespace: AWS/DynamoDB
+      MetricName: ThrottledRequests
+      Dimensions:
+        - Name: TableName
+          Value: !Ref RecoveryInstancesCacheTableName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If
+        - HasAlarmTopic
+        - [!Ref AlarmSnsTopicArn]
+        - !Ref AWS::NoValue
+      OKActions: !If
+        - HasAlarmTopic
+        - [!Ref AlarmSnsTopicArn]
+        - !Ref AWS::NoValue
+
+  # Alarm: Data management handler duration exceeds 5 seconds (p99)
+  # Indicates cache queries are slow or sync operations are degraded
+  HandlerDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-handler-duration-${Environment}'
+      AlarmDescription: 'Data management handler p99 duration exceeds 5 seconds'
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref DataManagementHandlerFunctionName
+      ExtendedStatistic: p99
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 5000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If
+        - HasAlarmTopic
+        - [!Ref AlarmSnsTopicArn]
+        - !Ref AWS::NoValue
+      OKActions: !If
+        - HasAlarmTopic
+        - [!Ref AlarmSnsTopicArn]
+        - !Ref AWS::NoValue
+
+  # Alarm: Cache miss rate exceeds 10%
+  # Uses DynamoDB SystemErrors as a proxy for failed reads.
+  # A high ratio of SystemErrors to total requests indicates cache misses.
+  # Uses math expression: (UserErrors / (GetItem requests)) > 10%
+  CacheMissRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-cache-miss-rate-${Environment}'
+      AlarmDescription: 'Recovery instance cache miss rate exceeds 10%'
+      Metrics:
+        - Id: system_errors
+          MetricStat:
+            Metric:
+              Namespace: AWS/DynamoDB
+              MetricName: SystemErrors
+              Dimensions:
+                - Name: TableName
+                  Value: !Ref RecoveryInstancesCacheTableName
+                - Name: Operation
+                  Value: GetItem
+            Period: 300
+            Stat: Sum
+          ReturnData: false
+        - Id: total_requests
+          MetricStat:
+            Metric:
+              Namespace: AWS/DynamoDB
+              MetricName: SuccessfulRequestLatency
+              Dimensions:
+                - Name: TableName
+                  Value: !Ref RecoveryInstancesCacheTableName
+                - Name: Operation
+                  Value: GetItem
+            Period: 300
+            Stat: SampleCount
+          ReturnData: false
+        - Id: miss_rate
+          Expression: 'IF(total_requests > 0, (system_errors / total_requests) * 100, 0)'
+          Label: 'Cache Miss Rate %'
+          ReturnData: true
+      EvaluationPeriods: 3
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If
+        - HasAlarmTopic
+        - [!Ref AlarmSnsTopicArn]
+        - !Ref AWS::NoValue
+      OKActions: !If
+        - HasAlarmTopic
+        - [!Ref AlarmSnsTopicArn]
+        - !Ref AWS::NoValue
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  DashboardName:
+    Description: 'CloudWatch dashboard name for recovery instance sync'
+    Value: !Ref RecoveryInstanceSyncDashboard
+
+  SyncErrorsAlarmArn:
+    Description: 'ARN of the sync errors alarm'
+    Value: !GetAtt SyncErrorsAlarm.Arn
+
+  DynamoDBThrottlingAlarmArn:
+    Description: 'ARN of the DynamoDB throttling alarm'
+    Value: !GetAtt DynamoDBThrottlingAlarm.Arn
+
+  HandlerDurationAlarmArn:
+    Description: 'ARN of the handler duration alarm'
+    Value: !GetAtt HandlerDurationAlarm.Arn
+
+  CacheMissRateAlarmArn:
+    Description: 'ARN of the cache miss rate alarm'
+    Value: !GetAtt CacheMissRateAlarm.Arn

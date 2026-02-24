@@ -147,6 +147,7 @@ Resources:
           ENVIRONMENT: !Ref Environment
           STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
           EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          ASYNC_LAUNCH_CONFIG_ENABLED: "true"
       Tags:
         - Key: Project
           Value: !Ref ProjectName

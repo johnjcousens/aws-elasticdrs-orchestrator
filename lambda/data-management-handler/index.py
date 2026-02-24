@@ -181,6 +181,7 @@ import os
 import re
 import time
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Dict, List, Optional, Any
 import uuid
 
@@ -243,6 +244,7 @@ EXECUTIONS_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 TARGET_ACCOUNTS_TABLE = os.environ.get("TARGET_ACCOUNTS_TABLE")
 TAG_SYNC_CONFIG_TABLE = os.environ.get("TAG_SYNC_CONFIG_TABLE")
 INVENTORY_TABLE = os.environ.get("SOURCE_SERVER_INVENTORY_TABLE")
+RECOVERY_INSTANCES_TABLE = os.environ.get("RECOVERY_INSTANCES_TABLE")
 
 # Initialize DynamoDB resources - lazy initialization for test mocking
 dynamodb = boto3.resource("dynamodb")
@@ -255,6 +257,7 @@ _executions_table = None
 _target_accounts_table = None
 _tag_sync_config_table = None
 _inventory_table = None
+_recovery_instances_table = None
 
 
 def get_protection_groups_table():
@@ -297,6 +300,14 @@ def get_tag_sync_config_table():
     return _tag_sync_config_table
 
 
+def get_recovery_instances_table():
+    """Lazy-load Recovery Instances table for test mocking"""
+    global _recovery_instances_table
+    if _recovery_instances_table is None and RECOVERY_INSTANCES_TABLE:
+        _recovery_instances_table = dynamodb.Table(RECOVERY_INSTANCES_TABLE)
+    return _recovery_instances_table
+
+
 # Invalid replication states that block DR operations
 INVALID_REPLICATION_STATES = [
     "DISCONNECTED",
@@ -304,6 +315,73 @@ INVALID_REPLICATION_STATES = [
     "STALLED",
     "NOT_STARTED",
 ]
+
+
+# ============================================================================
+# Async Self-Invocation Helper
+# ============================================================================
+
+
+def _invoke_async_sync(
+    group_id: str,
+    region: str,
+    account_context: Optional[Dict[str, Any]],
+    request_id: str,
+    force: bool = False,
+) -> None:
+    """
+    Self-invoke this Lambda asynchronously for background launch config sync.
+
+    Triggers async background processing by invoking this same Lambda function
+    with InvocationType='Event' (fire-and-forget). The invoked function will
+    execute the sync_launch_configs operation to apply launch configurations
+    to AWS DRS and EC2 Launch Templates without blocking the API response.
+
+    Args:
+        group_id: Protection group ID to sync configurations for
+        region: AWS region where the protection group exists
+        account_context: Optional cross-account context with accountId and assumeRoleName
+        request_id: Correlation ID from original request for tracing
+        force: If True, re-apply all configs regardless of current status
+
+    Returns:
+        None (async invocation returns immediately)
+
+    Raises:
+        ClientError: If Lambda invocation fails (rare - usually succeeds)
+    """
+    lambda_client = boto3.client("lambda")
+    function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+
+    payload = {
+        "operation": "sync_launch_configs",
+        "body": {
+            "groupId": group_id,
+            "region": region,
+            "accountContext": account_context,
+            "requestId": request_id,
+            "force": force,
+        },
+    }
+
+    print(
+        json.dumps(
+            {
+                "message": "Invoking async launch config sync",
+                "groupId": group_id,
+                "region": region,
+                "requestId": request_id,
+                "force": force,
+                "functionName": function_name,
+            }
+        )
+    )
+
+    lambda_client.invoke(
+        FunctionName=function_name,
+        InvocationType="Event",
+        Payload=json.dumps(payload).encode(),
+    )
 
 
 # ============================================================================
@@ -328,6 +406,10 @@ def lambda_handler(event, context):
         "operation": "create_protection_group",
         "body": {...}
     }
+
+    EventBridge Scheduled Events:
+    - Tag Sync: {"synch_tags": true, "synch_instance_type": true}
+    - Recovery Instance Sync: {"operation": "sync_recovery_instances"}
     """
     try:
         # Detect invocation pattern
@@ -335,8 +417,15 @@ def lambda_handler(event, context):
             # API Gateway invocation (standalone mode)
             return handle_api_gateway_request(event, context)
         elif "operation" in event:
-            # Direct invocation (CLI/SDK mode)
-            return handle_direct_invocation(event, context)
+            # Check for EventBridge recovery instance sync trigger
+            if event.get("operation") == "sync_recovery_instances":
+                # EventBridge scheduled recovery instance sync trigger
+                # Payload: {"operation": "sync_recovery_instances"}
+                print(f"EventBridge recovery instance sync trigger received: {event}")
+                return handle_recovery_instance_sync()
+            else:
+                # Direct invocation (CLI/SDK mode)
+                return handle_direct_invocation(event, context)
         elif "synch_tags" in event or "synch_instance_type" in event:
             # EventBridge scheduled tag sync trigger
             # Payload: {"synch_tags": true, "synch_instance_type": true}
@@ -468,7 +557,7 @@ def handle_api_gateway_request(event, context):
             if http_method == "GET":
                 return get_protection_group(group_id)
             elif http_method == "PUT":
-                return update_protection_group(group_id, body)
+                return update_protection_group(group_id, body, query_parameters)
             elif http_method == "DELETE":
                 return delete_protection_group(group_id)
 
@@ -518,6 +607,13 @@ def handle_api_gateway_request(event, context):
                 return handle_drs_tag_sync(body)
             elif http_method == "GET":
                 return get_last_tag_sync_status()
+
+        # Recovery Instance Sync endpoints (2)
+        elif path == "/drs/recovery-instance-sync":
+            if http_method == "POST":
+                return handle_recovery_instance_sync()
+            elif http_method == "GET":
+                return get_recovery_instance_sync_status()
 
         elif path == "/config/tag-sync":
             if http_method == "GET":
@@ -570,15 +666,15 @@ def handle_api_gateway_request(event, context):
                     if http_method == "POST":
                         return handle_sync_single_account(account_id)
                 else:
-                    # DELETE /accounts/{id}/staging-accounts/{stagingId}
-                    staging_id = path_parameters.get("stagingId")
+                    # DELETE /accounts/{id}/staging-accounts/{stagingAccountId}
+                    staging_id = path_parameters.get("stagingAccountId")
                     if not staging_id:
                         return response(
                             400,
                             error_response(
                                 ERROR_MISSING_PARAMETER,
                                 "Missing required parameter",
-                                details={"parameter": "stagingId"},
+                                details={"parameter": "stagingAccountId"},
                             ),
                         )
                     if http_method == "DELETE":
@@ -696,6 +792,7 @@ def handle_direct_invocation(event, context):
         # Launch Config Pre-Application (Task 8)
         "apply_launch_configs": lambda: apply_launch_configs(body.get("groupId"), body),
         "get_launch_config_status": lambda: get_launch_config_status(body.get("groupId")),
+        "sync_launch_configs": lambda: sync_launch_configs(body),
         # Target Accounts (Phase 4: Tasks 5.5-5.7)
         "add_target_account": lambda: create_target_account(body),
         "update_target_account": lambda: update_target_account(body.get("accountId"), body),
@@ -707,6 +804,9 @@ def handle_direct_invocation(event, context):
         "update_tag_sync_settings": lambda: update_tag_sync_settings(body),
         "import_configuration": lambda: import_configuration(body),
         "export_configuration": lambda: export_configuration({}),
+        # Recovery Instance Sync
+        "sync_recovery_instances": lambda: handle_recovery_instance_sync(),
+        "get_recovery_instance_sync_status": lambda: get_recovery_instance_sync_status(),
         # Staging Accounts (Phase 4: Tasks 5.8-5.9, 5.12)
         "add_staging_account": lambda: handle_add_staging_account(body),
         "remove_staging_account": lambda: handle_remove_staging_account(body),
@@ -2079,9 +2179,20 @@ def get_protection_group(group_id: str) -> Dict:
         )
 
 
-def update_protection_group(group_id: str, body: Dict) -> Dict:
+def update_protection_group(group_id: str, body: Dict, query_parameters: Optional[Dict] = None) -> Dict:
     """Update an existing Protection Group with validation and optimistic locking"""
     try:
+        # Import validation function for format checks
+        from shared.launch_config_validation import validate_launch_config_formats
+
+        # Default query_parameters to empty dict if not provided
+        if query_parameters is None:
+            query_parameters = {}
+
+        # Check feature flag for async launch config
+        async_enabled = os.environ.get("ASYNC_LAUNCH_CONFIG_ENABLED", "true").lower() == "true"
+        apply_configs_sync = query_parameters.get("applyConfigsSync", "false").lower() == "true"
+
         # Check if group exists
         result = get_protection_groups_table().get_item(Key={"groupId": group_id})
         if "Item" not in result:
@@ -2327,6 +2438,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         # Detect if servers or configs changed to determine if re-apply needed
         servers_changed = False
         configs_changed = False
+        server_ids = []
+        region = existing_group.get("region")
+        lc_account_context = None
 
         if "sourceServerIds" in body:
             old_servers = set(existing_group.get("sourceServerIds", []))
@@ -2354,6 +2468,18 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     {
                         "error": "launchConfig must be an object",
                         "code": "INVALID_LAUNCH_CONFIG",
+                    },
+                )
+
+            # Validate launch config formats BEFORE saving (Requirements 10.6, 10.7)
+            validation_result = validate_launch_config_formats(launch_config)
+            if not validation_result["valid"]:
+                return response(
+                    400,
+                    {
+                        "error": "INVALID_LAUNCH_CONFIG_FORMAT",
+                        "message": "Launch configuration contains invalid field formats",
+                        "validationErrors": validation_result["errors"],
                     },
                 )
 
@@ -2390,110 +2516,161 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     tags,
                 )
 
+            # Prepare account context for cross-account
+            lc_account_context = None
+            if existing_group.get("accountId"):
+                current_account_id = get_current_account_id()
+                target_account_id = existing_group["accountId"]
+                if current_account_id != target_account_id:
+                    # Look up external ID from target accounts table
+                    external_id = None
+                    try:
+                        target_accounts_table = get_target_accounts_table()
+                        account_result = target_accounts_table.get_item(Key={"accountId": target_account_id})
+                        if "Item" in account_result:
+                            external_id = account_result["Item"].get("externalId")
+                    except Exception as e:
+                        print(f"Warning: Could not fetch externalId for account {target_account_id}: {e}")
+
+                    lc_account_context = {
+                        "accountId": target_account_id,
+                        "assumeRoleName": existing_group.get("assumeRoleName", "OrchestrationRole"),
+                    }
+                    if external_id:
+                        lc_account_context["externalId"] = external_id
+
+            # Check concurrency control (Requirements 8.2, 8.3)
+            current_status = existing_group.get("launchConfigStatus", {})
+            current_sync_status = current_status.get("status")
+
+            # Reject if currently syncing (HTTP 409)
+            if current_sync_status == "syncing":
+                return response(
+                    409,
+                    {
+                        "error": "LAUNCH_CONFIG_SYNC_IN_PROGRESS",
+                        "message": "Cannot update launch configuration while sync is in progress",
+                        "currentStatus": current_status,
+                    },
+                )
+
             # Apply launch configs using new service
             if server_ids:
-                try:
-                    print(f"Applying launch configs to " f"{len(server_ids)} servers (update)")
+                # Determine sync mode: async (default) or sync (backward compat)
+                use_async = async_enabled and not apply_configs_sync
 
-                    # Build launch_configs dict
-                    launch_configs = {server_id: launch_config for server_id in server_ids}
+                if use_async:
+                    # ASYNC MODE: Save config immediately with "pending" status
+                    # (Requirements 1.1, 1.2, 1.3, 1.4, 1.5)
+                    print(f"Using async launch config sync for {len(server_ids)} servers")
 
-                    # Prepare account context for cross-account
-                    lc_account_context = None
-                    if existing_group.get("accountId"):
-                        current_account_id = get_current_account_id()
-                        target_account_id = existing_group["accountId"]
-                        if current_account_id != target_account_id:
-                            # Look up external ID from target accounts table
-                            external_id = None
-                            try:
-                                target_accounts_table = get_target_accounts_table()
-                                account_result = target_accounts_table.get_item(Key={"accountId": target_account_id})
-                                if "Item" in account_result:
-                                    external_id = account_result["Item"].get("externalId")
-                            except Exception as e:
-                                print(f"Warning: Could not fetch externalId for account {target_account_id}: {e}")
-
-                            lc_account_context = {
-                                "accountId": target_account_id,
-                                "assumeRoleName": existing_group.get("assumeRoleName", "OrchestrationRole"),
-                            }
-                            if external_id:
-                                lc_account_context["externalId"] = external_id
-
-                    # Apply with timeout (allow update to succeed)
-                    apply_result = apply_launch_configs_to_group(
-                        group_id=group_id,
-                        region=region,
-                        server_ids=server_ids,
-                        launch_configs=launch_configs,
-                        account_context=lc_account_context,
-                        timeout_seconds=60,
-                    )
-
-                    print(f"Launch config result: {apply_result}")
-
-                    # Update launchConfigStatus in DynamoDB
+                    # Initialize launchConfigStatus with "pending" state
                     config_status = {
-                        "status": apply_result["status"],
-                        "lastApplied": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                        "appliedBy": None,
-                        "serverConfigs": apply_result["serverConfigs"],
-                        "errors": apply_result["errors"],
+                        "status": "pending",
+                        "groupId": group_id,
+                        "progressCount": 0,
+                        "totalCount": len(server_ids),
+                        "percentage": Decimal("0.0"),
+                        "appliedServers": 0,
+                        "failedServers": 0,
+                        "serverConfigs": {},
+                        "syncJobId": None,
+                        "startTime": None,
+                        "completionTime": None,
+                        "error": None,
                     }
 
+                    # Persist pending status to DynamoDB
                     persist_config_status(group_id, config_status)
 
                     # Add to update expression
                     update_expression += ", launchConfigStatus = :launchConfigStatus"
                     expression_values[":launchConfigStatus"] = config_status
 
-                    print(f"Launch config status: " f"{config_status['status']}")
+                    print(f"Launch config status set to pending for async sync")
 
-                except LaunchConfigTimeoutError as e:
-                    # Timeout OK - update succeeds, configs pending
-                    print(f"Launch config timed out: {e}")
-                    config_status = {
-                        "status": "pending",
-                        "lastApplied": None,
-                        "appliedBy": None,
-                        "serverConfigs": {},
-                        "errors": [str(e)],
-                    }
-                    persist_config_status(group_id, config_status)
-                    update_expression += ", launchConfigStatus = :launchConfigStatus"
-                    expression_values[":launchConfigStatus"] = config_status
+                else:
+                    # SYNC MODE: Apply configs synchronously (backward compatibility)
+                    # (Requirements 7.2, 7.3)
+                    try:
+                        print(f"Applying launch configs synchronously to {len(server_ids)} servers (update)")
 
-                except LaunchConfigApplicationError as e:
-                    # Application error - update succeeds, configs failed
-                    print(f"Launch config failed: {e}")
-                    config_status = {
-                        "status": "failed",
-                        "lastApplied": None,
-                        "appliedBy": None,
-                        "serverConfigs": {},
-                        "errors": [str(e)],
-                    }
-                    persist_config_status(group_id, config_status)
-                    update_expression += ", launchConfigStatus = :launchConfigStatus"
-                    expression_values[":launchConfigStatus"] = config_status
+                        # Build launch_configs dict
+                        launch_configs = {server_id: launch_config for server_id in server_ids}
 
-                except Exception as e:
-                    # Unexpected error - log but don't fail update
-                    print(f"Unexpected error applying configs: {e}")
-                    import traceback
+                        # Apply with timeout (allow update to succeed)
+                        apply_result = apply_launch_configs_to_group(
+                            group_id=group_id,
+                            region=region,
+                            server_ids=server_ids,
+                            launch_configs=launch_configs,
+                            account_context=lc_account_context,
+                            timeout_seconds=60,
+                        )
 
-                    traceback.print_exc()
-                    config_status = {
-                        "status": "failed",
-                        "lastApplied": None,
-                        "appliedBy": None,
-                        "serverConfigs": {},
-                        "errors": [f"Unexpected error: {str(e)}"],
-                    }
-                    persist_config_status(group_id, config_status)
-                    update_expression += ", launchConfigStatus = :launchConfigStatus"
-                    expression_values[":launchConfigStatus"] = config_status
+                        print(f"Launch config result: {apply_result}")
+
+                        # Update launchConfigStatus in DynamoDB
+                        config_status = {
+                            "status": apply_result["status"],
+                            "lastApplied": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                            "appliedBy": None,
+                            "serverConfigs": apply_result["serverConfigs"],
+                            "errors": apply_result["errors"],
+                        }
+
+                        persist_config_status(group_id, config_status)
+
+                        # Add to update expression
+                        update_expression += ", launchConfigStatus = :launchConfigStatus"
+                        expression_values[":launchConfigStatus"] = config_status
+
+                        print(f"Launch config status: {config_status['status']}")
+
+                    except LaunchConfigTimeoutError as e:
+                        # Timeout OK - update succeeds, configs pending
+                        print(f"Launch config timed out: {e}")
+                        config_status = {
+                            "status": "pending",
+                            "lastApplied": None,
+                            "appliedBy": None,
+                            "serverConfigs": {},
+                            "errors": [str(e)],
+                        }
+                        persist_config_status(group_id, config_status)
+                        update_expression += ", launchConfigStatus = :launchConfigStatus"
+                        expression_values[":launchConfigStatus"] = config_status
+
+                    except LaunchConfigApplicationError as e:
+                        # Application error - update succeeds, configs failed
+                        print(f"Launch config failed: {e}")
+                        config_status = {
+                            "status": "failed",
+                            "lastApplied": None,
+                            "appliedBy": None,
+                            "serverConfigs": {},
+                            "errors": [str(e)],
+                        }
+                        persist_config_status(group_id, config_status)
+                        update_expression += ", launchConfigStatus = :launchConfigStatus"
+                        expression_values[":launchConfigStatus"] = config_status
+
+                    except Exception as e:
+                        # Unexpected error - log but don't fail update
+                        print(f"Unexpected error applying configs: {e}")
+                        import traceback
+
+                        traceback.print_exc()
+                        config_status = {
+                            "status": "failed",
+                            "lastApplied": None,
+                            "appliedBy": None,
+                            "serverConfigs": {},
+                            "errors": [f"Unexpected error: {str(e)}"],
+                        }
+                        persist_config_status(group_id, config_status)
+                        update_expression += ", launchConfigStatus = :launchConfigStatus"
+                        expression_values[":launchConfigStatus"] = config_status
 
             # Store launchConfig in DynamoDB
             update_expression += ", launchConfig = :launchConfig"
@@ -2597,6 +2774,40 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         # Transform to camelCase for frontend
         response_item = result["Attributes"]
+
+        # Trigger async launch config sync if using async mode (Requirements 2.1, 4.2, 4.3)
+        if "launchConfig" in body and (servers_changed or configs_changed) and server_ids:
+            use_async = async_enabled and not apply_configs_sync
+            if use_async:
+                # Generate request ID for correlation
+                request_id = str(uuid.uuid4())
+
+                # Self-invoke asynchronously for background sync
+                try:
+                    _invoke_async_sync(
+                        group_id=group_id,
+                        region=region,
+                        account_context=lc_account_context,
+                        request_id=request_id,
+                        force=False,
+                    )
+                    # Log async invocation correlation (Requirement 9.8)
+                    print(
+                        json.dumps(
+                            {
+                                "level": "INFO",
+                                "event": "async_launch_config_invocation",
+                                "operation": "update_protection_group",
+                                "groupId": group_id,
+                                "requestId": request_id,
+                                "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                            }
+                        )
+                    )
+                except Exception as e:
+                    print(f"Warning: Failed to trigger async sync: {e}")
+                    # Don't fail the update if async invocation fails
+                    # Status remains "pending" and can be retried manually
 
         print(f"Updated Protection Group: {group_id}")
         return response(200, response_item)
@@ -4590,7 +4801,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                     except Exception as e:
                         print(f"Error resolving tags for PG {pg_id}: {e}")
 
-        print(f"Total servers to check for recovery instances: " f"{len(all_server_ids)}: {all_server_ids}")
+        print(f"Total servers to check for recovery instances: {len(all_server_ids)}: {all_server_ids}")
 
         if not all_server_ids:
             return response(
@@ -4603,136 +4814,75 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 },
             )
 
-        # Query DRS for recovery instances (with cross-account support)
-        drs_client = create_drs_client(region, account_context)
+        # Query DynamoDB cache for recovery instances
+        recovery_instances_table = get_recovery_instances_table()
+        if not recovery_instances_table:
+            print("Warning: Recovery instances table not configured, returning empty results")
+            return response(
+                200,
+                {
+                    "hasExistingInstances": False,
+                    "existingInstances": [],
+                    "instanceCount": 0,
+                    "planId": plan_id,
+                },
+            )
 
         existing_instances = []
+        cache_hits = 0
+        cache_misses = 0
+
         try:
-            # Get all recovery instances in the region
-            paginator = drs_client.get_paginator("describe_recovery_instances")
-            for page in paginator.paginate():
-                for ri in page.get("items", []):
-                    source_server_id = ri.get("sourceServerID")
-                    ec2_state = ri.get("ec2InstanceState")
-                    print(
-                        f"Recovery instance: source={source_server_id}, "
-                        f"state={ec2_state}, in_list={source_server_id in all_server_ids}"
-                    )
-                    if source_server_id in all_server_ids:
-                        ec2_instance_id = ri.get("ec2InstanceID")
-                        recovery_instance_id = ri.get("recoveryInstanceID")
+            # Query cache for each source server ID
+            for source_server_id in all_server_ids:
+                try:
+                    cache_response = recovery_instances_table.get_item(Key={"sourceServerId": source_server_id})
 
-                        # Find which execution created this instance
-                        source_execution = None
-                        source_plan_name = None
+                    if "Item" in cache_response:
+                        cache_hits += 1
+                        cached_record = cache_response["Item"]
 
-                        # Search execution history for this recovery instance
-                        try:
-                            exec_scan = get_executions_table().scan(
-                                FilterExpression="attribute_exists(waves)",
-                                Limit=100,
-                            )
+                        # Transform cached record to match original response format
+                        instance_data = {
+                            "sourceServerId": cached_record.get("sourceServerId"),
+                            "recoveryInstanceId": cached_record.get("recoveryInstanceId"),
+                            "ec2InstanceId": cached_record.get("ec2InstanceId"),
+                            "ec2InstanceState": cached_record.get("ec2InstanceState"),
+                            "sourceServerName": cached_record.get("sourceServerName"),
+                            "name": cached_record.get("name"),
+                            "privateIp": cached_record.get("privateIp"),
+                            "publicIp": cached_record.get("publicIp"),
+                            "instanceType": cached_record.get("instanceType"),
+                            "launchTime": cached_record.get("launchTime"),
+                            "region": cached_record.get("region", region),
+                            "sourceExecutionId": cached_record.get("sourceExecutionId"),
+                            "sourcePlanName": cached_record.get("sourcePlanName"),
+                        }
 
-                            exec_items = sorted(
-                                exec_scan.get("Items", []),
-                                key=lambda x: x.get("startTime", 0),
-                                reverse=True,
-                            )
-
-                            for exec_item in exec_items:
-                                exec_waves = exec_item.get("waves", [])
-                                found = False
-                                for wave_data in exec_waves:
-                                    for server in wave_data.get("serverStatuses", []):
-                                        if server.get("sourceServerId") == source_server_id:
-                                            source_execution = exec_item.get("executionId")
-                                            exec_plan_id = exec_item.get("planId")
-                                            if exec_plan_id:
-                                                plan_lookup = get_recovery_plans_table().get_item(
-                                                    Key={"planId": exec_plan_id}
-                                                )
-                                                source_plan_name = plan_lookup.get("Item", {}).get(
-                                                    "planName",
-                                                    exec_plan_id,
-                                                )
-                                            found = True
-                                            break
-                                    if found:
-                                        break
-                                if found:
-                                    break
-                        except Exception as e:
-                            print(f"Error looking up execution for recovery instance: {e}")
-
-                        existing_instances.append(
-                            {
-                                "sourceServerId": source_server_id,
-                                "recoveryInstanceId": recovery_instance_id,
-                                "ec2InstanceId": ec2_instance_id,
-                                "ec2InstanceState": ri.get("ec2InstanceState"),
-                                "sourceExecutionId": source_execution,
-                                "sourcePlanName": source_plan_name,
-                                "region": region,
-                            }
+                        existing_instances.append(instance_data)
+                        print(
+                            f"Cache hit for {source_server_id}: "
+                            f"state={instance_data['ec2InstanceState']}, "
+                            f"ec2={instance_data['ec2InstanceId']}"
                         )
+                    else:
+                        cache_misses += 1
+                        print(f"Cache miss for {source_server_id}: no recovery instance found")
+
+                except Exception as e:
+                    print(f"Error querying cache for server {source_server_id}: {e}")
+                    cache_misses += 1
+
+            print(
+                f"Cache query complete: {cache_hits} hits, {cache_misses} misses, "
+                f"{len(existing_instances)} existing instances found"
+            )
+
         except Exception as e:
-            print(f"Error querying DRS recovery instances: {e}")
+            print(f"Error querying recovery instances cache: {e}")
+            import traceback
 
-        # Enrich with source server names from DRS
-        if existing_instances:
-            try:
-                source_ids = [inst["sourceServerId"] for inst in existing_instances]
-                # Query DRS for source server details
-                servers_response = drs_client.describe_source_servers(filters={"sourceServerIDs": source_ids})
-                server_names = {}
-                for server in servers_response.get("items", []):
-                    server_id = server.get("sourceServerID")
-                    # Get Name tag from DRS tags
-                    tags = server.get("tags", {})
-                    name_tag = tags.get("Name") or tags.get("name")
-                    # Fallback to hostname if no Name tag
-                    if not name_tag:
-                        source_props = server.get("sourceProperties", {})
-                        name_tag = source_props.get("identificationHints", {}).get("hostname")
-                    server_names[server_id] = name_tag
-                # Add source server name to each instance
-                for inst in existing_instances:
-                    source_id = inst.get("sourceServerId")
-                    if source_id in server_names:
-                        inst["sourceServerName"] = server_names[source_id]
-            except Exception as e:
-                print(f"Error fetching source server names: {e}")
-
-        # Enrich with EC2 instance details (Name tag, IP, launch time)
-        if existing_instances:
-            try:
-                ec2_client = create_ec2_client(region, account_context)
-                ec2_ids = [inst["ec2InstanceId"] for inst in existing_instances if inst.get("ec2InstanceId")]
-                if ec2_ids:
-                    ec2_response = ec2_client.describe_instances(InstanceIds=ec2_ids)
-                    ec2_details = {}
-                    for reservation in ec2_response.get("Reservations", []):
-                        for instance in reservation.get("Instances", []):
-                            inst_id = instance.get("InstanceId")
-                            name_tag = next(
-                                (t["Value"] for t in instance.get("Tags", []) if t["Key"] == "Name"),
-                                None,
-                            )
-                            ec2_details[inst_id] = {
-                                "name": name_tag,
-                                "privateIp": instance.get("PrivateIpAddress"),
-                                "publicIp": instance.get("PublicIpAddress"),
-                                "instanceType": instance.get("InstanceType"),
-                                "launchTime": (
-                                    instance.get("LaunchTime").isoformat() if instance.get("LaunchTime") else None
-                                ),
-                            }
-                    for inst in existing_instances:
-                        ec2_id = inst.get("ec2InstanceId")
-                        if ec2_id and ec2_id in ec2_details:
-                            inst.update(ec2_details[ec2_id])
-            except Exception as e:
-                print(f"Error fetching EC2 details: {e}")
+            traceback.print_exc()
 
         return response(
             200,
@@ -5565,6 +5715,72 @@ def get_last_tag_sync_status() -> Dict:
                 ERROR_INTERNAL_ERROR,
                 "Internal error occurred",
                 details={"error": str(e)},
+            ),
+        )
+
+
+# ============================================================================
+# Recovery Instance Sync Functions
+# ============================================================================
+
+
+def handle_recovery_instance_sync() -> Dict:
+    """
+    Perform manual recovery instance sync.
+
+    Triggers background sync of recovery instances across all target accounts and regions.
+    Calls shared utility to perform DRS/EC2 API calls and write results to DynamoDB cache.
+
+    Returns:
+        Sync results including instances updated and errors
+    """
+    try:
+        # Import shared utility
+        from shared.recovery_instance_sync import sync_all_recovery_instances
+
+        # Call shared utility to perform sync
+        result = sync_all_recovery_instances()
+
+        return response(200, result)
+    except Exception as e:
+        print(f"Error syncing recovery instances: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(
+            500,
+            error_response(
+                "SYNC_FAILED",
+                f"Failed to sync recovery instances: {str(e)}",
+            ),
+        )
+
+
+def get_recovery_instance_sync_status() -> Dict:
+    """
+    Get last recovery instance sync status.
+
+    Returns:
+        Last sync status including timestamp and results
+    """
+    try:
+        # Import shared utility
+        from shared.recovery_instance_sync import get_recovery_instance_sync_status as get_status
+
+        # Call shared utility to get status
+        status = get_status()
+
+        return response(200, status)
+    except Exception as e:
+        print(f"Error getting recovery instance sync status: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(
+            500,
+            error_response(
+                "STATUS_FAILED",
+                f"Failed to get sync status: {str(e)}",
             ),
         )
 
@@ -6938,6 +7154,10 @@ def apply_launch_configs(group_id: str, body: Dict) -> Dict:
     """
     Manually apply launch configurations to a protection group.
 
+    Triggers async background sync via self-invocation. Validates protection group
+    exists and has servers, checks concurrency (rejects if "syncing", allows if
+    "drifted"/"partial"/"failed"), sets status to "pending", and returns HTTP 202.
+
     Supports three invocation methods:
     - Frontend: Via API Gateway with Cognito auth
     - API: Via API Gateway with IAM auth
@@ -6945,21 +7165,17 @@ def apply_launch_configs(group_id: str, body: Dict) -> Dict:
 
     Args:
         group_id: Protection group ID
-        body: {"force": bool}  # Force re-apply even if status is ready
+        body: {"force": bool}  # Force re-apply all servers regardless of status
 
     Returns:
+        HTTP 202 Accepted with:
         {
             "groupId": "pg-xxx",
-            "status": "ready",
-            "appliedServers": 10,
-            "failedServers": 0,
-            "errors": []
+            "message": "Launch configuration sync initiated",
+            "syncJobId": "request-id-xxx"
         }
     """
-    from shared.launch_config_service import (
-        apply_launch_configs_to_group,
-        get_config_status,
-    )
+    from shared.launch_config_service import get_config_status, persist_config_status
 
     try:
         # Get protection group
@@ -6977,26 +7193,7 @@ def apply_launch_configs(group_id: str, body: Dict) -> Dict:
 
         protection_group = pg_response["Item"]
 
-        # Check force flag
-        force = body.get("force", False)
-
-        # If not forcing, check current status
-        if not force:
-            current_status = get_config_status(group_id)
-            if current_status.get("status") == "ready":
-                return response(
-                    200,
-                    {
-                        "groupId": group_id,
-                        "status": "ready",
-                        "appliedServers": len(current_status.get("serverConfigs", {})),
-                        "failedServers": 0,
-                        "message": ("Configuration already applied. " "Use force=true to re-apply."),
-                        "errors": [],
-                    },
-                )
-
-        # Get server IDs and launch configs
+        # Validate protection group has servers
         server_ids = protection_group.get("sourceServerIds", [])
         if not server_ids:
             return response(
@@ -7007,13 +7204,33 @@ def apply_launch_configs(group_id: str, body: Dict) -> Dict:
                 ),
             )
 
-        # Build launch configs dict (group defaults + per-server overrides)
-        launch_configs = {}
+        # Check force flag
+        force = body.get("force", False)
 
-        for server_id in server_ids:
-            # Get effective config (merge group defaults with server overrides)
-            effective_config = get_effective_launch_config(protection_group, server_id)
-            launch_configs[server_id] = effective_config
+        # Check current status for concurrency control
+        current_status = get_config_status(group_id)
+        current_state = current_status.get("status", "not_configured")
+
+        # Reject if currently syncing
+        if current_state == "syncing":
+            return response(
+                409,
+                error_response(
+                    "SYNC_IN_PROGRESS",
+                    "Launch configuration sync already in progress. Wait for completion or check status.",
+                ),
+            )
+
+        # Allow re-sync for drifted, partial, failed, or force flag
+        allowed_states = ["drifted", "partial", "failed", "not_configured", "ready"]
+        if current_state not in allowed_states and not force:
+            return response(
+                400,
+                error_response(
+                    ERROR_INVALID_PARAMETER,
+                    f"Cannot apply configs in current state: {current_state}",
+                ),
+            )
 
         # Get account context for cross-account operations
         account_context = None
@@ -7028,27 +7245,60 @@ def apply_launch_configs(group_id: str, body: Dict) -> Dict:
                 "externalId": "drs-orchestration-cross-account",
             }
 
-        # Apply configurations
-        region = protection_group.get("region")
-        result = apply_launch_configs_to_group(
+        # Generate request ID for correlation
+        import uuid
+
+        request_id = str(uuid.uuid4())
+
+        # Set status to pending
+        persist_config_status(
             group_id=group_id,
-            region=region,
-            server_ids=server_ids,
-            launch_configs=launch_configs,
-            account_context=account_context,
-            timeout_seconds=300,
+            config_status={
+                "status": "pending",
+                "syncJobId": None,
+                "startTime": None,
+                "completionTime": None,
+                "progressCount": 0,
+                "totalCount": len(server_ids),
+                "percentage": 0.0,
+                "appliedServers": 0,
+                "failedServers": 0,
+                "serverConfigs": {},
+                "error": None,
+            },
         )
 
-        # Return result
+        # Self-invoke asynchronously for background sync
+        region = protection_group.get("region")
+        _invoke_async_sync(
+            group_id=group_id,
+            region=region,
+            account_context=account_context,
+            request_id=request_id,
+            force=force,
+        )
+
+        # Log async invocation correlation (Requirement 9.8)
+        print(
+            json.dumps(
+                {
+                    "level": "INFO",
+                    "event": "async_launch_config_invocation",
+                    "operation": "apply_launch_configs",
+                    "groupId": group_id,
+                    "requestId": request_id,
+                    "force": force,
+                    "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                }
+            )
+        )
+        # Return HTTP 202 Accepted
         return response(
-            200,
+            202,
             {
                 "groupId": group_id,
-                "status": result.get("status"),
-                "appliedServers": result.get("appliedServers", 0),
-                "failedServers": result.get("failedServers", 0),
-                "serverConfigs": result.get("serverConfigs", {}),
-                "errors": result.get("errors", []),
+                "message": "Launch configuration sync initiated",
+                "syncJobId": request_id,
             },
         )
 
@@ -7105,6 +7355,482 @@ def get_launch_config_status(group_id: str) -> Dict:
             500,
             error_response(ERROR_INTERNAL_ERROR, str(e)),
         )
+
+
+def sync_launch_configs(body: Dict) -> Dict:
+    """
+    Background sync handler invoked asynchronously via self-invocation.
+
+    Applies launch configurations to AWS DRS and EC2 for all servers
+    in a protection group. Updates progress in DynamoDB as it processes.
+
+    This function is designed to be invoked asynchronously (InvocationType='Event')
+    from update_protection_group or apply_launch_configs to avoid blocking
+    API responses while configurations are applied.
+
+    Args:
+        body: {
+            "groupId": str,              # Protection group ID
+            "region": str,               # AWS region
+            "accountContext": Dict,      # Optional cross-account context
+            "requestId": str,            # Correlation ID from original request
+            "force": bool                # Re-apply all configs regardless of status
+        }
+
+    Returns:
+        {
+            "status": "ready" | "partial" | "failed",
+            "appliedServers": int,
+            "failedServers": int
+        }
+
+    Validates: Requirements 2.2, 2.3, 2.4, 2.5, 2.6, 4.6, 4.8, 4.9, 5.1, 5.2,
+               5.3, 5.4, 5.5, 8.1, 8.5, 8.6, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6,
+               12.1, 12.2, 12.3, 12.4, 12.5
+    """
+    from shared.launch_config_service import (
+        apply_launch_configs_to_group,
+        persist_config_status,
+        get_config_status,
+    )
+
+    # Extract parameters
+    group_id = body.get("groupId")
+    region = body.get("region")
+    account_context = body.get("accountContext")
+    request_id = body.get("requestId", "unknown")
+    force = body.get("force", False)
+
+    # Get Lambda context for syncJobId
+    import inspect
+
+    frame = inspect.currentframe()
+    context = None
+    for frame_info in inspect.getouterframes(frame):
+        if "context" in frame_info.frame.f_locals:
+            context = frame_info.frame.f_locals["context"]
+            break
+
+    sync_job_id = context.aws_request_id if context and hasattr(context, "aws_request_id") else str(uuid.uuid4())
+
+    # Initialize CloudWatch client for metrics
+    cloudwatch = boto3.client("cloudwatch", region_name=region)
+
+    # Add X-Ray tracing annotations
+    try:
+        from aws_xray_sdk.core import xray_recorder
+
+        xray_recorder.put_annotation("groupId", group_id)
+        xray_recorder.put_annotation("syncJobId", sync_job_id)
+        xray_recorder.put_annotation("requestId", request_id)
+        xray_recorder.put_annotation("operation", "sync_launch_configs")
+    except Exception:
+        pass
+
+    # Record start time for duration metric
+    start_time_obj = datetime.now(timezone.utc)
+    start_time = start_time_obj.isoformat().replace("+00:00", "Z")
+
+    # Log structured JSON for start (Requirement 9.4)
+    print(
+        json.dumps(
+            {
+                "level": "INFO",
+                "event": "sync_launch_configs_start",
+                "groupId": group_id,
+                "region": region,
+                "requestId": request_id,
+                "syncJobId": sync_job_id,
+                "force": force,
+                "timestamp": start_time,
+            }
+        )
+    )
+
+    try:
+        # Get current launch config status
+        current_status = get_config_status(group_id)
+
+        # Check for duplicate invocation (status "syncing" with different syncJobId)
+        if current_status.get("status") == "syncing":
+            stored_sync_job_id = current_status.get("syncJobId")
+            if stored_sync_job_id and stored_sync_job_id != sync_job_id:
+                # Another sync is already in progress, skip this invocation
+                print(
+                    json.dumps(
+                        {
+                            "level": "INFO",
+                            "event": "sync_launch_configs_skip",
+                            "groupId": group_id,
+                            "reason": "duplicate_invocation",
+                            "currentSyncJobId": stored_sync_job_id,
+                            "thisSyncJobId": sync_job_id,
+                            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                        }
+                    )
+                )
+                return {
+                    "status": "skipped",
+                    "reason": "Another sync is already in progress",
+                    "appliedServers": 0,
+                    "failedServers": 0,
+                }
+
+        # Update status to "syncing" with startTime and syncJobId
+        persist_config_status(
+            group_id,
+            {
+                "status": "syncing",
+                "startTime": start_time,
+                "syncJobId": sync_job_id,
+                "requestId": request_id,
+            },
+        )
+
+        # Log structured JSON with serverCount (Requirement 9.4)
+        print(
+            json.dumps(
+                {
+                    "level": "INFO",
+                    "event": "sync_launch_configs_started",
+                    "groupId": group_id,
+                    "serverCount": len(current_status.get("serverConfigs", {})),
+                    "requestId": request_id,
+                    "syncJobId": sync_job_id,
+                    "timestamp": start_time,
+                }
+            )
+        )
+
+        # Load protection group from DynamoDB
+        table = get_protection_groups_table()
+        pg_response = table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in pg_response:
+            error_msg = f"Protection group {group_id} not found"
+            completion_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            
+            # Log structured error (Requirement 9.6)
+            print(
+                json.dumps(
+                    {
+                        "level": "ERROR",
+                        "event": "sync_launch_configs_error",
+                        "groupId": group_id,
+                        "errorType": "ProtectionGroupNotFound",
+                        "errorMessage": error_msg,
+                        "timestamp": completion_time,
+                    }
+                )
+            )
+            
+            # Emit CloudWatch error metric (Requirement 9.3)
+            try:
+                cloudwatch.put_metric_data(
+                    Namespace="DRSOrchestration",
+                    MetricData=[
+                        {
+                            "MetricName": "LaunchConfigSyncErrors",
+                            "Value": 1,
+                            "Unit": "Count",
+                            "Dimensions": [{"Name": "errorType", "Value": "ProtectionGroupNotFound"}],
+                        }
+                    ],
+                )
+            except Exception as metric_error:
+                print(f"Failed to emit error metric: {metric_error}")
+            
+            # Update status to failed
+            persist_config_status(
+                group_id,
+                {
+                    "status": "failed",
+                    "completionTime": completion_time,
+                    "syncJobId": None,
+                    "errors": [error_msg],
+                },
+            )
+            return {"status": "failed", "appliedServers": 0, "failedServers": 0}
+
+        protection_group = pg_response["Item"]
+
+        # Get server IDs and launch configs
+        server_ids = protection_group.get("sourceServerIds", [])
+        if not server_ids:
+            error_msg = "Protection group has no servers"
+            completion_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            
+            # Log structured error (Requirement 9.6)
+            print(
+                json.dumps(
+                    {
+                        "level": "ERROR",
+                        "event": "sync_launch_configs_error",
+                        "groupId": group_id,
+                        "errorType": "NoServers",
+                        "errorMessage": error_msg,
+                        "timestamp": completion_time,
+                    }
+                )
+            )
+            
+            # Emit CloudWatch error metric (Requirement 9.3)
+            try:
+                cloudwatch.put_metric_data(
+                    Namespace="DRSOrchestration",
+                    MetricData=[
+                        {
+                            "MetricName": "LaunchConfigSyncErrors",
+                            "Value": 1,
+                            "Unit": "Count",
+                            "Dimensions": [{"Name": "errorType", "Value": "NoServers"}],
+                        }
+                    ],
+                )
+            except Exception as metric_error:
+                print(f"Failed to emit error metric: {metric_error}")
+            
+            # Update status to failed
+            persist_config_status(
+                group_id,
+                {
+                    "status": "failed",
+                    "completionTime": completion_time,
+                    "syncJobId": None,
+                    "errors": [error_msg],
+                },
+            )
+            return {"status": "failed", "appliedServers": 0, "failedServers": 0}
+
+        # Build launch configs dict (group defaults + per-server overrides)
+        launch_configs = {}
+        for server_id in server_ids:
+            effective_config = get_effective_launch_config(protection_group, server_id)
+            launch_configs[server_id] = effective_config
+
+        # Define progress callback for real-time updates
+        last_update_time = [time.time()]  # Use list to allow modification in nested function
+        update_interval = 30  # Update every 30 seconds
+        servers_per_update = 10  # Or every 10 servers
+
+        def progress_callback(completed: int, total: int):
+            """Update DynamoDB with progress every 10 servers or 30 seconds."""
+            current_time = time.time()
+            should_update = (completed % servers_per_update == 0) or (
+                current_time - last_update_time[0] >= update_interval
+            )
+
+            if should_update:
+                percentage = int((completed / total) * 100) if total > 0 else 0
+                persist_config_status(
+                    group_id,
+                    {
+                        "progress": {
+                            "completed": completed,
+                            "total": total,
+                            "percentage": percentage,
+                        }
+                    },
+                )
+                last_update_time[0] = current_time
+                print(
+                    json.dumps(
+                        {
+                            "event": "sync_launch_configs_progress",
+                            "groupId": group_id,
+                            "completed": completed,
+                            "total": total,
+                            "percentage": percentage,
+                            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                        }
+                    )
+                )
+
+        # Call apply_launch_configs_to_group with progress callback
+        result = apply_launch_configs_to_group(
+            group_id=group_id,
+            region=region,
+            server_ids=server_ids,
+            launch_configs=launch_configs,
+            account_context=account_context,
+            timeout_seconds=300,
+        )
+
+        # Determine final status based on results
+        applied_servers = result.get("appliedServers", 0)
+        failed_servers = result.get("failedServers", 0)
+        server_configs = result.get("serverConfigs", {})
+        errors = result.get("errors", [])
+
+        if applied_servers == len(server_ids):
+            final_status = "ready"
+        elif applied_servers == 0:
+            final_status = "failed"
+        else:
+            final_status = "partial"
+
+        # Update status with completion time and set syncJobId to null
+        completion_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        duration_seconds = (datetime.now(timezone.utc) - start_time_obj).total_seconds()
+        
+        persist_config_status(
+            group_id,
+            {
+                "status": final_status,
+                "completionTime": completion_time,
+                "syncJobId": None,
+                "appliedServers": applied_servers,
+                "failedServers": failed_servers,
+                "serverConfigs": server_configs,
+                "errors": errors,
+            },
+        )
+
+        # Emit CloudWatch metrics (Requirements 9.1, 9.2)
+        try:
+            metric_data = [
+                {
+                    "MetricName": "LaunchConfigSyncDuration",
+                    "Value": duration_seconds,
+                    "Unit": "Seconds",
+                    "Dimensions": [{"Name": "groupId", "Value": group_id}],
+                },
+                {
+                    "MetricName": "LaunchConfigSyncServerCount",
+                    "Value": applied_servers,
+                    "Unit": "Count",
+                    "Dimensions": [{"Name": "status", "Value": "success"}],
+                },
+            ]
+            
+            if failed_servers > 0:
+                metric_data.append(
+                    {
+                        "MetricName": "LaunchConfigSyncServerCount",
+                        "Value": failed_servers,
+                        "Unit": "Count",
+                        "Dimensions": [{"Name": "status", "Value": "failed"}],
+                    }
+                )
+            
+            cloudwatch.put_metric_data(Namespace="DRSOrchestration", MetricData=metric_data)
+        except Exception as metric_error:
+            print(f"Failed to emit completion metrics: {metric_error}")
+
+        # Log structured JSON for completion (Requirement 9.5)
+        print(
+            json.dumps(
+                {
+                    "level": "INFO",
+                    "event": "sync_launch_configs_complete",
+                    "groupId": group_id,
+                    "status": final_status,
+                    "appliedServers": applied_servers,
+                    "failedServers": failed_servers,
+                    "duration": duration_seconds,
+                    "timestamp": completion_time,
+                }
+            )
+        )
+
+        # Log per-server failures (Requirement 9.6)
+        for server_id, config in server_configs.items():
+            if config.get("status") == "failed":
+                server_errors = config.get("errors", [])
+                error_code = server_errors[0] if server_errors else "Unknown"
+                error_message = ", ".join(server_errors) if server_errors else "No error details"
+                retry_count = config.get("retryCount", 0)
+                
+                print(
+                    json.dumps(
+                        {
+                            "level": "ERROR",
+                            "event": "sync_launch_configs_server_failure",
+                            "groupId": group_id,
+                            "serverId": server_id,
+                            "errorCode": error_code,
+                            "errorMessage": error_message,
+                            "retryCount": retry_count,
+                            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                        }
+                    )
+                )
+                
+                # Emit error metric for each failed server (Requirement 9.3)
+                try:
+                    cloudwatch.put_metric_data(
+                        Namespace="DRSOrchestration",
+                        MetricData=[
+                            {
+                                "MetricName": "LaunchConfigSyncErrors",
+                                "Value": 1,
+                                "Unit": "Count",
+                                "Dimensions": [{"Name": "errorType", "Value": error_code[:255]}],
+                            }
+                        ],
+                    )
+                except Exception as metric_error:
+                    print(f"Failed to emit server error metric: {metric_error}")
+
+        return {
+            "status": final_status,
+            "appliedServers": applied_servers,
+            "failedServers": failed_servers,
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+        error_type = type(e).__name__
+        completion_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        
+        # Log structured exception (Requirement 9.6)
+        print(
+            json.dumps(
+                {
+                    "level": "ERROR",
+                    "event": "sync_launch_configs_exception",
+                    "groupId": group_id,
+                    "errorType": error_type,
+                    "errorMessage": error_msg,
+                    "timestamp": completion_time,
+                }
+            )
+        )
+        import traceback
+
+        traceback.print_exc()
+
+        # Emit CloudWatch error metric (Requirement 9.3)
+        try:
+            cloudwatch.put_metric_data(
+                Namespace="DRSOrchestration",
+                MetricData=[
+                    {
+                        "MetricName": "LaunchConfigSyncErrors",
+                        "Value": 1,
+                        "Unit": "Count",
+                        "Dimensions": [{"Name": "errorType", "Value": error_type}],
+                    }
+                ],
+            )
+        except Exception as metric_error:
+            print(f"Failed to emit exception metric: {metric_error}")
+
+        # Update status to failed
+        try:
+            persist_config_status(
+                group_id,
+                {
+                    "status": "failed",
+                    "completionTime": completion_time,
+                    "syncJobId": None,
+                    "errors": [error_msg],
+                },
+            )
+        except Exception as persist_error:
+            print(f"Failed to persist error status: {persist_error}")
+
+        return {"status": "failed", "appliedServers": 0, "failedServers": 0}
 
 
 # ============================================================================
