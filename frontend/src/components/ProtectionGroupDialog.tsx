@@ -30,7 +30,9 @@ import { ServerConfigurationTab } from './ServerConfigurationTab';
 import { PermissionAwareButton } from './PermissionAware';
 import { DRSPermission } from '../types/permissions';
 import { ServerListItem } from './ServerListItem';
+import { LaunchConfigProgressModal } from './LaunchConfigProgressModal';
 import { useAccount } from '../contexts/AccountContext';
+import { useLaunchConfigStatus } from '../hooks/useLaunchConfigStatus';
 import apiClient from '../services/api';
 import type { ProtectionGroup, ResolvedServer, LaunchConfig, ServerLaunchConfig } from '../types';
 
@@ -84,6 +86,18 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   
   // State for active tab
   const [activeTabId, setActiveTabId] = useState<string>('servers');
+
+  // Progress modal state
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [savedGroupId, setSavedGroupId] = useState<string | null>(null);
+  
+  // Launch config status polling hook
+  const {
+    status: launchConfigStatus,
+    startPolling,
+    stopPolling,
+    error: pollingError,
+  } = useLaunchConfigStatus(savedGroupId || '', region);
 
   const isEditMode = Boolean(group);
 
@@ -462,8 +476,19 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         savedGroup = await apiClient.createProtectionGroup(groupData);
       }
 
+      // If launch config was provided, show progress modal and start polling
+      if (hasLaunchConfig) {
+        setSavedGroupId(savedGroup.protectionGroupId);
+        setShowProgressModal(true);
+        startPolling();
+      }
+
       onSave(savedGroup);
-      onClose();
+      
+      // Only close the main dialog if no launch config (no async work)
+      if (!hasLaunchConfig) {
+        onClose();
+      }
     } catch (err: unknown) {
       const error = err as Error & { 
         message?: string; 
@@ -500,6 +525,26 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   const handleCancel = () => {
     if (!loading) {
       onClose();
+    }
+  };
+
+  // Handle progress modal dismiss
+  const handleProgressModalDismiss = () => {
+    stopPolling();
+    setShowProgressModal(false);
+    setSavedGroupId(null);
+    onClose(); // Close the main dialog as well
+  };
+
+  // Handle retry failed launch configs
+  const handleRetryFailed = async () => {
+    if (!savedGroupId) return;
+    
+    try {
+      await apiClient.applyLaunchConfigs(savedGroupId, region, { force: true });
+      // Polling will automatically pick up the new status
+    } catch (err) {
+      console.error('Failed to retry launch configs:', err);
     }
   };
 
@@ -836,6 +881,15 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         )}
         </SpaceBetween>
       </form>
+      
+      {/* Launch Config Progress Modal */}
+      <LaunchConfigProgressModal
+        visible={showProgressModal}
+        status={launchConfigStatus}
+        onDismiss={handleProgressModalDismiss}
+        onRetry={handleRetryFailed}
+        error={pollingError}
+      />
     </Modal>
   );
 };

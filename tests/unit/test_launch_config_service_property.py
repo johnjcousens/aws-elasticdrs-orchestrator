@@ -1532,33 +1532,42 @@ class TestProperty9StatusUpdateAtomicity:
             "launchConfigStatus must be in update expression"
         )
         
-        # Verify the status object contains all required fields
-        # Note: persist_config_status uses ":status" as parameter name
+        # NEW IMPLEMENTATION: Each field is set individually
+        # Verify all required fields are present as separate expression values
+        assert ":status" in expr_values, (
+            "status field must be present in expression values"
+        )
+        assert ":lastApplied" in expr_values, (
+            "lastApplied field must be present in expression values"
+        )
+        assert ":serverConfigs" in expr_values, (
+            "serverConfigs field must be present in expression values"
+        )
+        assert ":errors" in expr_values, (
+            "errors field must be present in expression values"
+        )
+        
+        # Verify status is a string value (not a nested dict)
         status_value = expr_values[":status"]
-        assert "status" in status_value, (
-            "status field must be present"
+        assert isinstance(status_value, str), (
+            "status should be a string value"
         )
-        assert "lastApplied" in status_value, (
-            "lastApplied field must be present"
-        )
-        assert "serverConfigs" in status_value, (
-            "serverConfigs field must be present"
-        )
-        assert "errors" in status_value, (
-            "errors field must be present"
+        assert status_value in ["ready", "pending", "failed"], (
+            f"status should be a valid status value, got: {status_value}"
         )
         
         # Verify serverConfigs has entries for all servers
-        assert len(status_value["serverConfigs"]) == len(server_ids), (
+        server_configs = expr_values[":serverConfigs"]
+        assert len(server_configs) == len(server_ids), (
             f"serverConfigs should have {len(server_ids)} entries"
         )
         
         # Verify each server config has required fields
         for server_id in server_ids:
-            assert server_id in status_value["serverConfigs"], (
+            assert server_id in server_configs, (
                 f"Server {server_id} must be in serverConfigs"
             )
-            server_config = status_value["serverConfigs"][server_id]
+            server_config = server_configs[server_id]
             assert "status" in server_config, (
                 f"Server {server_id} config must have status"
             )
@@ -1590,32 +1599,25 @@ class TestProperty9StatusUpdateAtomicity:
     ):
         """
         Feature: launch-config-preapplication, Property 9:
-        Partial updates (only some fields) should not be possible.
-        All fields must be updated together.
+        Partial updates (only some fields) ARE supported in the new implementation.
+        This test verifies that partial updates work correctly.
         
-        Validates: Requirements 4.5
+        Validates: Requirements 4.5, 8.4
         """
         from shared.launch_config_service import persist_config_status
         from datetime import datetime, timezone
         
-        # Create incomplete config status (missing serverConfigs)
-        # Note: persist_config_status validates and requires serverConfigs
-        incomplete_status = {
-            "status": "ready",
-            "lastApplied": datetime.now(
-                timezone.utc
-            ).isoformat().replace("+00:00", "Z"),
-            "appliedBy": "test-user",
-            "serverConfigs": {},  # Required field, even if empty
-            "errors": []
+        # Create partial config status (only status field)
+        partial_status = {
+            "status": "pending"
         }
         
         # Mock DynamoDB table
         mock_table_instance = MagicMock()
         mock_table.return_value = mock_table_instance
         
-        # Persist status - should succeed with empty serverConfigs
-        persist_config_status(group_id, incomplete_status)
+        # Persist partial status - should succeed
+        persist_config_status(group_id, partial_status)
         
         # Verify update was called
         assert mock_table_instance.update_item.called, (
@@ -1625,11 +1627,24 @@ class TestProperty9StatusUpdateAtomicity:
         # Get the persisted value
         call_args = mock_table_instance.update_item.call_args
         expr_values = call_args[1]["ExpressionAttributeValues"]
-        status_value = expr_values[":status"]
         
-        # Verify serverConfigs field exists (even if empty)
-        assert "serverConfigs" in status_value, (
-            "serverConfigs must always be present in status updates"
+        # Verify only status field is in expression values (partial update)
+        assert ":status" in expr_values, (
+            "status must be present in partial update"
+        )
+        assert expr_values[":status"] == "pending", (
+            "status value should match input"
+        )
+        
+        # Verify other fields are NOT in expression values (partial update)
+        assert ":serverConfigs" not in expr_values, (
+            "serverConfigs should not be in partial update"
+        )
+        assert ":lastApplied" not in expr_values, (
+            "lastApplied should not be in partial update"
+        )
+        assert ":errors" not in expr_values, (
+            "errors should not be in partial update"
         )
 
     @given(

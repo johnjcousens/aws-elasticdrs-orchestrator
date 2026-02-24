@@ -79,6 +79,50 @@ export interface ServerLaunchConfig {
   effectiveConfig?: LaunchConfig;
 }
 
+// ============================================================================
+// Launch Configuration Sync Status Types
+// ============================================================================
+
+// Launch configuration sync status values
+export type LaunchConfigStatusType = 
+  | 'not_configured'  // No launch config defined
+  | 'pending'         // Config saved, sync not started
+  | 'syncing'         // Async sync in progress
+  | 'ready'           // All servers synced successfully
+  | 'partial'         // Some servers failed
+  | 'failed'          // All servers failed
+  | 'drifted';        // Config changed since last sync
+
+// Per-server configuration status
+export interface ServerConfigStatus {
+  sourceServerId: string;
+  hostname?: string;
+  status: 'ready' | 'failed' | 'pending';
+  configHash?: string;
+  lastSyncTime?: number;
+  error?: string;
+}
+
+// Launch configuration sync status
+export interface LaunchConfigStatus {
+  status: LaunchConfigStatusType;
+  syncJobId?: string | null;
+  startTime?: number;
+  completionTime?: number;
+  progressCount?: number;
+  totalCount?: number;
+  percentage?: number;
+  estimatedTimeRemaining?: number;
+  serverConfigs?: ServerConfigStatus[];
+  error?: string;
+}
+
+// Launch configuration sync status
+export type LaunchConfigStatusType = 
+  | 'not_configured'  // No launch config defined
+  | 'pending'         // Config saved, sync not started
+  | 
+
 // Result from IP validation endpoint
 export interface IPValidationResult {
   valid: boolean;

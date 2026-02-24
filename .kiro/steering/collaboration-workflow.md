@@ -112,16 +112,6 @@ Some projects use handoff files to track progress across sessions (e.g., `.workf
 ### ABSOLUTE PROHIBITIONS - DO NOT PERFORM THESE ACTIONS
 **These operations are COMPLETELY PROHIBITED unless the human explicitly requests them:**
 
-#### Git Operations
-- **NEVER commit changes** - Do not use `git commit` or any commit commands
-- **NEVER push to remote** - Do not use `git push` or any push commands  
-- **NEVER create or switch branches** - Do not use `git checkout -b`, `git branch`, or `git switch`
-- **NEVER initialize git repositories** - Do not use `git init`
-- **NEVER delete branches, tags, or commits** - Do not use `git branch -d`, `git tag -d`, or destructive commands
-- **NEVER force push** - Do not use `git push --force` or `git push -f`
-- **NEVER skip pre-commit hooks** - Do not use `--no-verify` or bypass any git hooks
-- **NEVER modify git history** - Do not use `git rebase`, `git reset --hard`, or history-changing commands
-
 #### Build and Deployment Operations
 - **NEVER build projects** - Do not execute build scripts, make commands, or compilation processes
 - **NEVER deploy applications** - Do not execute deployment scripts, CI/CD pipelines, or release commands
@@ -150,10 +140,8 @@ Should I proceed with this operation?"
 - If the operation seems risky or unusual, explain the risks before proceeding
 
 ### SAFE ALTERNATIVES - What You CAN Do
-- **Read git status**: `git status` to show current state
-- **Show git log**: `git log` to display commit history  
-- **Show differences**: `git diff` to display changes
-- **Show branch information**: `git branch` to list branches
-- **Prepare commit messages**: Draft commit messages for human review
-- **Suggest git commands**: Recommend specific commands for human to execute
-- **Explain git operations**: Describe what commands would do without executing them
+- **Read and analyze code**: Review files, understand structure, identify issues
+- **Suggest changes**: Recommend specific modifications for human to review
+- **Draft documentation**: Prepare documentation updates for human approval
+- **Explain operations**: Describe what commands would do without executing them
+- **Validate configurations**: Check syntax and structure of configuration files

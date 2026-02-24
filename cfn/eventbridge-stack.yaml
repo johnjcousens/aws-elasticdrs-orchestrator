@@ -107,11 +107,18 @@ Parameters:
     AllowedValues: ['true', 'false']
     Description: Enable automatic source server inventory sync every 15 minutes
 
+  EnableRecoveryInstanceSync:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable automatic recovery instance sync every 5 minutes
+
 Conditions:
   EnableWeeklyDrillCondition: !Equals [!Ref EnableWeeklyDrill, 'true']
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
   EnableStagingAccountSyncCondition: !Equals [!Ref EnableStagingAccountSync, 'true']
   EnableInventorySyncCondition: !Equals [!Ref EnableInventorySync, 'true']
+  EnableRecoveryInstanceSyncCondition: !Equals [!Ref EnableRecoveryInstanceSync, 'true']
 
 # =============================================================================
 # RESOURCES
@@ -343,6 +350,32 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt InventorySyncScheduleRule.Arn
 
+  # ---------------------------------------------------------------------------
+  # Recovery Instance Sync (every 5 minutes)
+  # ---------------------------------------------------------------------------
+  RecoveryInstanceSyncScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: EnableRecoveryInstanceSyncCondition
+    Properties:
+      Name: !Sub '${ProjectName}-recovery-instance-sync-${Environment}'
+      Description: 'Sync recovery instance data from DRS and EC2 every 5 minutes'
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Id: RecoveryInstanceSyncTarget
+          Arn: !Ref DataManagementHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"operation": "sync_recovery_instances"}'
+
+  RecoveryInstanceSyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Condition: EnableRecoveryInstanceSyncCondition
+    Properties:
+      FunctionName: !Ref DataManagementHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt RecoveryInstanceSyncScheduleRule.Arn
+
 # =============================================================================
 # OUTPUTS
 # =============================================================================
@@ -391,4 +424,15 @@ Outputs:
   StagingAccountSyncScheduleExpression:
     Condition: EnableStagingAccountSyncCondition
     Description: Schedule expression for staging account sync (every 5 minutes)
+    Value: 'rate(5 minutes)'
+
+  # Recovery instance sync outputs (conditional)
+  RecoveryInstanceSyncScheduleRuleName:
+    Condition: EnableRecoveryInstanceSyncCondition
+    Description: Name of the recovery instance sync schedule rule
+    Value: !Ref RecoveryInstanceSyncScheduleRule
+
+  RecoveryInstanceSyncScheduleExpression:
+    Condition: EnableRecoveryInstanceSyncCondition
+    Description: Schedule expression for recovery instance sync (every 5 minutes)
     Value: 'rate(5 minutes)'

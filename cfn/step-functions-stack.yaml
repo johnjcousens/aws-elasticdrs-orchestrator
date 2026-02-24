@@ -31,6 +31,10 @@ Parameters:
     Type: String
     Description: 'ARN of the orchestration Lambda function'
   
+  ExecutionHandlerArn:
+    Type: String
+    Description: 'ARN of the execution handler Lambda function'
+  
   OrchestrationRoleArn:
     Type: String
     Description: 'ARN of the unified orchestration role (used by Lambda and Step Functions)'
@@ -271,7 +275,7 @@ Resources:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
             Parameters:
-              FunctionName: !Ref OrchestrationLambdaArn
+              FunctionName: !Ref ExecutionHandlerArn
               Payload:
                 action: 'update_wave_completion_status'
                 execution_id.$: '$.execution_id'

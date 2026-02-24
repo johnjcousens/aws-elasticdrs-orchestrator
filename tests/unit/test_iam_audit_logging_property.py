@@ -30,7 +30,7 @@ import pytest  # Add pytest import
 # Add lambda directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
-from hypothesis import given, strategies as st, assume, settings
+from hypothesis import given, strategies as st, assume, settings, HealthCheck
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 
@@ -112,8 +112,8 @@ result_data = st.one_of(
 
 
 @given(principal=principal_arn, operation=operation_name, params=params_dict, result=result_data, success=st.booleans())
-@settings(max_examples=50)
-def test_audit_log_always_contains_required_fields(principal, operation, params, result, success):
+@settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_audit_log_always_contains_required_fields(principal, operation, params, result, success, reset_logger_state, reset_environment_variables):
     """
     Property: Audit logs should always contain all required fields.
 

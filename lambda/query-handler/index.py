@@ -368,6 +368,7 @@ RECOVERY_PLANS_TABLE = os.environ.get("RECOVERY_PLANS_TABLE")
 TARGET_ACCOUNTS_TABLE = os.environ.get("TARGET_ACCOUNTS_TABLE")
 EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 DRS_REGION_STATUS_TABLE = os.environ.get("DRS_REGION_STATUS_TABLE")
+RECOVERY_INSTANCES_TABLE = os.environ.get("RECOVERY_INSTANCES_TABLE")
 
 # Lambda function ARNs (for cross-handler invocation)
 EXECUTION_HANDLER_ARN = os.environ.get("EXECUTION_HANDLER_ARN")
@@ -381,6 +382,7 @@ _recovery_plans_table = None
 _target_accounts_table = None
 _execution_history_table = None
 _region_status_table = None
+_recovery_instances_table = None
 
 # ============================================================================
 # Response Caching for Performance Optimization
@@ -437,6 +439,14 @@ def get_region_status_table():
     if _region_status_table is None:
         _region_status_table = dynamodb.Table(DRS_REGION_STATUS_TABLE) if DRS_REGION_STATUS_TABLE else None
     return _region_status_table
+
+
+def get_recovery_instances_table():
+    """Get or initialize recovery instances table."""
+    global _recovery_instances_table
+    if _recovery_instances_table is None:
+        _recovery_instances_table = dynamodb.Table(RECOVERY_INSTANCES_TABLE) if RECOVERY_INSTANCES_TABLE else None
+    return _recovery_instances_table
 
 
 def _get_region_statuses() -> List[Dict]:
@@ -2999,11 +3009,19 @@ def poll_wave_status(state: Dict) -> Dict:
             )
 
         # Check if job completed but no instances created
-        if job_status == "COMPLETED" and launched_count == 0:
+        # Only fail if servers are not still in progress (launching/converting)
+        if job_status == "COMPLETED" and launched_count == 0 and launching_count == 0 and converting_count == 0:
             print("❌ Job COMPLETED but no instances launched")
             state["wave_completed"] = True
             state["status"] = "failed"
             state["error"] = "DRS job completed but no recovery instances created"
+            return state
+        elif job_status == "COMPLETED" and launched_count == 0 and (launching_count > 0 or converting_count > 0):
+            # Job completed but servers still launching - continue polling
+            print(
+                f"Job COMPLETED but {launching_count + converting_count} servers still launching - continuing to poll"
+            )
+            state["wave_completed"] = False
             return state
 
         # All servers launched

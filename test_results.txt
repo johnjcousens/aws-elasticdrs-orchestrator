@@ -1,0 +1,2927 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 14%]
+........................................................................ [ 19%]
+........................................................................ [ 23%]
+................................................................FF...... [ 28%]
+.F.....................FFFFFFFFFFFFFFFFFFFFFFF.......................... [ 33%]
+........................................................................ [ 38%]
+........................................................................ [ 42%]
+.................................................FFFFFFF.........FF.F..F [ 47%]
+FF..FFFFFF.....FFFFFF...FFFF..FFF...F................................... [ 52%]
+..............................FFFFF.FFFF....F.F.F.....FFFFFF.F.......... [ 57%]
+...........FFF.....FFFFFFFFF...FF......F..........................FFFFFF [ 62%]
+........................................................................ [ 66%]
+........................................................................ [ 71%]
+........................................................................ [ 76%]
+........................................................................ [ 81%]
+............................................FFFFFFFFFFFFFF.FFFF....FF.FF [ 85%]
+.F........F.FF..FF..FFFFFF.............................................. [ 90%]
+.......................................................F...........F.... [ 95%]
+.......................EEEEEEEEEEEEEE................................    [100%]
+=============================== warnings summary ===============================
+tests/unit/test_cross_account_audit.py::TestCrossAccountDRSQueryAuditLogging::test_cross_account_query_audit_log_fields
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:114: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestCrossAccountDRSQueryAuditLogging::test_cross_account_query_with_sts_assume_role
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:175: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestHubAndSpokeAuditTrail::test_hub_account_audit_log_aggregation
+tests/unit/test_cross_account_audit.py::TestHubAndSpokeAuditTrail::test_hub_account_audit_log_aggregation
+tests/unit/test_cross_account_audit.py::TestHubAndSpokeAuditTrail::test_hub_account_audit_log_aggregation
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:212: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestSourceAndTargetAccountFields::test_source_account_is_hub_account
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:292: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestSourceAndTargetAccountFields::test_target_account_from_event_parameter
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:318: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestSourceAndTargetAccountFields::test_same_account_query_has_matching_source_and_target
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:350: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestAssumedRoleAndSessionFields::test_assumed_role_arn_for_cross_account_query
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:386: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestAssumedRoleAndSessionFields::test_cross_account_session_name_populated
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:417: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestAssumedRoleAndSessionFields::test_null_assumed_role_for_same_account_query
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:452: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestCentralizedAuditTrail::test_hub_account_audit_table_receives_all_logs
+tests/unit/test_cross_account_audit.py::TestCentralizedAuditTrail::test_hub_account_audit_table_receives_all_logs
+tests/unit/test_cross_account_audit.py::TestCentralizedAuditTrail::test_hub_account_audit_table_receives_all_logs
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:642: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_cross_account_audit.py::TestCentralizedAuditTrail::test_audit_log_retention_and_encryption
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/test_cross_account_audit.py:668: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_execution_orchestration_handlers.py::TestCallbackHandlerResume::test_resume_calls_send_task_success
+tests/unit/test_execution_orchestration_handlers.py::TestExpiredTokenHandling::test_invalid_token_exception_returns_400
+tests/unit/test_execution_orchestration_handlers.py::TestExpiredTokenHandling::test_task_does_not_exist_returns_400
+  /Users/jocousen/Documents/CODE/GITHUB/aws-elasticdrs-orchestrator/tests/unit/../../lambda/execution-handler/index.py:7982: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================ Hypothesis Statistics =============================
+tests/unit/test_account_breakdown_completeness_property.py::test_property_12_account_breakdown_completeness:
+
+  - during generate phase (2.70 seconds):
+    - Typical runtimes: ~ 0-76 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 11 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_account_consistency_property.py::test_property_mixed_accounts_rejected:
+
+  - during generate phase (1.50 seconds):
+    - Typical runtimes: ~ 4-14 ms, of which ~ 4-12 ms in data generation
+    - 100 passing examples, 0 failing examples, 45 invalid examples
+    - Events:
+      * 17.93%, invalid because: failed to satisfy assume() in test_property_mixed_accounts_rejected (line 278)
+      * 3.45%, invalid because: failed to satisfy assume() in mixed_account_pg_list_strategy (line 95)
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_account_consistency_property.py::test_property_same_account_accepted:
+
+  - during generate phase (1.04 seconds):
+    - Typical runtimes: ~ 3-11 ms, of which ~ 2-9 ms in data generation
+    - 100 passing examples, 0 failing examples, 28 invalid examples
+    - Events:
+      * 10.94%, invalid because: failed to satisfy assume() in test_property_same_account_accepted (line 330)
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_account_utils_property.py::test_property_arn_construction_pattern:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_account_utils_property.py::test_property_account_id_extraction_inverse:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_account_utils_property.py::test_property_extraction_works_for_any_role_name:
+
+  - during generate phase (0.09 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 5 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_account_utils_property.py::test_property_validation_rejects_invalid_formats:
+
+  - during generate phase (0.08 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 22 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_account_utils_property.py::test_property_account_id_format_validation:
+
+  - during generate phase (0.05 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 200 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=200
+
+
+tests/unit/test_account_utils_property.py::test_property_invocation_source_detection:
+
+  - during generate phase (0.25 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which ~ 0-1 ms in data generation
+    - 200 passing examples, 0 failing examples, 56 invalid examples
+
+  - Stopped because settings.max_examples=200
+
+
+tests/unit/test_account_utils_property.py::test_property_invocation_source_direct_no_request_context:
+
+  - during generate phase (0.14 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 42 invalid examples
+    - Events:
+      * 35.92%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(lambda k: k != "requestContext").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_account_utils_property.py::test_property_direct_invocation_requires_account_id:
+
+  - during generate phase (0.06 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 200 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=200
+
+
+tests/unit/test_account_utils_property.py::test_property_direct_invocation_with_valid_account_succeeds:
+
+  - during generate phase (0.20 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 3 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_active_region_filtering_property.py::test_property_active_region_filtering_consistency:
+
+  - during generate phase (9.09 seconds):
+    - Typical runtimes: ~ 1-186 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 3 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_active_region_filtering_property.py::test_property_active_region_filtering_with_pagination:
+
+  - during generate phase (9.38 seconds):
+    - Typical runtimes: ~ 3-200 ms, of which ~ 0-3 ms in data generation
+    - 100 passing examples, 0 failing examples, 2 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_active_region_filtering_property.py::test_property_active_region_filtering_cache_behavior:
+
+  - during generate phase (4.47 seconds):
+    - Typical runtimes: ~ 0-203 ms, of which ~ 0-3 ms in data generation
+    - 50 passing examples, 0 failing examples, 12 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_active_region_filtering_property.py::test_property_active_region_filtering_cache_expiry:
+
+  - during generate phase (65.10 seconds):
+    - Typical runtimes: ~ 1234-1399 ms, of which ~ 0-4 ms in data generation
+    - 50 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_active_region_filtering_property.py::test_property_fallback_to_all_regions:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 33 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_active_region_filtering_property.py::test_property_fallback_handles_all_dynamodb_errors:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 5 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_active_region_filtering_property.py::test_property_fallback_handles_unexpected_exceptions:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 4 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_active_region_filtering_property.py::test_property_fallback_consistency_across_calls:
+
+  - during generate phase (3.97 seconds):
+    - Typical runtimes: ~ 0-440 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_active_region_filtering_property.py::test_property_fallback_recovery_after_table_populated:
+
+  - during generate phase (4.99 seconds):
+    - Typical runtimes: ~ 0-188 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 42 invalid examples
+    - Events:
+      * 65.22%, Retried draw from FixedKeysDictStrategy(('region', 'serverCount'), TupleStrategy((sampled_from(['us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-central-2', 'eu-north-1', 'eu-south-1', 'eu-south-2', 'ap-east-1', 'ap-south-1', 'ap-south-2', 'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3', 'me-south-1', 'me-central-1', 'af-south-1', 'il-central-1', 'ca-central-1', 'sa-east-1']), integers(min_value=1, max_value=100)))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_active_region_tag_sync_property.py::test_property_tag_sync_uses_active_region_filtering:
+
+  - during generate phase (0.06 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 12 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_active_region_tag_sync_property.py::test_property_tag_sync_region_count_matches:
+
+  - during generate phase (0.03 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 3 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_active_region_tag_sync_property.py::test_property_tag_sync_skips_inactive_regions:
+
+  - during generate phase (0.03 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 3 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_active_region_tag_sync_property.py::test_property_tag_sync_api_call_reduction:
+
+  - during generate phase (0.09 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 28 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_aws_approved_fields_property.py::test_allowed_fields_accepted:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_aws_approved_fields_property.py::test_blocked_fields_rejected:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_aws_approved_fields_property.py::test_mixed_fields_rejected:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_aws_approved_fields_property.py::test_unknown_fields_handling:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_callback_handler_property.py::test_property_validate_task_token_rejects_short:
+
+  - during generate phase (0.08 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 200 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=200
+
+
+tests/unit/test_callback_handler_property.py::test_property_callback_handler_rejects_short_token:
+
+  - during generate phase (0.10 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 200 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=200
+
+
+tests/unit/test_callback_handler_property.py::test_property_empty_token_rejected:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 2 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_callback_handler_property.py::test_property_whitespace_only_token_rejected:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 2 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_cli_operation_response_structure_property.py::test_property_add_staging_account_response_structure:
+
+  - during generate phase (0.59 seconds):
+    - Typical runtimes: ~ 3-6 ms, of which ~ 1-3 ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_cli_operation_response_structure_property.py::test_property_remove_staging_account_response_structure:
+
+  - during generate phase (0.93 seconds):
+    - Typical runtimes: ~ 2-12 ms, of which ~ 2-9 ms in data generation
+    - 100 passing examples, 0 failing examples, 17 invalid examples
+    - Events:
+      * 5.98%, Retried draw from FixedKeysDictStrategy(('accountId', 'accountName', 'roleArn', 'externalId'), TupleStrategy((from_regex('\\d{12}', fullmatch=True), text(alphabet=characters(whitelist_categories=('Lu', 'Ll', 'Nd'), whitelist_characters='_-'), min_size=1, max_size=50), builds(lambda acc_id: f"arn:aws:iam::{acc_id}:role/TestRole", from_regex('\\d{12}', fullmatch=True)), text(min_size=1, max_size=100)))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_cli_operation_response_structure_property.py::test_property_validate_staging_account_response_structure:
+
+  - during generate phase (0.24 seconds):
+    - Typical runtimes: ~ 1-2 ms, of which ~ 1ms in data generation
+    - 100 passing examples, 0 failing examples, 5 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_cli_operation_response_structure_property.py::test_property_error_responses_have_descriptive_messages:
+
+  - during generate phase (0.17 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_combined_capacity_aggregation_property.py::test_property_combined_capacity_aggregation:
+
+  - during generate phase (0.65 seconds):
+    - Typical runtimes: ~ 1-11 ms, of which ~ 0-11 ms in data generation
+    - 100 passing examples, 0 failing examples, 7 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_combined_capacity_aggregation_property.py::test_property_uniform_capacity_distribution:
+
+  - during generate phase (0.05 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_combined_capacity_aggregation_property.py::test_property_inaccessible_accounts_excluded:
+
+  - during generate phase (0.83 seconds):
+    - Typical runtimes: ~ 1-12 ms, of which ~ 0-10 ms in data generation
+    - 100 passing examples, 0 failing examples, 3 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_config_hash_property.py::TestConfigHashDeterminism::test_same_input_produces_same_hash:
+
+  - during generate phase (0.36 seconds):
+    - Typical runtimes: ~ 0-5 ms, of which ~ 0-4 ms in data generation
+    - 100 passing examples, 0 failing examples, 2 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_config_hash_property.py::TestConfigHashDeterminism::test_hash_format_always_valid:
+
+  - during generate phase (0.45 seconds):
+    - Typical runtimes: ~ 0-5 ms, of which ~ 0-4 ms in data generation
+    - 100 passing examples, 0 failing examples, 2 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_config_hash_property.py::TestConfigHashDeterminism::test_different_inputs_produce_different_hashes:
+
+  - during generate phase (0.34 seconds):
+    - Typical runtimes: ~ 0-5 ms, of which ~ 0-4 ms in data generation
+    - 100 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_config_hash_property.py::TestConfigHashDeterminism::test_security_group_order_affects_hash:
+
+  - during generate phase (0.41 seconds):
+    - Typical runtimes: ~ 0-5 ms, of which ~ 0-4 ms in data generation
+    - 100 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_config_hash_property.py::TestConfigHashDeterminism::test_comprehensive_config_determinism:
+
+  - during generate phase (0.50 seconds):
+    - Typical runtimes: ~ 1-5 ms, of which ~ 0-5 ms in data generation
+    - 100 passing examples, 0 failing examples, 3 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_config_hash_property.py::TestConfigHashDeterminism::test_arbitrary_config_determinism:
+
+  - during generate phase (0.22 seconds):
+    - Typical runtimes: ~ 0-3 ms, of which ~ 0-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 28 invalid examples
+    - Events:
+      * 27.34%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=20).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_config_hash_property.py::TestConfigHashDeterminism::test_empty_config_produces_consistent_hash:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 1 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_config_merge_property.py::test_configuration_merge_correctness:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-1 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_config_merge_property.py::test_no_server_config_returns_group_defaults:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which ~ 0-1 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_config_merge_property.py::test_merge_idempotence:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: ~ 0-6 ms, of which ~ 0-3 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_data_management_operations_property.py::test_property_valid_operation_routing_succeeds:
+
+  - during generate phase (2.32 seconds):
+    - Typical runtimes: ~ 5-158 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 2 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_invalid_operation_returns_error:
+
+  - during generate phase (0.70 seconds):
+    - Typical runtimes: ~ 0-6 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 14 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_protection_group_operations_route_correctly:
+
+  - during generate phase (0.67 seconds):
+    - Typical runtimes: ~ 4-8 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_recovery_plan_operations_route_correctly:
+
+  - during generate phase (0.70 seconds):
+    - Typical runtimes: ~ 4-7 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_server_launch_config_operations_route_correctly:
+
+  - during generate phase (0.66 seconds):
+    - Typical runtimes: ~ 4-6 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_target_account_operations_route_correctly:
+
+  - during generate phase (0.65 seconds):
+    - Typical runtimes: ~ 4-6 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_tag_sync_operations_route_correctly:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: ~ 4-5 ms, of which < 1ms in data generation
+    - 5 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_data_management_operations_property.py::test_property_staging_account_operations_route_correctly:
+
+  - during generate phase (4.07 seconds):
+    - Typical runtimes: ~ 4-174 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_import_configuration_routes_correctly:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: ~ 4ms, of which < 1ms in data generation
+    - 1 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_data_management_operations_property.py::test_property_error_response_structure_consistency:
+
+  - during generate phase (0.71 seconds):
+    - Typical runtimes: ~ 0-6 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 9 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_missing_operation_returns_error:
+
+  - during generate phase (0.81 seconds):
+    - Typical runtimes: ~ 0-7 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 43 invalid examples
+    - Events:
+      * 49.65%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc'))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_all_operations_return_dict:
+
+  - during generate phase (1.02 seconds):
+    - Typical runtimes: ~ 5-23 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_data_management_operations_property.py::test_property_response_format_no_api_gateway_wrapping:
+
+  - during generate phase (11.35 seconds):
+    - Typical runtimes: ~ 4-198 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_empty_staging_accounts_default_property.py::test_property_13_empty_staging_accounts_default:
+
+  - during generate phase (2.55 seconds):
+    - Typical runtimes: ~ 16-96 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_empty_staging_accounts_default_property.py::test_property_13_missing_staging_accounts_attribute:
+
+  - during generate phase (1.39 seconds):
+    - Typical runtimes: ~ 16-97 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_error_handling_property.py::TestErrorResponseStructureProperty::test_invalid_operation_error_structure_consistent:
+
+  - during generate phase (0.04 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_error_handling_property.py::TestErrorResponseStructureProperty::test_missing_operation_field_error_consistent:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_error_handling_property.py::TestErrorResponseStructureProperty::test_authorization_failure_error_consistent:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_error_handling_property.py::TestDynamoDBErrorConsistencyProperty::test_dynamodb_error_structure_consistent:
+
+  - during generate phase (0.80 seconds):
+    - Typical runtimes: ~ 0-167 ms, of which < 1ms in data generation
+    - 18 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_error_handling_property.py::TestDRSErrorConsistencyProperty::test_drs_error_structure_consistent:
+
+  - during generate phase (0.52 seconds):
+    - Typical runtimes: ~ 0-135 ms, of which < 1ms in data generation
+    - 18 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_error_handling_property.py::TestUnexpectedExceptionConsistencyProperty::test_unexpected_exception_error_consistent:
+
+  - during generate phase (0.22 seconds):
+    - Typical runtimes: ~ 40-121 ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_error_handling_property.py::TestMissingParameterConsistencyProperty::test_missing_parameter_error_consistent_across_handlers:
+
+  - during generate phase (0.05 seconds):
+    - Typical runtimes: ~ 1-44 ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_error_handling_property.py::TestNotFoundErrorConsistencyProperty::test_not_found_error_consistent_across_handlers:
+
+  - during generate phase (0.18 seconds):
+    - Typical runtimes: ~ 2-127 ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_error_handling_property.py::TestErrorResponseJSONSerializability::test_all_error_responses_json_serializable:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 12 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_execution_handler_direct_invocation_property.py::test_property_valid_operation_routing_succeeds:
+
+  - during reuse phase (0.04 seconds):
+    - Typical runtimes: ~ 41ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_execution_handler_direct_invocation_property.py::test_property_invalid_operation_returns_error:
+
+  - during reuse phase (0.01 seconds):
+    - Typical runtimes: ~ 4ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_execution_handler_direct_invocation_property.py::test_property_operation_with_required_params_routes_correctly:
+
+  - during reuse phase (0.00 seconds):
+    - Typical runtimes: ~ 3ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_execution_handler_direct_invocation_property.py::test_property_response_format_no_api_gateway_wrapping:
+
+  - during reuse phase (0.00 seconds):
+    - Typical runtimes: ~ 3ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_execution_handler_direct_invocation_property.py::test_property_error_response_structure_consistency:
+
+  - during reuse phase (0.00 seconds):
+    - Typical runtimes: ~ 3ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_execution_handler_direct_invocation_property.py::test_property_missing_operation_returns_error:
+
+  - during reuse phase (0.01 seconds):
+    - Typical runtimes: ~ 4ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_execution_handler_direct_invocation_property.py::test_property_all_operations_return_dict:
+
+  - during reuse phase (0.01 seconds):
+    - Typical runtimes: ~ 4ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_failed_account_resilience_property.py::test_property_failed_account_resilience:
+
+  - during generate phase (14.70 seconds):
+    - Typical runtimes: ~ 1-240 ms, of which ~ 1-6 ms in data generation
+    - 100 passing examples, 0 failing examples, 105 invalid examples
+    - Events:
+      * 46.83%, Retried draw from <hypothesis.strategies._internal.core.CompositeStrategy object at 0x128be1a90>.filter(re.compile('\\d{12}').fullmatch).filter(not_yet_in_unique_list) to satisfy filter
+      * 2.93%, invalid because: Aborted test because unable to satisfy <hypothesis.strategies._internal.core.CompositeStrategy object at 0x128be1a90>.filter(re.compile('\\d{12}').fullmatch).filter(not_yet_in_unique_list)
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_failed_account_resilience_property.py::test_property_partial_failure_continues_query:
+
+  - during generate phase (5.58 seconds):
+    - Typical runtimes: ~ 96-279 ms, of which < 1ms in data generation
+    - 35 passing examples, 0 failing examples, 10 invalid examples
+    - Events:
+      * 22.22%, invalid because: failed to satisfy assume() in test_property_partial_failure_continues_query (line 211)
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_failed_account_resilience_property.py::test_property_all_staging_accounts_fail_target_succeeds:
+
+  - during generate phase (1.15 seconds):
+    - Typical runtimes: ~ 93-248 ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_iam_audit_logging_property.py::test_audit_log_always_contains_required_fields:
+
+  - during generate phase (0.20 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 11 invalid examples
+    - Events:
+      * 16.39%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_audit_log_timestamp_format:
+
+  - during generate phase (0.16 seconds):
+    - Typical runtimes: ~ 0-4 ms, of which ~ 0-3 ms in data generation
+    - 50 passing examples, 0 failing examples, 11 invalid examples
+    - Events:
+      * 22.95%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_sensitive_params_always_masked:
+
+  - during generate phase (0.08 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which ~ 0-1 ms in data generation
+    - 50 passing examples, 0 failing examples, 24 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_non_sensitive_params_not_masked:
+
+  - during generate phase (0.10 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 20 invalid examples
+    - Events:
+      * 40.00%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(lambda x: not any(sensitive in x.lower() for sensitive in ["password", "secret", "token", "key", "credential"])).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_large_results_always_truncated:
+
+  - during generate phase (0.47 seconds):
+    - Typical runtimes: ~ 1-9 ms, of which ~ 1-9 ms in data generation
+    - 50 passing examples, 0 failing examples, 21 invalid examples
+    - Events:
+      * 54.93%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list) to satisfy filter
+      * 8.45%, invalid because: Aborted test because unable to satisfy text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list)
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_small_results_not_truncated:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_success_logs_use_info_level:
+
+  - during generate phase (0.14 seconds):
+    - Typical runtimes: ~ 0-3 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 14 invalid examples
+    - Events:
+      * 26.56%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_failure_logs_use_warning_level:
+
+  - during generate phase (0.12 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 20 invalid examples
+    - Events:
+      * 22.86%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_audit_log_with_context_includes_metadata:
+
+  - during generate phase (0.14 seconds):
+    - Typical runtimes: ~ 0-3 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 10 invalid examples
+    - Events:
+      * 11.67%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_audit_log_json_parseable:
+
+  - during generate phase (0.13 seconds):
+    - Typical runtimes: ~ 0-3 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 5 invalid examples
+    - Events:
+      * 27.27%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_audit_logging_property.py::test_nested_sensitive_params_masked:
+
+  - during generate phase (0.10 seconds):
+    - Typical runtimes: ~ 0-4 ms, of which ~ 0-4 ms in data generation
+    - 30 passing examples, 0 failing examples, 6 invalid examples
+    - Events:
+      * 16.67%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=30
+
+
+tests/unit/test_iam_audit_logging_property.py::test_audit_log_event_type_always_direct_invocation:
+
+  - during generate phase (0.14 seconds):
+    - Typical runtimes: ~ 0-3 ms, of which ~ 0-3 ms in data generation
+    - 50 passing examples, 0 failing examples, 10 invalid examples
+    - Events:
+      * 40.00%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=30).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_orchestration_role_always_authorized:
+
+  - during generate phase (0.14 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 49 invalid examples
+    - Events:
+      * 45.45%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha()) to satisfy filter
+      * 6.06%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_assumed_orchestration_role_always_authorized:
+
+  - during generate phase (0.05 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 31 invalid examples
+    - Events:
+      * 33.33%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha()) to satisfy filter
+      * 7.41%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_step_functions_role_always_authorized:
+
+  - during generate phase (0.06 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 49 invalid examples
+    - Events:
+      * 45.45%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha()) to satisfy filter
+      * 7.07%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_lambda_role_always_authorized:
+
+  - during generate phase (0.06 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 40 invalid examples
+    - Events:
+      * 52.22%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha()) to satisfy filter
+      * 7.78%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_admin_user_always_authorized:
+
+  - during generate phase (0.04 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 4 invalid examples
+    - Events:
+      * 5.56%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_+=,.@'), min_size=1, max_size=64).filter(lambda x: x[0].isalnum()) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_random_role_without_keywords_denied:
+
+  - during generate phase (0.06 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 44 invalid examples
+    - Events:
+      * 48.94%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha()) to satisfy filter
+      * 6.38%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_random_user_without_admin_denied:
+
+  - during generate phase (0.04 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 3 invalid examples
+    - Events:
+      * 7.55%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_+=,.@'), min_size=1, max_size=64).filter(lambda x: x[0].isalnum()) to satisfy filter
+      * 1.89%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_+=,.@'), min_size=1, max_size=64).filter(lambda x: x[0].isalnum())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_malformed_arn_always_denied:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_empty_and_unknown_principals_denied:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_lambda_function_arn_always_authorized:
+
+  - during generate phase (0.07 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 52 invalid examples
+    - Events:
+      * 46.08%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha()) to satisfy filter
+      * 5.88%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_service_role_always_authorized:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_authorization_case_insensitive:
+
+  - during generate phase (0.07 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 48 invalid examples
+    - Events:
+      * 46.94%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha()) to satisfy filter
+      * 6.12%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_extract_principal_from_context:
+
+  - during generate phase (0.06 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 41 invalid examples
+    - Events:
+      * 48.35%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha()) to satisfy filter
+      * 6.59%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_valid_direct_invocation_event:
+
+  - during generate phase (0.07 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which ~ 0-1 ms in data generation
+    - 50 passing examples, 0 failing examples, 12 invalid examples
+    - Events:
+      * 17.74%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=50).filter(not_yet_in_unique_list) to satisfy filter
+      * 1.61%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=100).filter(lambda x: x.strip()) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_invalid_direct_invocation_event_without_operation:
+
+  - during generate phase (0.11 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 18 invalid examples
+    - Events:
+      * 29.41%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc')), min_size=1, max_size=50).filter(lambda x: x != "operation").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_iam_utils_property.py::test_invalid_direct_invocation_event_with_empty_operation:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_iam_utils_property.py::test_authorization_deterministic:
+
+  - during generate phase (0.04 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 25 invalid examples
+    - Events:
+      * 45.33%, Retried draw from text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha()) to satisfy filter
+      * 8.00%, invalid because: Aborted test because unable to satisfy text(characters(categories=(), include_characters='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'), min_size=1, max_size=64).filter(lambda x: x[0].isalpha())
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_inventory_fallback_property.py::test_property_10_inventory_updated_during_fallback:
+
+  - during reuse phase (0.61 seconds):
+    - Typical runtimes: ~ 610ms, of which ~ 2ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_fallback_property.py::test_property_10_no_update_when_inventory_fresh:
+
+  - during generate phase (97.28 seconds):
+    - Typical runtimes: ~ 0-1836 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 19 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_inventory_fallback_property.py::test_property_10_no_update_when_update_on_fallback_false:
+
+  - during generate phase (6.14 seconds):
+    - Typical runtimes: ~ 3-124 ms, of which ~ 1-9 ms in data generation
+    - 100 passing examples, 0 failing examples, 15 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_inventory_fallback_property.py::test_property_13_topology_preserved_on_update:
+
+  - during reuse phase (0.04 seconds):
+    - Typical runtimes: ~ 40ms, of which ~ 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_fallback_property.py::test_property_13_topology_captured_for_new_server:
+
+  - during reuse phase (0.05 seconds):
+    - Typical runtimes: ~ 44ms, of which ~ 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_fallback_property.py::test_property_13_get_failback_topology_returns_correct_data:
+
+  - during reuse phase (0.13 seconds):
+    - Typical runtimes: ~ 125ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_fallback_property.py::test_property_13_get_failback_topology_handles_missing_server:
+
+  - during generate phase (6.38 seconds):
+    - Typical runtimes: ~ 36-131 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_inventory_fallback_property.py::test_property_13_get_failback_topology_handles_missing_topology:
+
+  - during generate phase (6.15 seconds):
+    - Typical runtimes: ~ 35-132 ms, of which ~ 0-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_inventory_query_property.py::test_property_inventory_freshness_check:
+
+  - during reuse phase (0.05 seconds):
+    - Typical runtimes: ~ 44ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_query_property.py::test_property_custom_freshness_threshold:
+
+  - during reuse phase (0.05 seconds):
+    - Typical runtimes: ~ 46ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_query_property.py::test_property_stale_inventory_returns_empty:
+
+  - during reuse phase (0.05 seconds):
+    - Typical runtimes: ~ 50ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_query_property.py::test_property_inventory_data_completeness:
+
+  - during reuse phase (0.13 seconds):
+    - Typical runtimes: ~ 44-81 ms, of which ~ 0-2 ms in data generation
+    - 0 passing examples, 2 failing examples, 0 invalid examples
+    - Found 2 distinct errors in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_query_property.py::test_property_all_servers_have_required_fields:
+
+  - during reuse phase (0.11 seconds):
+    - Typical runtimes: ~ 110ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_sync_property.py::test_property_region_status_table_updates:
+
+  - during reuse phase (0.01 seconds):
+    - Typical runtimes: ~ 6ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_sync_property.py::test_property_region_status_update_idempotency:
+
+  - during reuse phase (0.00 seconds):
+    - Typical runtimes: ~ 1ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_sync_property.py::test_property_region_status_update_overwrites_previous:
+
+  - during reuse phase (0.00 seconds):
+    - Typical runtimes: ~ 2ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_inventory_sync_property.py::test_property_cache_invalidation_after_inventory_sync:
+
+  - during generate phase (28.98 seconds):
+    - Typical runtimes: ~ 0-444 ms, of which ~ 0-3 ms in data generation
+    - 100 passing examples, 0 failing examples, 37 invalid examples
+    - Events:
+      * 64.96%, Retried draw from FixedKeysDictStrategy(('region', 'serverCount'), TupleStrategy((sampled_from(['us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-central-2', 'eu-north-1', 'eu-south-1', 'eu-south-2', 'ap-east-1', 'ap-south-1', 'ap-south-2', 'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3', 'me-south-1', 'me-central-1', 'af-south-1', 'il-central-1', 'ca-central-1', 'sa-east-1']), integers(min_value=1, max_value=100)))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_inventory_sync_property.py::test_property_cache_invalidation_clears_all_cached_data:
+
+  - during generate phase (15.14 seconds):
+    - Typical runtimes: ~ 0-449 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 32 invalid examples
+    - Events:
+      * 74.39%, Retried draw from FixedKeysDictStrategy(('region', 'serverCount'), TupleStrategy((sampled_from(['us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-central-2', 'eu-north-1', 'eu-south-1', 'eu-south-2', 'ap-east-1', 'ap-south-1', 'ap-south-2', 'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3', 'me-south-1', 'me-central-1', 'af-south-1', 'il-central-1', 'ca-central-1', 'sa-east-1']), integers(min_value=1, max_value=100)))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_inventory_sync_property.py::test_property_cache_invalidation_idempotent:
+
+  - during generate phase (14.70 seconds):
+    - Typical runtimes: ~ 0-438 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 33 invalid examples
+    - Events:
+      * 67.47%, Retried draw from FixedKeysDictStrategy(('region', 'serverCount'), TupleStrategy((sampled_from(['us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-central-2', 'eu-north-1', 'eu-south-1', 'eu-south-2', 'ap-east-1', 'ap-south-1', 'ap-south-2', 'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3', 'me-south-1', 'me-central-1', 'af-south-1', 'il-central-1', 'ca-central-1', 'sa-east-1']), integers(min_value=1, max_value=100)))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_launch_config_formats_property.py::TestStaticPrivateIpProperty::test_valid_private_ips_always_accepted:
+
+  - during generate phase (0.05 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestStaticPrivateIpProperty::test_random_strings_handled_consistently:
+
+  - during generate phase (0.03 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestStaticPrivateIpProperty::test_public_ips_rejected:
+
+  - during generate phase (0.05 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestSubnetIdProperty::test_valid_subnet_ids_always_accepted:
+
+  - during generate phase (0.04 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestSubnetIdProperty::test_random_strings_handled_consistently:
+
+  - during generate phase (0.03 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestSecurityGroupIdsProperty::test_valid_sg_ids_always_accepted:
+
+  - during generate phase (0.16 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 37 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestSecurityGroupIdsProperty::test_random_sg_ids_handled_consistently:
+
+  - during generate phase (0.08 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 24 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestSecurityGroupIdsProperty::test_non_list_always_rejected:
+
+  - during generate phase (0.03 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestInstanceTypeProperty::test_valid_instance_types_always_accepted:
+
+  - during generate phase (0.07 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestInstanceTypeProperty::test_random_strings_handled_consistently:
+
+  - during generate phase (0.03 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_formats_property.py::TestConsistencyProperty::test_deterministic_output:
+
+  - during generate phase (0.10 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 14 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_launch_config_schema_property.py::TestProperty4StatusSchemaValidity::test_property_4_status_field_is_valid:
+
+  - during generate phase (0.09 seconds):
+    - Typical runtimes: ~ 0-15 ms, of which ~ 0-14 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_schema_property.py::TestProperty4StatusSchemaValidity::test_property_4_last_applied_present_when_configured:
+
+  - during generate phase (0.08 seconds):
+    - Typical runtimes: ~ 0-15 ms, of which ~ 0-14 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_schema_property.py::TestProperty4StatusSchemaValidity::test_property_4_not_configured_has_null_timestamp:
+
+  - during generate phase (0.05 seconds):
+    - Typical runtimes: ~ 0-10 ms, of which ~ 0-10 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_schema_property.py::TestProperty4StatusSchemaValidity::test_property_4_required_fields_present:
+
+  - during generate phase (0.06 seconds):
+    - Typical runtimes: ~ 0-11 ms, of which ~ 0-11 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_schema_property.py::TestProperty4StatusSchemaValidity::test_property_4_server_configs_is_dict:
+
+  - during generate phase (0.07 seconds):
+    - Typical runtimes: ~ 0-14 ms, of which ~ 0-13 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_schema_property.py::TestProperty4StatusSchemaValidity::test_property_4_errors_is_list:
+
+  - during generate phase (0.07 seconds):
+    - Typical runtimes: ~ 0-14 ms, of which ~ 0-13 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_schema_property.py::TestProperty4StatusSchemaValidity::test_property_4_camel_case_field_names:
+
+  - during generate phase (0.09 seconds):
+    - Typical runtimes: ~ 0-18 ms, of which ~ 0-17 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_schema_property.py::TestProperty4StatusSchemaValidity::test_property_4_server_status_is_valid:
+
+  - during generate phase (0.12 seconds):
+    - Typical runtimes: ~ 0-21 ms, of which ~ 0-20 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_schema_property.py::TestProperty4StatusSchemaValidity::test_property_4_config_hash_format:
+
+  - during generate phase (0.07 seconds):
+    - Typical runtimes: ~ 0-21 ms, of which ~ 0-20 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty1ConfigurationApplicationCompleteness::test_property_1_all_servers_processed:
+
+  - during generate phase (5.08 seconds):
+    - Typical runtimes: ~ 208-948 ms, of which ~ 0-2 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty1ConfigurationApplicationCompleteness::test_property_1_status_persisted:
+
+  - during generate phase (3.47 seconds):
+    - Typical runtimes: ~ 114-572 ms, of which ~ 0-2 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty1ConfigurationApplicationCompleteness::test_property_1_config_hash_calculated:
+
+  - during generate phase (6.49 seconds):
+    - Typical runtimes: ~ 133-1379 ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty1ConfigurationApplicationCompleteness::test_property_1_partial_success_handling:
+
+  - during generate phase (6.04 seconds):
+    - Typical runtimes: ~ 0-1005 ms, of which ~ 0-2 ms in data generation
+    - 10 passing examples, 0 failing examples, 6 invalid examples
+    - Events:
+      * 37.50%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+      * 37.50%, invalid because: Aborted test because unable to satisfy integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list)
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty10ConfigurationHashConsistency::test_property_10_hash_consistency_simple_dict:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: ~ 0-4 ms, of which ~ 0-4 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty10ConfigurationHashConsistency::test_property_10_hash_consistency_with_lists:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: ~ 0-6 ms, of which ~ 0-6 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty10ConfigurationHashConsistency::test_property_10_hash_consistency_nested_structures:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: ~ 0-7 ms, of which ~ 0-7 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty10ConfigurationHashConsistency::test_property_10_hash_independent_of_key_order:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: ~ 0-5 ms, of which ~ 0-5 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty10ConfigurationHashConsistency::test_property_10_hash_consistency_with_numeric_types:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-3 ms, of which ~ 0-3 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty10ConfigurationHashConsistency::test_property_10_hash_consistency_with_none_values:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-2 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_status_field_validity:
+
+  - during reuse phase (0.20 seconds):
+    - Typical runtimes: ~ 198ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_timestamp_presence_for_configured_status:
+
+  - during reuse phase (0.05 seconds):
+    - Typical runtimes: ~ 45ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_server_configs_structure_validity:
+
+  - during reuse phase (0.04 seconds):
+    - Typical runtimes: ~ 41ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_not_configured_status_no_timestamp_required:
+
+  - during reuse phase (0.13 seconds):
+    - Typical runtimes: ~ 126ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_camelcase_naming_convention:
+
+  - during reuse phase (0.04 seconds):
+    - Typical runtimes: ~ 42ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty8ConfigurationDriftDetection::test_property_8_drift_detected_when_hashes_differ:
+
+  - during generate phase (0.70 seconds):
+    - Typical runtimes: ~ 5-135 ms, of which ~ 0-9 ms in data generation
+    - 10 passing examples, 0 failing examples, 1 invalid examples
+    - Events:
+      * 9.09%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty8ConfigurationDriftDetection::test_property_8_no_drift_when_hashes_match:
+
+  - during reuse phase (0.04 seconds):
+    - Typical runtimes: ~ 41ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty8ConfigurationDriftDetection::test_property_8_partial_drift_detection:
+
+  - during reuse phase (0.05 seconds):
+    - Typical runtimes: ~ 47ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty8ConfigurationDriftDetection::test_property_8_drift_with_missing_stored_config:
+
+  - during reuse phase (0.05 seconds):
+    - Typical runtimes: ~ 46ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty8ConfigurationDriftDetection::test_property_8_drift_with_not_configured_status:
+
+  - during reuse phase (0.12 seconds):
+    - Typical runtimes: ~ 115ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty9StatusUpdateAtomicity::test_property_9_all_fields_updated_together:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-1 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty9StatusUpdateAtomicity::test_property_9_partial_update_not_allowed:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty9StatusUpdateAtomicity::test_property_9_status_consistency_after_persist:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty6ReapplyOperationCompleteness::test_property_6_all_servers_processed_on_reapply:
+
+  - during generate phase (5.95 seconds):
+    - Typical runtimes: ~ 124-1383 ms, of which ~ 0-3 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty6ReapplyOperationCompleteness::test_property_6_status_reflects_all_success:
+
+  - during reuse phase (0.23 seconds):
+    - Typical runtimes: ~ 224ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty6ReapplyOperationCompleteness::test_property_6_status_reflects_all_failure:
+
+  - during generate phase (7.47 seconds):
+    - Typical runtimes: ~ 138-1438 ms, of which ~ 0-3 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty6ReapplyOperationCompleteness::test_property_6_status_reflects_partial_success:
+
+  - during reuse phase (1.05 seconds):
+    - Typical runtimes: ~ 508-532 ms, of which ~ 0-1 ms in data generation
+    - 0 passing examples, 2 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - during shrink phase (154.63 seconds):
+    - Typical runtimes: ~ 0-978 ms, of which < 1ms in data generation
+    - 0 passing examples, 307 failing examples, 19 invalid examples
+    - Tried 326 shrinks of which 3 were successful
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty6ReapplyOperationCompleteness::test_property_6_config_validation_before_application:
+
+  - during generate phase (4.61 seconds):
+    - Typical runtimes: ~ 151-946 ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty6ReapplyOperationCompleteness::test_property_6_reapply_updates_timestamps:
+
+  - during reuse phase (0.20 seconds):
+    - Typical runtimes: ~ 197ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty5ErrorVisibility::test_property_5_errors_captured_for_failed_servers:
+
+  - during generate phase (6.49 seconds):
+    - Typical runtimes: ~ 194-1588 ms, of which ~ 0-2 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty5ErrorVisibility::test_property_5_errors_in_overall_errors_array:
+
+  - during generate phase (5.65 seconds):
+    - Typical runtimes: ~ 0-853 ms, of which ~ 0-2 ms in data generation
+    - 10 passing examples, 0 failing examples, 6 invalid examples
+    - Events:
+      * 37.50%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+      * 37.50%, invalid because: Aborted test because unable to satisfy integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list)
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty5ErrorVisibility::test_property_5_no_errors_for_successful_servers:
+
+  - during generate phase (5.12 seconds):
+    - Typical runtimes: ~ 201-1091 ms, of which ~ 0-1 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty5ErrorVisibility::test_property_5_error_messages_are_descriptive:
+
+  - during generate phase (5.77 seconds):
+    - Typical runtimes: ~ 122-1301 ms, of which ~ 0-2 ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty5ErrorVisibility::test_property_5_errors_persist_in_dynamodb:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=10
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty5ErrorVisibility::test_property_5_partial_failure_error_visibility:
+
+  - during generate phase (5.46 seconds):
+    - Typical runtimes: ~ 216-852 ms, of which < 1ms in data generation
+    - 3 passing examples, 7 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - during shrink phase (55.89 seconds):
+    - Typical runtimes: ~ 173-941 ms, of which < 1ms in data generation
+    - 2 passing examples, 138 failing examples, 4 invalid examples
+    - Tried 144 shrinks of which 0 were successful
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_ready_status_skips_config_application:
+
+  - during generate phase (0.52 seconds):
+    - Typical runtimes: ~ 0-242 ms, of which ~ 0-1 ms in data generation
+    - 0 passing examples, 5 failing examples, 5 invalid examples
+    - Found 1 distinct error in this phase
+    - Events:
+      * 50.00%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - during shrink phase (20.21 seconds):
+    - Typical runtimes: ~ 38-140 ms, of which < 1ms in data generation
+    - 0 passing examples, 300 failing examples, 0 invalid examples
+    - Tried 300 shrinks of which 0 were successful
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_ready_status_has_valid_config_hashes:
+
+  - during reuse phase (0.04 seconds):
+    - Typical runtimes: ~ 39ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_non_ready_status_requires_config_application:
+
+  - during generate phase (0.50 seconds):
+    - Typical runtimes: ~ 0-139 ms, of which ~ 0-1 ms in data generation
+    - 0 passing examples, 7 failing examples, 3 invalid examples
+    - Found 1 distinct error in this phase
+    - Events:
+      * 20.00%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - during shrink phase (20.69 seconds):
+    - Typical runtimes: ~ 38-137 ms, of which < 1ms in data generation
+    - 0 passing examples, 301 failing examples, 1 invalid examples
+    - Tried 302 shrinks of which 0 were successful
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_missing_status_requires_config_application:
+
+  - during reuse phase (0.03 seconds):
+    - Typical runtimes: ~ 33ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_fast_path_decision_is_deterministic:
+
+  - during reuse phase (0.04 seconds):
+    - Typical runtimes: ~ 40ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty11StatusTransitionValidity::test_property_11_apply_transitions_to_pending_first:
+
+  - during generate phase (16.45 seconds):
+    - Typical runtimes: ~ 0-510 ms, of which ~ 0-1 ms in data generation
+    - 50 passing examples, 0 failing examples, 36 invalid examples
+    - Events:
+      * 54.65%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty11StatusTransitionValidity::test_property_11_success_transitions_to_ready:
+
+  - during generate phase (1.76 seconds):
+    - Typical runtimes: ~ 0-523 ms, of which < 1ms in data generation
+    - 0 passing examples, 5 failing examples, 5 invalid examples
+    - Found 1 distinct error in this phase
+    - Events:
+      * 60.00%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - during shrink phase (85.46 seconds):
+    - Typical runtimes: ~ 155-523 ms, of which < 1ms in data generation
+    - 0 passing examples, 302 failing examples, 0 invalid examples
+    - Tried 302 shrinks of which 0 were successful
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty11StatusTransitionValidity::test_property_11_failure_transitions_to_failed:
+
+  - during generate phase (11.40 seconds):
+    - Typical runtimes: ~ 0-333 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 34 invalid examples
+    - Events:
+      * 54.76%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty11StatusTransitionValidity::test_property_11_partial_transitions_to_partial:
+
+  - during generate phase (16.84 seconds):
+    - Typical runtimes: ~ 0-506 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 30 invalid examples
+    - Events:
+      * 63.75%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+      * 7.50%, invalid because: Aborted test because unable to satisfy integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list)
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty11StatusTransitionValidity::test_property_11_reapply_from_any_final_state:
+
+  - during generate phase (11.62 seconds):
+    - Typical runtimes: ~ 0-312 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 39 invalid examples
+    - Events:
+      * 56.18%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty11StatusTransitionValidity::test_property_11_sequential_operations_valid_transitions:
+
+  - during generate phase (17.38 seconds):
+    - Typical runtimes: ~ 0-1124 ms, of which < 1ms in data generation
+    - 30 passing examples, 0 failing examples, 13 invalid examples
+    - Events:
+      * 30.23%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=30
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty12ConfigurationRoundTripPersistence::test_property_12_status_round_trip_preserves_all_fields:
+
+  - during generate phase (0.10 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which ~ 0-1 ms in data generation
+    - 50 passing examples, 0 failing examples, 19 invalid examples
+    - Events:
+      * 43.48%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty12ConfigurationRoundTripPersistence::test_property_12_config_hash_preserved_exactly:
+
+  - during generate phase (0.14 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 26 invalid examples
+    - Events:
+      * 39.47%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty12ConfigurationRoundTripPersistence::test_property_12_error_messages_preserved_exactly:
+
+  - during generate phase (0.09 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 24 invalid examples
+    - Events:
+      * 35.14%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty12ConfigurationRoundTripPersistence::test_property_12_timestamp_format_preserved:
+
+  - during generate phase (0.08 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 31 invalid examples
+    - Events:
+      * 50.62%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty12ConfigurationRoundTripPersistence::test_property_12_multiple_persist_retrieve_cycles:
+
+  - during generate phase (0.05 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 30 passing examples, 0 failing examples, 14 invalid examples
+    - Events:
+      * 31.82%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=30
+
+
+tests/unit/test_launch_config_service_property.py::TestProperty12ConfigurationRoundTripPersistence::test_property_12_camelcase_field_names_preserved:
+
+  - during generate phase (0.08 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 24 invalid examples
+    - Events:
+      * 50.00%, Retried draw from integers(0, 18446744073709551615).map(lambda i: f"s-{i:017x}").filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_multi_account_query_parallelism_property.py::test_property_multi_account_query_parallelism:
+
+  - during reuse phase (0.29 seconds):
+    - Typical runtimes: ~ 286ms, of which ~ 4ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_multi_account_query_parallelism_property.py::test_property_concurrent_region_queries_per_account:
+
+  - during reuse phase (0.17 seconds):
+    - Typical runtimes: ~ 172ms, of which < 1ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_multi_account_query_parallelism_property.py::test_property_parallel_execution_not_sequential:
+
+  - during reuse phase (0.16 seconds):
+    - Typical runtimes: ~ 159ms, of which ~ 2ms in data generation
+    - 0 passing examples, 1 failing examples, 0 invalid examples
+    - Found 1 distinct error in this phase
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_notification_formatter_property.py::test_property_formatter_output_contains_required_fields:
+
+  - during generate phase (0.08 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_notification_formatter_property.py::test_property_sns_publish_uses_structured_html:
+
+  - during generate phase (0.10 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_notifications_property.py::test_property_email_format_validation:
+
+  - during generate phase (0.10 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 300 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=300
+
+
+tests/unit/test_notifications_property.py::test_property_email_valid_format_accepted:
+
+  - during generate phase (0.21 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 16 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_notifications_property.py::test_property_notification_delivery_all_event_types:
+
+  - during generate phase (0.18 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 200 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=200
+
+
+tests/unit/test_per_account_status_calculation_property.py::test_property_per_account_status_calculation:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_per_account_status_calculation_property.py::test_property_ok_status_range:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_per_account_status_calculation_property.py::test_property_info_status_range:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 25 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_per_account_status_calculation_property.py::test_property_warning_status_range:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 25 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_per_account_status_calculation_property.py::test_property_critical_status_range:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 30 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_per_account_status_calculation_property.py::test_property_hyper_critical_status_range:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 21 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_staging_accounts_valid_account_returns_list:
+
+  - during generate phase (1.55 seconds):
+    - Typical runtimes: ~ 5-22 ms, of which ~ 1-15 ms in data generation
+    - 100 passing examples, 0 failing examples, 4 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_staging_accounts_invalid_account_returns_error:
+
+  - during generate phase (0.47 seconds):
+    - Typical runtimes: ~ 3-5 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_staging_accounts_missing_parameter_returns_error:
+
+  - during generate phase (1.11 seconds):
+    - Typical runtimes: ~ 3-8 ms, of which ~ 0-4 ms in data generation
+    - 100 passing examples, 0 failing examples, 49 invalid examples
+    - Events:
+      * 48.99%, Retried draw from text(characters(min_codepoint=65, categories=('Lu', 'Ll')), min_size=1, max_size=20).filter(lambda x: <unknown>).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_staging_accounts_not_found_returns_error:
+
+  - during generate phase (0.61 seconds):
+    - Typical runtimes: ~ 3-5 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 3 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_tag_sync_status_always_returns_structure:
+
+  - during generate phase (0.71 seconds):
+    - Typical runtimes: ~ 0-6 ms, of which ~ 0-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 42 invalid examples
+    - Events:
+      * 57.04%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc'))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_tag_sync_status_no_error_for_any_input:
+
+  - during generate phase (0.60 seconds):
+    - Typical runtimes: ~ 0-6 ms, of which ~ 0-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 41 invalid examples
+    - Events:
+      * 58.16%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc'))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_tag_sync_settings_always_returns_structure:
+
+  - during generate phase (0.58 seconds):
+    - Typical runtimes: ~ 0-5 ms, of which ~ 0-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 43 invalid examples
+    - Events:
+      * 47.55%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc'))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_tag_sync_settings_no_error_for_any_input:
+
+  - during generate phase (0.72 seconds):
+    - Typical runtimes: ~ 0-6 ms, of which ~ 0-3 ms in data generation
+    - 100 passing examples, 0 failing examples, 35 invalid examples
+    - Events:
+      * 51.11%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc'))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_drs_capacity_conflicts_returns_structure:
+
+  - during generate phase (0.57 seconds):
+    - Typical runtimes: ~ 6-12 ms, of which ~ 2-7 ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_drs_capacity_conflicts_detects_high_usage:
+
+  - during generate phase (0.24 seconds):
+    - Typical runtimes: ~ 3-5 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_drs_capacity_conflicts_no_conflict_for_low_usage:
+
+  - during generate phase (0.26 seconds):
+    - Typical runtimes: ~ 3-5 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 1 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_get_drs_capacity_conflicts_no_error_for_any_input:
+
+  - during generate phase (0.43 seconds):
+    - Typical runtimes: ~ 0-7 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 23 invalid examples
+    - Events:
+      * 34.25%, Retried draw from text(characters(codec='utf-8', categories=('Zl', 'Zp', 'Co', 'Me', 'Pc', 'Zs', 'Lt', 'Pf', 'Pi', 'Nl', 'Pd', 'Cf', 'Sc', 'Sk', 'Nd', 'Sm', 'Lm', 'No', 'Pe', 'Ps', 'Mc', 'So', 'Po', 'Mn', 'Lo', 'Lu', 'Ll', 'Cn', 'Cc'))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_conflict_severity_critical_for_90_percent:
+
+  - during generate phase (0.27 seconds):
+    - Typical runtimes: ~ 4-5 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 2 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_query_handler_new_operations_property.py::test_property_conflict_severity_warning_for_80_percent:
+
+  - during generate phase (0.26 seconds):
+    - Typical runtimes: ~ 0-5 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 3 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_recovery_capacity_calculation_property.py::test_property_recovery_capacity_status_calculation:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_recovery_capacity_calculation_property.py::test_property_recovery_capacity_excludes_staging_accounts:
+
+  - during generate phase (0.06 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_recovery_capacity_calculation_property.py::test_property_ok_status_threshold:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_recovery_capacity_calculation_property.py::test_property_warning_status_threshold:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_recovery_capacity_calculation_property.py::test_property_critical_status_threshold:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_recovery_instance_sync_property.py::test_property_sync_idempotency:
+
+  - during generate phase (19.72 seconds):
+    - Typical runtimes: ~ 17-248 ms, of which ~ 8-42 ms in data generation
+    - 100 passing examples, 0 failing examples, 21 invalid examples
+    - Events:
+      * 6.61%, Retried draw from <hypothesis.strategies._internal.core.CompositeStrategy object at 0x16fe69820>.filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_recovery_instance_sync_property.py::test_property_data_integrity:
+
+  - during generate phase (20.57 seconds):
+    - Typical runtimes: ~ 18-199 ms, of which ~ 8-50 ms in data generation
+    - 100 passing examples, 0 failing examples, 12 invalid examples
+    - Events:
+      * 3.57%, Retried draw from <hypothesis.strategies._internal.core.CompositeStrategy object at 0x11863f140>.filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_recovery_instance_sync_property.py::test_property_timestamp_ordering:
+
+  - during generate phase (21.08 seconds):
+    - Typical runtimes: ~ 9-485 ms, of which ~ 7-30 ms in data generation
+    - 100 passing examples, 0 failing examples, 20 invalid examples
+    - Events:
+      * 8.33%, Retried draw from <hypothesis.strategies._internal.core.CompositeStrategy object at 0x119127aa0>.filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_recovery_instance_sync_property.py::test_property_region_coverage:
+
+  - during generate phase (15.93 seconds):
+    - Typical runtimes: ~ 2-288 ms, of which ~ 1-5 ms in data generation
+    - 100 passing examples, 0 failing examples, 42 invalid examples
+    - Events:
+      * 30.28%, Retried draw from <hypothesis.strategies._internal.core.CompositeStrategy object at 0x129806360>.filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_response_format_property.py::TestResponseFormatProperty::test_api_gateway_mode_returns_wrapped_format:
+
+  - during generate phase (0.12 seconds):
+    - Typical runtimes: ~ 0-119 ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_response_format_property.py::TestResponseFormatProperty::test_direct_mode_returns_unwrapped_format:
+
+  - during generate phase (0.15 seconds):
+    - Typical runtimes: ~ 2-148 ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_response_format_property.py::TestResponseFormatProperty::test_api_gateway_error_format_consistent:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_response_format_property.py::TestResponseFormatProperty::test_direct_mode_error_format_consistent:
+
+  - during generate phase (0.00 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_response_format_property.py::TestResponseFormatConsistencyAcrossOperations::test_response_format_consistent_for_success_and_error:
+
+  - during generate phase (0.20 seconds):
+    - Typical runtimes: ~ 1-52 ms, of which < 1ms in data generation
+    - 6 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_response_format_property.py::TestResponseDataStructureProperty::test_api_gateway_body_always_json_string:
+
+  - during generate phase (0.04 seconds):
+    - Typical runtimes: ~ 1-39 ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_response_format_property.py::TestResponseDataStructureProperty::test_direct_mode_returns_dict_not_string:
+
+  - during generate phase (0.04 seconds):
+    - Typical runtimes: ~ 1-36 ms, of which < 1ms in data generation
+    - 3 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_response_format_property.py::TestResponseFormatJSONSerializability::test_all_responses_json_serializable:
+
+  - during generate phase (0.11 seconds):
+    - Typical runtimes: ~ 0-55 ms, of which < 1ms in data generation
+    - 6 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_staging_account_persistence_property.py::test_property_staging_account_persistence_round_trip:
+
+  - during generate phase (0.61 seconds):
+    - Typical runtimes: ~ 2-4 ms, of which ~ 1-4 ms in data generation
+    - 100 passing examples, 0 failing examples, 19 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_staging_account_persistence_property.py::test_property_multiple_staging_accounts_persistence:
+
+  - during generate phase (1.84 seconds):
+    - Typical runtimes: ~ 2-30 ms, of which ~ 2-27 ms in data generation
+    - 100 passing examples, 0 failing examples, 18 invalid examples
+    - Events:
+      * 15.25%, Retried draw from FixedKeysDictStrategy(('accountId', 'accountName', 'roleArn', 'externalId'), TupleStrategy((from_regex('\\d{12}', fullmatch=True), text(alphabet=characters(whitelist_categories=('Lu', 'Ll', 'Nd'), whitelist_characters='_-'), min_size=1, max_size=50), builds(lambda account_id, role_name: (f"arn:aws:iam::{account_id}:role/{role_name}"), account_id=from_regex('\\d{12}', fullmatch=True), role_name=from_regex('[\\w+=,.@-]{1,64}', fullmatch=True)), text(alphabet=characters(whitelist_categories=('Lu', 'Ll', 'Nd'), whitelist_characters='_-'), min_size=1, max_size=100)))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_staging_account_persistence_property.py::test_property_empty_staging_accounts_default:
+
+  - during generate phase (0.58 seconds):
+    - Typical runtimes: ~ 2-4 ms, of which ~ 1-3 ms in data generation
+    - 100 passing examples, 0 failing examples, 10 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_staging_account_removal_property.py::test_property_staging_account_removal_completeness:
+
+  - during generate phase (2.53 seconds):
+    - Typical runtimes: ~ 4-33 ms, of which ~ 3-15 ms in data generation
+    - 100 passing examples, 0 failing examples, 37 invalid examples
+    - Events:
+      * 23.36%, Retried draw from FixedKeysDictStrategy(('accountId', 'accountName', 'roleArn', 'externalId'), TupleStrategy((from_regex('\\d{12}', fullmatch=True), text(alphabet=characters(whitelist_categories=('Lu', 'Ll', 'Nd'), whitelist_characters='_-'), min_size=1, max_size=50), builds(lambda acc_id: f"arn:aws:iam::{acc_id}:role/TestRole", from_regex('\\d{12}', fullmatch=True)), text(min_size=1, max_size=100)))).filter(not_yet_in_unique_list) to satisfy filter
+      * 4.38%, invalid because: Aborted test because unable to satisfy FixedKeysDictStrategy(('accountId', 'accountName', 'roleArn', 'externalId'), TupleStrategy((from_regex('\\d{12}', fullmatch=True), text(alphabet=characters(whitelist_categories=('Lu', 'Ll', 'Nd'), whitelist_characters='_-'), min_size=1, max_size=50), builds(lambda acc_id: f"arn:aws:iam::{acc_id}:role/TestRole", from_regex('\\d{12}', fullmatch=True)), text(min_size=1, max_size=100)))).filter(not_yet_in_unique_list)
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_staging_account_removal_property.py::test_property_remove_all_staging_accounts_sequentially:
+
+  - during generate phase (1.01 seconds):
+    - Typical runtimes: ~ 4-24 ms, of which ~ 2-9 ms in data generation
+    - 50 passing examples, 0 failing examples, 12 invalid examples
+    - Events:
+      * 12.90%, Retried draw from FixedKeysDictStrategy(('accountId', 'accountName', 'roleArn', 'externalId'), TupleStrategy((from_regex('\\d{12}', fullmatch=True), text(alphabet=characters(whitelist_categories=('Lu', 'Ll', 'Nd'), whitelist_characters='_-'), min_size=1, max_size=50), builds(lambda acc_id: f"arn:aws:iam::{acc_id}:role/TestRole", from_regex('\\d{12}', fullmatch=True)), text(min_size=1, max_size=100)))).filter(not_yet_in_unique_list) to satisfy filter
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_staging_sync_property.py::test_property_11_handle_sync_staging_accounts_uses_region_filtering:
+
+  - during generate phase (0.08 seconds):
+    - Typical runtimes: ~ 0-1 ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 11 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_staging_sync_property.py::test_property_11_auto_extend_staging_servers_uses_region_filtering:
+
+  - during generate phase (0.23 seconds):
+    - Typical runtimes: ~ 1-2 ms, of which ~ 0-1 ms in data generation
+    - 100 passing examples, 0 failing examples, 14 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_staging_sync_property.py::test_property_5_api_call_reduction:
+
+  - during generate phase (0.39 seconds):
+    - Typical runtimes: ~ 35-41 ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_staging_sync_property.py::test_property_12_cross_account_iam_assumptions_limited:
+
+  - during generate phase (0.01 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which < 1ms in data generation
+    - 10 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because nothing left to do
+
+
+tests/unit/test_tag_sync_property.py::test_property_tag_sync_uses_active_region_filtering:
+
+  - during generate phase (0.20 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 5 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_tag_sync_property.py::test_property_tag_sync_region_count_matches:
+
+  - during generate phase (0.03 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 2 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_tag_sync_property.py::test_property_tag_sync_skips_inactive_regions:
+
+  - during generate phase (0.03 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 2 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_tag_sync_property.py::test_property_tag_sync_api_call_reduction:
+
+  - during generate phase (0.03 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 36 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_target_account_addition_property.py::test_property_explicit_arn_precedence:
+
+  - during generate phase (6.82 seconds):
+    - Typical runtimes: ~ 0-277 ms, of which ~ 0-1 ms in data generation
+    - 50 passing examples, 0 failing examples, 10 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_target_account_addition_property.py::test_property_optional_role_arn_acceptance:
+
+  - during generate phase (7.21 seconds):
+    - Typical runtimes: ~ 103-306 ms, of which < 1ms in data generation
+    - 50 passing examples, 0 failing examples, 2 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_target_account_addition_property.py::test_property_api_response_includes_role_arn:
+
+  - during generate phase (3.89 seconds):
+    - Typical runtimes: ~ 99-305 ms, of which < 1ms in data generation
+    - 30 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=30
+
+
+tests/unit/test_validation_error_handling_property.py::test_property_validation_error_handling_role_failures:
+
+  - during generate phase (0.41 seconds):
+    - Typical runtimes: ~ 1-3 ms, of which ~ 1-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 37 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_validation_error_handling_property.py::test_property_validation_error_handling_drs_uninitialized:
+
+  - during generate phase (0.49 seconds):
+    - Typical runtimes: ~ 1-3 ms, of which ~ 1-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 19 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_validation_error_handling_property.py::test_property_validation_error_handling_drs_other_errors:
+
+  - during generate phase (0.19 seconds):
+    - Typical runtimes: ~ 1-3 ms, of which ~ 1-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 11 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_validation_error_handling_property.py::test_property_validation_error_handling_invalid_account_id:
+
+  - during generate phase (0.13 seconds):
+    - Typical runtimes: ~ 0-2 ms, of which ~ 0-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 10 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_validation_error_handling_property.py::test_property_validation_error_handling_missing_required_fields:
+
+  - during generate phase (0.16 seconds):
+    - Typical runtimes: ~ 1-2 ms, of which ~ 1-2 ms in data generation
+    - 50 passing examples, 0 failing examples, 17 invalid examples
+
+  - Stopped because settings.max_examples=50
+
+
+tests/unit/test_validation_result_completeness_property.py::test_property_validation_result_completeness_success:
+
+  - during generate phase (0.51 seconds):
+    - Typical runtimes: ~ 1-3 ms, of which ~ 1-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 19 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_validation_result_completeness_property.py::test_property_validation_result_completeness_role_failure:
+
+  - during generate phase (0.35 seconds):
+    - Typical runtimes: ~ 1-3 ms, of which ~ 1-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 17 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_validation_result_completeness_property.py::test_property_validation_result_completeness_drs_uninitialized:
+
+  - during generate phase (0.40 seconds):
+    - Typical runtimes: ~ 1-3 ms, of which ~ 1-2 ms in data generation
+    - 100 passing examples, 0 failing examples, 35 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_warning_generation_property.py::test_property_warning_generation_per_account:
+
+  - during generate phase (0.87 seconds):
+    - Typical runtimes: ~ 1-13 ms, of which ~ 0-12 ms in data generation
+    - 100 passing examples, 0 failing examples, 4 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_warning_generation_property.py::test_property_combined_warnings:
+
+  - during generate phase (0.06 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+tests/unit/test_warning_generation_property.py::test_property_no_warnings_for_ok_status:
+
+  - during generate phase (0.02 seconds):
+    - Typical runtimes: < 1ms, of which < 1ms in data generation
+    - 100 passing examples, 0 failing examples, 0 invalid examples
+
+  - Stopped because settings.max_examples=100
+
+
+=========================== short test summary info ============================
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusCancelled::test_cancelled_status_lowercase_input
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusPaused::test_paused_status_without_wave_data
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusPaused::test_paused_status_with_wave_data
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusCompleted::test_completed_status_basic
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusCompleted::test_completed_status_with_completed_waves
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusCompleted::test_completed_status_with_duration
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusFailed::test_failed_status_basic
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusFailed::test_failed_status_with_error_message
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusFailed::test_failed_status_with_all_fields
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusErrorHandling::test_execution_not_found
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusErrorHandling::test_dynamodb_error_propagates
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusEdgeCases::test_empty_wave_data
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusEdgeCases::test_mixed_case_status
+ERROR tests/unit/test_update_wave_completion_status.py::TestUpdateWaveCompletionStatusEdgeCases::test_zero_duration
+FAILED tests/unit/test_error_handling_query_handler.py::TestDynamoDBErrors::test_dynamodb_throttling_error
+FAILED tests/unit/test_error_handling_query_handler.py::TestDynamoDBErrors::test_dynamodb_resource_not_found
+FAILED tests/unit/test_error_handling_query_handler.py::TestErrorResponseStructure::test_retryable_errors_include_retry_guidance
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_invalid_operation
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_start_execution
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_cancel_execution
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_pause_execution
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_resume_execution
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_terminate_instances
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_get_recovery_instances
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_missing_parameter
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_operation_failure
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_response_format
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_error_structure
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_list_executions
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_get_execution
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_all_operations_supported
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_parameters_optional
+FAILED tests/unit/test_execution_handler_direct_invocation.py::test_handle_direct_invocation_returns_dict
+FAILED tests/unit/test_execution_handler_direct_invocation_property.py::test_property_valid_operation_routing_succeeds
+FAILED tests/unit/test_execution_handler_direct_invocation_property.py::test_property_invalid_operation_returns_error
+FAILED tests/unit/test_execution_handler_direct_invocation_property.py::test_property_operation_with_required_params_routes_correctly
+FAILED tests/unit/test_execution_handler_direct_invocation_property.py::test_property_response_format_no_api_gateway_wrapping
+FAILED tests/unit/test_execution_handler_direct_invocation_property.py::test_property_error_response_structure_consistency
+FAILED tests/unit/test_execution_handler_direct_invocation_property.py::test_property_missing_operation_returns_error
+FAILED tests/unit/test_execution_handler_direct_invocation_property.py::test_property_all_operations_return_dict
+FAILED tests/unit/test_iam_utils_unit.py::TestLogDirectInvocation::test_log_successful_invocation
+FAILED tests/unit/test_iam_utils_unit.py::TestLogDirectInvocation::test_log_failed_invocation
+FAILED tests/unit/test_iam_utils_unit.py::TestLogDirectInvocation::test_log_masks_sensitive_parameters
+FAILED tests/unit/test_iam_utils_unit.py::TestLogDirectInvocation::test_log_truncates_large_results
+FAILED tests/unit/test_iam_utils_unit.py::TestLogDirectInvocation::test_log_includes_context_metadata
+FAILED tests/unit/test_iam_utils_unit.py::TestLogDirectInvocation::test_log_handles_nested_sensitive_params
+FAILED tests/unit/test_iam_utils_unit.py::TestLogDirectInvocation::test_log_handles_exception
+FAILED tests/unit/test_iam_utils_unit.py::TestIntegrationScenarios::test_authorized_step_functions_invocation
+FAILED tests/unit/test_iam_utils_unit.py::TestIntegrationScenarios::test_unauthorized_user_invocation
+FAILED tests/unit/test_inventory_fallback_property.py::test_property_10_inventory_updated_during_fallback
+FAILED tests/unit/test_inventory_fallback_property.py::test_property_13_topology_preserved_on_update
+FAILED tests/unit/test_inventory_fallback_property.py::test_property_13_topology_captured_for_new_server
+FAILED tests/unit/test_inventory_fallback_property.py::test_property_13_get_failback_topology_returns_correct_data
+FAILED tests/unit/test_inventory_query_property.py::test_property_inventory_freshness_check
+FAILED tests/unit/test_inventory_query_property.py::test_property_custom_freshness_threshold
+FAILED tests/unit/test_inventory_query_property.py::test_property_stale_inventory_returns_empty
+FAILED tests/unit/test_inventory_query_property.py::test_property_inventory_data_completeness
+FAILED tests/unit/test_inventory_query_property.py::test_property_all_servers_have_required_fields
+FAILED tests/unit/test_inventory_query_unit.py::TestIsInventoryFresh::test_fresh_inventory_returns_true
+FAILED tests/unit/test_inventory_query_unit.py::TestIsInventoryFresh::test_custom_max_age
+FAILED tests/unit/test_inventory_query_unit.py::TestQueryInventoryByRegions::test_query_single_region
+FAILED tests/unit/test_inventory_query_unit.py::TestQueryInventoryByRegions::test_query_multiple_regions
+FAILED tests/unit/test_inventory_query_unit.py::TestQueryInventoryByRegions::test_query_with_hostname_filter
+FAILED tests/unit/test_inventory_query_unit.py::TestQueryInventoryByRegions::test_query_with_replication_state_filter
+FAILED tests/unit/test_inventory_query_unit.py::TestQueryInventoryByRegions::test_query_with_pagination
+FAILED tests/unit/test_inventory_query_unit.py::TestQueryInventoryByStagingAccount::test_query_staging_account
+FAILED tests/unit/test_inventory_query_unit.py::TestQueryInventoryByStagingAccount::test_query_staging_account_with_regions
+FAILED tests/unit/test_inventory_query_unit.py::TestGetServerById::test_get_server_with_region
+FAILED tests/unit/test_inventory_query_unit.py::TestGetServerById::test_get_server_without_region
+FAILED tests/unit/test_inventory_sync_property.py::test_property_region_status_table_updates
+FAILED tests/unit/test_inventory_sync_property.py::test_property_region_status_update_idempotency
+FAILED tests/unit/test_inventory_sync_property.py::test_property_region_status_update_overwrites_previous
+FAILED tests/unit/test_inventory_sync_property.py::test_region_status_update_specific_examples
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_status_field_validity
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_timestamp_presence_for_configured_status
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_server_configs_structure_validity
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_not_configured_status_no_timestamp_required
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty4ConfigurationStatusSchemaValidity::test_property_4_camelcase_naming_convention
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty8ConfigurationDriftDetection::test_property_8_no_drift_when_hashes_match
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty8ConfigurationDriftDetection::test_property_8_partial_drift_detection
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty8ConfigurationDriftDetection::test_property_8_drift_with_missing_stored_config
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty8ConfigurationDriftDetection::test_property_8_drift_with_not_configured_status
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty6ReapplyOperationCompleteness::test_property_6_status_reflects_all_success
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty6ReapplyOperationCompleteness::test_property_6_status_reflects_partial_success
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty6ReapplyOperationCompleteness::test_property_6_reapply_updates_timestamps
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty5ErrorVisibility::test_property_5_partial_failure_error_visibility
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_ready_status_skips_config_application
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_ready_status_has_valid_config_hashes
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_non_ready_status_requires_config_application
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_missing_status_requires_config_application
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty3WaveExecutionFastPath::test_property_3_fast_path_decision_is_deterministic
+FAILED tests/unit/test_launch_config_service_property.py::TestProperty11StatusTransitionValidity::test_property_11_success_transitions_to_ready
+FAILED tests/unit/test_launch_config_service_unit.py::TestPersistConfigStatus::test_persist_valid_status_succeeds
+FAILED tests/unit/test_launch_config_service_unit.py::TestPersistConfigStatus::test_persist_with_server_configs
+FAILED tests/unit/test_launch_config_service_unit.py::TestPersistConfigStatus::test_persist_with_errors
+FAILED tests/unit/test_launch_config_service_unit.py::TestPersistConfigStatus::test_persist_uses_atomic_update
+FAILED tests/unit/test_launch_config_service_unit.py::TestPersistConfigStatus::test_persist_partial_update_single_field
+FAILED tests/unit/test_launch_config_service_unit.py::TestPersistConfigStatus::test_persist_partial_update_multiple_fields
+FAILED tests/unit/test_launch_config_service_unit.py::TestPersistConfigStatus::test_persist_with_condition_expression
+FAILED tests/unit/test_launch_config_service_unit.py::TestPersistConfigStatus::test_persist_conditional_check_failure_raises_error
+FAILED tests/unit/test_launch_config_service_unit.py::TestPersistConfigStatus::test_persist_without_condition_expression
+FAILED tests/unit/test_launch_config_service_unit.py::TestGetConfigStatus::test_get_existing_status_returns_status
+FAILED tests/unit/test_launch_config_service_unit.py::TestGetConfigStatus::test_get_status_without_launch_config_returns_default
+FAILED tests/unit/test_launch_config_service_unit.py::TestGetConfigStatus::test_get_status_group_not_found_raises_error
+FAILED tests/unit/test_launch_config_service_unit.py::TestGetConfigStatus::test_get_status_with_server_configs
+FAILED tests/unit/test_launch_config_service_unit.py::TestGetConfigStatus::test_get_status_with_errors
+FAILED tests/unit/test_launch_config_service_unit.py::TestEnvironmentVariableHandling::test_missing_table_name_env_var_raises_error
+FAILED tests/unit/test_multi_account_query_parallelism_property.py::test_property_multi_account_query_parallelism
+FAILED tests/unit/test_multi_account_query_parallelism_property.py::test_property_concurrent_region_queries_per_account
+FAILED tests/unit/test_multi_account_query_parallelism_property.py::test_property_parallel_execution_not_sequential
+FAILED tests/unit/test_multi_account_query_parallelism_property.py::test_edge_case_no_staging_accounts
+FAILED tests/unit/test_multi_account_query_parallelism_property.py::test_edge_case_many_staging_accounts
+FAILED tests/unit/test_multi_account_query_parallelism_property.py::test_edge_case_query_failure_continues
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncAllRecoveryInstances::test_sync_all_happy_path
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncAllRecoveryInstances::test_sync_all_no_accounts
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncAllRecoveryInstances::test_sync_all_region_failure_continues
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncAllRecoveryInstances::test_sync_all_enrichment_failure_continues
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncAllRecoveryInstances::test_sync_all_dynamodb_write_failure
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncAllRecoveryInstances::test_sync_all_writes_correct_fields
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncRecoveryInstancesForAccount::test_single_account_sync_happy_path
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncRecoveryInstancesForAccount::test_single_account_no_instances
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncRecoveryInstancesForAccount::test_single_account_drs_failure
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncRecoveryInstancesForAccount::test_single_account_partial_enrichment_failure
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestSyncRecoveryInstancesForAccount::test_single_account_with_account_context
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetRecoveryInstancesForRegion::test_single_page_response
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetRecoveryInstancesForRegion::test_paginated_response
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetRecoveryInstancesForRegion::test_empty_response
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetRecoveryInstancesForRegion::test_source_server_lookup_failure_continues
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetRecoveryInstancesForRegion::test_extracts_source_infrastructure_fields
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestEnrichWithEc2Details::test_enrichment_happy_path
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestEnrichWithEc2Details::test_enrichment_no_name_tag
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestEnrichWithEc2Details::test_enrichment_no_public_ip
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestFindSourceExecution::test_find_execution_by_server_id
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestFindSourceExecution::test_find_execution_with_launch_time_picks_closest
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestFindSourceExecution::test_find_execution_without_launch_time_returns_most_recent
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestFindSourceExecution::test_find_execution_invalid_launch_time_falls_back
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestErrorHandling::test_drs_unexpected_error_raises_sync_error
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestCrossAccountRoleAssumption::test_current_account_uses_default_drs_client
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestCrossAccountRoleAssumption::test_current_account_flag_uses_default_client
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestCrossAccountRoleAssumption::test_cross_account_no_role_uses_default_drs_client
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestCrossAccountRoleAssumption::test_cross_account_no_role_uses_default_ec2_client
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetRecoveryInstanceSyncStatus::test_status_with_existing_data
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetRecoveryInstanceSyncStatus::test_status_with_empty_cache
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetRecoveryInstanceSyncStatus::test_status_on_error
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetTargetAccounts::test_returns_accounts_with_regions
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetTargetAccounts::test_returns_empty_list_when_no_accounts
+FAILED tests/unit/test_recovery_instance_sync_shared.py::TestGetTargetAccounts::test_includes_account_context
+FAILED tests/unit/test_staging_account_sync_comprehensive.py::TestHandleSyncStagingAccounts::test_successful_sync_with_active_regions
+FAILED tests/unit/test_staging_account_sync_comprehensive.py::TestGetStagingAccountServers::test_uses_inventory_database_when_fresh
+135 failed, 1360 passed, 18 warnings, 14 errors in 981.75s (0:16:21)

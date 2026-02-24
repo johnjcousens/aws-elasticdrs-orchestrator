@@ -85,6 +85,7 @@ def apply_launch_configs_to_group(
     launch_configs: Dict[str, Dict],
     account_context: Optional[Dict] = None,
     timeout_seconds: int = 300,
+    progress_callback: Optional[callable] = None,
 ) -> Dict:
     """
     Apply launch configurations to all servers in a protection group.
@@ -100,6 +101,11 @@ def apply_launch_configs_to_group(
         launch_configs: Dict mapping server_id to launch config
         account_context: Cross-account context (for staging accounts)
         timeout_seconds: Maximum time to spend applying configs
+        progress_callback: Optional callback function called with progress updates.
+            Called every 10 servers or 30 seconds with dict containing:
+            - completed: Number of servers processed
+            - total: Total number of servers
+            - percentage: Completion percentage (0-100)
 
     Returns:
         Dictionary containing application status with keys:
@@ -123,7 +129,7 @@ def apply_launch_configs_to_group(
         >>> result["status"]
         'ready'
 
-    Validates: Requirements 1.1, 1.2, 1.4
+    Validates: Requirements 1.1, 1.2, 1.4, 2.3, 2.7, 2.8, 4.6, 4.7, 4.8, 11.4
     """
     # Validate inputs
     if not group_id:
@@ -146,6 +152,26 @@ def apply_launch_configs_to_group(
     server_configs = {}
     overall_errors = []
 
+    # Progress tracking for callback
+    total_servers = len(server_ids)
+    completed_servers = 0
+    last_callback_time = start_time
+
+    # Helper function to call progress callback
+    def _call_progress_callback():
+        if progress_callback:
+            try:
+                percentage = (completed_servers / total_servers * 100) if total_servers > 0 else 0
+                progress_callback(
+                    {
+                        "completed": completed_servers,
+                        "total": total_servers,
+                        "percentage": round(percentage, 2),
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Progress callback failed: {e}")
+
     # Get DRS client (with cross-account support if needed)
     try:
         if account_context:
@@ -160,12 +186,12 @@ def apply_launch_configs_to_group(
         raise LaunchConfigApplicationError(error_msg)
 
     # Apply configuration to each server
-    for server_id in server_ids:
+    for idx, server_id in enumerate(server_ids):
         # Check timeout
         elapsed = time.time() - start_time
         if elapsed >= timeout_seconds:
             # Mark remaining servers as pending
-            remaining_servers = server_ids[server_ids.index(server_id) :]
+            remaining_servers = server_ids[idx:]
             for remaining_id in remaining_servers:
                 server_configs[remaining_id] = {
                     "status": "pending",
@@ -190,45 +216,114 @@ def apply_launch_configs_to_group(
                 "errors": [f"No launch config found for server {server_id}"],
             }
             failed_servers += 1
+            completed_servers += 1
             continue
 
-        # Apply configuration with retry logic
-        try:
-            _apply_config_to_server(
-                drs_client,
-                server_id,
-                launch_config,
-                region,
-                account_context=account_context,
-            )
+        # Apply configuration with exponential backoff retry logic
+        max_retries = 3
+        retry_delays = [1, 2, 4]  # Exponential backoff: 1s, 2s, 4s
 
-            # Calculate config hash for drift detection
-            config_hash = calculate_config_hash(launch_config)
+        for attempt in range(max_retries):
+            try:
+                _apply_config_to_server(
+                    drs_client,
+                    server_id,
+                    launch_config,
+                    region,
+                    account_context=account_context,
+                )
 
-            # Mark as ready
-            server_configs[server_id] = {
-                "status": "ready",
-                "lastApplied": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "configHash": config_hash,
-                "errors": [],
-            }
-            applied_servers += 1
+                # Calculate config hash for drift detection
+                config_hash = calculate_config_hash(launch_config)
 
-            logger.info(f"Successfully applied config to server {server_id}")
+                # Mark as ready
+                server_configs[server_id] = {
+                    "status": "ready",
+                    "lastApplied": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "configHash": config_hash,
+                    "errors": [],
+                }
+                applied_servers += 1
 
-        except Exception as e:
-            # Capture error and continue with other servers
-            error_msg = str(e)
-            server_configs[server_id] = {
-                "status": "failed",
-                "lastApplied": None,
-                "configHash": None,
-                "errors": [error_msg],
-            }
-            failed_servers += 1
-            overall_errors.append(f"Server {server_id}: {error_msg}")
+                logger.info(f"Successfully applied config to server {server_id}")
+                break  # Success - exit retry loop
 
-            logger.error(f"Failed to apply config to server {server_id}: {error_msg}")
+            except ClientError as e:
+                # Handle boto3 ClientError with proper error code checking
+                error_code = e.response.get("Error", {}).get("Code", "")
+                error_msg = e.response.get("Error", {}).get("Message", str(e))
+                is_throttling = error_code in ["ThrottlingException", "TooManyRequestsException"]
+
+                # Retry on throttling errors
+                if is_throttling and attempt < max_retries - 1:
+                    delay = retry_delays[attempt]
+                    logger.warning(
+                        f"AWS API throttled for server {server_id}, "
+                        f"retrying in {delay}s (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(delay)
+                    continue
+                else:
+                    # Final failure - no more retries
+                    full_error_msg = f"{error_code}: {error_msg}"
+                    if attempt == max_retries - 1:
+                        full_error_msg = f"{full_error_msg} (failed after {max_retries} attempts)"
+
+                    server_configs[server_id] = {
+                        "status": "failed",
+                        "lastApplied": None,
+                        "configHash": None,
+                        "errors": [full_error_msg],
+                    }
+                    failed_servers += 1
+                    overall_errors.append(f"Server {server_id}: {full_error_msg}")
+
+                    logger.error(f"Failed to apply config to server {server_id}: {full_error_msg}")
+                    break  # Exit retry loop
+
+            except Exception as e:
+                # Handle other exceptions (LaunchConfigApplicationError, etc.)
+                error_msg = str(e)
+                is_throttling = "throttl" in error_msg.lower()
+
+                # Retry on throttling errors
+                if is_throttling and attempt < max_retries - 1:
+                    delay = retry_delays[attempt]
+                    logger.warning(
+                        f"AWS API throttled for server {server_id}, "
+                        f"retrying in {delay}s (attempt {attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(delay)
+                    continue
+                else:
+                    # Final failure - no more retries
+                    if attempt == max_retries - 1:
+                        error_msg = f"{error_msg} (failed after {max_retries} attempts)"
+
+                    server_configs[server_id] = {
+                        "status": "failed",
+                        "lastApplied": None,
+                        "configHash": None,
+                        "errors": [error_msg],
+                    }
+                    failed_servers += 1
+                    overall_errors.append(f"Server {server_id}: {error_msg}")
+
+                    logger.error(f"Failed to apply config to server {server_id}: {error_msg}")
+                    break  # Exit retry loop
+
+        # Update progress counter
+        completed_servers += 1
+
+        # Call progress callback every 10 servers or every 30 seconds
+        time_since_last_callback = time.time() - last_callback_time
+        if completed_servers % 10 == 0 or time_since_last_callback >= 30:
+            _call_progress_callback()
+            last_callback_time = time.time()
+
+    # Final progress callback to ensure 100% is reported
+    if progress_callback and completed_servers == total_servers:
+        _call_progress_callback()
 
     # Determine overall status
     if applied_servers == len(server_ids):
@@ -260,30 +355,26 @@ def _apply_config_to_server(
     server_id: str,
     launch_config: Dict,
     region: str,
-    max_retries: int = 3,
     account_context: Optional[Dict] = None,
 ) -> None:
     """
-    Apply launch configuration to a single server with retry logic.
+    Apply launch configuration to a single server.
 
     Updates both DRS launch configuration and EC2 launch template.
     DRS update must happen FIRST to avoid being overwritten.
 
-    Uses exponential backoff for DRS API throttling errors.
+    Note: Retry logic is handled by the caller (apply_launch_configs_to_group).
 
     Args:
         drs_client: boto3 DRS client
         server_id: DRS source server ID
         launch_config: Launch configuration dictionary
         region: AWS region
-        max_retries: Maximum retry attempts
         account_context: Cross-account context for EC2 client
 
     Raises:
         LaunchConfigApplicationError: When config application fails
     """
-    import time
-
     # Prepare DRS API call parameters - only include DRS-specific fields
     # DRS update_launch_configuration accepts:
     # - copyPrivateIp, copyTags, launchDisposition, licensing
@@ -316,45 +407,29 @@ def _apply_config_to_server(
     # STEP 1: Update DRS launch configuration FIRST
     # DRS creates new EC2 template versions, so we must call it before
     # our EC2 updates to avoid being overwritten
-    for attempt in range(max_retries):
-        try:
-            if len(drs_update) > 1:  # More than just sourceServerID
-                drs_client.update_launch_configuration(**drs_update)
-            break  # Success
+    try:
+        if len(drs_update) > 1:  # More than just sourceServerID
+            drs_client.update_launch_configuration(**drs_update)
 
-        except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code", "")
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        error_msg = e.response.get("Error", {}).get("Message", "")
 
-            # Handle throttling with retry
-            if error_code in [
-                "ThrottlingException",
-                "TooManyRequestsException",
-            ]:
-                if attempt < max_retries - 1:
-                    delay = 1.0 * (2**attempt)
-                    logger.warning(
-                        f"DRS API throttled for {server_id}, "
-                        f"retrying in {delay}s (attempt {attempt + 1}/"
-                        f"{max_retries})"
-                    )
-                    time.sleep(delay)
-                    continue
-                else:
-                    raise LaunchConfigApplicationError(f"DRS API throttled after {max_retries} attempts")
+        # Handle validation errors
+        if error_code == "ValidationException":
+            raise LaunchConfigValidationError(f"Invalid launch config: {error_msg}")
 
-            # Handle validation errors (no retry)
-            elif error_code == "ValidationException":
-                error_msg = e.response.get("Error", {}).get("Message", "")
-                raise LaunchConfigValidationError(f"Invalid launch config: {error_msg}")
+        # Handle throttling - raise to allow caller to retry
+        elif error_code in ["ThrottlingException", "TooManyRequestsException"]:
+            raise LaunchConfigApplicationError(f"DRS API throttled: {error_msg}")
 
-            # Handle other errors (no retry)
-            else:
-                error_msg = e.response.get("Error", {}).get("Message", "")
-                raise LaunchConfigApplicationError(f"DRS API error ({error_code}): {error_msg}")
+        # Handle other errors
+        else:
+            raise LaunchConfigApplicationError(f"DRS API error ({error_code}): {error_msg}")
 
-        except Exception as e:
-            # Unexpected error
-            raise LaunchConfigApplicationError(f"Unexpected error applying DRS config: {str(e)}")
+    except Exception as e:
+        # Unexpected error
+        raise LaunchConfigApplicationError(f"Unexpected error applying DRS config: {str(e)}")
 
     # STEP 2: Update EC2 launch template (after DRS, so our changes stick)
     # Check if we have EC2-specific settings to apply
@@ -570,26 +645,30 @@ def calculate_config_hash(launch_config: Dict) -> str:
     return f"sha256:{hash_bytes}"
 
 
-def persist_config_status(group_id: str, config_status: Dict) -> None:
+def persist_config_status(group_id: str, config_status: Dict, condition_expression: Optional[str] = None) -> None:
     """
     Persist configuration status to DynamoDB.
 
-    Updates the launchConfigStatus field in the protection group item.
-    Uses atomic update to ensure consistency.
+    Supports partial updates — only provided fields are updated.
+    Uses conditional expressions for concurrency control.
 
     Args:
         group_id: Protection group ID
-        config_status: Status dictionary to persist with keys:
+        config_status: Status dictionary with fields to update (partial updates supported):
             - status: Overall status (ready | pending | failed)
             - lastApplied: ISO timestamp
             - appliedBy: User identifier
             - serverConfigs: Per-server configuration status
             - errors: List of error messages
+        condition_expression: Optional DynamoDB condition expression for concurrency control
+            (e.g., "attribute_not_exists(launchConfigStatus.status) OR launchConfigStatus.status = :pending")
 
     Raises:
         LaunchConfigApplicationError: If DynamoDB update fails
+        ConditionalCheckFailedException: If condition_expression fails (wrapped in LaunchConfigApplicationError)
 
     Example:
+        >>> # Full update
         >>> status = {
         ...     "status": "ready",
         ...     "lastApplied": "2025-02-16T10:30:00Z",
@@ -599,7 +678,17 @@ def persist_config_status(group_id: str, config_status: Dict) -> None:
         ... }
         >>> persist_config_status("pg-123", status)
 
-    Validates: Requirements 1.4 (status persistence)
+        >>> # Partial update (only status field)
+        >>> persist_config_status("pg-123", {"status": "pending"})
+
+        >>> # Conditional update (only if status is pending)
+        >>> persist_config_status(
+        ...     "pg-123",
+        ...     {"status": "ready"},
+        ...     condition_expression="launchConfigStatus.#status = :pending"
+        ... )
+
+    Validates: Requirements 1.4, 8.4 (status persistence, partial updates, concurrency control)
     """
     if not group_id:
         raise LaunchConfigValidationError("group_id is required")
@@ -607,27 +696,59 @@ def persist_config_status(group_id: str, config_status: Dict) -> None:
     if not config_status:
         raise LaunchConfigValidationError("config_status is required")
 
-    # Validate required fields
-    required_fields = ["status", "serverConfigs", "errors"]
-    for field in required_fields:
-        if field not in config_status:
-            raise LaunchConfigValidationError(f"config_status missing required field: {field}")
-
     try:
         table = _get_protection_groups_table()
 
-        # Update protection group with configuration status
-        table.update_item(
-            Key={"groupId": group_id},
-            UpdateExpression="SET launchConfigStatus = :status",
-            ExpressionAttributeValues={":status": config_status},
-        )
+        # Build UpdateExpression for partial updates
+        update_parts = []
+        expression_attribute_values = {}
+        expression_attribute_names = {}
 
-        logger.info(f"Persisted config status for group {group_id}: " f"status={config_status['status']}")
+        for field_name, field_value in config_status.items():
+            # Use attribute names to handle reserved words (like 'status')
+            attr_name_placeholder = f"#{field_name}"
+            attr_value_placeholder = f":{field_name}"
+
+            update_parts.append(f"launchConfigStatus.{attr_name_placeholder} = {attr_value_placeholder}")
+            expression_attribute_names[attr_name_placeholder] = field_name
+            expression_attribute_values[attr_value_placeholder] = field_value
+
+        update_expression = "SET " + ", ".join(update_parts)
+
+        # Build update_item parameters
+        update_params = {
+            "Key": {"groupId": group_id},
+            "UpdateExpression": update_expression,
+            "ExpressionAttributeValues": expression_attribute_values,
+            "ExpressionAttributeNames": expression_attribute_names,
+        }
+
+        # Add condition expression if provided
+        if condition_expression:
+            update_params["ConditionExpression"] = condition_expression
+
+        # Execute update
+        table.update_item(**update_params)
+
+        logger.info(
+            f"Persisted config status for group {group_id}: "
+            f"fields={list(config_status.keys())}, "
+            f"conditional={condition_expression is not None}"
+        )
 
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         error_message = e.response["Error"]["Message"]
+
+        # Handle conditional check failure specifically
+        if error_code == "ConditionalCheckFailedException":
+            logger.warning(
+                f"Conditional check failed for {group_id}: {error_message} " f"(condition: {condition_expression})"
+            )
+            raise LaunchConfigApplicationError(
+                f"Conditional update failed: {error_message} (condition: {condition_expression})"
+            )
+
         logger.error(f"Failed to persist config status for {group_id}: " f"{error_code} - {error_message}")
         raise LaunchConfigApplicationError(f"DynamoDB update failed: {error_code}")
 

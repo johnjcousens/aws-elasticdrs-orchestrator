@@ -127,6 +127,7 @@ from shared.conflict_detection import (
 from shared.cross_account import (
     create_drs_client,
     determine_target_account_context,
+    get_current_account_id,
 )
 from shared.drs_limits import (
     DRS_LIMITS,
@@ -161,6 +162,10 @@ PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
 RECOVERY_PLANS_TABLE = os.environ.get("RECOVERY_PLANS_TABLE")
 EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 TARGET_ACCOUNTS_TABLE = os.environ.get("TARGET_ACCOUNTS_TABLE")
+RECOVERY_INSTANCES_TABLE = os.environ.get("RECOVERY_INSTANCES_TABLE")
+
+# Module-level table variable for lazy initialization
+_recovery_instances_table = None
 
 # DynamoDB tables (conditional initialization)
 protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
@@ -306,6 +311,10 @@ def analyze_execution_outcome(waves: List[Dict]) -> Dict:
         # All waves cancelled with no successes
         status = "CANCELLED"
         summary = f"Execution cancelled. {cancelled_count} wave(s) cancelled."
+    elif servers_launched == 0 and servers_failed == 0 and servers_cancelled == 0 and total_servers > 0:
+        # No servers completed (all stuck in pending/launching) - this is a failure
+        status = "FAILED"
+        summary = f"Execution failed. No servers completed launching ({total_servers} server(s) pending)."
     else:
         # Mixed results - PARTIAL status
         status = "PARTIAL"
@@ -353,6 +362,14 @@ def get_protection_groups_table():
 def get_execution_history_table():
     """Get Execution History table reference"""
     return execution_history_table
+
+
+def get_recovery_instances_table():
+    """Lazy-load Recovery Instances table for test mocking."""
+    global _recovery_instances_table
+    if _recovery_instances_table is None and RECOVERY_INSTANCES_TABLE:
+        _recovery_instances_table = dynamodb.Table(RECOVERY_INSTANCES_TABLE)
+    return _recovery_instances_table
 
 
 def get_account_context(state: Dict) -> Dict:
@@ -516,6 +533,55 @@ def update_wave_completion_status(
         )
 
         print(f"✅ Successfully updated execution {execution_id} status to {normalized_status}")
+
+        # Sync recovery instances to cache after wave completion (ASYNC)
+        if normalized_status == "COMPLETED" and wave_data:
+            try:
+                # Extract wave information
+                wave_number = wave_data.get("wave_number")
+                server_ids = wave_data.get("server_ids", [])
+                region = wave_data.get("region")
+                account_context = wave_data.get("account_context")
+
+                if server_ids and region:
+                    # Get account ID from account_context or use current account
+                    account_id = account_context.get("accountId") if account_context else None
+                    if not account_id:
+                        account_id = get_current_account_id()
+
+                    print(
+                        f"🔄 Triggering async recovery instance sync for wave {wave_number} "
+                        f"(region: {region}, servers: {len(server_ids)})"
+                    )
+
+                    # Invoke data-management-handler asynchronously to sync recovery instances
+                    # This prevents blocking wave completion status updates
+                    lambda_client = boto3.client("lambda")
+                    lambda_client.invoke(
+                        FunctionName=os.environ.get(
+                            "DATA_MANAGEMENT_HANDLER_ARN",
+                            f"aws-drs-orchestration-data-management-handler-{os.environ.get('ENVIRONMENT', 'dev')}",
+                        ),
+                        InvocationType="Event",  # Async invocation
+                        Payload=json.dumps(
+                            {
+                                "operation": "sync-recovery-instances",
+                                "accountId": account_id,
+                                "region": region,
+                                "accountContext": account_context,
+                            }
+                        ),
+                    )
+                    print(f"✅ Async sync triggered for wave {wave_number}")
+                else:
+                    print("⚠️ Skipping recovery instance sync - missing server_ids or region")
+
+            except Exception as e:
+                # Don't block wave completion on sync errors
+                print(f"⚠️ Failed to trigger async recovery instance sync: {e}")
+                import traceback
+
+                traceback.print_exc()
 
         return {
             "statusCode": 200,
@@ -5479,6 +5545,28 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                     )
 
         print(f"Terminated {len(terminated)} recovery instances via DRS API")
+
+        # Clean up recovery instance cache records after successful termination
+        try:
+            recovery_cache_table = get_recovery_instances_table()
+            if recovery_cache_table and terminated:
+                # Extract unique sourceServerIds from instances_to_terminate
+                source_server_ids = set()
+                for instance_info in instances_to_terminate:
+                    server_id = instance_info.get("serverId")
+                    if server_id and server_id != "unknown":
+                        source_server_ids.add(server_id)
+
+                if source_server_ids:
+                    with recovery_cache_table.batch_writer() as batch:
+                        for server_id in source_server_ids:
+                            batch.delete_item(Key={"sourceServerId": server_id})
+                    print(f"Deleted {len(source_server_ids)} cache records from recovery instances table")
+                else:
+                    print("No sourceServerIds found for cache cleanup")
+        except Exception as cache_err:
+            # Cache cleanup failure should never block termination
+            print(f"Warning: Failed to clean up recovery instance cache: {cache_err}")
 
         # Store termination job IDs for progress tracking
         # Do NOT set instancesTerminated=True yet - wait for jobs to complete

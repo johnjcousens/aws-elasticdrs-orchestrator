@@ -1202,3 +1202,106 @@ def validate_tag_constraints(tags) -> Dict[str, Any]:
             }
 
     return {"valid": True}
+
+
+def validate_launch_config_formats(
+    config: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Validate launch configuration field formats without AWS API calls.
+
+    Performs lightweight format-only checks suitable for pre-save
+    validation. Does not verify resource existence or availability.
+
+    Checks:
+    - staticPrivateIp: IPv4 dotted decimal format
+    - subnetId: matches subnet-[a-f0-9]{8,17}
+    - securityGroupIds: each matches sg-[a-f0-9]{8,17}
+    - instanceType: matches AWS instance type pattern
+
+    Args:
+        config: Launch configuration dictionary
+
+    Returns:
+        Dict with validation result:
+        {
+            "valid": bool,
+            "errors": [{"field": str, "message": str}]
+        }
+
+    Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.5
+    """
+    import re
+
+    errors = []
+
+    # Validate staticPrivateIp format (IPv4 dotted decimal)
+    static_ip = config.get("staticPrivateIp")
+    if static_ip is not None:
+        ip_result = _validate_ip_format(static_ip)
+        if not ip_result["valid"]:
+            errors.append(
+                {
+                    "field": "staticPrivateIp",
+                    "message": ip_result.get(
+                        "message",
+                        f"Invalid IPv4 address: {static_ip}",
+                    ),
+                }
+            )
+
+    # Validate subnetId format
+    subnet_id = config.get("subnetId")
+    if subnet_id is not None:
+        subnet_pattern = re.compile(r"^subnet-[0-9a-f]{8,17}$")
+        if not subnet_pattern.match(subnet_id):
+            errors.append(
+                {
+                    "field": "subnetId",
+                    "message": (f"Invalid subnet ID format: '{subnet_id}'. " "Must match subnet-[a-f0-9]{{8,17}}"),
+                }
+            )
+
+    # Validate securityGroupIds format
+    sg_ids = config.get("securityGroupIds")
+    if sg_ids is not None:
+        if not isinstance(sg_ids, list):
+            errors.append(
+                {
+                    "field": "securityGroupIds",
+                    "message": "securityGroupIds must be a list",
+                }
+            )
+        else:
+            sg_pattern = re.compile(r"^sg-[0-9a-f]{8,17}$")
+            for sg_id in sg_ids:
+                if not isinstance(sg_id, str) or not sg_pattern.match(sg_id):
+                    errors.append(
+                        {
+                            "field": "securityGroupIds",
+                            "message": (
+                                f"Invalid security group ID format: " f"'{sg_id}'. " "Must match sg-[a-f0-9]{{8,17}}"
+                            ),
+                        }
+                    )
+
+    # Validate instanceType format
+    instance_type = config.get("instanceType")
+    if instance_type is not None:
+        # AWS instance type pattern: family + generation + optional
+        # attributes, dot, size (e.g. t3.micro, c6a.2xlarge)
+        instance_pattern = re.compile(r"^[a-z][a-z0-9]*\.[a-z0-9]+$")
+        if not instance_pattern.match(instance_type):
+            errors.append(
+                {
+                    "field": "instanceType",
+                    "message": (
+                        f"Invalid instance type format: "
+                        f"'{instance_type}'. "
+                        "Must match AWS instance type pattern "
+                        "(e.g. t3.micro, m5.xlarge)"
+                    ),
+                }
+            )
+
+    return {"valid": len(errors) == 0, "errors": errors}

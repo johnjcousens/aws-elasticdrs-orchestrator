@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Recovery Instance Sync**: Implemented DynamoDB caching of recovery instance data with EventBridge-triggered background sync every 5 minutes, reducing Recovery Plans page load time from 20+ seconds to under 3 seconds
+- Cache cleanup in terminate_recovery_instances() to delete cache records after successful DRS termination
+- Wave completion sync to update cache immediately after recovery waves complete
+- Manual sync API endpoints (POST /drs/recovery-instance-sync, GET /drs/recovery-instance-sync/status)
+
+### Performance
+- Recovery Plans page load time reduced by 85% (20+ seconds → <3 seconds) through DynamoDB caching
+- Reduced DRS API calls by 100% for recovery instance queries during normal operations
+
 ---
 
 ## [6.2.0] - 2026-02-20 - Query Handler Read-Only Audit
