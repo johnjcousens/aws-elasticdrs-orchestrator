@@ -80,7 +80,6 @@ Resources:
   ApiGatewayInvokePermission:
     Type: AWS::Lambda::Permission
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref ApiHandlerFunctionArn
       Action: lambda:InvokeFunction

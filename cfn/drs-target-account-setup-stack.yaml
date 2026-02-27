@@ -194,7 +194,6 @@ Resources:
   DRSAgentInstallerDocument:
     Type: AWS::SSM::Document
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       Name: 'DRS-InstallAgent-CrossAccount'
       DocumentType: Command

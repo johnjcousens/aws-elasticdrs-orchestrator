@@ -191,7 +191,6 @@ Resources:
   FrontendDeployerAccessDeniedAlarm:
     Type: AWS::CloudWatch::Alarm
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       AlarmName: !Sub '${ProjectName}-frontend-deployer-access-denied-${Environment}'
       AlarmDescription: 'Triggers when Frontend Deployer encounters 5+ AccessDenied errors in 5 minutes'

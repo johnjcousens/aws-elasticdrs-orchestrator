@@ -344,7 +344,6 @@ Resources:
   FrontendDeployerFunction:
     Type: AWS::Lambda::Function
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       FunctionName: !Sub "${ProjectName}-frontend-deployer-${Environment}"
       Description: !Sub "Builds and deploys React frontend to S3/CloudFront (v${LambdaCodeVersion})"

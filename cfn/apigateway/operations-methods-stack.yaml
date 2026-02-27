@@ -893,7 +893,6 @@ Resources:
   ExecutionHandlerApiPermission:
     Type: AWS::Lambda::Permission
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref ExecutionHandlerArn
       Action: lambda:InvokeFunction

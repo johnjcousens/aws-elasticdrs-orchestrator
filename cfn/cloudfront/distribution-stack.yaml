@@ -194,7 +194,6 @@ Resources:
   FrontendDeploymentResource:
     Type: Custom::FrontendDeployer
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     DependsOn: FrontendBucketPolicy
     Properties:
       ServiceToken: !Ref FrontendDeployerFunctionArn

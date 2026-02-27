@@ -247,7 +247,6 @@ Resources:
   RecoveryInstanceSyncSchedulePermission:
     Type: AWS::Lambda::Permission
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Condition: EnableRecoveryInstanceSyncCondition
     Properties:
       FunctionName: !Ref DataManagementHandlerFunctionArn

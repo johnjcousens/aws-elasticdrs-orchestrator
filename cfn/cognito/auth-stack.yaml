@@ -186,7 +186,6 @@ Resources:
   IdentityPoolRoleMapping:
     Type: AWS::Cognito::IdentityPoolRoleAttachment
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       IdentityPoolId: !Ref IdentityPool
       Roles:

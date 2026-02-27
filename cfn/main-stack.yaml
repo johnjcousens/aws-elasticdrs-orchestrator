@@ -603,7 +603,6 @@ Resources:
   APIGatewayDeploymentStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     DependsOn:
       - APIGatewayCoreMethodsStack
       - APIGatewayInfrastructureMethodsStack

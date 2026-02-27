@@ -82,7 +82,7 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
                     value={replPct}
                     status={getStatus(replPct)}
                     additionalInfo={`${region.replicatingServers.toLocaleString()} / ${region.maxReplicating.toLocaleString()} servers`}
-                    description={`${region.maxReplicating - region.replicatingServers} slots available`}
+                    description={`${region.replicatingServers} servers used`}
                   />
                 </SpaceBetween>
 
@@ -118,7 +118,7 @@ export const RegionalCapacitySection: React.FC<RegionalCapacitySectionProps> = (
                             value={pct}
                             status={getStatus(pct)}
                             additionalInfo={`${used} / 300 servers`}
-                            description={`${300 - used} available`}
+                            description={`${used} servers used`}
                           />
                         </SpaceBetween>
                       );

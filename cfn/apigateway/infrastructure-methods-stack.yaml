@@ -1598,7 +1598,6 @@ Resources:
   QueryHandlerApiPermission:
     Type: AWS::Lambda::Permission
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref QueryHandlerArn
       Action: lambda:InvokeFunction

@@ -914,7 +914,6 @@ Resources:
   DataManagementHandlerApiPermission:
     Type: AWS::Lambda::Permission
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref DataManagementHandlerArn
       Action: lambda:InvokeFunction

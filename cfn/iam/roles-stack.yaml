@@ -755,7 +755,6 @@ Resources:
   UnifiedOrchestrationRole:
     Type: AWS::IAM::Role
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Condition: UseUnifiedRole
     Properties:
       RoleName: !Sub "${ProjectName}-unified-role-${Environment}"

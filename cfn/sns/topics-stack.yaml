@@ -175,7 +175,6 @@ Resources:
   ExecutionPauseTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       Topics:
         - !Ref ExecutionPauseTopic

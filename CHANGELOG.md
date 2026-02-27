@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Documentation Organization**: Reorganized documentation into logical subdirectories for improved navigation
+  - Moved deployment guides to `docs/deployment/` (DEPLOY_MAIN_STACK_GUIDE.md, QA_DEPLOYMENT_CONFIGURATION.md, MIGRATION_GUIDE.md)
+  - Moved IAM documentation to `docs/iam/` (IAM_ROLE_REFERENCE.md, STAGING_ACCOUNT_SYNC_IAM_REQUIREMENTS.md)
+  - Moved reference documentation to `docs/reference/` (EVENTBRIDGE_RULES_REFERENCE.md)
+  - Moved architecture documentation to `docs/architecture/` (CFN_TEMPLATE_ORGANIZATION.md)
+  - Moved troubleshooting guides to `docs/troubleshooting/` (TROUBLESHOOTING_GUIDE.md)
+  - Updated all documentation links in README.md to point to new locations
+  - Removed duplicate TESTING_GUIDE.md from docs root (already exists in docs/guides/)
+- **Test Stack Removal**: Deleted test stack (aws-drs-orchestration-test) and removed all references
+  - Deleted TEST_STACK_DEPLOYMENT_SUMMARY.md
+  - Removed test stack deployment examples from README.md
+  - Updated all examples to use QA stack (aws-drs-orchestration-qa)
+  - Moved old deploy script to cfn/ARCHIVE/deploy.sh
+  - Moved legacy CloudFormation templates to cfn/ARCHIVE/
+  - Updated .kiro/steering/aws-stack-protection.md to remove test stack references
+  - QA stack is now the primary development and testing environment
+
 ### Added
 - **Recovery Instance Sync**: Implemented DynamoDB caching of recovery instance data with EventBridge-triggered background sync every 5 minutes, reducing Recovery Plans page load time from 20+ seconds to under 3 seconds
 - Cache cleanup in terminate_recovery_instances() to delete cache records after successful DRS termination
