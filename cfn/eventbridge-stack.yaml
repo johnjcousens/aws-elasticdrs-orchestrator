@@ -95,6 +95,16 @@ Parameters:
     Type: String
     Description: ARN of the Data Management Handler Lambda for staging account sync operations
 
+  ExecutionHandlerFunctionArn:
+    Type: String
+    Description: ARN of the Execution Handler Lambda for execution polling operations
+
+  EnableExecutionPolling:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable automatic execution polling every 1 minute
+
   EnableStagingAccountSync:
     Type: String
     Default: 'true'
@@ -116,6 +126,7 @@ Parameters:
 Conditions:
   EnableWeeklyDrillCondition: !Equals [!Ref EnableWeeklyDrill, 'true']
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
+  EnableExecutionPollingCondition: !Equals [!Ref EnableExecutionPolling, 'true']
   EnableStagingAccountSyncCondition: !Equals [!Ref EnableStagingAccountSync, 'true']
   EnableInventorySyncCondition: !Equals [!Ref EnableInventorySync, 'true']
   EnableRecoveryInstanceSyncCondition: !Equals [!Ref EnableRecoveryInstanceSync, 'true']
@@ -132,6 +143,7 @@ Resources:
   # Used by all scheduled rules and event-driven triggers.
   EventBridgeInvokeRole:
     Type: AWS::IAM::Role
+    DeletionPolicy: Delete
     Properties:
       RoleName: !Sub '${ProjectName}-eventbridge-invoke-${Environment}'
       AssumeRolePolicyDocument:
@@ -159,8 +171,9 @@ Resources:
                   - lambda:InvokeFunction
                 Resource:
                   - !Ref ApiHandlerFunctionArn
-                  - !Ref QueryHandlerFunctionArn
                   - !Ref DataManagementHandlerFunctionArn
+                  - !Ref QueryHandlerFunctionArn
+                  - !Ref ExecutionHandlerFunctionArn
 
   # ===========================================================================
   # SCHEDULED DR DRILL RULES
@@ -173,6 +186,7 @@ Resources:
   # Runs as isDrill=true to auto-terminate recovery instances
   WeeklyDrillWave1Rule:
     Type: AWS::Events::Rule
+    DeletionPolicy: Delete
     Condition: EnableWeeklyDrillCondition
     Properties:
       Name: !Sub '${ProjectName}-weekly-drill-wave1-${Environment}'
@@ -204,6 +218,7 @@ Resources:
   # Includes all waves, longer timeout (240 min)
   MonthlyFullDrillRule:
     Type: AWS::Events::Rule
+    DeletionPolicy: Delete
     Condition: EnableWeeklyDrillCondition
     Properties:
       Name: !Sub '${ProjectName}-monthly-full-drill-${Environment}'
@@ -248,6 +263,7 @@ Resources:
   #   }]'
   ManualTriggerRule:
     Type: AWS::Events::Rule
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '${ProjectName}-manual-trigger-${Environment}'
       Description: 'Manual trigger for DRS orchestration via EventBridge'
@@ -271,6 +287,7 @@ Resources:
   # Syncs both DR tags and instance type information.
   TagSyncScheduleRule:
     Type: AWS::Events::Rule
+    DeletionPolicy: Delete
     Condition: EnableTagSyncCondition
     Properties:
       Name: !Sub '${ProjectName}-tag-sync-schedule-${Environment}'
@@ -286,6 +303,7 @@ Resources:
   # Lambda permission for EventBridge to invoke API Handler
   TagSyncSchedulePermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
     Condition: EnableTagSyncCondition
     Properties:
       FunctionName: !Ref ApiHandlerFunctionArn
@@ -302,6 +320,7 @@ Resources:
   # Routes to Data Management Handler (write operations).
   StagingAccountSyncScheduleRule:
     Type: AWS::Events::Rule
+    DeletionPolicy: Delete
     Condition: EnableStagingAccountSyncCondition
     Properties:
       Name: !Sub '${ProjectName}-staging-account-sync-${Environment}'
@@ -317,6 +336,7 @@ Resources:
   # Lambda permission for EventBridge to invoke Data Management Handler
   StagingAccountSyncSchedulePermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
     Condition: EnableStagingAccountSyncCondition
     Properties:
       FunctionName: !Ref DataManagementHandlerFunctionArn
@@ -329,6 +349,7 @@ Resources:
   # ---------------------------------------------------------------------------
   InventorySyncScheduleRule:
     Type: AWS::Events::Rule
+    DeletionPolicy: Delete
     Condition: EnableInventorySyncCondition
     Properties:
       Name: !Sub '${ProjectName}-inventory-sync-${Environment}'
@@ -343,6 +364,7 @@ Resources:
 
   InventorySyncSchedulePermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
     Condition: EnableInventorySyncCondition
     Properties:
       FunctionName: !Ref DataManagementHandlerFunctionArn
@@ -355,6 +377,7 @@ Resources:
   # ---------------------------------------------------------------------------
   RecoveryInstanceSyncScheduleRule:
     Type: AWS::Events::Rule
+    DeletionPolicy: Delete
     Condition: EnableRecoveryInstanceSyncCondition
     Properties:
       Name: !Sub '${ProjectName}-recovery-instance-sync-${Environment}'
@@ -369,12 +392,42 @@ Resources:
 
   RecoveryInstanceSyncSchedulePermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
     Condition: EnableRecoveryInstanceSyncCondition
     Properties:
       FunctionName: !Ref DataManagementHandlerFunctionArn
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt RecoveryInstanceSyncScheduleRule.Arn
+
+  # ---------------------------------------------------------------------------
+  # Execution Polling (every 1 minute)
+  # ---------------------------------------------------------------------------
+  ExecutionPollingScheduleRule:
+    Type: AWS::Events::Rule
+    DeletionPolicy: Delete
+    Condition: EnableExecutionPollingCondition
+    Properties:
+      Name: !Sub '${ProjectName}-execution-polling-schedule-${Environment}'
+      Description: 'Poll active DR executions for status updates every 1 minute'
+      ScheduleExpression: 'rate(1 minute)'
+      State: ENABLED
+      Targets:
+        - Id: ExecutionPollingTarget
+          Arn: !Ref ExecutionHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"operation": "find"}'
+
+  ExecutionPollingSchedulePermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Condition: EnableExecutionPollingCondition
+    Properties:
+      FunctionName: !Ref ExecutionHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ExecutionPollingScheduleRule.Arn
 
 # =============================================================================
 # OUTPUTS

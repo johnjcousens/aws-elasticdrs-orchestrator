@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  API Gateway Core Stack - Creates the REST API, request validator, and
+  Lambda permission. Other stacks add resources and methods to this API.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Project name for resource naming
+
+  Environment:
+    Type: String
+    Description: Environment name (dev, test, qa, staging, prod)
+
+  ApiHandlerFunctionArn:
+    Type: String
+    Description: ARN of the API Handler Lambda function
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  # ===========================================================================
+  # REST API
+  # ===========================================================================
+  # The main API Gateway REST API. Uses regional endpoint type for lower
+  # latency. Resource policy allows all IPs (CloudFront handles edge security).
+  # Binary media types enable file uploads via the API.
+  
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '${ProjectName}-api-${Environment}'
+      Description: 'REST API for AWS DRS Orchestration with Cognito authentication'
+      EndpointConfiguration:
+        Types: [REGIONAL]
+      Policy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: execute-api:Invoke
+            Resource: '*'
+            Condition:
+              IpAddress:
+                aws:SourceIp: 
+                  - '0.0.0.0/0'
+      BinaryMediaTypes:
+        - 'application/octet-stream'
+        - 'multipart/form-data'
+
+  # ===========================================================================
+  # REQUEST VALIDATOR
+  # ===========================================================================
+  # Validates incoming requests before invoking Lambda. Checks that required
+  # path/query parameters are present and request body matches schema.
+  # Returns 400 Bad Request if validation fails (before Lambda is invoked).
+  
+  ApiRequestValidator:
+    Type: AWS::ApiGateway::RequestValidator
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '${ProjectName}-request-validator-${Environment}'
+      RestApiId: !Ref RestApi
+      ValidateRequestBody: true
+      ValidateRequestParameters: true
+
+  # ===========================================================================
+  # LAMBDA PERMISSION
+  # ===========================================================================
+  # Grants API Gateway permission to invoke the API handler Lambda.
+  # Uses wildcard for stage/method so all endpoints can invoke the function.
+  
+  ApiGatewayInvokePermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      FunctionName: !Ref ApiHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*'
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  RestApiId:
+    Description: REST API ID for use in other stacks
+    Value: !Ref RestApi
+    Export:
+      Name: !Sub '${ProjectName}-rest-api-id-${Environment}'
+
+  RestApiRootResourceId:
+    Description: REST API Root Resource ID for use in other stacks
+    Value: !GetAtt RestApi.RootResourceId
+    Export:
+      Name: !Sub '${ProjectName}-rest-api-root-resource-id-${Environment}'
+
+  ApiRequestValidatorId:
+    Description: API Request Validator ID for use in other stacks
+    Value: !Ref ApiRequestValidator
+    Export:
+      Name: !Sub '${ProjectName}-api-request-validator-id-${Environment}'

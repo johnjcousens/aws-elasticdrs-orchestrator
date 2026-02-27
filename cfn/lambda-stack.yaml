@@ -120,6 +120,7 @@ Resources:
   # Handles tag resolution, launch configuration, and conflict detection
   DataManagementHandlerFunction:
     Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Sub "${ProjectName}-data-management-handler-${Environment}"
       Description: !Sub "Data Management handler for Protection Groups and Recovery Plans (v${LambdaCodeVersion})"
@@ -158,6 +159,7 @@ Resources:
   # Handles recovery plan execution, pause/resume, termination, and DRS operations
   ExecutionHandlerFunction:
     Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Sub "${ProjectName}-execution-handler-${Environment}"
       Description: !Sub "Execution handler for DR operations and lifecycle management (v${LambdaCodeVersion})"
@@ -196,6 +198,7 @@ Resources:
   # Handles source servers, quotas, capacity, EC2 resources, and configuration export
   QueryHandlerFunction:
     Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Sub "${ProjectName}-query-handler-${Environment}"
       Description: !Sub "Query handler for read-only DRS and EC2 infrastructure queries (v${LambdaCodeVersion})"
@@ -233,6 +236,7 @@ Resources:
   # Invokes execution-handler and query-handler for DRS operations
   DrOrchestrationStepFunctionFunction:
     Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Sub "${ProjectName}-dr-orch-sf-${Environment}"
       Description: !Sub "Generic wave-based orchestration (v${LambdaCodeVersion})"
@@ -267,6 +271,7 @@ Resources:
   # Consolidates frontend build and bucket cleanup operations
   FrontendDeployerFunction:
     Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Sub "${ProjectName}-frontend-deployer-${Environment}"
       Description: !Sub "Builds and deploys React frontend to S3/CloudFront (v${LambdaCodeVersion})"
@@ -302,6 +307,7 @@ Resources:
   # Permission for OrchestrationRole to invoke Query Handler
   QueryHandlerDirectInvocationPermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref QueryHandlerFunction
       Action: lambda:InvokeFunction
@@ -311,6 +317,7 @@ Resources:
   # Permission for OrchestrationRole to invoke Execution Handler
   ExecutionHandlerDirectInvocationPermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref ExecutionHandlerFunction
       Action: lambda:InvokeFunction
@@ -320,6 +327,8 @@ Resources:
   # Permission for OrchestrationRole to invoke Data Management Handler
   DataManagementHandlerDirectInvocationPermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref DataManagementHandlerFunction
       Action: lambda:InvokeFunction
@@ -329,29 +338,13 @@ Resources:
   # ===========================================================================
   # EVENTBRIDGE SCHEDULED INVOCATIONS
   # ===========================================================================
-  
-  # EventBridge schedule for execution polling
-  # Triggers execution-handler to find and poll active executions every 1 minute
-  ExecutionFinderScheduleRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub "${ProjectName}-execution-polling-schedule-${Environment}"
-      Description: "Triggers Execution Handler to find and poll active executions every 1 minute"
-      ScheduleExpression: "rate(1 minute)"
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt ExecutionHandlerFunction.Arn
-          Id: ExecutionHandlerTarget
-          Input: '{"operation": "find"}'
-
-  # Permission for EventBridge to invoke Execution Handler
-  ExecutionFinderSchedulePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref ExecutionHandlerFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt ExecutionFinderScheduleRule.Arn
+  # NOTE: EventBridge rules are now managed in eventbridge-stack.yaml
+  # This includes:
+  # - ExecutionPollingScheduleRule (every 1 minute)
+  # - InventorySyncScheduleRule (every 15 minutes)
+  # - RecoveryInstanceSyncScheduleRule (every 5 minutes)
+  # - StagingAccountSyncScheduleRule (every 5 minutes)
+  # - TagSyncScheduleRule (every 1 hour)
 
   # ============================================================================
   # DRS Agent Deployer - COMMENTED OUT (Not Yet Implemented)
@@ -447,11 +440,8 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-DrOrchestrationStepFunctionName"
 
-  ExecutionFinderScheduleRuleArn:
-    Description: "EventBridge Schedule Rule ARN for execution polling"
-    Value: !GetAtt ExecutionFinderScheduleRule.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-ScheduleRuleArn"
+  # NOTE: ExecutionFinderScheduleRuleArn output removed
+  # EventBridge rules are now managed in eventbridge-stack.yaml
 
   FrontendDeployerFunctionArn:
     Description: "Frontend Deployer Lambda Function ARN (Consolidated)"

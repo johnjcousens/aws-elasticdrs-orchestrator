@@ -164,6 +164,8 @@ Resources:
   # If provider doesn't exist, create it first or uncomment GitHubOidcProvider below.
   GitHubActionsRole:
     Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       RoleName: !Sub '${ProjectName}-github-actions-${Environment}'
       AssumeRolePolicyDocument:

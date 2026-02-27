@@ -408,6 +408,7 @@ def update_wave_completion_status(
     plan_id: str,
     status: str,
     wave_data: Optional[Dict] = None,
+    state: Optional[Dict] = None,
 ) -> Dict:
     """
     Update execution history with wave completion status.
@@ -434,9 +435,13 @@ def update_wave_completion_status(
             - total_count: Total number of servers in wave
             - wave_completed: Boolean indicating wave completion
             - server_statuses: List of server status dictionaries
+        state: Optional full state object from Step Functions to return
+            (maintains state continuity for choice state evaluation)
 
     Returns:
-        Dictionary with statusCode and message
+        Full state object if provided, otherwise dictionary with statusCode
+        and message. Step Functions requires the full state for choice state
+        evaluation ($.status, $.wave_completed, $.all_waves_completed).
 
     Raises:
         ClientError: If DynamoDB update fails
@@ -533,6 +538,12 @@ def update_wave_completion_status(
         )
 
         print(f"✅ Successfully updated execution {execution_id} status to {normalized_status}")
+
+        # Return full state object for Step Functions choice state evaluation
+        # Step Functions DetermineWaveState expects $.status, $.wave_completed, etc.
+        if state:
+            print("✅ Returning full state object for Step Functions")
+            return state
 
         # Sync recovery instances to cache after wave completion (ASYNC)
         if normalized_status == "COMPLETED" and wave_data:

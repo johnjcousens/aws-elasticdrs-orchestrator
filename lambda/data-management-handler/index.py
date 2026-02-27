@@ -1548,90 +1548,70 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
         # Filter by tags - server must have ALL specified tags
         matching_servers = []
         for server in all_servers:
-            server_tags = server.get("sourceTags", {})
+            server_tags = server.get("tags", {})
             matches_all_tags = all(server_tags.get(tag_key) == tag_value for tag_key, tag_value in tags.items())
             if matches_all_tags:
                 matching_servers.append(server)
 
         print(f"DEBUG: After tag filter: {len(matching_servers)} servers matching all tags")
 
-        # Transform to frontend-compatible format (same as server selector)
+        # Transform to frontend-compatible format using shared transformation function
+        from shared.drs_utils import transform_drs_server_for_frontend
+
         resolved_servers = []
         for item in matching_servers:
-            network = item.get("networkConfig", {})
-            tags_dict = item.get("sourceTags", {})
-            ram_bytes = int(item.get("ramBytes", 0))
-            storage_bytes = int(item.get("totalStorageBytes", 0))
-            server = {
-                "sourceServerID": item.get("sourceServerID", ""),
-                "arn": item.get("sourceServerArn", ""),
-                "hostname": item.get("hostname", ""),
-                "fqdn": item.get("fqdn", ""),
-                "nameTag": tags_dict.get("Name", item.get("hostname", "")),
-                "sourceInstanceId": item.get("instanceId", ""),
-                "sourceIp": item.get("primaryIp", network.get("privateIp", "")),
-                "sourceMac": item.get("macAddress", ""),
-                "sourceRegion": item.get("sourceRegion", ""),
-                "sourceAccount": item.get("sourceAccountId", ""),
-                "os": item.get("osName", ""),
-                "state": ("READY_FOR_RECOVERY" if item.get("replicationState") == "CONTINUOUS" else "NOT_READY"),
-                "replicationState": item.get("replicationState", "UNKNOWN"),
-                "lagDuration": item.get("lagDuration", ""),
-                "lastSeen": item.get("lastSeen", item.get("lastUpdated", "")),
-                "lastSnapshot": item.get("lastSnapshot", ""),
-                "region": item.get("replicationRegion", ""),
-                "instanceId": item.get("instanceId", ""),
-                "agentVersion": item.get("agentVersion", ""),
-                "stagingAccountId": item.get("stagingAccountId", ""),
-                "sourceAccountId": item.get("sourceAccountId", ""),
-                "hardware": {
-                    "cpus": (
-                        [
-                            {
-                                "modelName": item.get("cpuModel", ""),
-                                "cores": int(item.get("cpuCores", 0)),
-                            }
-                        ]
-                        if item.get("cpuModel")
-                        else []
-                    ),
-                    "totalCores": int(item.get("cpuCores", 0)),
-                    "ramBytes": ram_bytes,
-                    "ramGiB": (round(ram_bytes / (1024**3), 1) if ram_bytes else 0),
-                    "disks": [
-                        {
-                            "deviceName": d.get("deviceName", ""),
-                            "bytes": int(d.get("bytes", 0)),
-                            "sizeGiB": round(int(d.get("bytes", 0)) / (1024**3), 1),
-                        }
-                        for d in item.get("disks", [])
-                    ],
-                    "totalDiskGiB": (round(storage_bytes / (1024**3), 1) if storage_bytes else 0),
-                },
-                "networkInterfaces": (
-                    [
-                        {
-                            "ips": [item.get("primaryIp", network.get("privateIp", ""))],
-                            "macAddress": item.get("macAddress", ""),
-                            "isPrimary": True,
-                        }
-                    ]
-                    if item.get("primaryIp") or network.get("privateIp")
-                    else []
-                ),
-                "vpcId": network.get("vpcId", ""),
-                "subnetId": network.get("subnetId", ""),
-                "privateIp": network.get("privateIp", item.get("primaryIp", "")),
-                "securityGroups": network.get("securityGroups", []),
-                "instanceProfile": network.get("instanceProfile", ""),
-                "drsTags": tags_dict,
-                "tags": tags_dict,
-                "name": tags_dict.get("Name", item.get("hostname", "")),
-                "assignedToProtectionGroup": None,
-                "selectable": True,
-                "dataSource": "inventory",
-            }
+            server = transform_drs_server_for_frontend(item)
+            # Add inventory-specific fields
+            server["region"] = item.get("replicationRegion", region)
+            server["stagingAccountId"] = item.get("stagingAccountId", "")
+            server["sourceAccountId"] = item.get("sourceAccountId", account_id)
+            server["dataSource"] = "inventory"
             resolved_servers.append(server)
+
+        # Check protection group assignments
+        from boto3.dynamodb.conditions import Attr
+
+        from shared.conflict_detection import get_protection_groups_table
+
+        protection_groups_table = get_protection_groups_table()
+        if protection_groups_table:
+            try:
+                # Query protection groups for this region
+                scan_response = protection_groups_table.scan(FilterExpression=Attr("region").eq(region))
+                protection_groups = scan_response.get("Items", [])
+
+                # Build map of server ID -> protection group ID
+                server_assignments = {}
+                for pg in protection_groups:
+                    pg_id = pg.get("groupId")
+                    for server in pg.get("servers", []):
+                        server_id = server.get("sourceServerID")
+                        if server_id:
+                            server_assignments[server_id] = pg_id
+
+                # Mark servers with assignments
+                for server in resolved_servers:
+                    server_id = server.get("sourceServerID")
+                    assigned_pg_id = server_assignments.get(server_id)
+
+                    if assigned_pg_id:
+                        server["assignedToProtectionGroup"] = assigned_pg_id
+                        # Server is selectable only if it's in the current protection group
+                        if protection_group_id and assigned_pg_id == protection_group_id:
+                            server["selectable"] = True
+                        else:
+                            server["selectable"] = False
+                    else:
+                        server["assignedToProtectionGroup"] = None
+                        server["selectable"] = True
+
+                assigned_count = sum(1 for s in resolved_servers if s.get("assignedToProtectionGroup"))
+                if assigned_count > 0:
+                    print(f"Found {assigned_count} servers already assigned to protection groups")
+
+            except Exception as e:
+                print(f"Error checking protection group assignments: {e}")
+                # Don't fail - leave all servers as selectable
 
         return response(
             200,
@@ -2587,7 +2567,7 @@ def update_protection_group(group_id: str, body: Dict, query_parameters: Optiona
                     update_expression += ", launchConfigStatus = :launchConfigStatus"
                     expression_values[":launchConfigStatus"] = config_status
 
-                    print(f"Launch config status set to pending for async sync")
+                    print("Launch config status set to pending for async sync")
 
                 else:
                     # SYNC MODE: Apply configs synchronously (backward compatibility)
@@ -7509,7 +7489,7 @@ def sync_launch_configs(body: Dict) -> Dict:
         if "Item" not in pg_response:
             error_msg = f"Protection group {group_id} not found"
             completion_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-            
+
             # Log structured error (Requirement 9.6)
             print(
                 json.dumps(
@@ -7523,7 +7503,7 @@ def sync_launch_configs(body: Dict) -> Dict:
                     }
                 )
             )
-            
+
             # Emit CloudWatch error metric (Requirement 9.3)
             try:
                 cloudwatch.put_metric_data(
@@ -7539,7 +7519,7 @@ def sync_launch_configs(body: Dict) -> Dict:
                 )
             except Exception as metric_error:
                 print(f"Failed to emit error metric: {metric_error}")
-            
+
             # Update status to failed
             persist_config_status(
                 group_id,
@@ -7559,7 +7539,7 @@ def sync_launch_configs(body: Dict) -> Dict:
         if not server_ids:
             error_msg = "Protection group has no servers"
             completion_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-            
+
             # Log structured error (Requirement 9.6)
             print(
                 json.dumps(
@@ -7573,7 +7553,7 @@ def sync_launch_configs(body: Dict) -> Dict:
                     }
                 )
             )
-            
+
             # Emit CloudWatch error metric (Requirement 9.3)
             try:
                 cloudwatch.put_metric_data(
@@ -7589,7 +7569,7 @@ def sync_launch_configs(body: Dict) -> Dict:
                 )
             except Exception as metric_error:
                 print(f"Failed to emit error metric: {metric_error}")
-            
+
             # Update status to failed
             persist_config_status(
                 group_id,
@@ -7672,7 +7652,7 @@ def sync_launch_configs(body: Dict) -> Dict:
         # Update status with completion time and set syncJobId to null
         completion_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         duration_seconds = (datetime.now(timezone.utc) - start_time_obj).total_seconds()
-        
+
         persist_config_status(
             group_id,
             {
@@ -7702,7 +7682,7 @@ def sync_launch_configs(body: Dict) -> Dict:
                     "Dimensions": [{"Name": "status", "Value": "success"}],
                 },
             ]
-            
+
             if failed_servers > 0:
                 metric_data.append(
                     {
@@ -7712,7 +7692,7 @@ def sync_launch_configs(body: Dict) -> Dict:
                         "Dimensions": [{"Name": "status", "Value": "failed"}],
                     }
                 )
-            
+
             cloudwatch.put_metric_data(Namespace="DRSOrchestration", MetricData=metric_data)
         except Exception as metric_error:
             print(f"Failed to emit completion metrics: {metric_error}")
@@ -7740,7 +7720,7 @@ def sync_launch_configs(body: Dict) -> Dict:
                 error_code = server_errors[0] if server_errors else "Unknown"
                 error_message = ", ".join(server_errors) if server_errors else "No error details"
                 retry_count = config.get("retryCount", 0)
-                
+
                 print(
                     json.dumps(
                         {
@@ -7755,7 +7735,7 @@ def sync_launch_configs(body: Dict) -> Dict:
                         }
                     )
                 )
-                
+
                 # Emit error metric for each failed server (Requirement 9.3)
                 try:
                     cloudwatch.put_metric_data(
@@ -7782,7 +7762,7 @@ def sync_launch_configs(body: Dict) -> Dict:
         error_msg = str(e)
         error_type = type(e).__name__
         completion_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        
+
         # Log structured exception (Requirement 9.6)
         print(
             json.dumps(
@@ -8677,21 +8657,28 @@ def auto_extend_staging_servers(target_accounts: List[Dict], active_regions: Lis
                 )
 
                 # Find servers not yet extended
+                servers_to_extend = []
                 for server in staging_servers:
                     server_id = server.get("sourceServerID")
-                    # Handle both inventory database (arn) and DRS API (sourceServerArn) formats
                     server_arn = server.get("sourceServerArn") or server.get("arn")
 
                     # Check if already extended
-                    if server_arn in existing_extended:
-                        continue
+                    if server_arn not in existing_extended:
+                        servers_to_extend.append((server_id, server_arn))
 
-                    # Extend the server
-                    print(
-                        f"Extending server {server_id} from staging "
-                        f"{staging_name} ({staging_id}) to target {account_id}"
-                    )
+                if not servers_to_extend:
+                    continue
 
+                print(
+                    f"Extending {len(servers_to_extend)} servers from staging "
+                    f"{staging_name} ({staging_id}) to target {account_id}"
+                )
+
+                # Parallelize extend operations for performance
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+
+                def extend_single_server(server_info):
+                    server_id, server_arn = server_info
                     try:
                         extend_source_server(
                             target_account_id=account_id,
@@ -8699,12 +8686,21 @@ def auto_extend_staging_servers(target_accounts: List[Dict], active_regions: Lis
                             target_external_id=external_id,
                             staging_server_arn=server_arn,
                         )
-                        servers_extended_count += 1
-                        extend_results["serversExtended"] += 1
+                        return ("success", server_id)
                     except Exception as e:
-                        print(f"Failed to extend server {server_id}: {e}")
-                        servers_failed_count += 1
-                        extend_results["serversFailed"] += 1
+                        return ("error", server_id, str(e))
+
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    futures = {executor.submit(extend_single_server, s): s for s in servers_to_extend}
+                    for future in as_completed(futures):
+                        result = future.result()
+                        if result[0] == "success":
+                            servers_extended_count += 1
+                            extend_results["serversExtended"] += 1
+                        else:
+                            print(f"Failed to extend server {result[1]}: {result[2]}")
+                            servers_failed_count += 1
+                            extend_results["serversFailed"] += 1
 
             if servers_extended_count > 0 or servers_failed_count > 0:
                 extend_results["details"].append(
@@ -9002,34 +8998,11 @@ def handle_sync_source_server_inventory() -> Dict:
     total_synced = 0
     total_errors = 0
 
-    # Collect all accounts to query (target + staging)
-    accounts_to_query = []
+    # Only query target accounts (they show both direct and extended source servers)
     for target in target_accounts:
-        target_id = target.get("accountId")
-        target_role = target.get("roleArn")
-        target_ext_id = target.get("externalId")
-        accounts_to_query.append(
-            {
-                "accountId": target_id,
-                "roleArn": target_role,
-                "externalId": target_ext_id,
-                "accountType": "target",
-            }
-        )
-        for staging in target.get("stagingAccounts", []):
-            accounts_to_query.append(
-                {
-                    "accountId": staging.get("accountId"),
-                    "roleArn": staging.get("roleArn"),
-                    "externalId": staging.get("externalId"),
-                    "accountType": "staging",
-                }
-            )
-
-    for acct in accounts_to_query:
-        acct_id = acct["accountId"]
-        role_arn = acct.get("roleArn")
-        ext_id = acct.get("externalId")
+        acct_id = target.get("accountId")
+        role_arn = target.get("roleArn")
+        ext_id = target.get("externalId")
         current_account = get_current_account_id()
 
         # Get credentials
@@ -9189,7 +9162,27 @@ def handle_sync_source_server_inventory() -> Dict:
                         item["errorMessage"] = status_info["errorMessage"]
                     batch.put_item(Item=item)
 
-        print(f"Account {acct_id}: found {len(all_servers)} source servers")
+        print(f"Account {acct_id}: found {len(all_servers)} source servers before deduplication")
+
+        # Deduplicate servers by sourceServerID (keep most recent by lastUpdatedDateTime)
+        servers_by_id = {}
+        for srv in all_servers:
+            server_id = srv.get("sourceServerID")
+            if not server_id:
+                continue
+
+            # Keep the server with the most recent lastUpdatedDateTime
+            existing = servers_by_id.get(server_id)
+            if existing:
+                existing_time = existing.get("dataReplicationInfo", {}).get("lastSnapshotDateTime", "")
+                current_time = srv.get("dataReplicationInfo", {}).get("lastSnapshotDateTime", "")
+                if current_time > existing_time:
+                    servers_by_id[server_id] = srv
+            else:
+                servers_by_id[server_id] = srv
+
+        all_servers = list(servers_by_id.values())
+        print(f"Account {acct_id}: {len(all_servers)} unique servers after deduplication")
 
         # Get EC2 details for source instances
         # Group servers by source account + region for EC2 queries
@@ -9281,85 +9274,53 @@ def handle_sync_source_server_inventory() -> Dict:
             except Exception as e:
                 print(f"EC2 query failed for account {src_account} region {region}: {e}")
 
-        # Write to DynamoDB
+        # Write to DynamoDB - store complete DRS API response
         with inventory_table.batch_writer() as batch:
             for srv in all_servers:
                 try:
-                    server_arn = srv.get("arn", "")
                     server_id = srv.get("sourceServerID", "")
                     staging_area = srv.get("stagingArea", {})
                     staging_acct = staging_area.get("stagingAccountID", acct_id)
-                    src_props = srv.get("sourceProperties", {})
-                    hints = src_props.get("identificationHints", {})
-                    instance_id = hints.get("awsInstanceID", "")
-                    hostname = hints.get("hostname", "")
-                    fqdn = hints.get("fqdn", "")
-                    agent_info = srv.get("agentVersion", "")
-                    repl_info = srv.get("dataReplicationInfo", {})
-                    repl_state = repl_info.get("dataReplicationState", "")
-                    lag_duration = repl_info.get("lagDuration", "")
-                    last_snapshot = repl_info.get("lastSnapshotDateTime", "")
                     src_region = srv.get("sourceCloudProperties", {}).get("originRegion", srv["_queryRegion"])
                     src_account = srv.get("sourceCloudProperties", {}).get("originAccountID", acct_id)
+                    instance_id = (
+                        srv.get("sourceProperties", {}).get("identificationHints", {}).get("awsInstanceID", "")
+                    )
 
-                    # Hardware details from sourceProperties
-                    cpus = src_props.get("cpus", [])
-                    cpu_model = cpus[0].get("modelName", "") if cpus else ""
-                    cpu_cores = sum(c.get("cores", 0) for c in cpus) if cpus else 0
-                    ram_bytes = src_props.get("ramBytes", 0)
-                    disks = src_props.get("disks", [])
-                    total_storage_bytes = sum(d.get("bytes", 0) for d in disks) if disks else 0
-                    os_info = src_props.get("os", {})
-                    os_name = os_info.get("fullString", "")
-
-                    # Network from sourceProperties
-                    nics = src_props.get("networkInterfaces", [])
-                    primary_ip = nics[0].get("ips", [""])[0] if nics else ""
-                    mac_address = nics[0].get("macAddress", "") if nics else ""
-
-                    # Recovery readiness
-                    life_cycle = srv.get("lifeCycle", {})
-                    last_seen = life_cycle.get("lastSeenByServiceDateTime", "")
-
+                    # Enrich DRS response with EC2 network details and tags
                     ec2_info = ec2_details.get(instance_id, {})
-
-                    item = {
-                        "sourceServerArn": server_arn,
-                        "stagingAccountId": staging_acct,
-                        "sourceServerID": server_id,
-                        "sourceAccountId": src_account,
-                        "sourceRegion": src_region,
-                        "hostname": hostname,
-                        "fqdn": fqdn,
-                        "instanceId": instance_id,
-                        "agentVersion": agent_info,
-                        "replicationRegion": srv["_queryRegion"],
-                        "replicationState": repl_state,
-                        "lagDuration": lag_duration,
-                        "lastSnapshot": last_snapshot,
-                        "lastSeen": last_seen,
-                        "lastUpdated": now,
-                        "cpuModel": cpu_model,
-                        "cpuCores": cpu_cores,
-                        "ramBytes": int(ram_bytes) if ram_bytes else 0,
-                        "totalStorageBytes": int(total_storage_bytes),
-                        "osName": os_name,
-                        "primaryIp": primary_ip,
-                        "macAddress": mac_address,
-                        "disks": [{"deviceName": d.get("deviceName", ""), "bytes": d.get("bytes", 0)} for d in disks],
-                    }
-
                     if ec2_info:
-                        item["networkConfig"] = {
+                        # Add EC2 network config to DRS response
+                        srv["ec2NetworkConfig"] = {
                             "vpcId": ec2_info.get("vpcId", ""),
                             "subnetId": ec2_info.get("subnetId", ""),
                             "privateIp": ec2_info.get("privateIp", ""),
                             "securityGroups": ec2_info.get("securityGroups", []),
                             "instanceProfile": ec2_info.get("instanceProfile", ""),
                         }
-                        item["sourceTags"] = ec2_info.get("tags", {})
+                        # Merge EC2 tags with DRS tags
+                        if "tags" not in srv:
+                            srv["tags"] = {}
+                        srv["tags"].update(ec2_info.get("tags", {}))
 
-                    batch.put_item(Item=item)
+                    # Extract key fields for DynamoDB (table requires sourceServerArn at root)
+                    srv["sourceServerArn"] = srv.get("arn", "")
+                    srv["stagingAccountId"] = staging_acct
+                    srv["sourceAccountId"] = src_account
+                    srv["replicationRegion"] = srv["_queryRegion"]
+                    srv["lastUpdated"] = now
+
+                    # Add metadata for inventory tracking
+                    srv["_inventoryMetadata"] = {
+                        "stagingAccountId": staging_acct,
+                        "sourceAccountId": src_account,
+                        "sourceRegion": src_region,
+                        "replicationRegion": srv["_queryRegion"],
+                        "lastUpdated": now,
+                    }
+
+                    # Store complete DRS API response with enrichments
+                    batch.put_item(Item=srv)
                     total_synced += 1
                 except Exception as e:
                     print(f"Error writing {srv.get('sourceServerID', '?')}: {e}")

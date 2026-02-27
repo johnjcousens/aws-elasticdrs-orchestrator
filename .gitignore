@@ -202,9 +202,10 @@ aws_logo.png
 # -------------------------
 # INTERNAL SCRIPTS (contain hardcoded account IDs)
 # -------------------------
-# Only deploy.sh and setup-dev-environment.sh should be public
+# Only deploy.sh, deploy-main-stack.sh, and setup-dev-environment.sh should be public
 scripts/*
 !scripts/deploy.sh
+!scripts/deploy-main-stack.sh
 !scripts/setup-dev-environment.sh
 
 # Hypothesis test artifacts

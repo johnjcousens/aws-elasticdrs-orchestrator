@@ -1,0 +1,302 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  AWS DRS Orchestration - EventBridge Scheduled Rules (Nested Stack)
+  
+  Consolidated EventBridge rules for automated DR operations and data synchronization.
+  
+  Scheduled Operations:
+  - Execution Polling (1 min): Polls active DR executions for status updates
+  - Tag Sync (hourly): Synchronizes DRS tags to DynamoDB
+  - Staging Account Sync (5 min): Discovers staging accounts
+  - Inventory Sync (15 min): Syncs source server inventory
+  - Recovery Instance Sync (5 min): Syncs recovery instance data
+  
+  This nested stack consolidates all EventBridge rules to prevent duplication.
+  The canonical ExecutionPollingScheduleRule replaces the duplicate ExecutionFinderScheduleRule
+  that previously existed in the Lambda stack.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Project name for resource naming
+
+  Environment:
+    Type: String
+    Description: Deployment environment
+    AllowedValues: [dev, test, qa, uat, staging, prod]
+
+  ExecutionHandlerFunctionArn:
+    Type: String
+    Description: ARN of the Execution Handler Lambda for execution polling operations
+
+  DataManagementHandlerFunctionArn:
+    Type: String
+    Description: ARN of the Data Management Handler Lambda for data sync operations
+
+  ApiHandlerFunctionArn:
+    Type: String
+    Description: ARN of the API Handler Lambda for tag sync operations
+
+  EnableExecutionPolling:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable automatic execution polling every 1 minute
+
+  EnableTagSync:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable hourly tag synchronization from DRS source servers
+
+  EnableStagingAccountSync:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable automatic staging account discovery every 5 minutes
+
+  EnableInventorySync:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable automatic source server inventory sync every 15 minutes
+
+  EnableRecoveryInstanceSync:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable automatic recovery instance sync every 5 minutes
+
+Conditions:
+  EnableExecutionPollingCondition: !Equals [!Ref EnableExecutionPolling, 'true']
+  EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
+  EnableStagingAccountSyncCondition: !Equals [!Ref EnableStagingAccountSync, 'true']
+  EnableInventorySyncCondition: !Equals [!Ref EnableInventorySync, 'true']
+  EnableRecoveryInstanceSyncCondition: !Equals [!Ref EnableRecoveryInstanceSync, 'true']
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  # ===========================================================================
+  # IAM ROLE FOR EVENTBRIDGE
+  # ===========================================================================
+  EventBridgeInvokeRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Properties:
+      RoleName: !Sub '${ProjectName}-eventbridge-invoke-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Ref ApiHandlerFunctionArn
+                  - !Ref DataManagementHandlerFunctionArn
+                  - !Ref ExecutionHandlerFunctionArn
+
+  # ===========================================================================
+  # EXECUTION POLLING SCHEDULED RULE (CANONICAL)
+  # ===========================================================================
+  # This is the canonical execution polling rule that replaces the duplicate
+  # ExecutionFinderScheduleRule that previously existed in lambda-stack.yaml.
+  # Polls active DR executions for status updates every 1 minute.
+  ExecutionPollingScheduleRule:
+    Type: AWS::Events::Rule
+    DeletionPolicy: Delete
+    Condition: EnableExecutionPollingCondition
+    Properties:
+      Name: !Sub '${ProjectName}-execution-polling-schedule-${Environment}'
+      Description: 'Poll active DR executions for status updates every 1 minute'
+      ScheduleExpression: 'rate(1 minute)'
+      State: ENABLED
+      Targets:
+        - Id: ExecutionPollingTarget
+          Arn: !Ref ExecutionHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"operation": "find"}'
+
+  ExecutionPollingSchedulePermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    Condition: EnableExecutionPollingCondition
+    Properties:
+      FunctionName: !Ref ExecutionHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ExecutionPollingScheduleRule.Arn
+
+  # ===========================================================================
+  # TAG SYNC SCHEDULED RULE
+  # ===========================================================================
+  TagSyncScheduleRule:
+    Type: AWS::Events::Rule
+    DeletionPolicy: Delete
+    Condition: EnableTagSyncCondition
+    Properties:
+      Name: !Sub '${ProjectName}-tag-sync-schedule-${Environment}'
+      Description: 'Scheduled DRS tag synchronization every 1 hour'
+      ScheduleExpression: 'rate(1 hour)'
+      State: ENABLED
+      Targets:
+        - Id: TagSyncTarget
+          Arn: !Ref ApiHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"synch_tags": true, "synch_instance_type": true}'
+
+  TagSyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    Condition: EnableTagSyncCondition
+    Properties:
+      FunctionName: !Ref ApiHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TagSyncScheduleRule.Arn
+
+  # ===========================================================================
+  # STAGING ACCOUNT SYNC SCHEDULED RULE
+  # ===========================================================================
+  StagingAccountSyncScheduleRule:
+    Type: AWS::Events::Rule
+    DeletionPolicy: Delete
+    Condition: EnableStagingAccountSyncCondition
+    Properties:
+      Name: !Sub '${ProjectName}-staging-account-sync-${Environment}'
+      Description: 'Automatic staging account discovery and sync every 5 minutes'
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Id: StagingAccountSyncTarget
+          Arn: !Ref DataManagementHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"operation": "sync_staging_accounts"}'
+
+  StagingAccountSyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    Condition: EnableStagingAccountSyncCondition
+    Properties:
+      FunctionName: !Ref DataManagementHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StagingAccountSyncScheduleRule.Arn
+
+  # ===========================================================================
+  # INVENTORY SYNC SCHEDULED RULE
+  # ===========================================================================
+  InventorySyncScheduleRule:
+    Type: AWS::Events::Rule
+    DeletionPolicy: Delete
+    Condition: EnableInventorySyncCondition
+    Properties:
+      Name: !Sub '${ProjectName}-inventory-sync-${Environment}'
+      Description: 'Sync source server inventory from DRS and EC2 every 15 minutes'
+      ScheduleExpression: 'rate(15 minutes)'
+      State: ENABLED
+      Targets:
+        - Id: InventorySyncTarget
+          Arn: !Ref DataManagementHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"operation": "sync_source_server_inventory"}'
+
+  InventorySyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    Condition: EnableInventorySyncCondition
+    Properties:
+      FunctionName: !Ref DataManagementHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt InventorySyncScheduleRule.Arn
+
+  # ===========================================================================
+  # RECOVERY INSTANCE SYNC SCHEDULED RULE
+  # ===========================================================================
+  RecoveryInstanceSyncScheduleRule:
+    Type: AWS::Events::Rule
+    DeletionPolicy: Delete
+    Condition: EnableRecoveryInstanceSyncCondition
+    Properties:
+      Name: !Sub '${ProjectName}-recovery-instance-sync-${Environment}'
+      Description: 'Sync recovery instance data from DRS and EC2 every 5 minutes'
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Id: RecoveryInstanceSyncTarget
+          Arn: !Ref DataManagementHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"operation": "sync_recovery_instances"}'
+
+  RecoveryInstanceSyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Condition: EnableRecoveryInstanceSyncCondition
+    Properties:
+      FunctionName: !Ref DataManagementHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt RecoveryInstanceSyncScheduleRule.Arn
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  EventBridgeInvokeRoleArn:
+    Description: ARN of the EventBridge invoke role
+    Value: !GetAtt EventBridgeInvokeRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-eventbridge-role-${Environment}'
+
+  ExecutionPollingScheduleRuleArn:
+    Condition: EnableExecutionPollingCondition
+    Description: ARN of the execution polling schedule rule (canonical)
+    Value: !GetAtt ExecutionPollingScheduleRule.Arn
+    Export:
+      Name: !Sub '${ProjectName}-execution-polling-rule-${Environment}'
+
+  TagSyncScheduleRuleArn:
+    Condition: EnableTagSyncCondition
+    Description: ARN of the tag sync schedule rule
+    Value: !GetAtt TagSyncScheduleRule.Arn
+    Export:
+      Name: !Sub '${ProjectName}-tag-sync-rule-${Environment}'
+
+  StagingAccountSyncScheduleRuleArn:
+    Condition: EnableStagingAccountSyncCondition
+    Description: ARN of the staging account sync schedule rule
+    Value: !GetAtt StagingAccountSyncScheduleRule.Arn
+    Export:
+      Name: !Sub '${ProjectName}-staging-account-sync-rule-${Environment}'
+
+  InventorySyncScheduleRuleArn:
+    Condition: EnableInventorySyncCondition
+    Description: ARN of the inventory sync schedule rule
+    Value: !GetAtt InventorySyncScheduleRule.Arn
+    Export:
+      Name: !Sub '${ProjectName}-inventory-sync-rule-${Environment}'
+
+  RecoveryInstanceSyncScheduleRuleArn:
+    Condition: EnableRecoveryInstanceSyncCondition
+    Description: ARN of the recovery instance sync schedule rule
+    Value: !GetAtt RecoveryInstanceSyncScheduleRule.Arn
+    Export:
+      Name: !Sub '${ProjectName}-recovery-instance-sync-rule-${Environment}'

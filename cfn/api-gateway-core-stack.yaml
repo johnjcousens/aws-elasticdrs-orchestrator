@@ -90,6 +90,7 @@ Resources:
   
   RestApi:
     Type: AWS::ApiGateway::RestApi
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '${ProjectName}-api-${Environment}'
       Description: 'REST API for AWS DRS Orchestration with Cognito authentication'
@@ -119,6 +120,7 @@ Resources:
   
   ApiAuthorizer:
     Type: AWS::ApiGateway::Authorizer
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '${ProjectName}-cognito-authorizer-${Environment}'
       Type: COGNITO_USER_POOLS
@@ -136,6 +138,7 @@ Resources:
   
   ApiRequestValidator:
     Type: AWS::ApiGateway::RequestValidator
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '${ProjectName}-request-validator-${Environment}'
       RestApiId: !Ref RestApi
@@ -150,6 +153,8 @@ Resources:
   
   ApiGatewayInvokePermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref ApiHandlerFunctionArn
       Action: lambda:InvokeFunction

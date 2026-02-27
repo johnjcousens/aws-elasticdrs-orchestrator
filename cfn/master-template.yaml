@@ -144,6 +144,7 @@ Resources:
   # Supports cross-account DRS operations via sts:AssumeRole
   UnifiedOrchestrationRole:
     Type: AWS::IAM::Role
+    DeletionPolicy: Delete
     Condition: CreateOrchestrationRole
     Properties:
       RoleName: !Sub "${ProjectName}-orchestration-role-${Environment}"
@@ -414,6 +415,8 @@ Resources:
                   - s3:PutObject
                   - s3:DeleteObject
                   - s3:ListBucket
+                  - s3:ListBucketVersions
+                  - s3:DeleteObjectVersion
                 Resource:
                   - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-*"
                   - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-*/*"
@@ -999,10 +1002,12 @@ Resources:
         ModularOrchestratorArn: !GetAtt StepFunctionsStack.Outputs.StateMachineArn
         EnableWeeklyDrill: 'false'  # Disabled by default
         EnableTagSync: !Ref EnableTagSync
+        EnableExecutionPolling: 'true'  # Enable automatic execution polling
         EnableStagingAccountSync: 'true'  # Enable automatic staging account sync
         ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
         QueryHandlerFunctionArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
         DataManagementHandlerFunctionArn: !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
+        ExecutionHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName

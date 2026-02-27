@@ -1,0 +1,372 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  DRS Orchestration DynamoDB Tables Stack - DynamoDB tables for protection groups,
+  recovery plans, execution history, target accounts, source server inventory,
+  DRS region status, and recovery instances cache. Uses camelCase schema,
+  PAY_PER_REQUEST billing, encryption at rest, and point-in-time recovery.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name used for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, staging, prod)'
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  # ===========================================================================
+  # PROTECTION GROUPS TABLE
+  # ===========================================================================
+  ProtectionGroupsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-protection-groups-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: groupId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: groupId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
+  # ===========================================================================
+  # RECOVERY PLANS TABLE
+  # ===========================================================================
+  RecoveryPlansTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-recovery-plans-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: planId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: planId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
+  # ===========================================================================
+  # EXECUTION HISTORY TABLE
+  # ===========================================================================
+  ExecutionHistoryTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-execution-history-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: executionId
+          AttributeType: S
+        - AttributeName: planId
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: executionId
+          KeyType: HASH
+        - AttributeName: planId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: planIdIndex
+          KeySchema:
+            - AttributeName: planId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
+  # ===========================================================================
+  # TARGET ACCOUNTS TABLE
+  # ===========================================================================
+  TargetAccountsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-target-accounts-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: accountId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: accountId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
+  # ===========================================================================
+  # SOURCE SERVER INVENTORY TABLE
+  # ===========================================================================
+  SourceServerInventoryTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-source-server-inventory-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sourceServerArn
+          AttributeType: S
+        - AttributeName: stagingAccountId
+          AttributeType: S
+        - AttributeName: sourceAccountId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sourceServerArn
+          KeyType: HASH
+        - AttributeName: stagingAccountId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: SourceAccountIndex
+          KeySchema:
+            - AttributeName: sourceAccountId
+              KeyType: HASH
+            - AttributeName: sourceServerArn
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: StagingAccountIndex
+          KeySchema:
+            - AttributeName: stagingAccountId
+              KeyType: HASH
+            - AttributeName: sourceServerArn
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
+  # ===========================================================================
+  # DRS REGION STATUS TABLE
+  # ===========================================================================
+  DRSRegionStatusTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-drs-region-status-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: region
+          AttributeType: S
+      KeySchema:
+        - AttributeName: region
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
+  # ===========================================================================
+  # RECOVERY INSTANCES CACHE TABLE
+  # ===========================================================================
+  RecoveryInstancesCacheTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-recovery-instances-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sourceServerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sourceServerId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  ProtectionGroupsTableName:
+    Description: 'Protection Groups table name'
+    Value: !Ref ProtectionGroupsTable
+    Export:
+      Name: !Sub '${ProjectName}-protection-groups-table-${Environment}'
+
+  ProtectionGroupsTableArn:
+    Description: 'Protection Groups table ARN'
+    Value: !GetAtt ProtectionGroupsTable.Arn
+    Export:
+      Name: !Sub '${ProjectName}-protection-groups-table-arn-${Environment}'
+
+  RecoveryPlansTableName:
+    Description: 'Recovery Plans table name'
+    Value: !Ref RecoveryPlansTable
+    Export:
+      Name: !Sub '${ProjectName}-recovery-plans-table-${Environment}'
+
+  RecoveryPlansTableArn:
+    Description: 'Recovery Plans table ARN'
+    Value: !GetAtt RecoveryPlansTable.Arn
+    Export:
+      Name: !Sub '${ProjectName}-recovery-plans-table-arn-${Environment}'
+
+  ExecutionHistoryTableName:
+    Description: 'Execution History table name'
+    Value: !Ref ExecutionHistoryTable
+    Export:
+      Name: !Sub '${ProjectName}-execution-history-table-${Environment}'
+
+  ExecutionHistoryTableArn:
+    Description: 'Execution History table ARN'
+    Value: !GetAtt ExecutionHistoryTable.Arn
+    Export:
+      Name: !Sub '${ProjectName}-execution-history-table-arn-${Environment}'
+
+  TargetAccountsTableName:
+    Description: 'Target Accounts table name'
+    Value: !Ref TargetAccountsTable
+    Export:
+      Name: !Sub '${ProjectName}-target-accounts-table-${Environment}'
+
+  TargetAccountsTableArn:
+    Description: 'Target Accounts table ARN'
+    Value: !GetAtt TargetAccountsTable.Arn
+    Export:
+      Name: !Sub '${ProjectName}-target-accounts-table-arn-${Environment}'
+
+  SourceServerInventoryTableName:
+    Description: 'Source Server Inventory table name'
+    Value: !Ref SourceServerInventoryTable
+    Export:
+      Name: !Sub '${ProjectName}-source-server-inventory-table-${Environment}'
+
+  SourceServerInventoryTableArn:
+    Description: 'Source Server Inventory table ARN'
+    Value: !GetAtt SourceServerInventoryTable.Arn
+    Export:
+      Name: !Sub '${ProjectName}-source-server-inventory-table-arn-${Environment}'
+
+  DRSRegionStatusTableName:
+    Description: 'DRS Region Status table name'
+    Value: !Ref DRSRegionStatusTable
+    Export:
+      Name: !Sub '${ProjectName}-drs-region-status-table-${Environment}'
+
+  DRSRegionStatusTableArn:
+    Description: 'DRS Region Status table ARN'
+    Value: !GetAtt DRSRegionStatusTable.Arn
+    Export:
+      Name: !Sub '${ProjectName}-drs-region-status-table-arn-${Environment}'
+
+  RecoveryInstancesCacheTableName:
+    Description: 'Recovery Instances Cache table name'
+    Value: !Ref RecoveryInstancesCacheTable
+    Export:
+      Name: !Sub '${ProjectName}-recovery-instances-cache-table-${Environment}'
+
+  RecoveryInstancesCacheTableArn:
+    Description: 'Recovery Instances Cache table ARN'
+    Value: !GetAtt RecoveryInstancesCacheTable.Arn
+    Export:
+      Name: !Sub '${ProjectName}-recovery-instances-cache-table-arn-${Environment}'

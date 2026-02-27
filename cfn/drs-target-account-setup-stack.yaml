@@ -11,7 +11,6 @@ Metadata:
           default: 'Orchestration Account Configuration'
         Parameters:
           - OrchestrationAccountId
-          - ExternalId
       - Label:
           default: 'Project Configuration'
         Parameters:
@@ -25,14 +24,6 @@ Parameters:
     AllowedPattern: '[0-9]{12}'
     ConstraintDescription: 'Must be a valid 12-digit AWS account ID'
   
-  ExternalId:
-    Description: 'External ID for secure cross-account access'
-    Type: String
-    Default: 'drs-orchestration-cross-account'
-    MinLength: 8
-    MaxLength: 64
-    ConstraintDescription: 'Must be between 8 and 64 characters'
-  
   ProjectName:
     Type: String
     Description: 'Project name for resource naming'
@@ -40,13 +31,14 @@ Parameters:
   
   Environment:
     Type: String
-    Description: 'Environment name (dev, test, prod)'
+    Description: 'Environment name (dev, test, prod, qa)'
     Default: 'prod'
 
 Resources:
   # Cross-Account IAM Role
   DRSOrchestrationRole:
     Type: AWS::IAM::Role
+    DeletionPolicy: Delete
     Properties:
       RoleName: DRSOrchestrationRole
       Description: !Sub 'Cross-account role for DRS Orchestration (${OrchestrationAccountId}) to manage DRS in ${AWS::AccountId}'
@@ -60,7 +52,7 @@ Resources:
             Action: 'sts:AssumeRole'
             Condition:
               StringEquals:
-                'sts:ExternalId': !Ref ExternalId
+                'sts:ExternalId': !Sub '${ProjectName}-${Environment}'
       ManagedPolicyArns:
         - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AWSElasticDisasterRecoveryConsoleFullAccess'
       Tags:
@@ -74,6 +66,7 @@ Resources:
   # Inline Policy for DRS Operations
   DRSOrchestrationPolicy:
     Type: AWS::IAM::Policy
+    DeletionPolicy: Delete
     Properties:
       PolicyName: DRSOrchestrationPolicy
       Roles:
@@ -200,6 +193,8 @@ Resources:
   # SSM Document for DRS Agent Installation
   DRSAgentInstallerDocument:
     Type: AWS::SSM::Document
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       Name: 'DRS-InstallAgent-CrossAccount'
       DocumentType: Command
@@ -310,8 +305,8 @@ Outputs:
       Name: !Sub '${ProjectName}-role-name'
   
   ExternalId:
-    Description: 'External ID for role assumption'
-    Value: !Ref ExternalId
+    Description: 'External ID for role assumption (auto-generated from ProjectName-Environment)'
+    Value: !Sub '${ProjectName}-${Environment}'
     Export:
       Name: !Sub '${ProjectName}-external-id'
   

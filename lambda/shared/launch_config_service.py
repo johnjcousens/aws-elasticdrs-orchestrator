@@ -579,7 +579,7 @@ def _get_cross_account_drs_client(region: str, account_context: Dict):
         region: AWS region
         account_context: Dict with keys:
             - accountId: Target account ID
-            - roleName: Role name to assume
+            - assumeRoleName: Role name to assume
 
     Returns:
         boto3 DRS client with assumed role credentials
@@ -591,7 +591,7 @@ def _get_cross_account_drs_client(region: str, account_context: Dict):
         sts_client = boto3.client("sts")
 
         # Assume role in target account
-        role_arn = f"arn:aws:iam::{account_context['accountId']}:" f"role/{account_context['roleName']}"
+        role_arn = f"arn:aws:iam::{account_context['accountId']}:" f"role/{account_context['assumeRoleName']}"
 
         response = sts_client.assume_role(RoleArn=role_arn, RoleSessionName="launch-config-application")
 

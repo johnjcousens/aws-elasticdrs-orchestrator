@@ -339,7 +339,9 @@ from shared.drs_limits import (  # noqa: E402
     validate_servers_in_all_jobs,
 )
 from shared.drs_regions import DRS_REGIONS  # noqa: E402
-from shared.drs_utils import map_replication_state_to_display  # noqa: E402
+from shared.drs_utils import (  # noqa: E402
+    map_replication_state_to_display,
+)
 from shared.response_utils import (  # noqa: E402
     response,
     error_response,
@@ -1395,8 +1397,202 @@ def handle_get_source_server_inventory(query_params: Dict) -> Dict:
         )
 
 
+def _get_region_status(region: str) -> Optional[Dict[str, Any]]:
+    """
+    Get region status from DRSRegionStatusTable.
+
+    Provides fast lookup of region initialization status without
+    making expensive DRS API calls.
+
+    Args:
+        region: AWS region name (e.g., "us-east-1")
+
+    Returns:
+        Dict with status information:
+        {
+            "region": str,
+            "status": str,  # NOT_INITIALIZED, ACTIVE, IAM_PERMISSION_DENIED, etc.
+            "serverCount": int,
+            "lastUpdated": str,
+            "errorMessage": Optional[str]
+        }
+        Returns None if table not available or region not found.
+
+    Example:
+        >>> status = _get_region_status("ap-northeast-2")
+        >>> if status and status["status"] == "NOT_INITIALIZED":
+        ...     return early_error_response()
+    """
+    from shared.active_region_filter import get_region_status_table
+
+    region_status_table = get_region_status_table()
+    if not region_status_table:
+        print("Region status table not available, skipping pre-check")
+        return None
+
+    try:
+        response = region_status_table.get_item(Key={"region": region})
+
+        if "Item" in response:
+            status_item = response["Item"]
+            status = status_item.get("status")
+            server_count = status_item.get("serverCount", 0)
+            print(f"Region {region} status from table: {status}, serverCount: {server_count}")
+            return status_item
+        else:
+            print(f"Region {region} not found in status table (may not be scanned yet)")
+            return None
+
+    except Exception as e:
+        print(f"Error querying region status table: {e}")
+        return None
+
+
+def _query_servers_from_inventory(region: str, account_id: Optional[str]) -> Optional[List[Dict[str, Any]]]:
+    """
+    Query source servers from inventory database.
+
+    Provides fast access to server data without DRS API calls.
+    Falls back to None if inventory is stale or unavailable
+    (caller should handle fallback to DRS API).
+
+    Args:
+        region: AWS region to query
+        account_id: Optional account ID filter
+
+    Returns:
+        List of server dicts in frontend format if inventory is fresh.
+        Returns None if inventory is stale or unavailable (triggers DRS API fallback).
+
+    Example:
+        >>> servers = _query_servers_from_inventory("us-east-1", None)
+        >>> if servers is not None:
+        ...     return fast_response(servers)
+        ... else:
+        ...     return slow_drs_api_call()
+    """
+    from shared.drs_utils import transform_drs_server_for_frontend
+    from shared.inventory_query import is_inventory_fresh, publish_metric, query_inventory_by_regions
+
+    # Check if inventory is fresh before querying
+    if not is_inventory_fresh():
+        print(f"Inventory is stale, falling back to DRS API for region {region}")
+        publish_metric("InventoryDatabaseMisses", 1)
+        return None
+
+    # Build filters
+    filters: Dict[str, str] = {}
+    if account_id:
+        filters["sourceAccountId"] = account_id
+
+    try:
+        # Query inventory database (returns DRS API format)
+        inventory_servers = query_inventory_by_regions(regions=[region], filters=filters)
+
+        if not inventory_servers:
+            print(f"No servers found in inventory for region {region}")
+            return []
+
+        # Transform DRS format to frontend format
+        servers = [transform_drs_server_for_frontend(s) for s in inventory_servers]
+
+        print(f"Retrieved {len(servers)} servers from inventory database for region {region}")
+        publish_metric("InventoryDatabaseHits", 1)
+
+        return servers
+
+    except Exception as e:
+        print(f"Error querying inventory database: {e}")
+        publish_metric("InventoryDatabaseMisses", 1)
+        return None
+
+
+def _check_protection_group_assignments(
+    servers: List[Dict[str, Any]], region: str, account_id: Optional[str], current_pg_id: Optional[str]
+) -> None:
+    """
+    Check and mark servers that are already assigned to protection groups.
+
+    Uses conflict_detection.py shared module to query protection groups
+    and mark servers as non-selectable if already assigned to a different
+    protection group.
+
+    Modifies servers list in-place by setting:
+    - assignedToProtectionGroup: protection group ID or None
+    - selectable: False if assigned to different group, True otherwise
+
+    Args:
+        servers: List of server dicts to check (modified in-place)
+        region: AWS region of the servers
+        account_id: Optional account ID filter
+        current_pg_id: Optional current protection group ID (for editing)
+
+    Example:
+        >>> servers = [{"sourceServerID": "s-1234", ...}]
+        >>> _check_protection_group_assignments(servers, "us-east-1", None, None)
+        >>> print(servers[0]["assignedToProtectionGroup"])
+        "pg-5678"  # or None if not assigned
+    """
+    from boto3.dynamodb.conditions import Attr
+
+    from shared.conflict_detection import get_protection_groups_table
+
+    if not servers:
+        return
+
+    protection_groups_table = get_protection_groups_table()
+    if not protection_groups_table:
+        print("Protection groups table not available, skipping assignment check")
+        return
+
+    try:
+        # Query protection groups for this region
+        response = protection_groups_table.scan(FilterExpression=Attr("region").eq(region))
+
+        protection_groups = response.get("Items", [])
+
+        # Build map of server ID -> protection group ID
+        server_assignments: Dict[str, str] = {}
+        for pg in protection_groups:
+            pg_id = pg.get("groupId")
+            for server in pg.get("servers", []):
+                server_id = server.get("sourceServerID")
+                if server_id:
+                    server_assignments[server_id] = pg_id
+
+        # Mark servers with assignments
+        for server in servers:
+            server_id = server.get("sourceServerID")
+            assigned_pg_id = server_assignments.get(server_id)
+
+            if assigned_pg_id:
+                server["assignedToProtectionGroup"] = assigned_pg_id
+
+                # Server is selectable only if it's in the current protection group
+                if current_pg_id and assigned_pg_id == current_pg_id:
+                    server["selectable"] = True
+                else:
+                    server["selectable"] = False
+            else:
+                server["assignedToProtectionGroup"] = None
+                server["selectable"] = True
+
+        assigned_count = sum(1 for s in servers if s.get("assignedToProtectionGroup"))
+        if assigned_count > 0:
+            print(f"Found {assigned_count} servers already assigned to protection groups")
+
+    except Exception as e:
+        print(f"Error checking protection group assignments: {e}")
+        # Don't fail the request - just leave all servers as selectable
+
+
 def get_drs_source_servers(query_params: Dict) -> Dict:
-    """Query DRS source servers with optional filtering"""
+    """
+    Query DRS source servers with optional filtering.
+
+    Uses DynamoDB inventory database for fast lookups when available,
+    falling back to DRS API only when necessary.
+    """
     region = query_params.get("region")
     account_id = query_params.get("accountId")
     current_pg_id = query_params.get("currentProtectionGroupId")
@@ -1409,6 +1605,77 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                 "region parameter is required",
                 details={"parameter": "region"},
             ),
+        )
+
+    # OPTIMIZATION: Check region status first to avoid expensive DRS API calls
+    region_status = _get_region_status(region)
+    if region_status:
+        status = region_status.get("status")
+
+        # Return early for regions that cannot be queried
+        if status == "NOT_INITIALIZED":
+            print(f"Region {region} is not initialized (from status table)")
+            return response(
+                400,
+                {
+                    "error": "DRS_NOT_INITIALIZED",
+                    "message": f"AWS Elastic Disaster Recovery (DRS) is not initialized in {region}. Go to the DRS Console in {region} and complete the initialization wizard before creating Protection Groups.",
+                    "region": region,
+                    "initialized": False,
+                },
+            )
+        elif status == "IAM_PERMISSION_DENIED":
+            print(f"Region {region} has IAM permission denied (from status table)")
+            return response(
+                403,
+                {
+                    "error": "REGION_ACCESS_DENIED",
+                    "message": f"Access to DRS in {region} is denied. This region may be restricted by an organizational service control policy (SCP) or IAM permissions.",
+                    "region": region,
+                    "initialized": False,
+                },
+            )
+        elif status == "SCP_DENIED":
+            print(f"Region {region} is SCP denied (from status table)")
+            return response(
+                403,
+                {
+                    "error": "REGION_ACCESS_DENIED",
+                    "message": f"Access to DRS in {region} is denied by a service control policy (SCP).",
+                    "region": region,
+                    "initialized": False,
+                },
+            )
+        elif status == "REGION_NOT_ENABLED":
+            print(f"Region {region} is not enabled (from status table)")
+            return response(
+                400,
+                {
+                    "error": "REGION_NOT_ENABLED",
+                    "message": f"Region {region} is not enabled in your AWS account. This is an opt-in region that requires explicit enablement. Go to AWS Account Settings to enable this region, then initialize DRS.",
+                    "region": region,
+                    "initialized": False,
+                },
+            )
+
+    # OPTIMIZATION: Try inventory database first for initialized regions
+    servers = _query_servers_from_inventory(region, account_id)
+
+    if servers is not None:
+        # Successfully retrieved from inventory database
+        print(f"Retrieved {len(servers)} servers from inventory database for region {region}")
+
+        # Check Protection Group assignments
+        _check_protection_group_assignments(servers, region, account_id, current_pg_id)
+
+        return response(
+            200,
+            {
+                "servers": servers,
+                "region": region,
+                "serverCount": len(servers),
+                "source": "inventory_database",
+            },
         )
 
     try:
@@ -1523,97 +1790,8 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
         # Transform servers to frontend format
         servers = [_transform_drs_server(s) for s in raw_servers]
 
-        print(f"DEBUG: About to check PG assignments, get_protection_groups_table()={get_protection_groups_table()}")
-
-        # Check Protection Group assignments for all servers
-        if get_protection_groups_table():
-            try:
-                # Scan all Protection Groups to build server assignment map
-                pg_scan = get_protection_groups_table().scan()
-                server_assignments = {}
-
-                print(f"DEBUG: Checking PG assignments - found {len(pg_scan.get('Items', []))} PGs")
-
-                for pg in pg_scan.get("Items", []):
-                    pg_id = pg.get("groupId") or pg.get("protectionGroupId")
-                    pg_name = pg.get("groupName") or pg.get("name")
-                    pg_region = pg.get("region")
-                    pg_account = pg.get("accountId")
-
-                    print(
-                        f"DEBUG: PG '{pg_name}' - region={pg_region}, account={pg_account}, target_region={region}, target_account={account_id}"  # noqa: E501
-                    )
-
-                    # Skip if this is the current PG being edited
-                    if current_pg_id and pg_id == current_pg_id:
-                        print(f"DEBUG: Skipping current PG: {pg_id}")
-                        continue
-
-                    # Only check PGs in the same region
-                    if pg_region != region:
-                        print("DEBUG: Skipping PG in different region")
-                        continue
-
-                    # Only check PGs in the same account (if account filtering
-                    # is enabled)
-                    if account_id and pg_account != account_id:
-                        print(
-                            f"DEBUG: Skipping PG in different account (PG account: {pg_account}, target: {account_id})"  # noqa: E501
-                        )
-                        continue
-
-                    # Check manual server selection (sourceServerIds)
-                    server_ids = pg.get("sourceServerIds", [])
-                    print(f"DEBUG: PG '{pg_name}' has {len(server_ids)} manual serverIds")  # noqa: E501
-                    for server_id in server_ids:
-                        server_assignments[server_id] = {
-                            "protectionGroupId": pg_id,
-                            "protectionGroupName": pg_name,
-                        }
-
-                    # Check tag-based selection (serverSelectionTags)
-                    selection_tags = pg.get("serverSelectionTags", {})
-                    print(f"DEBUG: PG '{pg_name}' selection_tags={selection_tags}")
-
-                    if selection_tags:
-                        matched = 0
-                        # Match servers against tag criteria (AND logic)
-                        for server in servers:
-                            server_id = server["sourceServerID"]
-                            server_tags = server.get("drsTags", {})
-
-                            # Check if server matches ALL selection tags
-                            matches_all_tags = all(
-                                server_tags.get(tag_key) == tag_value for tag_key, tag_value in selection_tags.items()
-                            )
-
-                            if matches_all_tags:
-                                matched += 1
-                                print(f"DEBUG: Server {server_id} matches PG '{pg_name}'")
-                                server_assignments[server_id] = {
-                                    "protectionGroupId": pg_id,
-                                    "protectionGroupName": pg_name,
-                                }
-                        print(f"DEBUG: PG '{pg_name}' matched {matched} servers")
-
-                print(f"DEBUG: Total assignments: {len(server_assignments)}")
-
-                # Mark servers with their assignments
-                for server in servers:
-                    server_id = server["sourceServerID"]
-                    if server_id in server_assignments:
-                        server["assignedToProtectionGroup"] = server_assignments[server_id]
-                        server["selectable"] = False
-                    else:
-                        server["assignedToProtectionGroup"] = None
-                        server["selectable"] = True
-
-            except Exception as e:
-                print(f"Warning: Could not check PG assignments: {e}")
-                import traceback
-
-                traceback.print_exc()
-                # Continue without assignment info
+        # Check Protection Group assignments
+        _check_protection_group_assignments(servers, region, account_id, current_pg_id)
 
         return response(
             200,

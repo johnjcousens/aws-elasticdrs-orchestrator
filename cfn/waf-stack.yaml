@@ -95,6 +95,8 @@ Resources:
   
   WebACL:
     Type: AWS::WAFv2::WebACL
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       Name: !Sub '${ProjectName}-waf-${Environment}'
       Description: !Sub 'WAF WebACL for ${ProjectName} CloudFront distribution - Rate limiting and AWS managed rules'

@@ -1,0 +1,1279 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  IAM roles for DR Orchestration Platform Lambda functions.
+  Creates either unified role OR function-specific roles based on
+  UseFunctionSpecificRoles parameter.
+  Imported by: lambda-stack.yaml (role ARNs)
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: >
+      Project identifier used in resource naming
+      (referenced in all role names)
+    Default: aws-drs-orchestration
+
+  Environment:
+    Type: String
+    Description: >
+      Environment name (referenced in all role names)
+    AllowedValues:
+      - dev
+      - test
+      - qa
+      - uat
+      - staging
+      - prod
+    Default: test
+
+  UseFunctionSpecificRoles:
+    Type: String
+    Description: >
+      Create function-specific roles (true) or unified role (false)
+      (referenced in all Conditions)
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+
+Conditions:
+  # Create function-specific roles when parameter is 'true'
+  UseFunctionSpecificRoles: !Equals [!Ref UseFunctionSpecificRoles, 'true']
+  # Create unified role when parameter is 'false'
+  UseUnifiedRole: !Not [!Condition UseFunctionSpecificRoles]
+
+Resources:
+  # =============================================================================
+  # API GATEWAY CLOUDWATCH ROLE (ALWAYS CREATED)
+  # =============================================================================
+  # API Gateway requires an account-level IAM role to write to CloudWatch Logs.
+  # This role is always created regardless of UseFunctionSpecificRoles setting.
+  # The unified role also has apigateway.amazonaws.com trust, but this dedicated
+  # role ensures API Gateway logging works in both configurations.
+  
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Properties:
+      RoleName: !Sub "${ProjectName}-apigateway-cloudwatch-role-${Environment}"
+      Description: >
+        IAM role for API Gateway to write access logs to CloudWatch Logs.
+        Required for API Gateway stage AccessLogSetting configuration.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+  # =============================================================================
+  # FUNCTION-SPECIFIC ROLES (CREATED WHEN UseFunctionSpecificRoles=true)
+  # =============================================================================
+  
+  # Query Handler Role - Read-only access to DRS, DynamoDB, EC2, and CloudWatch
+  QueryHandlerRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Condition: UseFunctionSpecificRoles
+    Properties:
+      RoleName: !Sub "${ProjectName}-query-handler-role-${Environment}"
+      Description: >
+        IAM role for Query Handler Lambda function with read-only permissions
+        for DRS, DynamoDB, EC2, and CloudWatch operations
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        # DynamoDB read-only permissions
+        - PolicyName: DynamoDBReadOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-*"
+        
+        # DRS read-only permissions
+        - PolicyName: DRSReadOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:DescribeJobs
+                  - drs:DescribeRecoverySnapshots
+                  - drs:DescribeRecoveryInstances
+                  - drs:DescribeReplicationConfigurationTemplates
+                  - drs:DescribeJobLogItems
+                  - drs:GetLaunchConfiguration
+                  - drs:GetReplicationConfiguration
+                  - drs:ListTagsForResource
+                Resource: "*"
+        
+        # EC2 read-only permissions
+        - PolicyName: EC2ReadOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceTypes
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeNetworkInterfaces
+                Resource: "*"
+        
+        # IAM read-only permissions
+        - PolicyName: IAMReadOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:ListInstanceProfiles
+                Resource: "*"
+        
+        # STS AssumeRole for cross-account DRS operations
+        # No ExternalId condition - target accounts validate ExternalId in their trust policy
+        - PolicyName: STSAssumeRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::*:role/DRSOrchestrationRole"
+        
+        # Lambda invoke permission for Execution Handler
+        - PolicyName: LambdaInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-execution-handler-${Environment}"
+        
+        # CloudWatch metrics permissions
+        - PolicyName: CloudWatchMetrics
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+        
+        # CloudWatch Logs permissions
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-query-handler-${Environment}:*"
+
+  # Data Management Handler Role - DynamoDB CRUD and DRS metadata management
+  DataManagementRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Condition: UseFunctionSpecificRoles
+    Properties:
+      RoleName: !Sub "${ProjectName}-data-management-role-${Environment}"
+      Description: >
+        IAM role for Data Management Handler Lambda function with DynamoDB CRUD
+        and DRS metadata permissions (no recovery operations)
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        # DynamoDB full CRUD permissions
+        - PolicyName: DynamoDBFullAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-*"
+        
+        # DRS metadata permissions (no recovery operations)
+        - PolicyName: DRSMetadata
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:DescribeRecoveryInstances
+                  - drs:DescribeRecoverySnapshots
+                  - drs:DescribeJobs
+                  - drs:DescribeJobLogItems
+                  - drs:GetLaunchConfiguration
+                  - drs:GetReplicationConfiguration
+                  - drs:DescribeLaunchConfigurationTemplates
+                  - drs:DescribeReplicationConfigurationTemplates
+                  - drs:ListTagsForResource
+                  - drs:ListExtensibleSourceServers
+                  - drs:ListStagingAccounts
+                  - drs:TagResource
+                  - drs:UntagResource
+                  - drs:CreateExtendedSourceServer
+                Resource: "*"
+        
+        # Lambda self-invocation for async tag sync operations
+        - PolicyName: LambdaSelfInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-data-management-handler-${Environment}"
+        
+        # EventBridge rule management for tag sync scheduling
+        - PolicyName: EventBridgeRuleManagement
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:DescribeRule
+                  - events:PutRule
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${ProjectName}-*"
+        
+        # STS AssumeRole for cross-account DRS operations
+        # No ExternalId condition - target accounts validate ExternalId in their trust policy
+        - PolicyName: STSAssumeRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::*:role/DRSOrchestrationRole"
+        
+        # CloudWatch metrics and logs permissions
+        - PolicyName: CloudWatchMetrics
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+        
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-data-management-handler-${Environment}:*"
+
+  # Execution Handler Role - Step Functions orchestration and SNS notifications
+  ExecutionHandlerRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Condition: UseFunctionSpecificRoles
+    Properties:
+      RoleName: !Sub "${ProjectName}-execution-handler-role-${Environment}"
+      Description: >
+        IAM role for Execution Handler Lambda function with Step Functions
+        orchestration, SNS notifications, and DRS recovery coordination
+        permissions
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        # Step Functions orchestration permissions
+        - PolicyName: StepFunctionsOrchestration
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                  - states:DescribeExecution
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                  - states:SendTaskHeartbeat
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-*"
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-*:*"
+        
+        # SNS notification permissions
+        - PolicyName: SNSNotifications
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                  - sns:Subscribe
+                  - sns:Unsubscribe
+                  - sns:ListSubscriptionsByTopic
+                  - sns:SetSubscriptionAttributes
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-*"
+        
+        # DynamoDB full CRUD permissions
+        - PolicyName: DynamoDBFullAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-*"
+        
+        # DRS recovery coordination permissions
+        - PolicyName: DRSRecoveryCoordination
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:DescribeJobs
+                  - drs:DescribeJobLogItems
+                  - drs:DescribeRecoveryInstances
+                  - drs:StartRecovery
+                  - drs:TerminateRecoveryInstances
+                  - drs:UpdateLaunchConfiguration
+                  - drs:GetLaunchConfiguration
+                Resource: "*"
+        
+        # EC2 instance management permissions
+        - PolicyName: EC2InstanceManagement
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:TerminateInstances
+                  - ec2:CreateTags
+                Resource: "*"
+        
+        # Lambda invocation permission for Data Management Handler
+        - PolicyName: LambdaInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-data-management-handler-${Environment}"
+        
+        # STS AssumeRole for cross-account DRS operations
+        # No ExternalId condition - target accounts validate ExternalId in their trust policy
+        - PolicyName: STSAssumeRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::*:role/DRSOrchestrationRole"
+        
+        # CloudWatch metrics and logs permissions
+        - PolicyName: CloudWatchMetrics
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+        
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-execution-handler-${Environment}:*"
+
+  # Orchestration Function Role - Comprehensive DRS and EC2 permissions for recovery operations
+  OrchestrationRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Condition: UseFunctionSpecificRoles
+    Properties:
+      RoleName: !Sub "${ProjectName}-orchestration-role-${Environment}"
+      Description: >
+        IAM role for Orchestration Function (Step Function task) with
+        comprehensive DRS and EC2 permissions for executing disaster recovery
+        operations with additional security controls
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        # Comprehensive DRS permissions (all read and write operations)
+        - PolicyName: DRSComprehensive
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DRS read operations (no resource-level restrictions)
+              - Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:DescribeRecoverySnapshots
+                  - drs:DescribeRecoveryInstances
+                  - drs:DescribeJobs
+                  - drs:DescribeJobLogItems
+                  - drs:DescribeReplicationConfigurationTemplates
+                  - drs:GetLaunchConfiguration
+                  - drs:GetReplicationConfiguration
+                  - drs:ListTagsForResource
+                Resource: "*"
+              
+              # DRS write operations with region restriction
+              - Effect: Allow
+                Action:
+                  - drs:StartRecovery
+                  - drs:CreateRecoveryInstanceForDrs
+                  - drs:CreateExtendedSourceServer
+                  - drs:TerminateRecoveryInstances
+                  - drs:DisconnectRecoveryInstance
+                  - drs:UpdateLaunchConfiguration
+                  - drs:TagResource
+                  - drs:UntagResource
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+        
+        # Comprehensive EC2 permissions for recovery operations
+        - PolicyName: EC2Comprehensive
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceTypes
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeSnapshots
+                  - ec2:DescribeLaunchTemplates
+                  - ec2:DescribeLaunchTemplateVersions
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:RunInstances
+                  - ec2:TerminateInstances
+                  - ec2:CreateLaunchTemplate
+                  - ec2:CreateLaunchTemplateVersion
+                  - ec2:CreateTags
+                  - ec2:CreateVolume
+                  - ec2:CreateNetworkInterface
+                Resource: "*"
+        
+        # IAM PassRole with service restriction
+        - PolicyName: IAMPassRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService:
+                      - drs.amazonaws.com
+                      - ec2.amazonaws.com
+        
+        # STS AssumeRole for cross-account DRS operations
+        # No ExternalId condition - target accounts validate ExternalId in their trust policy
+        - PolicyName: STSAssumeRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::*:role/DRSOrchestrationRole"
+        
+        # KMS permissions with service restriction
+        - PolicyName: KMSOperations
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                  - kms:CreateGrant
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService:
+                      - !Sub "ec2.${AWS::Region}.amazonaws.com"
+                      - !Sub "drs.${AWS::Region}.amazonaws.com"
+        
+        # SSM permissions for operational monitoring
+        - PolicyName: SSMOperations
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:CreateOpsItem
+                  - ssm:SendCommand
+                  - ssm:GetParameter
+                Resource: "*"
+        
+        # SNS publish for notifications
+        - PolicyName: SNSPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-*"
+        
+        # DynamoDB CRUD permissions
+        - PolicyName: DynamoDBCRUD
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-*"
+        
+        # Lambda invocation for orchestration callbacks
+        - PolicyName: LambdaInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-execution-handler-${Environment}"
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-query-handler-${Environment}"
+        
+        # CloudWatch metrics and logs permissions
+        - PolicyName: CloudWatchMetrics
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+        
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-dr-orch-sf-${Environment}:*"
+
+  # Frontend Deployer Role - S3 and CloudFront permissions for frontend deployment
+  FrontendDeployerRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Condition: UseFunctionSpecificRoles
+    Properties:
+      RoleName: !Sub "${ProjectName}-frontend-deployer-role-${Environment}"
+      Description: >
+        IAM role for Frontend Deployer Lambda function with S3 and CloudFront
+        permissions for frontend deployment and versioned bucket cleanup
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        # S3 bucket and object permissions for frontend deployment
+        - PolicyName: S3FrontendBucketAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-fe-*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:DeleteObject
+                  - s3:DeleteObjectVersion
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-fe-*/*"
+        
+        # CloudFront invalidation permissions for cache clearing
+        - PolicyName: CloudFrontInvalidation
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                  - cloudfront:ListInvalidations
+                  - cloudfront:GetDistribution
+                Resource: "*"
+        
+        # CloudFormation read permissions for stack status checks
+        - PolicyName: CloudFormationReadOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-*/*"
+        
+        # CloudWatch metrics and logs permissions
+        - PolicyName: CloudWatchMetrics
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+        
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-frontend-deployer-${Environment}:*"
+
+  # Unified Orchestration Role - Backward compatibility fallback
+  # Created only when UseFunctionSpecificRoles=false
+  # Consolidates permissions for all Lambda functions
+  # Supports cross-account DRS operations via sts:AssumeRole
+  UnifiedOrchestrationRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Condition: UseUnifiedRole
+    Properties:
+      RoleName: !Sub "${ProjectName}-unified-role-${Environment}"
+      Description: >
+        Unified IAM role for all Lambda functions with comprehensive permissions.
+        Used when UseFunctionSpecificRoles=false for backward compatibility.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - states.amazonaws.com
+                - apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        # DynamoDB access for all Lambda functions
+        # Tables: Protection Groups, Recovery Plans, Execution History, Target Accounts
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-*"
+        
+        # Step Functions access for API handler and orchestration
+        # Includes SendTaskSuccess/SendTaskFailure for pause/resume callback pattern
+        - PolicyName: StepFunctionsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                  - states:DescribeExecution
+                  - states:ListExecutions
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                  - states:SendTaskHeartbeat
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-*"
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-*:*"
+        
+        # DRS read-only operations for status queries and configuration retrieval
+        # Resource "*" required by DRS API design
+        - PolicyName: DRSReadAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:DescribeRecoverySnapshots
+                  - drs:DescribeRecoveryInstances
+                  - drs:DescribeJobs
+                  - drs:DescribeJobLogItems
+                  - drs:GetLaunchConfiguration
+                  - drs:GetReplicationConfiguration
+                  - drs:GetFailbackReplicationConfiguration
+                  - drs:DescribeLaunchConfigurationTemplates
+                  - drs:DescribeReplicationConfigurationTemplates
+                  - drs:ListLaunchActions
+                  - drs:ListTagsForResource
+                  - drs:ListExtensibleSourceServers
+                  - drs:ListStagingAccounts
+                Resource: "*"
+        
+        # DRS write operations for recovery execution and configuration updates
+        # Includes CreateRecoveryInstanceForDrs for AllowLaunchingIntoThisInstance pattern
+        # Includes CreateExtendedSourceServer for staging account sync
+        - PolicyName: DRSWriteAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:StartRecovery
+                  - drs:CreateRecoveryInstanceForDrs
+                  - drs:TerminateRecoveryInstances
+                  - drs:DisconnectRecoveryInstance
+                  - drs:StartFailbackLaunch
+                  - drs:StopFailback
+                  - drs:ReverseReplication
+                  - drs:UpdateLaunchConfiguration
+                  - drs:UpdateReplicationConfiguration
+                  - drs:UpdateFailbackReplicationConfiguration
+                  - drs:PutLaunchAction
+                  - drs:DeleteLaunchAction
+                  - drs:TagResource
+                  - drs:UntagResource
+                  - drs:GetAgentInstallationAssetsForDrs
+                  - drs:IssueAgentCertificateForDrs
+                  - drs:CreateSourceServerForDrs
+                  - drs:CreateExtendedSourceServer
+                Resource: "*"
+        
+        # EC2 access for instance queries and launch template management
+        # Comprehensive permissions for all DRS operations including failover, failback, and agent installation
+        # Based on AWS managed policy: AWSElasticDisasterRecoveryServiceRolePolicy
+        - PolicyName: EC2Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  # Instance operations
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:DescribeInstanceTypes
+                  - ec2:DescribeInstanceAttribute
+                  - ec2:DescribeInstanceTypeOfferings
+                  - ec2:StartInstances
+                  - ec2:StopInstances
+                  - ec2:TerminateInstances
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:GetConsoleOutput
+                  - ec2:GetConsoleScreenshot
+                  - ec2:RunInstances
+                  # Volume operations
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeVolumeAttribute
+                  - ec2:CreateVolume
+                  - ec2:DeleteVolume
+                  - ec2:AttachVolume
+                  - ec2:DetachVolume
+                  - ec2:ModifyVolume
+                  # Snapshot operations
+                  - ec2:DescribeSnapshots
+                  - ec2:CreateSnapshot
+                  - ec2:DeleteSnapshot
+                  # Image operations (required for DRS drill conversions)
+                  - ec2:DescribeImages
+                  - ec2:RegisterImage
+                  - ec2:DeregisterImage
+                  # Network operations
+                  - ec2:DescribeSecurityGroups
+                  - ec2:CreateSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupEgress
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeVpcAttribute
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                  - ec2:ModifyNetworkInterfaceAttribute
+                  - ec2:CreateNetworkInterfacePermission
+                  # VPC networking (required for DRS source network recovery)
+                  - ec2:DescribeInternetGateways
+                  - ec2:DescribeNetworkAcls
+                  - ec2:DescribeRouteTables
+                  - ec2:DescribeDhcpOptions
+                  - ec2:DescribeManagedPrefixLists
+                  - ec2:GetManagedPrefixListEntries
+                  - ec2:GetManagedPrefixListAssociations
+                  # Availability and capacity
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeAccountAttributes
+                  - ec2:DescribeCapacityReservations
+                  - ec2:DescribeHosts
+                  - ec2:DescribeKeyPairs
+                  # Encryption
+                  - ec2:GetEbsEncryptionByDefault
+                  - ec2:GetEbsDefaultKmsKeyId
+                  # Tags
+                  - ec2:CreateTags
+                  - ec2:DeleteTags
+                  - ec2:DescribeTags
+                  # Launch templates (critical for DRS)
+                  - ec2:CreateLaunchTemplate
+                  - ec2:CreateLaunchTemplateVersion
+                  - ec2:DescribeLaunchTemplates
+                  - ec2:DescribeLaunchTemplateVersions
+                  - ec2:ModifyLaunchTemplate
+                  - ec2:DeleteLaunchTemplate
+                  - ec2:DeleteLaunchTemplateVersions
+                Resource: "*"
+        
+        # IAM PassRole for DRS and EC2 service principals
+        # Required for DRS to launch EC2 instances with IAM instance profiles
+        - PolicyName: IAMAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService:
+                      - drs.amazonaws.com
+                      - ec2.amazonaws.com
+              - Effect: Allow
+                Action:
+                  - iam:GetInstanceProfile
+                  - iam:ListInstanceProfiles
+                  - iam:ListRoles
+                  - iam:ListAccountAliases
+                Resource: "*"
+        
+        # STS AssumeRole for cross-account DRS operations
+        # Assumes standardized role (DRSOrchestrationRole) in workload accounts
+        # Pattern: arn:aws:iam::{account-id}:role/DRSOrchestrationRole
+        - PolicyName: STSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  # Standardized role name pattern (no environment suffix)
+                  - !Sub "arn:${AWS::Partition}:iam::*:role/DRSOrchestrationRole"
+        
+        # KMS access for encrypted EBS volumes and DRS replication
+        # Scoped to EC2 and DRS service usage only
+        - PolicyName: KMSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                  - kms:ListAliases
+                  - kms:CreateGrant
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService:
+                      - !Sub "ec2.${AWS::Region}.amazonaws.com"
+                      - !Sub "drs.${AWS::Region}.amazonaws.com"
+        
+        # CloudFormation access for custom resource handlers
+        # Used by frontend deployer for stack queries
+        - PolicyName: CloudFormationAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:ListStacks
+                Resource: "*"
+        
+        # S3 Access (from CustomResource, BucketCleaner)
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                  - s3:DeleteObjectVersion
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-*"
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-*/*"
+        
+        # CloudFront Access (from CustomResource)
+        - PolicyName: CloudFrontAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                  - cloudfront:ListInvalidations
+                Resource: "*"
+        
+        # Lambda Invoke Access (from ApiHandler, ExecutionFinder)
+        # Supports direct Lambda invocation mode for headless operation
+        # Uses wildcard pattern to avoid circular dependency with LambdaStack
+        - PolicyName: LambdaInvokeAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-*"
+        
+        # EventBridge Access (from ApiHandler)
+        - PolicyName: EventBridgeAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:DeleteRule
+                  - events:DescribeRule
+                  - events:EnableRule
+                  - events:DisableRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${ProjectName}-*"
+        
+        # SSM Access (from Orchestration) - CRITICAL: includes ssm:CreateOpsItem
+        - PolicyName: SSMAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:DescribeDocument
+                  - ssm:DescribeInstanceInformation
+                  - ssm:SendCommand
+                  - ssm:StartAutomationExecution
+                  - ssm:ListDocuments
+                  - ssm:ListCommandInvocations
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                  - ssm:GetDocument
+                  - ssm:GetAutomationExecution
+                  - ssm:CreateOpsItem
+                Resource: "*"
+        
+        # SNS access for execution notifications, DRS alerts, and subscription management
+        # Supports per-Recovery-Plan email subscriptions with filter policies
+        # Scoped to project-specific topics only
+        - PolicyName: SNSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                  - sns:Subscribe
+                  - sns:Unsubscribe
+                  - sns:ListSubscriptionsByTopic
+                  - sns:GetSubscriptionAttributes
+                  - sns:SetSubscriptionAttributes
+                  - sns:GetTopicAttributes
+                  - sns:ListTopics
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-*"
+        
+        # CloudWatch metrics for execution monitoring
+        # Used by execution poller for custom metrics and DRS for monitoring
+        - PolicyName: CloudWatchAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:GetMetricData
+                Resource: "*"
+
+        # CloudWatch Logs for API Gateway access logging
+        # Required by AWS::ApiGateway::Account to enable stage access logs
+        - PolicyName: CloudWatchLogsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                Resource: "*"
+        
+        # License Manager access for DRS license configuration queries
+        # Required for DRS console operations and license tracking
+        - PolicyName: LicenseManagerAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - license-manager:ListLicenseConfigurations
+                Resource: "*"
+        
+        # Resource Groups access for DRS resource organization
+        # Required for DRS console operations and resource grouping
+        - PolicyName: ResourceGroupsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - resource-groups:ListGroups
+                Resource: "*"
+        
+        # Elastic Load Balancing access for DRS load balancer queries
+        # Required for DRS console operations and load balancer integration
+        - PolicyName: ELBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:DescribeLoadBalancers
+                Resource: "*"
+        
+        # SQS access for Lambda Dead Letter Queue
+        # Required for CKV_AWS_116 (Lambda DLQ configuration)
+        - PolicyName: SQSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:${ProjectName}-*"
+        
+        # API Gateway deployment access for deployment orchestrator Lambda
+        # Required for creating API deployments and managing stages
+        - PolicyName: ApiGatewayDeploymentAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/restapis/*"
+
+Outputs:
+  StackStatus:
+    Description: IAM roles stack status
+    Value: Created
+  
+  # Unified Role ARN (only when UseUnifiedRole is true)
+  UnifiedRoleArn:
+    Condition: UseUnifiedRole
+    Description: >
+      ARN of unified orchestration role (backward compatibility mode).
+      Used when UseFunctionSpecificRoles=false.
+      (imported by lambda-stack for all Lambda functions)
+    Value: !GetAtt UnifiedOrchestrationRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-unified-role-arn-${Environment}"
+  
+  # Function-Specific Role ARNs (only when UseFunctionSpecificRoles is true)
+  QueryHandlerRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: >
+      ARN of Query Handler role
+      (imported by lambda-stack for QueryHandlerFunction.Role)
+    Value: !GetAtt QueryHandlerRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-query-handler-role-arn-${Environment}"
+  
+  DataManagementRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: >
+      ARN of Data Management Handler role
+      (imported by lambda-stack for DataManagementHandlerFunction.Role)
+    Value: !GetAtt DataManagementRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-data-management-role-arn-${Environment}"
+  
+  ExecutionHandlerRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: >
+      ARN of Execution Handler role
+      (imported by lambda-stack for ExecutionHandlerFunction.Role)
+    Value: !GetAtt ExecutionHandlerRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-execution-handler-role-arn-${Environment}"
+  
+  OrchestrationRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: >
+      ARN of Orchestration Function role
+      (imported by lambda-stack for DrOrchestrationStepFunctionFunction.Role)
+    Value: !GetAtt OrchestrationRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-orchestration-role-arn-${Environment}"
+  
+  FrontendDeployerRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: >
+      ARN of Frontend Deployer role
+      (imported by lambda-stack for FrontendDeployerFunction.Role)
+    Value: !GetAtt FrontendDeployerRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-frontend-deployer-role-arn-${Environment}"
+  
+  # API Gateway CloudWatch Role ARN (always created)
+  ApiGatewayCloudWatchRoleArn:
+    Description: >
+      ARN of API Gateway CloudWatch role for access logging.
+      Always created regardless of UseFunctionSpecificRoles setting.
+      (imported by apigateway/deployment-stack for ApiGatewayAccount)
+    Value: !GetAtt ApiGatewayCloudWatchRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-apigateway-cloudwatch-role-arn-${Environment}"

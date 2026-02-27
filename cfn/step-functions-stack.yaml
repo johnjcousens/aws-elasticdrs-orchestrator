@@ -271,6 +271,7 @@ Resources:
           # Execution-handler persists wave status updates to DynamoDB
           # Separates read (poll_wave_status) from write (update_wave_completion_status)
           # per query-handler read-only audit (FR4)
+          # CRITICAL: Passes full state object so Lambda can return it for choice state evaluation
           UpdateWaveStatus:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
@@ -282,6 +283,7 @@ Resources:
                 plan_id.$: '$.plan_id'
                 status.$: '$.status'
                 wave_data.$: '$'
+                state.$: '$'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
             Retry:

@@ -134,6 +134,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSOrchestrationAdminGroup:
     Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
     Properties:
       UserPoolId: !Ref UserPool
       GroupName: DRSOrchestrationAdmin
@@ -145,6 +146,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSRecoveryManagerGroup:
     Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
     Properties:
       UserPoolId: !Ref UserPool
       GroupName: DRSRecoveryManager
@@ -156,6 +158,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSPlanManagerGroup:
     Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
     Properties:
       UserPoolId: !Ref UserPool
       GroupName: DRSPlanManager
@@ -167,6 +170,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSOperatorGroup:
     Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
     Properties:
       UserPoolId: !Ref UserPool
       GroupName: DRSOperator
@@ -178,6 +182,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSReadOnlyGroup:
     Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
     Properties:
       UserPoolId: !Ref UserPool
       GroupName: DRSReadOnly
@@ -192,6 +197,7 @@ Resources:
   
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
+    DeletionPolicy: Delete
     Properties:
       UserPoolId: !Ref UserPool
       ClientName: !Sub '${ProjectName}-client-${Environment}'
@@ -247,6 +253,7 @@ Resources:
   
   CognitoAuthenticatedRole:
     Type: AWS::IAM::Role
+    DeletionPolicy: Delete
     Properties:
       RoleName: !Sub '${ProjectName}-cognito-authenticated-${Environment}'
       AssumeRolePolicyDocument:
@@ -283,6 +290,8 @@ Resources:
   
   IdentityPoolRoleMapping:
     Type: AWS::Cognito::IdentityPoolRoleAttachment
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       IdentityPoolId: !Ref IdentityPool
       Roles:

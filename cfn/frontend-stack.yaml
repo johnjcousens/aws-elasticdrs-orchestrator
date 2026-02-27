@@ -135,6 +135,7 @@ Resources:
   # Bucket policy for access logs bucket - allows S3 and CloudFront to write logs
   AccessLogsBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DeletionPolicy: Delete
     Properties:
       Bucket: !Ref AccessLogsBucket
       PolicyDocument:
@@ -307,6 +308,7 @@ Resources:
   # DependsOn FrontendDeploymentResource ensures content exists before policy.
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DeletionPolicy: Delete
     DependsOn: FrontendDeploymentResource
     Properties:
       Bucket: !Ref FrontendBucket
@@ -352,6 +354,8 @@ Resources:
   # - Any parameter change (ApiEndpoint, UserPoolId, etc.) triggers update
   FrontendDeploymentResource:
     Type: Custom::FrontendDeployer
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     DependsOn:
       - FrontendBucket
       - CloudFrontDistribution

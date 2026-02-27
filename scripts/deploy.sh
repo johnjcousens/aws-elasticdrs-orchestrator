@@ -67,10 +67,18 @@ NC='\033[0m'
 
 # Required Parameters
 ENVIRONMENT="${1:-test}"
-AWS_REGION="us-east-1"
+AWS_REGION="${AWS_REGION:-us-east-2}"
 PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestration}"
 STACK_NAME="${STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
-DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-${PROJECT_NAME}-${ENVIRONMENT}}"
+
+# Get AWS Account ID for unique bucket naming
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")
+if [ -n "$AWS_ACCOUNT_ID" ]; then
+    DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-${PROJECT_NAME}-${AWS_ACCOUNT_ID}-${ENVIRONMENT}}"
+else
+    DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-${PROJECT_NAME}-${ENVIRONMENT}}"
+fi
+
 ADMIN_EMAIL="${ADMIN_EMAIL:-jocousen@amazon.com}"
 
 # Deployment Flexibility Parameters (from deployment-flexibility spec)
@@ -839,13 +847,59 @@ if [ "$FRONTEND_ONLY" = false ]; then
     python3 package_lambda.py > /dev/null 2>&1
     echo -e "${GREEN}  ✓ Lambda packages built${NC}"
     
+    # Create deployment bucket if it doesn't exist
+    if ! aws s3api head-bucket --bucket "${DEPLOYMENT_BUCKET}" --region "$AWS_REGION" > /dev/null 2>&1; then
+        echo "  Creating deployment bucket: ${DEPLOYMENT_BUCKET} in ${AWS_REGION}"
+        
+        # Create bucket with retry logic
+        RETRY_COUNT=0
+        MAX_RETRIES=3
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if [ "$AWS_REGION" = "us-east-1" ]; then
+                # us-east-1 doesn't need LocationConstraint
+                if aws s3api create-bucket --bucket "${DEPLOYMENT_BUCKET}" --region "$AWS_REGION" 2>/dev/null; then
+                    break
+                fi
+            else
+                # Other regions need LocationConstraint
+                if aws s3api create-bucket \
+                    --bucket "${DEPLOYMENT_BUCKET}" \
+                    --region "$AWS_REGION" \
+                    --create-bucket-configuration LocationConstraint="$AWS_REGION" 2>/dev/null; then
+                    break
+                fi
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "  Bucket creation conflict, retrying in 5 seconds... (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+                sleep 5
+            else
+                echo -e "${RED}  ✗ Failed to create deployment bucket after $MAX_RETRIES attempts${NC}"
+                exit 1
+            fi
+        done
+        
+        # Wait for bucket to be available
+        echo "  Waiting for bucket to be available..."
+        aws s3api wait bucket-exists --bucket "${DEPLOYMENT_BUCKET}" --region "$AWS_REGION"
+        
+        # Enable versioning
+        aws s3api put-bucket-versioning \
+            --bucket "${DEPLOYMENT_BUCKET}" \
+            --versioning-configuration Status=Enabled \
+            --region "$AWS_REGION"
+        
+        echo -e "${GREEN}  ✓ Deployment bucket created${NC}"
+    fi
+    
     # Sync to S3
     echo "  Syncing artifacts to S3..."
-    if ! aws s3 sync cfn/ "s3://${DEPLOYMENT_BUCKET}/cfn/" --delete --quiet; then
+    if ! aws s3 sync cfn/ "s3://${DEPLOYMENT_BUCKET}/cfn/" --delete --quiet --region "$AWS_REGION"; then
         echo -e "${RED}  ✗ Failed to sync CFN templates to S3${NC}"
         exit 1
     fi
-    if ! aws s3 sync build/lambda/ "s3://${DEPLOYMENT_BUCKET}/lambda/" --delete --quiet; then
+    if ! aws s3 sync build/lambda/ "s3://${DEPLOYMENT_BUCKET}/lambda/" --delete --quiet --region "$AWS_REGION"; then
         echo -e "${RED}  ✗ Failed to sync Lambda packages to S3${NC}"
         exit 1
     fi

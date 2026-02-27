@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  API Gateway Auth Stack - Cognito authorizer for JWT token validation.
+  This stack creates the Cognito authorizer that validates JWT tokens from
+  the Cognito User Pool.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Project name for resource naming
+
+  Environment:
+    Type: String
+    Description: Environment name (dev, test, qa, staging, prod)
+
+  RestApiId:
+    Type: String
+    Description: REST API ID from API Gateway Core Stack
+
+  UserPoolArn:
+    Type: String
+    Description: Cognito User Pool ARN from Cognito Auth Stack
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  # ===========================================================================
+  # COGNITO AUTHORIZER
+  # ===========================================================================
+  # Validates JWT tokens from the Cognito User Pool. Extracts the token from
+  # the Authorization header and verifies signature, expiration, and issuer.
+  # Returns user claims (sub, email, groups) to Lambda via requestContext.
+  
+  ApiAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      Name: !Sub '${ProjectName}-cognito-authorizer-${Environment}'
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      RestApiId: !Ref RestApiId
+      ProviderARNs:
+        - !Ref UserPoolArn
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  ApiAuthorizerId:
+    Description: API Authorizer ID for use in method stacks
+    Value: !Ref ApiAuthorizer
+    Export:
+      Name: !Sub '${ProjectName}-api-authorizer-id-${Environment}'
