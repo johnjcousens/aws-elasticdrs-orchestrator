@@ -329,7 +329,6 @@ Resources:
   ApiStage:
     Type: AWS::ApiGateway::Stage
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     DependsOn:
       - ApiDeploymentOrchestrator
       - ApiGatewayAccessLogGroup

@@ -8,13 +8,11 @@ inclusion: always
 
 **STOP. Before executing ANY AWS CLI or CloudFormation command:**
 
-### ALLOWED PATTERNS - TEST AND QA:
+### ALLOWED PATTERNS - QA:
 ```
-✅ aws dynamodb * --table-name *-test
 ✅ aws dynamodb * --table-name *-qa
-✅ aws lambda * --function-name *-test
 ✅ aws lambda * --function-name *-qa
-✅ Stack names ending in "-test" or "-qa"
+✅ Stack names ending in "-qa"
 ✅ Target account setup stacks: drs-orchestration-target-account-setup (any region)
 ✅ Staging account setup stacks: drs-orchestration-staging-account-setup (any region)
 ✅ Region: us-east-2 (orchestration stacks)
@@ -52,26 +50,20 @@ Modifying these stacks would:
 ### Correct Development and QA Stacks
 
 For development and testing, use:
-- **Test Stack** (old architecture - protected, do not modify):
-  - Stack name: `aws-drs-orchestration-test`
-  - Environment: `test`
-  - Deployment bucket: `aws-drs-orchestration-438465159935-test`
-  - Region: `us-east-2`
-  
-- **QA Stack** (new architecture - for integration testing):
+- **QA Stack** (active development):
   - Stack name: `aws-drs-orchestration-qa`
   - Environment: `qa`
   - Deployment bucket: `aws-drs-orchestration-438465159935-qa`
   - Region: `us-east-2`
+  - Deploy script: `./scripts/deploy-main-stack.sh qa`
 
 ### Verification Before Any Stack Operation
 
 Before ANY CloudFormation operation, verify:
-1. Stack name ends with `-test` or `-qa`
-2. Environment parameter is `test` or `qa`
+1. Stack name ends with `-qa`
+2. Environment parameter is `qa`
 3. You are NOT operating on protected production stacks
-4. For test stack: Use old deploy.sh (protected, do not modify)
-5. For QA stack: Use new deploy-main-stack.sh (integration testing)
+4. Use `./scripts/deploy-main-stack.sh qa` for deployments
 
 ### Emergency Procedures
 
@@ -84,8 +76,7 @@ If you accidentally target a protected stack:
 ## Always Follow Rules
 
 - **ALWAYS** verify stack name before any CloudFormation operation
-- **ALWAYS** use `-test` or `-qa` environment for development work
+- **ALWAYS** use `-qa` environment for development work
 - **NEVER** assume a stack is safe to modify without verification
 - **NEVER** use wildcards or patterns that could match protected production stacks
-- **NEVER** modify the test stack (uses old architecture, protected)
-- **ALWAYS** use QA stack for new architecture integration testing
+- **ALWAYS** use proper deploy script: `deploy-main-stack.sh` for QA

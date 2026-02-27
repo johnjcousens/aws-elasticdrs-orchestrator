@@ -211,12 +211,12 @@ The platform supports seamless switching between role architectures:
 **Documentation:**
 - [Testing Guide](docs/guides/TESTING_GUIDE.md) - Dual testing approach (unit tests + property-based tests)
 - [IAM Troubleshooting Guide](docs/guides/IAM_TROUBLESHOOTING_GUIDE.md) - Common IAM permission errors and resolutions
-- [CloudFormation Template Organization](docs/guides/CLOUDFORMATION_TEMPLATE_ORGANIZATION.md) - Service-based directory structure and nested stack architecture
-- [IAM Role Reference](docs/IAM_ROLE_REFERENCE.md) - Detailed permissions for each role with resource restrictions
-- [Deploy Main Stack Guide](docs/DEPLOY_MAIN_STACK_GUIDE.md) - Complete deployment guide with examples
+- [CloudFormation Template Organization](docs/architecture/CFN_TEMPLATE_ORGANIZATION.md) - Service-based directory structure and nested stack architecture
+- [IAM Role Reference](docs/iam/IAM_ROLE_REFERENCE.md) - Detailed permissions for each role with resource restrictions
+- [Deploy Main Stack Guide](docs/deployment/DEPLOY_MAIN_STACK_GUIDE.md) - Complete deployment guide with examples
 - [Architecture Decision Record](docs/architecture/ADR-001-function-specific-iam-roles.md) - Design rationale and security benefits
-- [QA Deployment Configuration](docs/QA_DEPLOYMENT_CONFIGURATION.md) - QA environment configuration details
-- [Migration Guide](docs/MIGRATION_GUIDE.md) - Migration procedures and rollback strategies
+- [QA Deployment Configuration](docs/deployment/QA_DEPLOYMENT_CONFIGURATION.md) - QA environment configuration details
+- [Migration Guide](docs/deployment/MIGRATION_GUIDE.md) - Migration procedures and rollback strategies
 
 ### CloudFormation Template Organization (New Architecture)
 
@@ -281,15 +281,12 @@ cfn/
 
 # Deploy with unified role (new architecture, backward compatible)
 ./scripts/deploy-main-stack.sh qa
-
-# Deploy legacy architecture (old master-template.yaml)
-./scripts/deploy.sh test
 ```
 
 **Documentation:**
-- [CloudFormation Template Organization Guide](docs/CFN_TEMPLATE_ORGANIZATION.md) - Complete guide to nested stack architecture
-- [Deploy Main Stack Guide](docs/DEPLOY_MAIN_STACK_GUIDE.md) - Deployment procedures and examples
-- [EventBridge Rules Reference](docs/EVENTBRIDGE_RULES_REFERENCE.md) - Consolidated EventBridge rules documentation
+- [CloudFormation Template Organization Guide](docs/architecture/CFN_TEMPLATE_ORGANIZATION.md) - Complete guide to nested stack architecture
+- [Deploy Main Stack Guide](docs/deployment/DEPLOY_MAIN_STACK_GUIDE.md) - Deployment procedures and examples
+- [EventBridge Rules Reference](docs/reference/EVENTBRIDGE_RULES_REFERENCE.md) - Consolidated EventBridge rules documentation
 - [Testing Guide](docs/guides/TESTING_GUIDE.md) - Dual testing approach (unit tests + property-based tests)
 - [IAM Troubleshooting Guide](docs/guides/IAM_TROUBLESHOOTING_GUIDE.md) - CloudFormation deployment errors and resolutions
 
@@ -332,21 +329,20 @@ aws cloudformation deploy \
     Environment=qa \
     DeploymentBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
     AdminEmail=admin@example.com \
-    UseFunctionSpecificRoles=true
-
-# Direct CloudFormation - Legacy architecture (unified role)
+# Direct CloudFormation - New architecture (function-specific roles)
 aws cloudformation deploy \
-  --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-test \
+  --template-file cfn/main-stack.yaml \
+  --stack-name aws-drs-orchestration-qa \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=test \
-    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-test \
-    AdminEmail=admin@example.com
+    Environment=qa \
+    DeploymentBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    AdminEmail=admin@example.com \
+    UseFunctionSpecificRoles=true
 ```
 
-**Deployment Modes (Both Architectures):**
+**Deployment Modes:**
 
 | Mode | Resources Deployed | Frontend | Monthly Cost | Use Case |
 |------|-------------------|----------|--------------|----------|
@@ -365,7 +361,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
     Environment=qa \
-    SourceBucket=aws-drs-orchestration-qa \
+    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
     AdminEmail=admin@example.com
 
 # Mode 2: API-Only Standalone (No Frontend)
@@ -376,7 +372,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
     Environment=qa \
-    SourceBucket=aws-drs-orchestration-qa \
+    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
     AdminEmail=admin@example.com \
     DeployFrontend=false
 
@@ -388,7 +384,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
     Environment=qa \
-    SourceBucket=aws-drs-orchestration-qa \
+    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
     AdminEmail=admin@example.com \
     OrchestrationRoleArn=arn:aws:iam::111122223333:role/ExternalOrchestrationRole \
     DeployFrontend=false
@@ -430,12 +426,12 @@ aws cloudformation deploy \
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-test \
+  --stack-name aws-drs-orchestration-qa \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=test \
-    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-test \
+    Environment=qa \
+    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
     AdminEmail=admin@example.com \
     DeployFrontend=true
 ```

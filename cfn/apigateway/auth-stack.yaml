@@ -40,7 +40,6 @@ Resources:
   ApiAuthorizer:
     Type: AWS::ApiGateway::Authorizer
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       Name: !Sub '${ProjectName}-cognito-authorizer-${Environment}'
       Type: COGNITO_USER_POOLS

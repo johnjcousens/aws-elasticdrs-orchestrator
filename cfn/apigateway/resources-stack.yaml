@@ -951,7 +951,6 @@ Resources:
   AccountsCapacityAllResource:
     Type: AWS::ApiGateway::Resource
     DeletionPolicy: Delete
-    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsCapacityResource
