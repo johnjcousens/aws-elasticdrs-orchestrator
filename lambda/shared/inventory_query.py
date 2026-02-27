@@ -268,12 +268,38 @@ def query_inventory_by_regions(
             )
             servers.extend(response.get("Items", []))
 
-        logger.info(f"Retrieved {len(servers)} servers from inventory database for {len(regions)} regions")
+        # Deduplicate servers by sourceServerID (keep most recent by lastUpdatedDateTime)
+        seen_servers = {}
+        for server in servers:
+            server_id = server.get("sourceServerID")
+            if not server_id:
+                continue
+
+            # Keep the server with the most recent lastUpdatedDateTime
+            if server_id not in seen_servers:
+                seen_servers[server_id] = server
+            else:
+                existing_time = seen_servers[server_id].get("lastUpdatedDateTime", "")
+                new_time = server.get("lastUpdatedDateTime", "")
+                if new_time > existing_time:
+                    seen_servers[server_id] = server
+
+        deduplicated_servers = list(seen_servers.values())
+
+        if len(servers) != len(deduplicated_servers):
+            logger.warning(
+                f"Deduplicated {len(servers)} servers to {len(deduplicated_servers)} "
+                f"(removed {len(servers) - len(deduplicated_servers)} duplicates)"
+            )
+
+        logger.info(
+            f"Retrieved {len(deduplicated_servers)} unique servers from inventory database for {len(regions)} regions"
+        )
 
         # Publish CloudWatch metric for inventory database hit
         publish_metric("InventoryDatabaseHits", 1)
 
-        return servers
+        return deduplicated_servers
 
     except ClientError as e:
         logger.error(f"DynamoDB error querying inventory: {e}")

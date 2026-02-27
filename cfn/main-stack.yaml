@@ -1,0 +1,780 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  DR Orchestration Platform - Main Stack Orchestrator
+  
+  Orchestrates all nested stacks with proper dependencies and parameter passing.
+  Supports both unified role (backward compatibility) and function-specific roles.
+  
+  Nested Stacks (in dependency order):
+  1. IAM Stack - Function-specific or unified roles
+  2. DynamoDB Stack - Data persistence tables
+  3. SNS Stack - Notification topics
+  4. Lambda Stack - All Lambda functions
+  5. Step Functions Stack - DR orchestration state machine
+  6. EventBridge Stack - Scheduled rules and event patterns
+  7. S3 Stack - Frontend and access logs buckets
+  8. CloudFront Stack - CDN for frontend delivery
+  9. Cognito Stack - User authentication and authorization
+  10. Monitoring Stack - CloudWatch alarms for security monitoring
+  11. WAF Stack - Web Application Firewall for CloudFront
+  12. API Gateway Stacks - REST API (7 nested stacks)
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project identifier used in resource naming'
+    Default: aws-drs-orchestration
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, staging, prod)'
+    AllowedValues:
+      - dev
+      - test
+      - qa
+      - uat
+      - staging
+      - prod
+    Default: test
+
+  DeploymentBucket:
+    Type: String
+    Description: 'S3 bucket containing CloudFormation templates and Lambda packages'
+
+  AdminEmail:
+    Type: String
+    Description: 'Admin email for notifications and initial Cognito user'
+
+  UseFunctionSpecificRoles:
+    Type: String
+    Description: 'Use function-specific IAM roles (true) or unified role (false)'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+
+  FrontendBuildVersion:
+    Type: String
+    Description: 'Frontend build version - timestamp to trigger rebuilds'
+    Default: 'v1'
+
+# =============================================================================
+# CONDITIONS
+# =============================================================================
+
+Conditions:
+  UseFunctionSpecificRoles: !Equals [!Ref UseFunctionSpecificRoles, 'true']
+
+# =============================================================================
+# RESOURCES - NESTED STACKS
+# =============================================================================
+
+Resources:
+  # ===========================================================================
+  # 1. IAM STACK (NO DEPENDENCIES)
+  # ===========================================================================
+  IAMStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/iam/roles-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        UseFunctionSpecificRoles: !Ref UseFunctionSpecificRoles
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: IAM
+
+  # ===========================================================================
+  # 2. DYNAMODB STACK (NO DEPENDENCIES)
+  # ===========================================================================
+  DynamoDBStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/dynamodb/tables-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: DynamoDB
+
+  # ===========================================================================
+  # 3. SNS STACK (NO DEPENDENCIES)
+  # ===========================================================================
+  SNSStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/sns/topics-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        AdminEmail: !Ref AdminEmail
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: SNS
+
+  # ===========================================================================
+  # 4. LAMBDA STACK (DEPENDS ON: IAM, DYNAMODB, SNS)
+  # ===========================================================================
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - IAMStack
+      - DynamoDBStack
+      - SNSStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/lambda/functions-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        DeploymentBucket: !Ref DeploymentBucket
+        UseFunctionSpecificRoles: !Ref UseFunctionSpecificRoles
+        UnifiedRoleArn: !If
+          - UseFunctionSpecificRoles
+          - ''
+          - !GetAtt IAMStack.Outputs.UnifiedRoleArn
+        QueryHandlerRoleArn: !If
+          - UseFunctionSpecificRoles
+          - !GetAtt IAMStack.Outputs.QueryHandlerRoleArn
+          - ''
+        DataManagementRoleArn: !If
+          - UseFunctionSpecificRoles
+          - !GetAtt IAMStack.Outputs.DataManagementRoleArn
+          - ''
+        ExecutionHandlerRoleArn: !If
+          - UseFunctionSpecificRoles
+          - !GetAtt IAMStack.Outputs.ExecutionHandlerRoleArn
+          - ''
+        OrchestrationRoleArn: !If
+          - UseFunctionSpecificRoles
+          - !GetAtt IAMStack.Outputs.OrchestrationRoleArn
+          - ''
+        FrontendDeployerRoleArn: !If
+          - UseFunctionSpecificRoles
+          - !GetAtt IAMStack.Outputs.FrontendDeployerRoleArn
+          - ''
+        ProtectionGroupsTableName: !GetAtt DynamoDBStack.Outputs.ProtectionGroupsTableName
+        RecoveryPlansTableName: !GetAtt DynamoDBStack.Outputs.RecoveryPlansTableName
+        ExecutionHistoryTableName: !GetAtt DynamoDBStack.Outputs.ExecutionHistoryTableName
+        TargetAccountsTableName: !GetAtt DynamoDBStack.Outputs.TargetAccountsTableName
+        SourceServerInventoryTableName: !GetAtt DynamoDBStack.Outputs.SourceServerInventoryTableName
+        DRSRegionStatusTableName: !GetAtt DynamoDBStack.Outputs.DRSRegionStatusTableName
+        RecoveryInstancesCacheTableName: !GetAtt DynamoDBStack.Outputs.RecoveryInstancesCacheTableName
+        ExecutionNotificationsTopicArn: !GetAtt SNSStack.Outputs.ExecutionNotificationsTopicArn
+        DRSAlertsTopicArn: !GetAtt SNSStack.Outputs.DRSOperationalAlertsTopicArn
+        ExecutionPauseTopicArn: !GetAtt SNSStack.Outputs.ExecutionPauseTopicArn
+        ApiGatewayUrl: ''
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: Lambda
+
+  # ===========================================================================
+  # 5. STEP FUNCTIONS STACK (DEPENDS ON: LAMBDA)
+  # ===========================================================================
+  StepFunctionsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - LambdaStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/stepfunctions/statemachine-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        OrchestrationFunctionArn: !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
+        ExecutionHandlerArn: !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
+        OrchestrationRoleArn: !If
+          - UseFunctionSpecificRoles
+          - !GetAtt IAMStack.Outputs.OrchestrationRoleArn
+          - !GetAtt IAMStack.Outputs.UnifiedRoleArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: StepFunctions
+
+  # ===========================================================================
+  # 6. EVENTBRIDGE STACK (DEPENDS ON: LAMBDA)
+  # ===========================================================================
+  EventBridgeStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - LambdaStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/eventbridge/rules-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        ExecutionHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
+        DataManagementHandlerFunctionArn: !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
+        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
+        EnableExecutionPolling: 'true'
+        EnableTagSync: 'true'
+        EnableStagingAccountSync: 'true'
+        EnableInventorySync: 'true'
+        EnableRecoveryInstanceSync: 'true'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: EventBridge
+
+  # ===========================================================================
+  # 7. S3 STACK (NO DEPENDENCIES)
+  # ===========================================================================
+  S3Stack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/s3/buckets-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: S3
+
+  # ===========================================================================
+  # 8. WAF STACK (NO DEPENDENCIES)
+  # ===========================================================================
+  # COMMENTED OUT: WAF requires us-east-1 region, but QA stack is in us-east-2
+  # WAFStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/waf/webacl-stack.yaml'
+  #     Parameters:
+  #       ProjectName: !Ref ProjectName
+  #       Environment: !Ref Environment
+  #     Tags:
+  #       - Key: Project
+  #         Value: !Ref ProjectName
+  #       - Key: Environment
+  #         Value: !Ref Environment
+  #       - Key: StackType
+  #         Value: WAF
+
+  # ===========================================================================
+  # 9. CLOUDFRONT STACK (DEPENDS ON: S3, LAMBDA, COGNITO)
+  # ===========================================================================
+  CloudFrontStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - S3Stack
+      - LambdaStack
+      - CognitoStack
+      - APIGatewayDeploymentStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/cloudfront/distribution-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        FrontendBucketName: !GetAtt S3Stack.Outputs.FrontendBucketName
+        FrontendBucketRegionalDomainName: !GetAtt S3Stack.Outputs.FrontendBucketDomainName
+        AccessLogsBucketDomainName: !GetAtt S3Stack.Outputs.AccessLogsBucketDomainName
+        FrontendDeployerFunctionArn: !GetAtt LambdaStack.Outputs.FrontendDeployerFunctionArn
+        DeploymentBucket: !Ref DeploymentBucket
+        ApiEndpoint: !Sub 'https://${APIGatewayCoreStack.Outputs.RestApiId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+        UserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
+        UserPoolClientId: !GetAtt CognitoStack.Outputs.UserPoolClientId
+        IdentityPoolId: !GetAtt CognitoStack.Outputs.IdentityPoolId
+        FrontendBuildVersion: !Ref FrontendBuildVersion
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: CloudFront
+
+  # ===========================================================================
+  # 10. COGNITO STACK (NO DEPENDENCIES)
+  # ===========================================================================
+  CognitoStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/cognito/auth-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        AdminEmail: !Ref AdminEmail
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: Cognito
+
+  # ===========================================================================
+  # 11. MONITORING STACK (DEPENDS ON: LAMBDA, SNS)
+  # ===========================================================================
+  MonitoringStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - LambdaStack
+      - SNSStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/monitoring/alarms-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        SecurityAlertTopicArn: !GetAtt SNSStack.Outputs.DRSOperationalAlertsTopicArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: Monitoring
+
+  # ===========================================================================
+  # 12. API GATEWAY STACKS (DEPENDS ON: LAMBDA, COGNITO)
+  # ===========================================================================
+  
+  # 12.1 API Gateway Core Stack
+  APIGatewayCoreStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - LambdaStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/apigateway/core-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: APIGatewayCore
+
+  # 12.2 API Gateway Auth Stack
+  APIGatewayAuthStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - APIGatewayCoreStack
+      - CognitoStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/apigateway/auth-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt APIGatewayCoreStack.Outputs.RestApiId
+        UserPoolArn: !GetAtt CognitoStack.Outputs.UserPoolArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: APIGatewayAuth
+
+  # 12.3 API Gateway Resources Stack
+  APIGatewayResourcesStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - APIGatewayCoreStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/apigateway/resources-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt APIGatewayCoreStack.Outputs.RestApiId
+        RestApiRootResourceId: !GetAtt APIGatewayCoreStack.Outputs.RestApiRootResourceId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: APIGatewayResources
+
+  # 12.4 API Gateway Core Methods Stack
+  APIGatewayCoreMethodsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - APIGatewayResourcesStack
+      - APIGatewayAuthStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/apigateway/core-methods-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt APIGatewayCoreStack.Outputs.RestApiId
+        ApiAuthorizerId: !GetAtt APIGatewayAuthStack.Outputs.ApiAuthorizerId
+        ApiRequestValidatorId: !GetAtt APIGatewayCoreStack.Outputs.ApiRequestValidatorId
+        QueryHandlerArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
+        DataManagementHandlerArn: !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
+        # Core Resource IDs from Resources Stack
+        HealthResourceId: !GetAtt APIGatewayResourcesStack.Outputs.HealthResourceId
+        UserProfileResourceId: !GetAtt APIGatewayResourcesStack.Outputs.UserProfileResourceId
+        UserRolesResourceId: !GetAtt APIGatewayResourcesStack.Outputs.UserRolesResourceId
+        UserPermissionsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.UserPermissionsResourceId
+        ProtectionGroupsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ProtectionGroupsResourceId
+        ProtectionGroupByIdResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ProtectionGroupResourceId
+        ProtectionGroupResolveResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ProtectionGroupResolveResourceId
+        ProtectionGroupApplyLaunchConfigsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ProtectionGroupApplyLaunchConfigsResourceId
+        ProtectionGroupLaunchConfigStatusResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ProtectionGroupLaunchConfigStatusResourceId
+        RecoveryPlansResourceId: !GetAtt APIGatewayResourcesStack.Outputs.RecoveryPlansResourceId
+        RecoveryPlanByIdResourceId: !GetAtt APIGatewayResourcesStack.Outputs.RecoveryPlanResourceId
+        RecoveryPlanExecuteResourceId: !GetAtt APIGatewayResourcesStack.Outputs.RecoveryPlanExecuteResourceId
+        RecoveryPlanCheckInstancesResourceId: !GetAtt APIGatewayResourcesStack.Outputs.RecoveryPlanCheckExistingInstancesResourceId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: APIGatewayCoreMethods
+
+  # 12.5 API Gateway Infrastructure Methods Stack
+  APIGatewayInfrastructureMethodsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - APIGatewayResourcesStack
+      - APIGatewayAuthStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/apigateway/infrastructure-methods-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt APIGatewayCoreStack.Outputs.RestApiId
+        ApiAuthorizerId: !GetAtt APIGatewayAuthStack.Outputs.ApiAuthorizerId
+        ApiRequestValidatorId: !GetAtt APIGatewayCoreStack.Outputs.ApiRequestValidatorId
+        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
+        QueryHandlerArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
+        # Infrastructure Resource IDs from Resources Stack
+        DrsSourceServersResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceServersResourceId
+        DrsSourceServerInventoryResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceServerInventoryResourceId
+        DrsQuotasResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSQuotasResourceId
+        DrsAccountsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSAccountsResourceId
+        DrsTagSyncResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSTagSyncResourceId
+        Ec2SubnetsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.EC2SubnetsResourceId
+        Ec2SecurityGroupsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.EC2SecurityGroupsResourceId
+        Ec2InstanceProfilesResourceId: !GetAtt APIGatewayResourcesStack.Outputs.EC2InstanceProfilesResourceId
+        Ec2InstanceTypesResourceId: !GetAtt APIGatewayResourcesStack.Outputs.EC2InstanceTypesResourceId
+        ConfigExportResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ConfigExportResourceId
+        ConfigImportResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ConfigImportResourceId
+        ConfigTagSyncResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ConfigTagSyncResourceId
+        AccountsCurrentResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsCurrentResourceId
+        AccountsTargetsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsTargetsResourceId
+        AccountsTargetByIdResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsTargetResourceId
+        AccountsTargetValidateResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsTargetValidateResourceId
+        StagingAccountsValidateResourceId: !GetAtt APIGatewayResourcesStack.Outputs.StagingAccountsValidateResourceId
+        AccountsTargetStagingAccountsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsTargetStagingAccountsResourceId
+        AccountsTargetStagingAccountsDiscoverResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsTargetStagingAccountsDiscoverResourceId
+        AccountsTargetStagingAccountsSyncResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsTargetStagingAccountsSyncResourceId
+        AccountsTargetStagingAccountResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsTargetStagingAccountResourceId
+        AccountsTargetCapacityResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsTargetCapacityResourceId
+        DrsReplicationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSReplicationResourceId
+        DrsStartReplicationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSStartReplicationResourceId
+        DrsStopReplicationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSStopReplicationResourceId
+        DrsPauseReplicationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSPauseReplicationResourceId
+        DrsResumeReplicationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSResumeReplicationResourceId
+        DrsRetryDataReplicationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSRetryDataReplicationResourceId
+        DrsReplicationConfigurationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSReplicationConfigurationResourceId
+        DrsReplicationConfigurationTemplateResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSReplicationConfigurationTemplateResourceId
+        DrsSourceServerResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceServerResourceId
+        DrsSourceServerByIdResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceServerByIdResourceId
+        DrsDisconnectSourceServerResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSDisconnectSourceServerResourceId
+        DrsMarkAsArchivedResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSMarkAsArchivedResourceId
+        DrsExtendedSourceServersResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSExtendedSourceServersResourceId
+        DrsExtensibleSourceServersResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSExtensibleSourceServersResourceId
+        DrsSourceNetworksResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceNetworksResourceId
+        DrsSourceNetworkByIdResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceNetworkByIdResourceId
+        DrsSourceNetworkRecoveryResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceNetworkRecoveryResourceId
+        DrsSourceNetworkReplicationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceNetworkReplicationResourceId
+        DrsSourceNetworkStackResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceNetworkStackResourceId
+        DrsSourceNetworkTemplateResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSSourceNetworkTemplateResourceId
+        DrsLaunchConfigurationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSLaunchConfigurationResourceId
+        DrsLaunchConfigurationTemplateResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSLaunchConfigurationTemplateResourceId
+        DrsLaunchActionsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSLaunchActionsResourceId
+        DrsLaunchActionByIdResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSLaunchActionByIdResourceId
+        DrsServiceResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSServiceResourceId
+        DrsInitializeServiceResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSInitializeServiceResourceId
+        DrsRecoveryInstancesResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSRecoveryInstancesResourceId
+        DrsRecoveryInstanceByIdResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSRecoveryInstanceByIdResourceId
+        DrsRecoverySnapshotsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSRecoverySnapshotsResourceId
+        AccountsCapacityAllResourceId: !GetAtt APIGatewayResourcesStack.Outputs.AccountsCapacityAllResourceId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: APIGatewayInfrastructureMethods
+
+  # 12.6 API Gateway Operations Methods Stack
+  APIGatewayOperationsMethodsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DependsOn:
+      - APIGatewayResourcesStack
+      - APIGatewayAuthStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/apigateway/operations-methods-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt APIGatewayCoreStack.Outputs.RestApiId
+        ApiAuthorizerId: !GetAtt APIGatewayAuthStack.Outputs.ApiAuthorizerId
+        ApiRequestValidatorId: !GetAtt APIGatewayCoreStack.Outputs.ApiRequestValidatorId
+        ExecutionHandlerArn: !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
+        # Execution Callback Resource ID from Resources Stack
+        ExecutionCallbackResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionCallbackResourceId
+        # Execution Resource IDs from Resources Stack
+        ExecutionsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionsResourceId
+        ExecutionsDeleteResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionsDeleteResourceId
+        ExecutionByIdResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionResourceId
+        ExecutionCancelResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionCancelResourceId
+        ExecutionPauseResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionPauseResourceId
+        ExecutionResumeResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionResumeResourceId
+        ExecutionTerminateResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionTerminateInstancesResourceId
+        ExecutionRecoveryInstancesResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionRecoveryInstancesResourceId
+        ExecutionJobLogsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionJobLogsResourceId
+        ExecutionTerminationStatusResourceId: !GetAtt APIGatewayResourcesStack.Outputs.ExecutionTerminationStatusResourceId
+        # DRS Failover/Failback Resource IDs from Resources Stack
+        DrsFailoverResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSFailoverResourceId
+        DrsStartRecoveryResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSStartRecoveryResourceId
+        DrsTerminateRecoveryInstancesResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSTerminateRecoveryInstancesResourceId
+        DrsDisconnectRecoveryInstanceResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSDisconnectRecoveryInstanceResourceId
+        DrsFailbackResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSFailbackResourceId
+        DrsReverseReplicationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSReverseReplicationResourceId
+        DrsStartFailbackResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSStartFailbackResourceId
+        DrsStopFailbackResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSStopFailbackResourceId
+        DrsFailbackConfigurationResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSFailbackConfigurationResourceId
+        # DRS Job Management Resource IDs from Resources Stack
+        DrsJobsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSJobsResourceId
+        DrsJobByIdResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSJobByIdResourceId
+        DrsJobLogsResourceId: !GetAtt APIGatewayResourcesStack.Outputs.DRSJobLogsResourceId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: APIGatewayOperationsMethods
+
+  # 12.7 API Gateway Deployment Stack
+  APIGatewayDeploymentStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    DependsOn:
+      - APIGatewayCoreMethodsStack
+      - APIGatewayInfrastructureMethodsStack
+      - APIGatewayOperationsMethodsStack
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/apigateway/deployment-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt APIGatewayCoreStack.Outputs.RestApiId
+        OrchestrationRoleArn: !If
+          - UseFunctionSpecificRoles
+          - !GetAtt IAMStack.Outputs.OrchestrationRoleArn
+          - !GetAtt IAMStack.Outputs.UnifiedRoleArn
+        ApiGatewayCloudWatchRoleArn: !GetAtt IAMStack.Outputs.ApiGatewayCloudWatchRoleArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: APIGatewayDeployment
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  # Stack Status
+  StackStatus:
+    Description: 'Main stack deployment status'
+    Value: 'Deployed'
+
+  # API Endpoint
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${APIGatewayCoreStack.Outputs.RestApiId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${ProjectName}-api-endpoint-${Environment}'
+
+  # CloudFront Domain
+  CloudFrontDomain:
+    Description: 'CloudFront distribution domain name'
+    Value: !GetAtt CloudFrontStack.Outputs.CloudFrontDistributionDomainName
+    Export:
+      Name: !Sub '${ProjectName}-cloudfront-domain-${Environment}'
+
+  CloudFrontUrl:
+    Description: 'CloudFront distribution URL'
+    Value: !GetAtt CloudFrontStack.Outputs.CloudFrontUrl
+    Export:
+      Name: !Sub '${ProjectName}-cloudfront-url-${Environment}'
+
+  # Cognito Resources
+  UserPoolId:
+    Description: 'Cognito User Pool ID'
+    Value: !GetAtt CognitoStack.Outputs.UserPoolId
+
+  UserPoolClientId:
+    Description: 'Cognito User Pool Client ID'
+    Value: !GetAtt CognitoStack.Outputs.UserPoolClientId
+
+  IdentityPoolId:
+    Description: 'Cognito Identity Pool ID'
+    Value: !GetAtt CognitoStack.Outputs.IdentityPoolId
+
+  # IAM Role ARNs (Function-Specific)
+  QueryHandlerRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: 'Query Handler IAM Role ARN'
+    Value: !GetAtt IAMStack.Outputs.QueryHandlerRoleArn
+
+  DataManagementRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: 'Data Management Handler IAM Role ARN'
+    Value: !GetAtt IAMStack.Outputs.DataManagementRoleArn
+
+  ExecutionHandlerRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: 'Execution Handler IAM Role ARN'
+    Value: !GetAtt IAMStack.Outputs.ExecutionHandlerRoleArn
+
+  OrchestrationRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: 'Orchestration Function IAM Role ARN'
+    Value: !GetAtt IAMStack.Outputs.OrchestrationRoleArn
+
+  FrontendDeployerRoleArn:
+    Condition: UseFunctionSpecificRoles
+    Description: 'Frontend Deployer IAM Role ARN'
+    Value: !GetAtt IAMStack.Outputs.FrontendDeployerRoleArn
+
+  # Lambda Function ARNs
+  QueryHandlerFunctionArn:
+    Description: 'Query Handler Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
+    Export:
+      Name: !Sub '${ProjectName}-query-handler-function-arn-${Environment}'
+
+  DataManagementHandlerFunctionArn:
+    Description: 'Data Management Handler Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
+    Export:
+      Name: !Sub '${ProjectName}-data-management-handler-function-arn-${Environment}'
+
+  ExecutionHandlerFunctionArn:
+    Description: 'Execution Handler Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
+    Export:
+      Name: !Sub '${ProjectName}-execution-handler-function-arn-${Environment}'
+
+  OrchestrationFunctionArn:
+    Description: 'DR Orchestration Step Function Lambda ARN'
+    Value: !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
+    Export:
+      Name: !Sub '${ProjectName}-orchestration-function-arn-${Environment}'
+
+  FrontendDeployerFunctionArn:
+    Description: 'Frontend Deployer Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.FrontendDeployerFunctionArn
+    Export:
+      Name: !Sub '${ProjectName}-frontend-deployer-function-arn-${Environment}'
+
+  # Step Functions State Machine
+  StateMachineArn:
+    Description: 'DR Orchestration State Machine ARN'
+    Value: !GetAtt StepFunctionsStack.Outputs.StateMachineArn
+    Export:
+      Name: !Sub '${ProjectName}-state-machine-arn-${Environment}'
+
+  # DynamoDB Tables
+  ProtectionGroupsTableName:
+    Description: 'Protection Groups DynamoDB Table Name'
+    Value: !GetAtt DynamoDBStack.Outputs.ProtectionGroupsTableName
+    Export:
+      Name: !Sub '${ProjectName}-protection-groups-table-name-${Environment}'
+
+  RecoveryPlansTableName:
+    Description: 'Recovery Plans DynamoDB Table Name'
+    Value: !GetAtt DynamoDBStack.Outputs.RecoveryPlansTableName
+    Export:
+      Name: !Sub '${ProjectName}-recovery-plans-table-name-${Environment}'
+
+  ExecutionHistoryTableName:
+    Description: 'Execution History DynamoDB Table Name'
+    Value: !GetAtt DynamoDBStack.Outputs.ExecutionHistoryTableName
+    Export:
+      Name: !Sub '${ProjectName}-execution-history-table-name-${Environment}'
+
+  # SNS Topics
+  ExecutionNotificationsTopicArn:
+    Description: 'Execution Notifications SNS Topic ARN'
+    Value: !GetAtt SNSStack.Outputs.ExecutionNotificationsTopicArn
+    Export:
+      Name: !Sub '${ProjectName}-execution-notifications-topic-arn-${Environment}'
+
+  DRSOperationalAlertsTopicArn:
+    Description: 'DRS Operational Alerts SNS Topic ARN'
+    Value: !GetAtt SNSStack.Outputs.DRSOperationalAlertsTopicArn
+    Export:
+      Name: !Sub '${ProjectName}-drs-operational-alerts-topic-arn-${Environment}'
+
+  # S3 Buckets
+  FrontendBucketName:
+    Description: 'Frontend S3 Bucket Name'
+    Value: !GetAtt S3Stack.Outputs.FrontendBucketName
+    Export:
+      Name: !Sub '${ProjectName}-frontend-bucket-name-${Environment}'
+
+  # WAF
+  # COMMENTED OUT: WAF stack is disabled for QA (requires us-east-1)
+  # WebACLArn:
+  #   Description: 'WAF Web ACL ARN'
+  #   Value: !GetAtt WAFStack.Outputs.WebACLArn

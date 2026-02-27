@@ -97,7 +97,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
     startPolling,
     stopPolling,
     error: pollingError,
-  } = useLaunchConfigStatus(savedGroupId || '', region);
+  } = useLaunchConfigStatus({ protectionGroupId: savedGroupId || '' });
 
   const isEditMode = Boolean(group);
 
@@ -541,7 +541,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
     if (!savedGroupId) return;
     
     try {
-      await apiClient.applyLaunchConfigs(savedGroupId, region, { force: true });
+      await apiClient.applyLaunchConfigs(savedGroupId, { force: true });
       // Polling will automatically pick up the new status
     } catch (err) {
       console.error('Failed to retry launch configs:', err);
@@ -888,7 +888,6 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         status={launchConfigStatus}
         onDismiss={handleProgressModalDismiss}
         onRetry={handleRetryFailed}
-        error={pollingError}
       />
     </Modal>
   );

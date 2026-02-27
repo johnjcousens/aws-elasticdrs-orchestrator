@@ -1,0 +1,177 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  S3 Buckets Stack - Provides S3 buckets for frontend hosting and access logging
+  with encryption, versioning, and lifecycle policies.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, staging, prod)'
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  AccessLogsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub '${ProjectName}-access-logs-${AWS::AccountId}-${Environment}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 90
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: AccessLogs
+
+  AccessLogsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DeletionPolicy: Delete
+    Properties:
+      Bucket: !Ref AccessLogsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyNonHTTPS
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt AccessLogsBucket.Arn
+              - !Sub '${AccessLogsBucket.Arn}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+          - Sid: S3ServerAccessLogsPolicy
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Action: 's3:PutObject'
+            Resource: !Sub '${AccessLogsBucket.Arn}/s3-logs/*'
+            Condition:
+              ArnLike:
+                'aws:SourceArn': !Sub 'arn:${AWS::Partition}:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}'
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
+          - Sid: CloudFrontLogsPolicy
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: 
+              - 's3:PutObject'
+              - 's3:PutObjectAcl'
+            Resource: !Sub '${AccessLogsBucket.Arn}/cloudfront-logs/*'
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    DependsOn: AccessLogsBucketPolicy
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub '${ProjectName}-fe-${AWS::AccountId}-${Environment}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogsBucket
+        LogFilePrefix: 's3-logs/'
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+          - Id: ExpireCurrentVersions
+            Status: Enabled
+            ExpirationInDays: 90
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: FrontendHosting
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  AccessLogsBucketName:
+    Description: 'Access Logs bucket name'
+    Value: !Ref AccessLogsBucket
+    Export:
+      Name: !Sub '${ProjectName}-access-logs-bucket-${Environment}'
+
+  AccessLogsBucketArn:
+    Description: 'Access Logs bucket ARN'
+    Value: !GetAtt AccessLogsBucket.Arn
+    Export:
+      Name: !Sub '${ProjectName}-access-logs-bucket-arn-${Environment}'
+
+  FrontendBucketName:
+    Description: 'Frontend bucket name'
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${ProjectName}-frontend-bucket-${Environment}'
+
+  FrontendBucketArn:
+    Description: 'Frontend bucket ARN'
+    Value: !GetAtt FrontendBucket.Arn
+    Export:
+      Name: !Sub '${ProjectName}-frontend-bucket-arn-${Environment}'
+
+  FrontendBucketDomainName:
+    Description: 'Frontend bucket domain name'
+    Value: !GetAtt FrontendBucket.RegionalDomainName
+    Export:
+      Name: !Sub '${ProjectName}-frontend-bucket-domain-${Environment}'
+
+  AccessLogsBucketDomainName:
+    Description: 'Access Logs bucket domain name for CloudFront logging'
+    Value: !Sub '${AccessLogsBucket}.s3.amazonaws.com'
+    Export:
+      Name: !Sub '${ProjectName}-access-logs-bucket-domain-${Environment}'

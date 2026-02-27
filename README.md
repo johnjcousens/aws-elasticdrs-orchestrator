@@ -141,7 +141,220 @@ All Lambda functions use a **single unified IAM role** that consolidates permiss
 
 **For External Integration:** See [Orchestration Role Specification](docs/reference/ORCHESTRATION_ROLE_SPECIFICATION.md) for complete role requirements.
 
+### Function-Specific IAM Roles (New Architecture)
+
+The platform now supports **function-specific IAM roles** as an alternative to the unified role, following the principle of least privilege. This new architecture is available through a separate main stack template (`cfn/main-stack.yaml`) with service-based nested stacks.
+
+**Key Features:**
+- **Least Privilege**: Each Lambda function has only the permissions it needs
+- **Reduced Blast Radius**: Compromised query function cannot execute recovery operations
+- **Audit Clarity**: CloudTrail logs clearly show which function performed which action
+- **Backward Compatible**: Can switch between unified and function-specific roles without data loss
+
+**Five Function-Specific Roles:**
+
+| Role | Function | Permissions |
+|------|----------|-------------|
+| **Query Handler Role** | Read-only queries | DynamoDB read, DRS describe, EC2 describe, CloudWatch read |
+| **Data Management Role** | CRUD operations | DynamoDB full CRUD, DRS metadata, tagging |
+| **Execution Handler Role** | Workflow orchestration | Step Functions, SNS, DynamoDB, DRS coordination |
+| **Orchestration Role** | Recovery operations | Comprehensive DRS and EC2 permissions for recovery |
+| **Frontend Deployer Role** | Frontend deployment | S3, CloudFront, CloudFormation read |
+
+**Deployment:**
+```bash
+# Deploy with function-specific roles
+./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+
+# Deploy with unified role (default)
+./scripts/deploy-main-stack.sh qa
+```
+
+**QA Environment Deployment:**
+
+The QA environment (`aws-drs-orchestration-qa` in `us-east-2`) uses the new main stack architecture with function-specific roles enabled by default:
+
+```bash
+# Deploy QA environment with function-specific roles (default)
+./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+
+# Deploy QA environment with unified role
+./scripts/deploy-main-stack.sh qa
+
+# Validate templates before deployment
+./scripts/deploy-main-stack.sh qa --validate-only
+```
+
+**QA Environment Details:**
+- **Account**: `123456789012` (replace with your AWS account ID)
+- **Region**: `us-east-2`
+- **Stack**: `aws-drs-orchestration-qa`
+- **Deployment Bucket**: `aws-drs-orchestration-{ACCOUNT_ID}-qa`
+- **API**: `https://{api-id}.execute-api.us-east-2.amazonaws.com/test`
+- **CloudFront**: `https://{distribution-id}.cloudfront.net`
+
+**Migration from Unified to Function-Specific Roles:**
+
+The platform supports seamless switching between role architectures:
+
+```bash
+# Step 1: Deploy with unified role (baseline)
+./scripts/deploy-main-stack.sh qa
+
+# Step 2: Switch to function-specific roles
+./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+
+# Step 3: Rollback if needed (no data loss)
+./scripts/deploy-main-stack.sh qa
+```
+
+**Documentation:**
+- [Testing Guide](docs/guides/TESTING_GUIDE.md) - Dual testing approach (unit tests + property-based tests)
+- [IAM Troubleshooting Guide](docs/guides/IAM_TROUBLESHOOTING_GUIDE.md) - Common IAM permission errors and resolutions
+- [CloudFormation Template Organization](docs/guides/CLOUDFORMATION_TEMPLATE_ORGANIZATION.md) - Service-based directory structure and nested stack architecture
+- [IAM Role Reference](docs/IAM_ROLE_REFERENCE.md) - Detailed permissions for each role with resource restrictions
+- [Deploy Main Stack Guide](docs/DEPLOY_MAIN_STACK_GUIDE.md) - Complete deployment guide with examples
+- [Architecture Decision Record](docs/architecture/ADR-001-function-specific-iam-roles.md) - Design rationale and security benefits
+- [QA Deployment Configuration](docs/QA_DEPLOYMENT_CONFIGURATION.md) - QA environment configuration details
+- [Migration Guide](docs/MIGRATION_GUIDE.md) - Migration procedures and rollback strategies
+
+### CloudFormation Template Organization (New Architecture)
+
+The new main stack architecture uses **service-based nested stacks** organized by AWS service, improving maintainability and navigation:
+
+**Directory Structure:**
+```
+cfn/
+├── main-stack.yaml                    # Root orchestrator (new architecture)
+├── master-template.yaml               # Legacy root template (old architecture, preserved)
+├── iam/
+│   └── roles-stack.yaml              # IAM roles (unified + function-specific)
+├── lambda/
+│   └── functions-stack.yaml          # Lambda functions with conditional role assignment
+├── dynamodb/
+│   └── tables-stack.yaml             # DynamoDB tables
+├── stepfunctions/
+│   └── statemachine-stack.yaml       # Step Functions state machine
+├── sns/
+│   └── topics-stack.yaml             # SNS notification topics
+├── eventbridge/
+│   └── rules-stack.yaml              # EventBridge scheduled rules
+├── s3/
+│   └── buckets-stack.yaml            # S3 buckets
+├── cloudfront/
+│   └── distribution-stack.yaml       # CloudFront distribution
+├── apigateway/
+│   ├── auth-stack.yaml               # Cognito authorizer
+│   ├── core-stack.yaml               # REST API definition
+│   ├── resources-stack.yaml          # API resources
+│   ├── core-methods-stack.yaml       # Core API methods
+│   ├── infrastructure-methods-stack.yaml  # Infrastructure API methods
+│   ├── operations-methods-stack.yaml # Operations API methods
+│   └── deployment-stack.yaml         # API deployment and stage
+├── cognito/
+│   └── auth-stack.yaml               # Cognito user pool and identity pool
+├── monitoring/
+│   └── alarms-stack.yaml             # CloudWatch alarms and metric filters
+└── waf/
+    └── webacl-stack.yaml             # WAF web ACL
+```
+
+**Benefits:**
+- **Service-Based Organization**: Easy to locate and modify infrastructure code
+- **Modular Architecture**: Nested stacks can be updated independently
+- **Clear Separation**: IAM, Lambda, and service resources in dedicated templates
+- **Reduced Complexity**: Smaller, focused templates instead of monolithic master template
+- **No Unused Parameters**: Clean architecture eliminates W2001 cfn-lint warnings
+- **Explicit Dependencies**: DependsOn attributes ensure correct deployment order
+
+**Key Features:**
+- **Conditional Role Creation**: UseFunctionSpecificRoles parameter controls which IAM roles are created
+- **Parameter Propagation**: Main stack passes parameters to all nested stacks
+- **Output Chaining**: Nested stack outputs feed into dependent stacks (e.g., IAM role ARNs → Lambda stack)
+- **EventBridge Consolidation**: Single execution polling rule (eliminates duplicate from old architecture)
+
+**Deployment Examples:**
+
+```bash
+# Deploy with function-specific roles (new architecture)
+./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+
+# Deploy with unified role (new architecture, backward compatible)
+./scripts/deploy-main-stack.sh qa
+
+# Deploy legacy architecture (old master-template.yaml)
+./scripts/deploy.sh test
+```
+
+**Documentation:**
+- [CloudFormation Template Organization Guide](docs/CFN_TEMPLATE_ORGANIZATION.md) - Complete guide to nested stack architecture
+- [Deploy Main Stack Guide](docs/DEPLOY_MAIN_STACK_GUIDE.md) - Deployment procedures and examples
+- [EventBridge Rules Reference](docs/EVENTBRIDGE_RULES_REFERENCE.md) - Consolidated EventBridge rules documentation
+- [Testing Guide](docs/guides/TESTING_GUIDE.md) - Dual testing approach (unit tests + property-based tests)
+- [IAM Troubleshooting Guide](docs/guides/IAM_TROUBLESHOOTING_GUIDE.md) - CloudFormation deployment errors and resolutions
+
 ### Deployment Mode Examples
+
+The solution supports two CloudFormation template architectures:
+
+**New Architecture (main-stack.yaml):**
+- Service-based nested stacks organized by AWS service
+- Function-specific IAM roles with least privilege
+- Conditional role creation via UseFunctionSpecificRoles parameter
+- Deployed via `./scripts/deploy-main-stack.sh`
+
+**Legacy Architecture (master-template.yaml):**
+- Flat template structure with all resources in one file
+- Unified IAM role for all Lambda functions
+- Backward compatible with existing deployments
+- Deployed via `./scripts/deploy.sh`
+
+```bash
+# New Architecture - Deploy with function-specific roles
+./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+
+# New Architecture - Deploy with unified role (default)
+./scripts/deploy-main-stack.sh qa
+
+# New Architecture - Validate only (no deployment)
+./scripts/deploy-main-stack.sh qa --validate-only
+
+# Legacy Architecture - Deploy to test environment
+./scripts/deploy.sh test
+
+# Direct CloudFormation - New architecture with function-specific roles
+aws cloudformation deploy \
+  --template-file cfn/main-stack.yaml \
+  --stack-name aws-drs-orchestration-qa \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    ProjectName=aws-drs-orchestration \
+    Environment=qa \
+    DeploymentBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    AdminEmail=admin@example.com \
+    UseFunctionSpecificRoles=true
+
+# Direct CloudFormation - Legacy architecture (unified role)
+aws cloudformation deploy \
+  --template-file cfn/master-template.yaml \
+  --stack-name aws-drs-orchestration-test \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    ProjectName=aws-drs-orchestration \
+    Environment=test \
+    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-test \
+    AdminEmail=admin@example.com
+```
+
+**Deployment Modes (Both Architectures):**
+
+| Mode | Resources Deployed | Frontend | Monthly Cost | Use Case |
+|------|-------------------|----------|--------------|----------|
+| **1. Default Standalone** | All (IAM + DB + Lambda + API) | ✅ Deployed | $12-40 | Complete self-contained solution with web UI |
+| **2. API-Only Standalone** | All (IAM + DB + Lambda + API) | ❌ Skipped | $8-30 | Direct Lambda invocation OR Cognito RBAC API calls |
+| **3. External IAM Integration** | All resources, external IAM role | ❌ Skipped | $8-30 | Centralized IAM management, external role |
+
+**Legacy Architecture Examples:**
 
 ```bash
 # Mode 1: Default Standalone (Full Stack with Frontend)
@@ -183,31 +396,54 @@ aws cloudformation deploy \
 
 ### CloudFormation Parameters
 
-**Core Parameters:**
-- `ProjectName` (String, default: 'hrp-drs-tech-adapter') - Project identifier for resource naming
-- `Environment` (String, default: 'dev') - Environment name (dev, test, prod)
-- `SourceBucket` (String, required) - S3 bucket containing nested CloudFormation templates and Lambda code
-- `AdminEmail` (String, required) - Admin email for Cognito user pool
+**Core Parameters (Both Architectures):**
+- `ProjectName` (String, default: 'aws-drs-orchestration') - Project identifier for resource naming
+- `Environment` (String, default: 'dev') - Environment name (dev, test, qa, prod)
+- `AdminEmail` (String, required) - Admin email for Cognito user pool and SNS notifications
 
-**Deployment Mode Parameters:**
+**New Architecture Parameters (main-stack.yaml):**
+- `DeploymentBucket` (String, required) - S3 bucket containing nested CloudFormation templates and Lambda packages
+- `UseFunctionSpecificRoles` (String, default: 'false') - Enable function-specific IAM roles ('true' or 'false')
+- `DeployFrontend` (String, default: 'true') - Deploy frontend (S3 + CloudFront)
+
+**Legacy Architecture Parameters (master-template.yaml):**
+- `SourceBucket` (String, required) - S3 bucket containing nested CloudFormation templates and Lambda code
 - `DeployFrontend` (String, default: 'true') - Deploy frontend (S3 + CloudFront)
 - `OrchestrationRoleArn` (String, optional) - External IAM role ARN for Lambda functions
 
-**Example with All Parameters:**
+**Example - New Architecture with Function-Specific Roles:**
 ```bash
 aws cloudformation deploy \
-  --template-file cfn/master-template.yaml \
+  --template-file cfn/main-stack.yaml \
   --stack-name aws-drs-orchestration-qa \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
     Environment=qa \
-    SourceBucket=aws-drs-orchestration-qa \
+    DeploymentBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    AdminEmail=admin@example.com \
+    UseFunctionSpecificRoles=true \
+    DeployFrontend=true
+```
+
+**Example - Legacy Architecture with Unified Role:**
+```bash
+aws cloudformation deploy \
+  --template-file cfn/master-template.yaml \
+  --stack-name aws-drs-orchestration-test \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides \
+    ProjectName=aws-drs-orchestration \
+    Environment=test \
+    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-test \
     AdminEmail=admin@example.com \
     DeployFrontend=true
 ```
 
-**See [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) for complete documentation.**
+**See Documentation:**
+- [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) - Complete deployment mode documentation
+- [Deploy Main Stack Guide](docs/DEPLOY_MAIN_STACK_GUIDE.md) - New architecture deployment procedures
+- [QA Deployment Configuration](docs/QA_DEPLOYMENT_CONFIGURATION.md) - QA environment configuration details
 
 ## Configuration Example
 
@@ -970,6 +1206,106 @@ A comprehensive implementation of AWS DRS AllowLaunchingIntoThisInstance pattern
 - Dual invocation pattern support (API Gateway + Direct Lambda)
 
 **Test Coverage**: 104 tests planned (59 unit + 37 integration + 8 E2E)
+
+## Stack Deletion & Resource Cleanup
+
+### DeletionPolicy Configuration
+
+All CloudFormation resources in this project have explicit `DeletionPolicy: Delete` attributes to ensure clean stack deletion without orphaned resources.
+
+**Resources with DeletionPolicy**:
+- IAM Roles (6 roles: unified + 5 function-specific)
+- Lambda Functions (5 functions)
+- DynamoDB Tables (4 tables)
+- S3 Buckets (2 buckets: deployment + frontend)
+- CloudFront Distribution
+- Cognito User Pool and Identity Pool
+- API Gateway (REST API, resources, methods, deployment, stage)
+- Step Functions State Machine
+- SNS Topics (12 notification topics)
+- EventBridge Rules (2 scheduled rules)
+- CloudWatch Alarms and Log Groups
+- WAF Web ACL
+
+### S3 Bucket Cleanup
+
+The Frontend Deployer Lambda includes automated S3 bucket cleanup logic that handles versioned buckets:
+
+**Cleanup Features**:
+- Deletes all object versions and delete markers
+- Handles pagination for large buckets (>1000 objects)
+- Includes error handling and retry logic
+- Only runs during confirmed stack deletion (not UPDATE operations)
+- Validates stack status before cleanup to prevent accidental data loss
+
+**Safety Checks**:
+- Skips cleanup for UPDATE_ROLLBACK operations
+- Only proceeds when stack status is DELETE_IN_PROGRESS or DELETE_FAILED
+- Logs all cleanup decisions for audit trail
+
+### Stack Deletion Procedure
+
+To delete a stack:
+
+```bash
+# QA environment (new architecture)
+aws cloudformation delete-stack \
+  --stack-name aws-drs-orchestration-qa \
+  --region us-east-2
+
+# Monitor deletion progress
+aws cloudformation describe-stacks \
+  --stack-name aws-drs-orchestration-qa \
+  --region us-east-2 \
+  --query 'Stacks[0].StackStatus'
+```
+
+**Expected Behavior**:
+1. CloudFormation initiates stack deletion
+2. Frontend Deployer Lambda empties S3 buckets
+3. All resources are deleted in dependency order
+4. Stack reaches DELETE_COMPLETE status
+5. No orphaned resources remain
+
+### Verification Steps
+
+After stack deletion, verify no orphaned resources:
+
+```bash
+# Check S3 buckets
+aws s3 ls | grep aws-drs-orchestration
+
+# Check DynamoDB tables
+aws dynamodb list-tables --query 'TableNames[?contains(@, `aws-drs-orchestration`)]'
+
+# Check Lambda functions
+aws lambda list-functions --query 'Functions[?contains(FunctionName, `aws-drs-orchestration`)]'
+
+# Check IAM roles
+aws iam list-roles --query 'Roles[?contains(RoleName, `aws-drs-orchestration`)]'
+
+# Check CloudWatch log groups
+aws logs describe-log-groups --query 'logGroups[?contains(logGroupName, `aws-drs-orchestration`)]'
+```
+
+All commands should return empty results after successful deletion.
+
+### cfn-lint Validation
+
+The project enforces DeletionPolicy on all resources using cfn-lint:
+
+```yaml
+# .cfnlintrc.yaml
+configure_rules:
+  W3011:
+    strict: true  # Fail if DeletionPolicy is missing
+```
+
+Run validation:
+
+```bash
+cfn-lint cfn/**/*.yaml
+```
 
 ## Directory Structure
 

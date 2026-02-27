@@ -1,0 +1,214 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Cognito Authentication Stack - User Pool, Identity Pool, and RBAC groups
+  for user authentication and authorization.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, staging, prod)'
+
+  AdminEmail:
+    Type: String
+    Description: 'Admin email for initial user creation'
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      UserPoolName: !Sub '${ProjectName}-users-${Environment}'
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: given_name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: family_name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+      UserPoolTags:
+        Project: !Ref ProjectName
+        Environment: !Ref Environment
+
+  DRSOrchestrationAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSOrchestrationAdmin
+      Description: 'Full administrative access to DRS Orchestration platform'
+      Precedence: 1
+
+  DRSRecoveryManagerGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSRecoveryManager
+      Description: 'Can manage recovery plans and execute disaster recovery operations'
+      Precedence: 2
+
+  DRSPlanManagerGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSPlanManager
+      Description: 'Can create and modify recovery plans and protection groups'
+      Precedence: 3
+
+  DRSOperatorGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSOperator
+      Description: 'Can execute existing recovery plans and monitor executions'
+      Precedence: 4
+
+  DRSReadOnlyGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    DeletionPolicy: Delete
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSReadOnly
+      Description: 'Read-only access to DRS orchestration data and execution history'
+      Precedence: 5
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DeletionPolicy: Delete
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub '${ProjectName}-client-${Environment}'
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - http://localhost:5173
+        - !Sub 'https://${ProjectName}-${Environment}.s3-website-${AWS::Region}.amazonaws.com'
+      LogoutURLs:
+        - http://localhost:5173
+        - !Sub 'https://${ProjectName}-${Environment}.s3-website-${AWS::Region}.amazonaws.com'
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 45
+      IdTokenValidity: 45
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      IdentityPoolName: !Sub '${ProjectName}_identity_pool_${Environment}'
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+
+  CognitoAuthenticatedRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Properties:
+      RoleName: !Sub '${ProjectName}-cognito-authenticated-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': authenticated
+      Policies:
+        - PolicyName: CognitoAuthenticatedPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-sync:*
+                  - cognito-identity:*
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - execute-api:Invoke
+                Resource: '*'
+
+  IdentityPoolRoleMapping:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt CognitoAuthenticatedRole.Arn
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  UserPoolId:
+    Description: 'Cognito User Pool ID'
+    Value: !Ref UserPool
+
+  UserPoolArn:
+    Description: 'Cognito User Pool ARN'
+    Value: !GetAtt UserPool.Arn
+
+  UserPoolClientId:
+    Description: 'Cognito User Pool Client ID'
+    Value: !Ref UserPoolClient
+
+  IdentityPoolId:
+    Description: 'Cognito Identity Pool ID'
+    Value: !Ref IdentityPool

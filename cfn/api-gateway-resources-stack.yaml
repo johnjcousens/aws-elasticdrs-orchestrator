@@ -77,6 +77,7 @@ Resources:
   # Used by load balancers and monitoring systems
   HealthResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -90,6 +91,7 @@ Resources:
   # /user/permissions - GET user permissions
   UserResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -97,6 +99,7 @@ Resources:
 
   UserProfileResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref UserResource
@@ -104,6 +107,7 @@ Resources:
 
   UserRolesResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref UserResource
@@ -111,6 +115,7 @@ Resources:
 
   UserPermissionsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref UserResource
@@ -126,6 +131,7 @@ Resources:
   # /protection-groups/resolve                      - POST resolve server references
   ProtectionGroupsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -133,6 +139,7 @@ Resources:
 
   ProtectionGroupResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ProtectionGroupsResource
@@ -140,6 +147,7 @@ Resources:
 
   ProtectionGroupApplyLaunchConfigsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ProtectionGroupResource
@@ -147,6 +155,7 @@ Resources:
 
   ProtectionGroupLaunchConfigStatusResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ProtectionGroupResource
@@ -154,6 +163,7 @@ Resources:
 
   ProtectionGroupResolveResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ProtectionGroupsResource
@@ -168,6 +178,7 @@ Resources:
   # /recovery-plans/{id}/check-existing-instances - GET check for conflicts
   RecoveryPlansResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -175,6 +186,7 @@ Resources:
 
   RecoveryPlanResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RecoveryPlansResource
@@ -182,6 +194,7 @@ Resources:
 
   RecoveryPlanExecuteResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RecoveryPlanResource
@@ -189,6 +202,7 @@ Resources:
 
   RecoveryPlanCheckExistingInstancesResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RecoveryPlanResource
@@ -201,6 +215,7 @@ Resources:
   # Uses task token as credential instead of Cognito auth
   ExecutionCallbackResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -221,6 +236,7 @@ Resources:
   # /executions/delete                  - POST bulk delete executions
   ExecutionsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -228,6 +244,7 @@ Resources:
 
   ExecutionResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ExecutionsResource
@@ -235,6 +252,7 @@ Resources:
 
   ExecutionCancelResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ExecutionResource
@@ -242,6 +260,7 @@ Resources:
 
   ExecutionPauseResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ExecutionResource
@@ -249,6 +268,7 @@ Resources:
 
   ExecutionResumeResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ExecutionResource
@@ -256,6 +276,7 @@ Resources:
 
   ExecutionTerminateInstancesResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ExecutionResource
@@ -263,6 +284,7 @@ Resources:
 
   ExecutionRecoveryInstancesResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ExecutionResource
@@ -270,6 +292,7 @@ Resources:
 
   ExecutionJobLogsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ExecutionResource
@@ -277,6 +300,7 @@ Resources:
 
   ExecutionTerminationStatusResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ExecutionResource
@@ -284,6 +308,7 @@ Resources:
 
   ExecutionsDeleteResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ExecutionsResource
@@ -298,6 +323,7 @@ Resources:
   # /drs/tag-sync       - POST sync tags from source to DRS
   DRSResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -305,6 +331,7 @@ Resources:
 
   DRSSourceServersResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -312,6 +339,7 @@ Resources:
 
   DRSSourceServerInventoryResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -319,6 +347,7 @@ Resources:
 
   DRSQuotasResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -326,6 +355,7 @@ Resources:
 
   DRSAccountsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -333,6 +363,7 @@ Resources:
 
   DRSTagSyncResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -357,6 +388,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSFailoverResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -364,6 +396,7 @@ Resources:
 
   DRSStartRecoveryResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSFailoverResource
@@ -371,6 +404,7 @@ Resources:
 
   DRSTerminateRecoveryInstancesResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSFailoverResource
@@ -378,6 +412,7 @@ Resources:
 
   DRSDisconnectRecoveryInstanceResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSFailoverResource
@@ -388,6 +423,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSFailbackResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -395,6 +431,7 @@ Resources:
 
   DRSReverseReplicationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSFailbackResource
@@ -402,6 +439,7 @@ Resources:
 
   DRSStartFailbackResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSFailbackResource
@@ -409,6 +447,7 @@ Resources:
 
   DRSStopFailbackResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSFailbackResource
@@ -416,6 +455,7 @@ Resources:
 
   DRSFailbackConfigurationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSFailbackResource
@@ -426,6 +466,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSReplicationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -433,6 +474,7 @@ Resources:
 
   DRSStartReplicationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSReplicationResource
@@ -440,6 +482,7 @@ Resources:
 
   DRSStopReplicationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSReplicationResource
@@ -447,6 +490,7 @@ Resources:
 
   DRSPauseReplicationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSReplicationResource
@@ -454,6 +498,7 @@ Resources:
 
   DRSResumeReplicationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSReplicationResource
@@ -461,6 +506,7 @@ Resources:
 
   DRSRetryDataReplicationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSReplicationResource
@@ -468,6 +514,7 @@ Resources:
 
   DRSReplicationConfigurationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSReplicationResource
@@ -475,6 +522,7 @@ Resources:
 
   DRSReplicationConfigurationTemplateResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSReplicationResource
@@ -485,6 +533,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSSourceServerResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -492,6 +541,7 @@ Resources:
 
   DRSSourceServerByIdResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSSourceServerResource
@@ -499,6 +549,7 @@ Resources:
 
   DRSDisconnectSourceServerResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSSourceServerByIdResource
@@ -506,6 +557,7 @@ Resources:
 
   DRSMarkAsArchivedResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSSourceServerByIdResource
@@ -513,6 +565,7 @@ Resources:
 
   DRSExtendedSourceServersResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -520,6 +573,7 @@ Resources:
 
   DRSExtensibleSourceServersResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -530,6 +584,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSSourceNetworksResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -537,6 +592,7 @@ Resources:
 
   DRSSourceNetworkByIdResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSSourceNetworksResource
@@ -544,6 +600,7 @@ Resources:
 
   DRSSourceNetworkRecoveryResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSSourceNetworksResource
@@ -551,6 +608,7 @@ Resources:
 
   DRSSourceNetworkReplicationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSSourceNetworksResource
@@ -558,6 +616,7 @@ Resources:
 
   DRSSourceNetworkStackResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSSourceNetworksResource
@@ -565,6 +624,7 @@ Resources:
 
   DRSSourceNetworkTemplateResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSSourceNetworksResource
@@ -575,6 +635,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSLaunchConfigurationResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -582,6 +643,7 @@ Resources:
 
   DRSLaunchConfigurationTemplateResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSLaunchConfigurationResource
@@ -589,6 +651,7 @@ Resources:
 
   DRSLaunchActionsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -596,6 +659,7 @@ Resources:
 
   DRSLaunchActionByIdResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSLaunchActionsResource
@@ -606,6 +670,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSJobsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -613,6 +678,7 @@ Resources:
 
   DRSJobByIdResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSJobsResource
@@ -620,6 +686,7 @@ Resources:
 
   DRSJobLogsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSJobByIdResource
@@ -630,6 +697,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSServiceResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -637,6 +705,7 @@ Resources:
 
   DRSInitializeServiceResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSServiceResource
@@ -647,6 +716,7 @@ Resources:
   # ---------------------------------------------------------------------------
   DRSRecoveryInstancesResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -654,6 +724,7 @@ Resources:
 
   DRSRecoveryInstanceByIdResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSRecoveryInstancesResource
@@ -661,6 +732,7 @@ Resources:
 
   DRSRecoverySnapshotsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref DRSResource
@@ -675,6 +747,7 @@ Resources:
   # /ec2/instance-types    - GET available EC2 instance types
   EC2Resource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -682,6 +755,7 @@ Resources:
 
   EC2SubnetsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref EC2Resource
@@ -689,6 +763,7 @@ Resources:
 
   EC2SecurityGroupsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref EC2Resource
@@ -696,6 +771,7 @@ Resources:
 
   EC2InstanceProfilesResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref EC2Resource
@@ -703,6 +779,7 @@ Resources:
 
   EC2InstanceTypesResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref EC2Resource
@@ -716,6 +793,7 @@ Resources:
   # /config/tag-sync - POST sync EC2 tags to DRS source servers
   ConfigResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -723,6 +801,7 @@ Resources:
 
   ConfigExportResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ConfigResource
@@ -730,6 +809,7 @@ Resources:
 
   ConfigImportResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ConfigResource
@@ -737,6 +817,7 @@ Resources:
 
   ConfigTagSyncResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ConfigResource
@@ -753,6 +834,7 @@ Resources:
   # /accounts/capacity/all         - GET all accounts capacity summary
   AccountsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -760,6 +842,7 @@ Resources:
 
   AccountsCurrentResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsResource
@@ -767,6 +850,7 @@ Resources:
 
   AccountsTargetsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsResource
@@ -774,6 +858,7 @@ Resources:
 
   AccountsTargetResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsTargetsResource
@@ -781,6 +866,7 @@ Resources:
 
   AccountsTargetValidateResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsTargetResource
@@ -798,6 +884,7 @@ Resources:
   # /accounts/targets/{id}/capacity                - GET target account capacity
   StagingAccountsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref RestApiRootResourceId
@@ -805,6 +892,7 @@ Resources:
 
   StagingAccountsValidateResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref StagingAccountsResource
@@ -812,6 +900,7 @@ Resources:
 
   AccountsTargetStagingAccountsResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsTargetResource
@@ -819,6 +908,7 @@ Resources:
 
   AccountsTargetStagingAccountsDiscoverResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsTargetStagingAccountsResource
@@ -826,6 +916,7 @@ Resources:
 
   AccountsTargetStagingAccountsSyncResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsTargetStagingAccountsResource
@@ -833,6 +924,7 @@ Resources:
 
   AccountsTargetStagingAccountResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsTargetStagingAccountsResource
@@ -840,6 +932,7 @@ Resources:
 
   AccountsTargetCapacityResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsTargetResource
@@ -851,6 +944,7 @@ Resources:
   # /accounts/capacity resource (for universal capacity queries)
   AccountsCapacityResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsResource
@@ -859,6 +953,8 @@ Resources:
   # /accounts/capacity/all resource (get all accounts capacity in one call)
   AccountsCapacityAllResource:
     Type: AWS::ApiGateway::Resource
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref AccountsCapacityResource

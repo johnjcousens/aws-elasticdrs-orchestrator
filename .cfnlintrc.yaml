@@ -11,7 +11,7 @@ ignore_checks:
 # Keep other warnings and errors enabled
 include_checks: []
 
-# Configure regions for validation
+# Regions for validation
 regions:
   - us-east-1
   - us-east-2
@@ -21,3 +21,8 @@ regions:
 configure_rules:
   W2001:
     strict: false
+  W3011:
+    # Enforce DeletionPolicy on all resources to prevent orphaned resources
+    # This rule ensures every CloudFormation resource has an explicit
+    # DeletionPolicy attribute (Delete, Retain, or Snapshot)
+    strict: true

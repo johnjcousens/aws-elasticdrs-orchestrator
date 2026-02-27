@@ -144,6 +144,7 @@ Resources:
 
   HealthGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref HealthResourceId
@@ -171,6 +172,7 @@ Resources:
 
   HealthOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref HealthResourceId
@@ -204,6 +206,7 @@ Resources:
 
   UserProfileGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref UserProfileResourceId
@@ -221,6 +224,7 @@ Resources:
 
   UserProfileOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref UserProfileResourceId
@@ -247,6 +251,7 @@ Resources:
 
   UserRolesGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref UserRolesResourceId
@@ -264,6 +269,7 @@ Resources:
 
   UserRolesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref UserRolesResourceId
@@ -290,6 +296,7 @@ Resources:
 
   UserPermissionsGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref UserPermissionsResourceId
@@ -307,6 +314,7 @@ Resources:
 
   UserPermissionsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref UserPermissionsResourceId
@@ -340,6 +348,7 @@ Resources:
 
   ProtectionGroupsGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupsResourceId
@@ -357,6 +366,7 @@ Resources:
 
   ProtectionGroupsPostMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupsResourceId
@@ -375,6 +385,7 @@ Resources:
 
   ProtectionGroupsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupsResourceId
@@ -402,6 +413,7 @@ Resources:
   # Protection Groups Resolve Method (POST /protection-groups/resolve)
   ProtectionGroupResolvePostMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupResolveResourceId
@@ -420,6 +432,7 @@ Resources:
 
   ProtectionGroupResolveOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupResolveResourceId
@@ -446,6 +459,7 @@ Resources:
 
   ProtectionGroupGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupByIdResourceId
@@ -463,6 +477,7 @@ Resources:
 
   ProtectionGroupPutMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupByIdResourceId
@@ -481,6 +496,7 @@ Resources:
 
   ProtectionGroupDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupByIdResourceId
@@ -498,6 +514,7 @@ Resources:
 
   ProtectionGroupOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupByIdResourceId
@@ -530,6 +547,7 @@ Resources:
 
   ProtectionGroupApplyLaunchConfigsPostMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupApplyLaunchConfigsResourceId
@@ -548,6 +566,7 @@ Resources:
 
   ProtectionGroupApplyLaunchConfigsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupApplyLaunchConfigsResourceId
@@ -574,6 +593,7 @@ Resources:
 
   ProtectionGroupLaunchConfigStatusGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupLaunchConfigStatusResourceId
@@ -591,6 +611,7 @@ Resources:
 
   ProtectionGroupLaunchConfigStatusOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ProtectionGroupLaunchConfigStatusResourceId
@@ -625,6 +646,7 @@ Resources:
 
   RecoveryPlansGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlansResourceId
@@ -642,6 +664,7 @@ Resources:
 
   RecoveryPlansPostMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlansResourceId
@@ -660,6 +683,7 @@ Resources:
 
   RecoveryPlansOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlansResourceId
@@ -686,6 +710,7 @@ Resources:
 
   RecoveryPlanGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlanByIdResourceId
@@ -703,6 +728,7 @@ Resources:
 
   RecoveryPlanPutMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlanByIdResourceId
@@ -721,6 +747,7 @@ Resources:
 
   RecoveryPlanDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlanByIdResourceId
@@ -738,6 +765,7 @@ Resources:
 
   RecoveryPlanOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlanByIdResourceId
@@ -764,6 +792,7 @@ Resources:
 
   RecoveryPlanExecuteMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlanExecuteResourceId
@@ -782,6 +811,7 @@ Resources:
 
   RecoveryPlanExecuteOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlanExecuteResourceId
@@ -808,6 +838,7 @@ Resources:
 
   RecoveryPlanCheckInstancesGetMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlanCheckInstancesResourceId
@@ -825,6 +856,7 @@ Resources:
 
   RecoveryPlanCheckInstancesMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlanCheckInstancesResourceId
@@ -843,6 +875,7 @@ Resources:
 
   RecoveryPlanCheckInstancesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref RecoveryPlanCheckInstancesResourceId
@@ -874,6 +907,7 @@ Resources:
 
   QueryHandlerApiPermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref QueryHandlerArn
       Action: lambda:InvokeFunction
@@ -882,6 +916,8 @@ Resources:
 
   DataManagementHandlerApiPermission:
     Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Ref DataManagementHandlerArn
       Action: lambda:InvokeFunction

@@ -44,6 +44,7 @@ Resources:
 
   RecoveryInstanceSyncDashboard:
     Type: AWS::CloudWatch::Dashboard
+    DeletionPolicy: Delete
     Properties:
       DashboardName: !Sub '${ProjectName}-recovery-instance-sync-${Environment}'
       DashboardBody: !Sub |
@@ -180,6 +181,7 @@ Resources:
   # Triggers when Lambda errors exceed 0 for 15 minutes (3 consecutive 5-min periods)
   SyncErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Delete
     Properties:
       AlarmName: !Sub '${ProjectName}-sync-errors-${Environment}'
       AlarmDescription: 'Recovery instance sync errors detected in data-management-handler'
@@ -207,6 +209,7 @@ Resources:
   # Triggers when read or write throttle events exceed 0 for 5 minutes
   DynamoDBThrottlingAlarm:
     Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Delete
     Properties:
       AlarmName: !Sub '${ProjectName}-cache-throttling-${Environment}'
       AlarmDescription: 'DynamoDB throttling detected on recovery instances cache table'
@@ -234,6 +237,7 @@ Resources:
   # Indicates cache queries are slow or sync operations are degraded
   HandlerDurationAlarm:
     Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Delete
     Properties:
       AlarmName: !Sub '${ProjectName}-handler-duration-${Environment}'
       AlarmDescription: 'Data management handler p99 duration exceeds 5 seconds'
@@ -263,6 +267,8 @@ Resources:
   # Uses math expression: (UserErrors / (GetItem requests)) > 10%
   CacheMissRateAlarm:
     Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       AlarmName: !Sub '${ProjectName}-cache-miss-rate-${Environment}'
       AlarmDescription: 'Recovery instance cache miss rate exceeds 10%'

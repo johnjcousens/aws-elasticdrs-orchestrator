@@ -1,0 +1,417 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: |
+  Lambda Functions Stack
+  
+  Defines all Lambda functions for DR Orchestration Platform with conditional
+  role assignment based on UseFunctionSpecificRoles parameter.
+  
+  Functions:
+  - Query Handler: Read-only DRS and DynamoDB queries
+  - Data Management Handler: DynamoDB CRUD and DRS metadata operations
+  - Execution Handler: Step Functions orchestration and notifications
+  - DR Orchestration Step Function: Wave-based recovery execution
+  - Frontend Deployer: React frontend build and deployment
+  
+  Role Assignment:
+  - When UseFunctionSpecificRoles=true: Each function uses dedicated role
+  - When UseFunctionSpecificRoles=false: All functions share unified role
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: "Project name for resource naming"
+
+  Environment:
+    Type: String
+    Description: "Environment name (dev, test, staging, prod)"
+
+  DeploymentBucket:
+    Type: String
+    Description: "S3 bucket containing Lambda deployment packages"
+
+  UseFunctionSpecificRoles:
+    Type: String
+    Description: "Use function-specific IAM roles (true/false)"
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+
+  # Role ARN Parameters
+  UnifiedRoleArn:
+    Type: String
+    Description: "ARN of unified orchestration role (used when UseFunctionSpecificRoles=false)"
+
+  QueryHandlerRoleArn:
+    Type: String
+    Description: "ARN of query handler role (used when UseFunctionSpecificRoles=true)"
+    Default: ""
+
+  DataManagementRoleArn:
+    Type: String
+    Description: "ARN of data management role (used when UseFunctionSpecificRoles=true)"
+    Default: ""
+
+  ExecutionHandlerRoleArn:
+    Type: String
+    Description: "ARN of execution handler role (used when UseFunctionSpecificRoles=true)"
+    Default: ""
+
+  OrchestrationRoleArn:
+    Type: String
+    Description: "ARN of orchestration role (used when UseFunctionSpecificRoles=true)"
+    Default: ""
+
+  FrontendDeployerRoleArn:
+    Type: String
+    Description: "ARN of frontend deployer role (used when UseFunctionSpecificRoles=true)"
+    Default: ""
+
+  # DynamoDB Table Parameters
+  ProtectionGroupsTableName:
+    Type: String
+    Description: "DynamoDB table name for Protection Groups"
+
+  RecoveryPlansTableName:
+    Type: String
+    Description: "DynamoDB table name for Recovery Plans"
+
+  ExecutionHistoryTableName:
+    Type: String
+    Description: "DynamoDB table name for Execution History"
+
+  TargetAccountsTableName:
+    Type: String
+    Description: "DynamoDB table name for Target Accounts"
+
+  SourceServerInventoryTableName:
+    Type: String
+    Description: "DynamoDB table name for Source Server Inventory"
+
+  DRSRegionStatusTableName:
+    Type: String
+    Description: "DynamoDB table name for DRS Region Status"
+
+  RecoveryInstancesCacheTableName:
+    Type: String
+    Description: "DynamoDB table name for Recovery Instances Cache"
+
+  # Other Parameters
+  LambdaCodeVersion:
+    Type: String
+    Description: "Version identifier to force Lambda code updates"
+    Default: "initial"
+
+  ExecutionNotificationsTopicArn:
+    Type: String
+    Default: ""
+    Description: "SNS topic ARN for execution notifications"
+
+  DRSAlertsTopicArn:
+    Type: String
+    Default: ""
+    Description: "SNS topic ARN for DRS operational alerts"
+
+  ExecutionPauseTopicArn:
+    Type: String
+    Default: ""
+    Description: "SNS topic ARN for execution pause notifications"
+
+  ApiGatewayUrl:
+    Type: String
+    Default: ""
+    Description: "API Gateway base URL for callback URL construction"
+
+Conditions:
+  UseFunctionSpecificRoles: !Equals [!Ref UseFunctionSpecificRoles, 'true']
+
+Resources:
+  # Dead Letter Queue for Lambda Functions
+  LambdaDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      QueueName: !Sub "${ProjectName}-lambda-dlq-${Environment}"
+      MessageRetentionPeriod: 1209600  # 14 days
+      KmsMasterKeyId: alias/aws/sqs
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Log Groups (must exist before Monitoring stack creates metric filters)
+  QueryHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ProjectName}-query-handler-${Environment}"
+      RetentionInDays: 7
+
+  DataManagementHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ProjectName}-data-management-handler-${Environment}"
+      RetentionInDays: 7
+
+  ExecutionHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ProjectName}-execution-handler-${Environment}"
+      RetentionInDays: 7
+
+  DrOrchestrationStepFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ProjectName}-dr-orch-sf-${Environment}"
+      RetentionInDays: 7
+
+  FrontendDeployerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ProjectName}-frontend-deployer-${Environment}"
+      RetentionInDays: 7
+
+  # Query Handler Function
+  QueryHandlerFunction:
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
+    Properties:
+      FunctionName: !Sub "${ProjectName}-query-handler-${Environment}"
+      Description: !Sub "Query handler for read-only DRS and EC2 infrastructure queries (v${LambdaCodeVersion})"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !If
+        - UseFunctionSpecificRoles
+        - !Ref QueryHandlerRoleArn
+        - !Ref UnifiedRoleArn
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: "lambda/query-handler.zip"
+      Timeout: 60
+      MemorySize: 256
+      ReservedConcurrentExecutions: 50
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
+          SOURCE_SERVER_INVENTORY_TABLE: !Ref SourceServerInventoryTableName
+          DRS_REGION_STATUS_TABLE: !Ref DRSRegionStatusTableName
+          RECOVERY_INSTANCES_CACHE_TABLE: !Ref RecoveryInstancesCacheTableName
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+          EXECUTION_HANDLER_ARN: !GetAtt ExecutionHandlerFunction.Arn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Data Management Handler Function
+  DataManagementHandlerFunction:
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
+    Properties:
+      FunctionName: !Sub "${ProjectName}-data-management-handler-${Environment}"
+      Description: !Sub "Data Management handler for Protection Groups and Recovery Plans (v${LambdaCodeVersion})"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !If
+        - UseFunctionSpecificRoles
+        - !Ref DataManagementRoleArn
+        - !Ref UnifiedRoleArn
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: "lambda/data-management-handler.zip"
+      Timeout: 900  # 15 minutes
+      MemorySize: 512
+      ReservedConcurrentExecutions: 50
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
+          SOURCE_SERVER_INVENTORY_TABLE: !Ref SourceServerInventoryTableName
+          DRS_REGION_STATUS_TABLE: !Ref DRSRegionStatusTableName
+          RECOVERY_INSTANCES_CACHE_TABLE: !Ref RecoveryInstancesCacheTableName
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+          STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          ASYNC_LAUNCH_CONFIG_ENABLED: "true"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Execution Handler Function
+  ExecutionHandlerFunction:
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
+    Properties:
+      FunctionName: !Sub "${ProjectName}-execution-handler-${Environment}"
+      Description: !Sub "Execution handler for DR operations and lifecycle management (v${LambdaCodeVersion})"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !If
+        - UseFunctionSpecificRoles
+        - !Ref ExecutionHandlerRoleArn
+        - !Ref UnifiedRoleArn
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: "lambda/execution-handler.zip"
+      Timeout: 300
+      MemorySize: 512
+      ReservedConcurrentExecutions: 50
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
+          SOURCE_SERVER_INVENTORY_TABLE: !Ref SourceServerInventoryTableName
+          DRS_REGION_STATUS_TABLE: !Ref DRSRegionStatusTableName
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+          STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          EXECUTION_PAUSE_TOPIC_ARN: !Ref ExecutionPauseTopicArn
+          API_GATEWAY_URL: !Ref ApiGatewayUrl
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # DR Orchestration Step Function Handler
+  DrOrchestrationStepFunctionFunction:
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
+    Properties:
+      FunctionName: !Sub "${ProjectName}-dr-orch-sf-${Environment}"
+      Description: !Sub "Generic wave-based orchestration (v${LambdaCodeVersion})"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !If
+        - UseFunctionSpecificRoles
+        - !Ref OrchestrationRoleArn
+        - !Ref UnifiedRoleArn
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: "lambda/dr-orchestration-stepfunction.zip"
+      Timeout: 300
+      MemorySize: 512
+      ReservedConcurrentExecutions: 50
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          DRS_ALERTS_TOPIC_ARN: !Ref DRSAlertsTopicArn
+          EXECUTION_HANDLER_ARN: !GetAtt ExecutionHandlerFunction.Arn
+          QUERY_HANDLER_ARN: !GetAtt QueryHandlerFunction.Arn
+          API_GATEWAY_URL: !Ref ApiGatewayUrl
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Frontend Deployer Function
+  FrontendDeployerFunction:
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      FunctionName: !Sub "${ProjectName}-frontend-deployer-${Environment}"
+      Description: !Sub "Builds and deploys React frontend to S3/CloudFront (v${LambdaCodeVersion})"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !If
+        - UseFunctionSpecificRoles
+        - !Ref FrontendDeployerRoleArn
+        - !Ref UnifiedRoleArn
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: "lambda/frontend-deployer.zip"
+      Timeout: 900
+      MemorySize: 2048
+      ReservedConcurrentExecutions: 10
+      DeadLetterConfig:
+        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  QueryHandlerFunctionArn:
+    Description: "Query Handler Lambda Function ARN"
+    Value: !GetAtt QueryHandlerFunction.Arn
+    Export:
+      Name: !Sub "${ProjectName}-query-handler-arn-${Environment}"
+
+  DataManagementHandlerFunctionArn:
+    Description: "Data Management Handler Lambda Function ARN"
+    Value: !GetAtt DataManagementHandlerFunction.Arn
+    Export:
+      Name: !Sub "${ProjectName}-data-management-handler-arn-${Environment}"
+
+  ExecutionHandlerFunctionArn:
+    Description: "Execution Handler Lambda Function ARN"
+    Value: !GetAtt ExecutionHandlerFunction.Arn
+    Export:
+      Name: !Sub "${ProjectName}-execution-handler-arn-${Environment}"
+
+  OrchestrationFunctionArn:
+    Description: "DR Orchestration Step Function Lambda ARN"
+    Value: !GetAtt DrOrchestrationStepFunctionFunction.Arn
+    Export:
+      Name: !Sub "${ProjectName}-orchestration-arn-${Environment}"
+
+  FrontendDeployerFunctionArn:
+    Description: "Frontend Deployer Lambda Function ARN"
+    Value: !GetAtt FrontendDeployerFunction.Arn
+    Export:
+      Name: !Sub "${ProjectName}-frontend-deployer-arn-${Environment}"
+
+  LambdaDeadLetterQueueArn:
+    Description: "Lambda Dead Letter Queue ARN"
+    Value: !GetAtt LambdaDeadLetterQueue.Arn
+    Export:
+      Name: !Sub "${ProjectName}-lambda-dlq-arn-${Environment}"
+
+  LambdaDeadLetterQueueUrl:
+    Description: "Lambda Dead Letter Queue URL"
+    Value: !Ref LambdaDeadLetterQueue
+    Export:
+      Name: !Sub "${ProjectName}-lambda-dlq-url-${Environment}"

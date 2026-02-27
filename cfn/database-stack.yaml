@@ -92,6 +92,7 @@ Resources:
   # Always backup data before using this option.
   RecreationTrigger:
     Type: AWS::CloudFormation::WaitConditionHandle
+    DeletionPolicy: Delete
     Condition: ForceRecreationCondition
     Metadata:
       RecreationTimestamp: !Ref 'AWS::StackId'

@@ -1,0 +1,218 @@
+{
+  "timestamp": "2026-02-26T23:40:34.807722+00:00",
+  "environment": "qa",
+  "region": "us-east-2",
+  "account_id": "438465159935",
+  "stack_name": "aws-drs-orchestration-qa",
+  "pre_rollback_state": {
+    "timestamp": "2026-02-26T23:40:35.228061+00:00",
+    "dynamodb_tables": {
+      "aws-drs-orchestration-protection-groups-qa": {
+        "item_count": 2
+      },
+      "aws-drs-orchestration-recovery-plans-qa": {
+        "item_count": 2
+      },
+      "aws-drs-orchestration-execution-history-qa": {
+        "item_count": 1
+      },
+      "aws-drs-orchestration-target-accounts-qa": {
+        "item_count": 4
+      }
+    },
+    "lambda_functions": {
+      "aws-drs-orchestration-query-handler-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-query-handler-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 256,
+        "timeout": 60,
+        "last_modified": "2026-02-26T20:11:10.000+0000"
+      },
+      "aws-drs-orchestration-data-management-handler-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-data-management-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 512,
+        "timeout": 900,
+        "last_modified": "2026-02-26T20:11:01.000+0000"
+      },
+      "aws-drs-orchestration-execution-handler-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-execution-handler-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 512,
+        "timeout": 300,
+        "last_modified": "2026-02-26T20:11:02.000+0000"
+      },
+      "aws-drs-orchestration-dr-orch-sf-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-orchestration-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 512,
+        "timeout": 300,
+        "last_modified": "2026-02-26T20:11:18.000+0000"
+      },
+      "aws-drs-orchestration-frontend-deployer-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-frontend-deployer-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 2048,
+        "timeout": 900,
+        "last_modified": "2026-02-26T20:11:02.000+0000"
+      }
+    },
+    "stepfunctions_executions": {
+      "error": "An error occurred (StateMachineDoesNotExist) when calling the ListExecutions operation: State Machine Does Not Exist: 'arn:aws:states:us-east-2:438465159935:stateMachine:aws-drs-orchestration-dr-orchestration-qa'"
+    },
+    "cloudformation_parameters": {
+      "ProjectName": "aws-drs-orchestration",
+      "UseFunctionSpecificRoles": "true",
+      "Environment": "qa",
+      "DeploymentBucket": "aws-drs-orchestration-438465159935-qa",
+      "FrontendBuildVersion": "20260226-1632",
+      "AdminEmail": "jocousen@amazon.com"
+    }
+  },
+  "post_rollback_state": {
+    "timestamp": "2026-02-26T23:47:24.054820+00:00",
+    "dynamodb_tables": {
+      "aws-drs-orchestration-protection-groups-qa": {
+        "item_count": 2
+      },
+      "aws-drs-orchestration-recovery-plans-qa": {
+        "item_count": 2
+      },
+      "aws-drs-orchestration-execution-history-qa": {
+        "item_count": 1
+      },
+      "aws-drs-orchestration-target-accounts-qa": {
+        "item_count": 4
+      }
+    },
+    "lambda_functions": {
+      "aws-drs-orchestration-query-handler-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 256,
+        "timeout": 60,
+        "last_modified": "2026-02-26T23:43:10.000+0000"
+      },
+      "aws-drs-orchestration-data-management-handler-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 512,
+        "timeout": 900,
+        "last_modified": "2026-02-26T23:43:02.000+0000"
+      },
+      "aws-drs-orchestration-execution-handler-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 512,
+        "timeout": 300,
+        "last_modified": "2026-02-26T23:43:02.000+0000"
+      },
+      "aws-drs-orchestration-dr-orch-sf-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 512,
+        "timeout": 300,
+        "last_modified": "2026-02-26T23:43:19.000+0000"
+      },
+      "aws-drs-orchestration-frontend-deployer-qa": {
+        "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+        "runtime": "python3.12",
+        "memory_size": 2048,
+        "timeout": 900,
+        "last_modified": "2026-02-26T23:43:02.000+0000"
+      }
+    },
+    "stepfunctions_executions": {
+      "error": "An error occurred (StateMachineDoesNotExist) when calling the ListExecutions operation: State Machine Does Not Exist: 'arn:aws:states:us-east-2:438465159935:stateMachine:aws-drs-orchestration-dr-orchestration-qa'"
+    },
+    "cloudformation_parameters": {
+      "ProjectName": "aws-drs-orchestration",
+      "UseFunctionSpecificRoles": "false",
+      "Environment": "qa",
+      "DeploymentBucket": "aws-drs-orchestration-438465159935-qa",
+      "FrontendBuildVersion": "20260226-1842",
+      "AdminEmail": "jocousen@amazon.com"
+    }
+  },
+  "verification_results": {
+    "checks": [
+      {
+        "name": "dynamodb_data_preserved",
+        "success": true,
+        "details": [
+          {
+            "table": "aws-drs-orchestration-protection-groups-qa",
+            "pre_count": 2,
+            "post_count": 2,
+            "preserved": true
+          },
+          {
+            "table": "aws-drs-orchestration-recovery-plans-qa",
+            "pre_count": 2,
+            "post_count": 2,
+            "preserved": true
+          },
+          {
+            "table": "aws-drs-orchestration-execution-history-qa",
+            "pre_count": 1,
+            "post_count": 1,
+            "preserved": true
+          },
+          {
+            "table": "aws-drs-orchestration-target-accounts-qa",
+            "pre_count": 4,
+            "post_count": 4,
+            "preserved": true
+          }
+        ]
+      },
+      {
+        "name": "lambda_functions_use_unified_role",
+        "success": true,
+        "details": [
+          {
+            "function": "aws-drs-orchestration-query-handler-qa",
+            "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+            "uses_unified_role": true
+          },
+          {
+            "function": "aws-drs-orchestration-data-management-handler-qa",
+            "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+            "uses_unified_role": true
+          },
+          {
+            "function": "aws-drs-orchestration-execution-handler-qa",
+            "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+            "uses_unified_role": true
+          },
+          {
+            "function": "aws-drs-orchestration-dr-orch-sf-qa",
+            "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+            "uses_unified_role": true
+          },
+          {
+            "function": "aws-drs-orchestration-frontend-deployer-qa",
+            "role_arn": "arn:aws:iam::438465159935:role/aws-drs-orchestration-unified-role-qa",
+            "uses_unified_role": true
+          }
+        ]
+      },
+      {
+        "name": "stepfunctions_executions_not_interrupted",
+        "success": true,
+        "details": {
+          "error": "missing_data"
+        }
+      },
+      {
+        "name": "cloudformation_parameter_updated",
+        "success": true,
+        "details": {
+          "parameter_value": "false",
+          "correct": true
+        }
+      }
+    ],
+    "overall_success": true
+  }
+}

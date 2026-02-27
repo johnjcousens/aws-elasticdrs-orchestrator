@@ -1,0 +1,235 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  CloudWatch Monitoring Stack - Provides security monitoring and alerting
+  for IAM permission issues across all Lambda functions.
+  
+  Creates CloudWatch Alarms that monitor for AccessDenied errors in Lambda
+  function logs and trigger SNS notifications when thresholds are exceeded.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, staging, prod)'
+
+  SecurityAlertTopicArn:
+    Type: String
+    Description: 'ARN of SNS topic for security alerts'
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  # Metric Filter for Query Handler
+  QueryHandlerAccessDeniedMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DeletionPolicy: Delete
+    Properties:
+      FilterName: !Sub '${ProjectName}-query-handler-access-denied-${Environment}'
+      FilterPattern: '[..., msg="*AccessDenied*"]'
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-query-handler-${Environment}'
+      MetricTransformations:
+        - MetricName: AccessDeniedErrors
+          MetricNamespace: !Sub '${ProjectName}/Security'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # Alarm for Query Handler
+  QueryHandlerAccessDeniedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Delete
+    Properties:
+      AlarmName: !Sub '${ProjectName}-query-handler-access-denied-${Environment}'
+      AlarmDescription: 'Triggers when Query Handler encounters 5+ AccessDenied errors in 5 minutes'
+      MetricName: AccessDeniedErrors
+      Namespace: !Sub '${ProjectName}/Security'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopicArn
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ProjectName}-query-handler-${Environment}'
+
+  # Metric Filter for Data Management Handler
+  DataManagementHandlerAccessDeniedMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DeletionPolicy: Delete
+    Properties:
+      FilterName: !Sub '${ProjectName}-data-management-handler-access-denied-${Environment}'
+      FilterPattern: '[..., msg="*AccessDenied*"]'
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-data-management-handler-${Environment}'
+      MetricTransformations:
+        - MetricName: AccessDeniedErrors
+          MetricNamespace: !Sub '${ProjectName}/Security'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # Alarm for Data Management Handler
+  DataManagementHandlerAccessDeniedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Delete
+    Properties:
+      AlarmName: !Sub '${ProjectName}-data-management-handler-access-denied-${Environment}'
+      AlarmDescription: 'Triggers when Data Management Handler encounters 5+ AccessDenied errors in 5 minutes'
+      MetricName: AccessDeniedErrors
+      Namespace: !Sub '${ProjectName}/Security'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopicArn
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ProjectName}-data-management-handler-${Environment}'
+
+  # Metric Filter for Execution Handler
+  ExecutionHandlerAccessDeniedMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DeletionPolicy: Delete
+    Properties:
+      FilterName: !Sub '${ProjectName}-execution-handler-access-denied-${Environment}'
+      FilterPattern: '[..., msg="*AccessDenied*"]'
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-execution-handler-${Environment}'
+      MetricTransformations:
+        - MetricName: AccessDeniedErrors
+          MetricNamespace: !Sub '${ProjectName}/Security'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # Alarm for Execution Handler
+  ExecutionHandlerAccessDeniedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Delete
+    Properties:
+      AlarmName: !Sub '${ProjectName}-execution-handler-access-denied-${Environment}'
+      AlarmDescription: 'Triggers when Execution Handler encounters 5+ AccessDenied errors in 5 minutes'
+      MetricName: AccessDeniedErrors
+      Namespace: !Sub '${ProjectName}/Security'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopicArn
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ProjectName}-execution-handler-${Environment}'
+
+  # Metric Filter for DR Orchestration Step Function
+  DrOrchestrationStepFunctionAccessDeniedMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DeletionPolicy: Delete
+    Properties:
+      FilterName: !Sub '${ProjectName}-dr-orch-sf-access-denied-${Environment}'
+      FilterPattern: '[..., msg="*AccessDenied*"]'
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-dr-orch-sf-${Environment}'
+      MetricTransformations:
+        - MetricName: AccessDeniedErrors
+          MetricNamespace: !Sub '${ProjectName}/Security'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # Alarm for DR Orchestration Step Function
+  DrOrchestrationStepFunctionAccessDeniedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Delete
+    Properties:
+      AlarmName: !Sub '${ProjectName}-dr-orch-sf-access-denied-${Environment}'
+      AlarmDescription: 'Triggers when DR Orchestration Step Function encounters 5+ AccessDenied errors in 5 minutes'
+      MetricName: AccessDeniedErrors
+      Namespace: !Sub '${ProjectName}/Security'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopicArn
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ProjectName}-dr-orch-sf-${Environment}'
+
+  # Metric Filter for Frontend Deployer
+  FrontendDeployerAccessDeniedMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DeletionPolicy: Delete
+    Properties:
+      FilterName: !Sub '${ProjectName}-frontend-deployer-access-denied-${Environment}'
+      FilterPattern: '[..., msg="*AccessDenied*"]'
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-frontend-deployer-${Environment}'
+      MetricTransformations:
+        - MetricName: AccessDeniedErrors
+          MetricNamespace: !Sub '${ProjectName}/Security'
+          MetricValue: '1'
+          DefaultValue: 0
+          Unit: Count
+
+  # Alarm for Frontend Deployer
+  FrontendDeployerAccessDeniedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      AlarmName: !Sub '${ProjectName}-frontend-deployer-access-denied-${Environment}'
+      AlarmDescription: 'Triggers when Frontend Deployer encounters 5+ AccessDenied errors in 5 minutes'
+      MetricName: AccessDeniedErrors
+      Namespace: !Sub '${ProjectName}/Security'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SecurityAlertTopicArn
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${ProjectName}-frontend-deployer-${Environment}'
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  QueryHandlerAccessDeniedAlarmArn:
+    Description: 'ARN of Query Handler AccessDenied alarm'
+    Value: !GetAtt QueryHandlerAccessDeniedAlarm.Arn
+
+  DataManagementHandlerAccessDeniedAlarmArn:
+    Description: 'ARN of Data Management Handler AccessDenied alarm'
+    Value: !GetAtt DataManagementHandlerAccessDeniedAlarm.Arn
+
+  ExecutionHandlerAccessDeniedAlarmArn:
+    Description: 'ARN of Execution Handler AccessDenied alarm'
+    Value: !GetAtt ExecutionHandlerAccessDeniedAlarm.Arn
+
+  DrOrchestrationStepFunctionAccessDeniedAlarmArn:
+    Description: 'ARN of DR Orchestration Step Function AccessDenied alarm'
+    Value: !GetAtt DrOrchestrationStepFunctionAccessDeniedAlarm.Arn
+
+  FrontendDeployerAccessDeniedAlarmArn:
+    Description: 'ARN of Frontend Deployer AccessDenied alarm'
+    Value: !GetAtt FrontendDeployerAccessDeniedAlarm.Arn

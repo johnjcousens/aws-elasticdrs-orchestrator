@@ -87,6 +87,7 @@ Resources:
 
   ApiGatewayAccount:
     Type: AWS::ApiGateway::Account
+    DeletionPolicy: Delete
     Properties:
       CloudWatchRoleArn: !Ref OrchestrationRoleArn
 
@@ -121,6 +122,7 @@ Resources:
   
   DeploymentOrchestratorFunction:
     Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
     Properties:
       FunctionName: !Sub '${ProjectName}-deployment-orchestrator-${Environment}'
       Runtime: python3.12
@@ -208,6 +210,7 @@ Resources:
   # ---------------------------------------------------------------------------
   GatewayResponse4XX:
     Type: AWS::ApiGateway::GatewayResponse
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResponseType: DEFAULT_4XX
@@ -223,6 +226,7 @@ Resources:
   # ---------------------------------------------------------------------------
   GatewayResponse5XX:
     Type: AWS::ApiGateway::GatewayResponse
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResponseType: DEFAULT_5XX
@@ -238,6 +242,7 @@ Resources:
   # ---------------------------------------------------------------------------
   GatewayResponseUnauthorized:
     Type: AWS::ApiGateway::GatewayResponse
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResponseType: UNAUTHORIZED
@@ -253,6 +258,7 @@ Resources:
   # ---------------------------------------------------------------------------
   GatewayResponseAccessDenied:
     Type: AWS::ApiGateway::GatewayResponse
+    DeletionPolicy: Delete
     Properties:
       RestApiId: !Ref RestApiId
       ResponseType: ACCESS_DENIED
@@ -272,6 +278,7 @@ Resources:
   
   ApiDeploymentOrchestrator:
     Type: AWS::CloudFormation::CustomResource
+    DeletionPolicy: Delete
     DependsOn:
       # CRITICAL: Gateway Responses must exist before deployment
       - GatewayResponse4XX
@@ -320,6 +327,8 @@ Resources:
   
   ApiStage:
     Type: AWS::ApiGateway::Stage
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     DependsOn:
       - ApiDeploymentOrchestrator
       - ApiGatewayAccessLogGroup

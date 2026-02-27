@@ -1,0 +1,234 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  CloudFront Distribution Stack - Provides global CDN for frontend delivery
+  with edge caching, HTTPS enforcement, and SPA support.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, staging, prod)'
+
+  FrontendBucketName:
+    Type: String
+    Description: 'Frontend S3 bucket name'
+
+  FrontendBucketRegionalDomainName:
+    Type: String
+    Description: 'Frontend S3 bucket regional domain name'
+
+  AccessLogsBucketDomainName:
+    Type: String
+    Description: 'Access logs bucket domain name'
+
+  WebACLArn:
+    Type: String
+    Description: 'WAF Web ACL ARN for CloudFront protection'
+    Default: ''
+
+  # Frontend Deployment Parameters
+  FrontendDeployerFunctionArn:
+    Type: String
+    Description: 'Frontend Deployer Lambda ARN for Custom Resource'
+
+  DeploymentBucket:
+    Type: String
+    Description: 'S3 bucket containing frontend source code'
+
+  ApiEndpoint:
+    Type: String
+    Description: 'API Gateway endpoint URL for backend calls'
+
+  UserPoolId:
+    Type: String
+    Description: 'Cognito User Pool ID for authentication'
+
+  UserPoolClientId:
+    Type: String
+    Description: 'Cognito User Pool Client ID for frontend app'
+
+  IdentityPoolId:
+    Type: String
+    Description: 'Cognito Identity Pool ID for AWS credentials'
+
+  FrontendBuildVersion:
+    Type: String
+    Description: 'Frontend build version - timestamp to trigger rebuilds'
+    Default: 'v1'
+
+# =============================================================================
+# CONDITIONS
+# =============================================================================
+
+Conditions:
+  HasWebACL: !Not [!Equals [!Ref WebACLArn, '']]
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${ProjectName}-oac-${Environment}'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub '${ProjectName} Frontend Distribution'
+        DefaultRootObject: index.html
+        WebACLId: !If [HasWebACL, !Ref WebACLArn, !Ref 'AWS::NoValue']
+        Logging:
+          Bucket: !Ref AccessLogsBucketDomainName
+          Prefix: 'cloudfront-logs/'
+          IncludeCookies: false
+        Origins:
+          - Id: S3Origin
+            DomainName: !Ref FrontendBucketRegionalDomainName
+            OriginAccessControlId: !Ref CloudFrontOAC
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          Compress: true
+          DefaultTTL: 86400
+          MaxTTL: 31536000
+          MinTTL: 0
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ===========================================================================
+  # BUCKET POLICY: ALLOW CLOUDFRONT ACCESS
+  # ===========================================================================
+  # Updates the frontend bucket policy to allow CloudFront OAC access.
+  # Must be in CloudFront stack (not S3 stack) because it needs the distribution ID.
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DeletionPolicy: Delete
+    Properties:
+      Bucket: !Ref FrontendBucketName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyNonHTTPS
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:s3:::${FrontendBucketName}'
+              - !Sub 'arn:${AWS::Partition}:s3:::${FrontendBucketName}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: 's3:GetObject'
+            Resource: !Sub 'arn:${AWS::Partition}:s3:::${FrontendBucketName}/*'
+            Condition:
+              StringEquals:
+                'AWS:SourceArn': !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # ===========================================================================
+  # CUSTOM RESOURCE: FRONTEND DEPLOYMENT
+  # ===========================================================================
+  # Triggers Frontend Deployer Lambda during CloudFormation create/update.
+  # 
+  # Lambda Actions:
+  # 1. Downloads frontend source from DeploymentBucket
+  # 2. Generates aws-config.json with Cognito/API settings
+  # 3. Builds React application (npm install && npm run build)
+  # 4. Uploads dist/ to FrontendBucket
+  # 5. Creates CloudFront invalidation for immediate updates
+  # 
+  # Rebuild Triggers:
+  # - FrontendBuildVersion parameter change forces rebuild
+  # - Any parameter change (ApiEndpoint, UserPoolId, etc.) triggers update
+  FrontendDeploymentResource:
+    Type: Custom::FrontendDeployer
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    DependsOn: FrontendBucketPolicy
+    Properties:
+      ServiceToken: !Ref FrontendDeployerFunctionArn
+      BucketName: !Ref FrontendBucketName
+      DistributionId: !Ref CloudFrontDistribution
+      SourceBucket: !Ref DeploymentBucket
+      ApiEndpoint: !Ref ApiEndpoint
+      UserPoolId: !Ref UserPoolId
+      UserPoolClientId: !Ref UserPoolClientId
+      IdentityPoolId: !Ref IdentityPoolId
+      Region: !Ref AWS::Region
+      FrontendBuildVersion: !Ref FrontendBuildVersion
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  CloudFrontDistributionId:
+    Description: 'CloudFront Distribution ID'
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '${ProjectName}-cloudfront-distribution-id-${Environment}'
+
+  CloudFrontDistributionDomainName:
+    Description: 'CloudFront Distribution domain name'
+    Value: !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontUrl:
+    Description: 'CloudFront Distribution URL'
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+
+  CloudFrontOACId:
+    Description: 'CloudFront Origin Access Control ID'
+    Value: !Ref CloudFrontOAC
+    Export:
+      Name: !Sub '${ProjectName}-cloudfront-oac-id-${Environment}'

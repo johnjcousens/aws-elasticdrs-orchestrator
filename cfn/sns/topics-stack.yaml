@@ -1,0 +1,214 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  SNS Notification Topics Stack - Provides multi-channel notification system
+  for DR orchestration events including execution notifications, operational
+  alerts, and pause gates.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, staging, prod)'
+
+  AdminEmail:
+    Type: String
+    Description: 'Admin email for critical notifications'
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  ExecutionNotificationsTopic:
+    Type: AWS::SNS::Topic
+    DeletionPolicy: Delete
+    Properties:
+      TopicName: !Sub '${ProjectName}-execution-notifications-${Environment}'
+      DisplayName: 'DRS Orchestration Execution Notifications'
+      KmsMasterKeyId: alias/aws/sns
+
+  ExecutionNotificationsSubscription:
+    Type: AWS::SNS::Subscription
+    DeletionPolicy: Delete
+    Properties:
+      Protocol: email
+      TopicArn: !Ref ExecutionNotificationsTopic
+      Endpoint: !Ref AdminEmail
+
+  DRSOperationalAlertsTopic:
+    Type: AWS::SNS::Topic
+    DeletionPolicy: Delete
+    Properties:
+      TopicName: !Sub '${ProjectName}-drs-alerts-${Environment}'
+      DisplayName: 'DRS Operational Alerts'
+      KmsMasterKeyId: alias/aws/sns
+
+  DRSOperationalAlertsSubscription:
+    Type: AWS::SNS::Subscription
+    DeletionPolicy: Delete
+    Properties:
+      Protocol: email
+      TopicArn: !Ref DRSOperationalAlertsTopic
+      Endpoint: !Ref AdminEmail
+
+  ExecutionPauseTopic:
+    Type: AWS::SNS::Topic
+    DeletionPolicy: Delete
+    Properties:
+      TopicName: !Sub '${ProjectName}-execution-pause-${Environment}'
+      DisplayName: 'DRS Orchestration Execution Pause'
+      KmsMasterKeyId: alias/aws/sns
+
+  ExecutionPauseSubscription:
+    Type: AWS::SNS::Subscription
+    DeletionPolicy: Delete
+    Properties:
+      Protocol: email
+      TopicArn: !Ref ExecutionPauseTopic
+      Endpoint: !Ref AdminEmail
+
+  DRSRecoveryFailureRule:
+    Type: AWS::Events::Rule
+    DeletionPolicy: Delete
+    Properties:
+      Description: 'EventBridge rule for DRS recovery launch failures'
+      State: ENABLED
+      EventPattern:
+        source: ["aws.drs"]
+        detail-type: ["DRS Source Server Launch Result"]
+        detail:
+          state: ["RECOVERY_LAUNCH_FAILED"]
+      Targets:
+        - Arn: !Ref DRSOperationalAlertsTopic
+          Id: DRSRecoveryFailureAlert
+          InputTransformer:
+            InputPathsMap:
+              sourceServerId: "$.detail.sourceServerId"
+              state: "$.detail.state"
+              region: "$.region"
+            InputTemplate: |
+              {
+                "alertType": "DRS Recovery Failure",
+                "sourceServerId": "<sourceServerId>",
+                "state": "<state>",
+                "region": "<region>",
+                "timestamp": "$.time",
+                "message": "DRS recovery launch failed for source server <sourceServerId> in region <region>"
+              }
+
+  DRSReplicationStalledRule:
+    Type: AWS::Events::Rule
+    DeletionPolicy: Delete
+    Properties:
+      Description: 'EventBridge rule for DRS replication stalled events'
+      State: ENABLED
+      EventPattern:
+        source: ["aws.drs"]
+        detail-type: ["DRS Source Server Data Replication Stalled Change"]
+        detail:
+          state: ["STALLED"]
+      Targets:
+        - Arn: !Ref DRSOperationalAlertsTopic
+          Id: DRSReplicationStalledAlert
+          InputTransformer:
+            InputPathsMap:
+              sourceServerId: "$.detail.sourceServerId"
+              state: "$.detail.state"
+              region: "$.region"
+            InputTemplate: |
+              {
+                "alertType": "DRS Replication Stalled",
+                "sourceServerId": "<sourceServerId>",
+                "state": "<state>",
+                "region": "<region>",
+                "timestamp": "$.time",
+                "message": "DRS replication stalled for source server <sourceServerId> in region <region>"
+              }
+
+  ExecutionNotificationsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    DeletionPolicy: Delete
+    Properties:
+      Topics:
+        - !Ref ExecutionNotificationsTopic
+      PolicyDocument:
+        Id: ExecutionNotificationsTopicPolicy
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowLambdaPublish
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref ExecutionNotificationsTopic
+          - Sid: AllowStepFunctionsPublish
+            Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref ExecutionNotificationsTopic
+
+  DRSOperationalAlertsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    DeletionPolicy: Delete
+    Properties:
+      Topics:
+        - !Ref DRSOperationalAlertsTopic
+      PolicyDocument:
+        Id: DRSOperationalAlertsTopicPolicy
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowEventBridgePublish
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref DRSOperationalAlertsTopic
+
+  ExecutionPauseTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      Topics:
+        - !Ref ExecutionPauseTopic
+      PolicyDocument:
+        Id: ExecutionPauseTopicPolicy
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowStepFunctionsPublish
+            Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref ExecutionPauseTopic
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  ExecutionNotificationsTopicArn:
+    Description: 'ARN of the Execution Notifications SNS Topic'
+    Value: !Ref ExecutionNotificationsTopic
+    Export:
+      Name: !Sub '${ProjectName}-execution-notifications-topic-${Environment}'
+
+  DRSOperationalAlertsTopicArn:
+    Description: 'ARN of the DRS Operational Alerts SNS Topic'
+    Value: !Ref DRSOperationalAlertsTopic
+    Export:
+      Name: !Sub '${ProjectName}-drs-alerts-topic-${Environment}'
+
+  ExecutionPauseTopicArn:
+    Description: 'ARN of the Execution Pause SNS Topic'
+    Value: !Ref ExecutionPauseTopic
+    Export:
+      Name: !Sub '${ProjectName}-execution-pause-topic-${Environment}'

@@ -38,13 +38,18 @@ export const LaunchConfigProgressModal: React.FC<LaunchConfigProgressModalProps>
 
   // Calculate progress percentage
   const progressPercent = useMemo(() => {
-    if (!status || status.totalServers === 0) return 0;
+    if (!status || !status.totalServers || status.totalServers === 0) return 0;
+    if (!status.completedServers) return 0;
     return Math.round((status.completedServers / status.totalServers) * 100);
   }, [status]);
 
   // Estimate time remaining
   const estimatedTimeRemaining = useMemo(() => {
     if (!status || status.status !== 'syncing' || !status.startTime) {
+      return null;
+    }
+    
+    if (!status.completedServers || !status.totalServers) {
       return null;
     }
 

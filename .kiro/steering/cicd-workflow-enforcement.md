@@ -10,7 +10,7 @@ inclusion: always
 
 ```bash
 # ✅ CORRECT - Always use deploy.sh
-./scripts/deploy.sh qa --frontend-only
+./scripts/deploy.sh test --frontend-only
 
 # ❌ WRONG - Never use direct AWS commands
 aws s3 sync frontend/dist/ s3://...
@@ -48,10 +48,10 @@ aws s3 cp * s3://aws-drs-orchestration-*
 **ONLY ALLOWED COMMAND:**
 ```bash
 # ✅ The ONLY way to deploy
-./scripts/deploy.sh qa
-./scripts/deploy.sh qa --frontend-only
-./scripts/deploy.sh qa --lambda-only
-./scripts/deploy.sh qa --validate-only
+./scripts/deploy.sh test
+./scripts/deploy.sh test --frontend-only
+./scripts/deploy.sh test --lambda-only
+./scripts/deploy.sh test --validate-only
 ```
 
 **WHY THIS RULE EXISTS:**
@@ -81,9 +81,9 @@ This document establishes mandatory CI/CD workflow practices to ensure code qual
 - ❌ `aws cloudformation deploy`
 
 **ALWAYS use the deploy script:**
-- ✅ `./scripts/deploy.sh qa`
-- ✅ `./scripts/deploy.sh qa --frontend-only`
-- ✅ `./scripts/deploy.sh qa --lambda-only`
+- ✅ `./scripts/deploy.sh test`
+- ✅ `./scripts/deploy.sh test --frontend-only`
+- ✅ `./scripts/deploy.sh test --lambda-only`
 
 **NO EXCEPTIONS. NO SHORTCUTS. NO "JUST THIS ONCE".**
 
@@ -129,7 +129,7 @@ pip install -r requirements-dev.txt
 
 # Examples:
 ./scripts/deploy.sh dev                    # Full pipeline (validation, security, tests, deploy)
-./scripts/deploy.sh qa                     # Deploy to QA environment (primary working environment)
+./scripts/deploy.sh test                   # Deploy to test environment (primary working environment)
 ./scripts/deploy.sh staging                # Deploy to staging environment
 ./scripts/deploy.sh dev --lambda-only      # Just update Lambda functions
 ./scripts/deploy.sh dev --frontend-only    # Just rebuild frontend
@@ -261,7 +261,7 @@ git commit -m "fix: UI change"
 # ❌ WRONG - Hides errors and truncates output unpredictably
 npm run build 2>&1 | tail -50
 pytest tests/ 2>&1 | tail -20
-./scripts/deploy.sh qa 2>&1 | tail -100
+./scripts/deploy.sh test 2>&1 | tail -100
 ```
 
 **Why this is dangerous:**
@@ -275,7 +275,7 @@ pytest tests/ 2>&1 | tail -20
 # ✅ CORRECT - See all output including errors
 npm run build
 pytest tests/
-./scripts/deploy.sh qa
+./scripts/deploy.sh test
 
 # ✅ If output is too long, save to file instead
 npm run build > build.log 2>&1
@@ -314,19 +314,19 @@ cat build.log  # Review full output
 ### Concurrency Conflict
 ```bash
 # Wait for current deployment to complete
-aws cloudformation describe-stacks --stack-name hrp-drs-tech-adapter-dev --query 'Stacks[0].StackStatus'
+aws cloudformation describe-stacks --stack-name aws-drs-orchestration-test --query 'Stacks[0].StackStatus'
 
 # Then retry
-./scripts/deploy.sh dev
+./scripts/deploy.sh test
 ```
 
 ### Deployment Failure
 ```bash
 # Check CloudFormation events
-aws cloudformation describe-stack-events --stack-name hrp-drs-tech-adapter-dev --max-items 10
+aws cloudformation describe-stack-events --stack-name aws-drs-orchestration-test --max-items 10
 
 # Fix issue and retry
-./scripts/deploy.sh dev
+./scripts/deploy.sh test
 ```
 
 ### Rollback Failed State
@@ -353,12 +353,12 @@ For public repository users without access to the deploy script:
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name hrp-drs-tech-adapter-dev \
+  --stack-name aws-drs-orchestration-test \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=hrp-drs-tech-adapter \
-    Environment=dev \
-    DeploymentBucket=hrp-drs-tech-adapter-dev \
+    ProjectName=aws-drs-orchestration \
+    Environment=test \
+    DeploymentBucket=aws-drs-orchestration-438465159935-test \
     AdminEmail=admin@example.com
 ```
 

@@ -1,0 +1,933 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  API Gateway Core Methods Stack - HTTP methods for health checks, user
+  management, protection groups, and recovery plans.
+
+# =============================================================================
+# STACK OVERVIEW
+# =============================================================================
+# This stack defines HTTP methods for core platform functionality.
+# These are the primary endpoints users interact with for DR management.
+#
+# Endpoints Covered:
+# ------------------
+# /health                              - GET health check (no auth, MOCK)
+# /user/profile                        - GET current user profile
+# /user/roles                          - GET user's assigned roles
+# /user/permissions                    - GET user's permissions
+# /protection-groups                   - GET/POST protection groups
+# /protection-groups/{id}              - GET/PUT/DELETE specific group
+# /protection-groups/resolve           - POST resolve group to source servers
+# /recovery-plans                      - GET/POST recovery plans
+# /recovery-plans/{id}                 - GET/PUT/DELETE specific plan
+# /recovery-plans/{id}/execute         - POST execute recovery plan
+# /recovery-plans/{id}/check-instances - GET/POST check recovery instances
+#
+# Lambda Handlers:
+# ----------------
+# - QueryHandler: Read-only queries (user profile, roles, permissions)
+# - DataManagementHandler: CRUD operations (protection groups, recovery plans)
+#
+# Method Pattern:
+# ---------------
+# Each endpoint has:
+# 1. Business method (GET/POST/PUT/DELETE) - Cognito authenticated
+# 2. OPTIONS method - CORS preflight (no auth, MOCK integration)
+#
+# Health Check:
+# -------------
+# The /health endpoint uses MOCK integration (no Lambda) for fast response.
+# Returns static JSON with service status and timestamp.
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+# All parameters are passed from the master template.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Project name for resource naming
+
+  Environment:
+    Type: String
+    Description: Environment name (dev, test, qa, staging, prod)
+
+  RestApiId:
+    Type: String
+    Description: REST API ID from API Gateway Core Stack
+
+  ApiAuthorizerId:
+    Type: String
+    Description: Cognito Authorizer ID from API Gateway Core Stack
+
+  ApiRequestValidatorId:
+    Type: String
+    Description: Request Validator ID from API Gateway Core Stack
+
+  QueryHandlerArn:
+    Type: String
+    Description: Query Handler Lambda ARN from Lambda Stack
+
+  DataManagementHandlerArn:
+    Type: String
+    Description: Data Management Handler Lambda ARN from Lambda Stack
+
+  # ---------------------------------------------------------------------------
+  # Resource IDs from API Gateway Resources Stack
+  # ---------------------------------------------------------------------------
+  HealthResourceId:
+    Type: String
+    Description: /health resource ID
+
+  UserProfileResourceId:
+    Type: String
+    Description: /user/profile resource ID
+
+  UserRolesResourceId:
+    Type: String
+    Description: /user/roles resource ID
+
+  UserPermissionsResourceId:
+    Type: String
+    Description: /user/permissions resource ID
+
+  ProtectionGroupsResourceId:
+    Type: String
+    Description: /protection-groups resource ID
+
+  ProtectionGroupByIdResourceId:
+    Type: String
+    Description: /protection-groups/{id} resource ID
+
+  ProtectionGroupResolveResourceId:
+    Type: String
+    Description: /protection-groups/resolve resource ID
+
+  ProtectionGroupApplyLaunchConfigsResourceId:
+    Type: String
+    Description: /protection-groups/{id}/apply-launch-configs resource ID
+
+  ProtectionGroupLaunchConfigStatusResourceId:
+    Type: String
+    Description: /protection-groups/{id}/launch-config-status resource ID
+
+  RecoveryPlansResourceId:
+    Type: String
+    Description: /recovery-plans resource ID
+
+  RecoveryPlanByIdResourceId:
+    Type: String
+    Description: /recovery-plans/{id} resource ID
+
+  RecoveryPlanExecuteResourceId:
+    Type: String
+    Description: /recovery-plans/{id}/execute resource ID
+
+  RecoveryPlanCheckInstancesResourceId:
+    Type: String
+    Description: /recovery-plans/{id}/check-instances resource ID
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+
+Resources:
+  # ===========================================================================
+  # HEALTH CHECK METHODS
+  # ===========================================================================
+  # /health - No authentication required, uses MOCK integration
+  # Returns static JSON response without invoking Lambda
+
+  HealthGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref HealthResourceId
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: |
+                {
+                  "status": "healthy",
+                  "service": "drs-orchestration",
+                  "timestamp": "$context.requestTime"
+                }
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  HealthOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref HealthResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ===========================================================================
+  # USER MANAGEMENT METHODS
+  # ===========================================================================
+  # /user/profile     - GET current user's profile from Cognito claims
+  # /user/roles       - GET user's assigned roles
+  # /user/permissions - GET user's permissions based on roles
+
+  UserProfileGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref UserProfileResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QueryHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  UserProfileOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref UserProfileResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  UserRolesGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref UserRolesResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QueryHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  UserRolesOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref UserRolesResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  UserPermissionsGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref UserPermissionsResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QueryHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  UserPermissionsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref UserPermissionsResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ===========================================================================
+  # PROTECTION GROUPS METHODS
+  # ===========================================================================
+  # /protection-groups          - GET list, POST create
+  # /protection-groups/{id}     - GET/PUT/DELETE specific group
+  # /protection-groups/resolve  - POST resolve group to DRS source servers
+
+  ProtectionGroupsGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupsResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupsPostMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupsResourceId
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestValidatorId: !Ref ApiRequestValidatorId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 201
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupsResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Protection Groups Resolve Method (POST /protection-groups/resolve)
+  ProtectionGroupResolvePostMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupResolveResourceId
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestValidatorId: !Ref ApiRequestValidatorId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupResolveOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupResolveResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupByIdResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupPutMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupByIdResourceId
+      HttpMethod: PUT
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestValidatorId: !Ref ApiRequestValidatorId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupByIdResourceId
+      HttpMethod: DELETE
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 204
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupByIdResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ---------------------------------------------------------------------------
+  # Protection Group Launch Config Pre-Application Methods
+  # ---------------------------------------------------------------------------
+  # POST /protection-groups/{id}/apply-launch-configs - Apply launch configs
+  # GET /protection-groups/{id}/launch-config-status  - Get config status
+
+  ProtectionGroupApplyLaunchConfigsPostMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupApplyLaunchConfigsResourceId
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestValidatorId: !Ref ApiRequestValidatorId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupApplyLaunchConfigsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupApplyLaunchConfigsResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupLaunchConfigStatusGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupLaunchConfigStatusResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ProtectionGroupLaunchConfigStatusOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref ProtectionGroupLaunchConfigStatusResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ===========================================================================
+  # RECOVERY PLANS METHODS
+  # ===========================================================================
+  # /recovery-plans                      - GET list, POST create
+  # /recovery-plans/{id}                 - GET/PUT/DELETE specific plan
+  # /recovery-plans/{id}/execute         - POST start recovery execution
+  # /recovery-plans/{id}/check-instances - GET/POST check recovery instances
+
+  RecoveryPlansGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlansResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlansPostMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlansResourceId
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestValidatorId: !Ref ApiRequestValidatorId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 201
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlansOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlansResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlanGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlanByIdResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlanPutMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlanByIdResourceId
+      HttpMethod: PUT
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestValidatorId: !Ref ApiRequestValidatorId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlanDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlanByIdResourceId
+      HttpMethod: DELETE
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 204
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlanOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlanByIdResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlanExecuteMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlanExecuteResourceId
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestValidatorId: !Ref ApiRequestValidatorId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlanExecuteOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlanExecuteResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlanCheckInstancesGetMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlanCheckInstancesResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlanCheckInstancesMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlanCheckInstancesResourceId
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestValidatorId: !Ref ApiRequestValidatorId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DataManagementHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  RecoveryPlanCheckInstancesOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref RecoveryPlanCheckInstancesResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ===========================================================================
+  # LAMBDA PERMISSIONS
+  # ===========================================================================
+  # Grant API Gateway permission to invoke Lambda functions
+
+  QueryHandlerApiPermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    Properties:
+      FunctionName: !Ref QueryHandlerArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*'
+
+  DataManagementHandlerApiPermission:
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      FunctionName: !Ref DataManagementHandlerArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*'
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+
+Outputs:
+  CoreMethodsStackStatus:
+    Description: 'API Gateway Core Methods Stack deployment status'
+    Value: 'Core methods deployed: Health (2), User (6), Protection Groups (6), Recovery Plans (8) = 22 methods total'
+    Export:
+      Name: !Sub '${AWS::StackName}-CoreMethodsStackStatus'

@@ -1,0 +1,1239 @@
+{
+  "query_handler": {
+    "function_name": "aws-drs-orchestration-query-handler-qa",
+    "tests": [
+      {
+        "test_name": "list_protection_groups",
+        "payload": {
+          "operation": "list_protection_groups"
+        },
+        "result": {
+          "success": true,
+          "status_code": 200,
+          "execution_time_ms": 1493.6590194702148,
+          "response_payload": {
+            "error": "INVALID_OPERATION",
+            "message": "Unknown operation: list_protection_groups",
+            "details": {
+              "operation": "list_protection_groups"
+            }
+          },
+          "function_error": null,
+          "timestamp": "2026-02-27T04:01:30.486491+00:00"
+        }
+      },
+      {
+        "test_name": "get_protection_group",
+        "payload": {
+          "operation": "get_protection_group",
+          "groupId": "test-pg-001"
+        },
+        "result": {
+          "success": true,
+          "status_code": 200,
+          "execution_time_ms": 64.88299369812012,
+          "response_payload": {
+            "error": "INVALID_OPERATION",
+            "message": "Unknown operation: get_protection_group",
+            "details": {
+              "operation": "get_protection_group"
+            }
+          },
+          "function_error": null,
+          "timestamp": "2026-02-27T04:01:30.552811+00:00"
+        }
+      }
+    ],
+    "access_denied_errors": [],
+    "summary": {
+      "total_tests": 2,
+      "successful": 2,
+      "failed": 0,
+      "access_denied_count": 0
+    }
+  },
+  "data_management_handler": {
+    "function_name": "aws-drs-orchestration-data-management-handler-qa",
+    "tests": [
+      {
+        "test_name": "create_protection_group",
+        "payload": {
+          "operation": "create_protection_group",
+          "groupName": "Test Group Functional Equivalence",
+          "description": "Created by functional equivalence test",
+          "servers": []
+        },
+        "result": {
+          "success": true,
+          "status_code": 200,
+          "execution_time_ms": 82.17906951904297,
+          "response_payload": {
+            "error": "MISSING_FIELD",
+            "message": "groupName is required",
+            "field": "groupName"
+          },
+          "function_error": null,
+          "timestamp": "2026-02-27T04:01:30.938147+00:00"
+        }
+      }
+    ],
+    "access_denied_errors": [
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164736083,
+        "message": "Failed to extend server s-4420a3aa13cb15500: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594229208251201155594236326409622841937728702119970"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164736383,
+        "message": "Failed to extend server s-46f345e959a221ca9: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594235898474760714781178787125104636446180496244774"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164736584,
+        "message": "Failed to extend server s-45b43db65ccb85986: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594240380924545619436430235804477438766843198308393"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164736709,
+        "message": "Failed to extend server s-41c775152db3c36aa: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594243168517695435764322927769261519812031445860395"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164736785,
+        "message": "Assuming role: arn:aws:iam::160885257264:role/DRSOrchestrationRoleFailed to extend server s-48681ebf2abafa801: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594244863374330524091681684483850241087505900372013"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164736944,
+        "message": "Successfully created cross-account DRS client for account 160885257264Failed to extend server s-4f907a7f2027d9968: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594248409192817090460761188663055592176985351258159"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164737223,
+        "message": "Failed to extend server s-44302d2e9ef9ef8e9: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594254631100727480504617677128453661069845519794227"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164737223,
+        "message": "Failed to extend server s-4c60572cf45284a51: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594254631100727480504617677128453661069845519794228"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164737403,
+        "message": "Assuming role: arn:aws:iam::160885257264:role/DRSOrchestrationRoleFailed to extend server s-447308170f44eb123: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594258645234863216016783153557742737774916596269113"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164737543,
+        "message": "Failed to extend server s-4cadf5ac54024fc3b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164737985,
+        "eventId": "39520594261767339191010304022968558300908545527433527354"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164741524,
+        "message": "Failed to extend server s-4c9ba4e8406277e98: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594350546605826360714760372720233391227312800137228"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164742363,
+        "message": "Failed to extend server s-4b8220639ddae6499: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594369256931047927907576121187864143202616317706258"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164742523,
+        "message": "Failed to extend server s-424d1214bb9fbf3d1: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594372825050279692807278766902787766940457274572819"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164745363,
+        "message": "Failed to extend server s-409e546658e99ff75: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594436159166643519777000728342682088287134258954269"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164745363,
+        "message": "Failed to extend server s-4ee34f67f89eb098f: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594436159166643519777000728342682088287134258954270"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164745543,
+        "message": "Failed to extend server s-4878bfbc70a3a2f11: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594440173300779255289166204771971164992205335429155"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164745663,
+        "message": "Failed to extend server s-464e95c1662cc2b06: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594442849390203078963943189058163882795586053079076"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164745833,
+        "message": "Failed to extend server s-46d80189835aa2f1d: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594446640516886829169877250130270233017042069749798"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164745843,
+        "message": "Failed to extend server s-43d5f792c6c0c02ca: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594446863524338814476108665487452959500657129553959"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164746163,
+        "message": "Failed to extend server s-4314b7520e51010e3: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in AuthorizationCreating cross-account DRS client for account 160885257264 using role DRSOrchestrationRole\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594453999762802344275513956917300206976339043287082"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164747023,
+        "message": "Assuming role: arn:aws:iam::160885257264:role/DRSOrchestrationRoleFailed to extend server s-4e29d136baedb4d7f: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164747043,
+        "eventId": "39520594473178403673080611415677635014684567234186444859"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164750306,
+        "message": "Failed to extend server s-471291a61445af856: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594546391750159856647200298678527550804440637440006"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164750346,
+        "message": "Failed to extend server s-458425c6702662a52: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594547283779967797872125960107258456738900876656647"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164751163,
+        "message": "Failed to extend server s-4003d1f19a91ae27b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594565503488794997391232594789087210450251262656528"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164751806,
+        "message": "Failed to extend server s-47e16219452b1cb9b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594579842867957652581912602255936523346699608064021"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164751923,
+        "message": "Failed to extend server s-497ef1210e3e468f4: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594582452055145880664820161934974423204995807772695"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164751923,
+        "message": "Failed to extend server s-4416966b487ba2c5a: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594582452055145880664820161934974423204995807772696"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164752346,
+        "message": "Failed to extend server s-4ca04e1cf17409da0: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594591885270364859118409031543803753461912837488669"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164752347,
+        "message": "Failed to extend server s-43c1c001a96191a83: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594591907571110057649032173079522026110274343469086"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164752563,
+        "message": "Creating cross-account DRS client for account 160885257264 using role DRSOrchestrationRoleFailed to extend server s-4a4efd36caf1f1de5: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594596724532072940263630744794668918156359635238946"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164752903,
+        "message": "Failed to extend server s-4a8071f0ccd1c89a2: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164756108,
+        "eventId": "39520594604306785440440675498866938881618599271668580389"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164757523,
+        "message": "Failed to extend server s-4a4824eaccd28d05a: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594707336228257652154425373194430604056454959792128"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164757843,
+        "message": "Failed to extend server s-413d72141a6fd39fe: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594714472466721181953830664624277851532136873525249"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164758723,
+        "message": "Failed to extend server s-440b31329e5264cc4: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594734097122495888902195216056357782090262136291337"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164759564,
+        "message": "Failed to extend server s-41ee1da651cff005a: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594752852049207853156257247595425079362288665821198"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164760626,
+        "message": "Failed to extend server s-43480b0e450007683: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594776535440608692678033558528230631922208017022998"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164760626,
+        "message": "Failed to extend server s-423cdf842d0d715b4: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594776535440608692678033558528230631922208017022999"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164761047,
+        "message": "Failed to extend server s-48251f93a9e70f4ed: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594785924054337274070376145065623416882402034778136"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164761123,
+        "message": "Failed to extend server s-4e0d01f30a6cfbe30: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594787618910972362397734901780212138157876489289755"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164761525,
+        "message": "Creating cross-account DRS client for account 160885257264 using role DRSOrchestrationRoleFailed to extend server s-4dc6d3dd9dfb7cfd3: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594796583810542171708237799138957742799201893416994"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164762025,
+        "message": "Assuming role: arn:aws:iam::160885257264:role/DRSOrchestrationRoleFailed to extend server s-403695405c1d51511: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594807734183141437019808566998094066979954883624999"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164762564,
+        "message": "Failed to extend server s-4221cfdc56cf8b855: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594819754284803445025681854750243024446806607069228"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164763043,
+        "message": "Failed to extend server s-459d8df322b48e080: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594830436341753541194166650359295623011967971688495"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164763467,
+        "message": "Assuming role: arn:aws:iam::160885257264:role/DRSOrchestrationRoleFailed to extend server s-495946ee794f729b4: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594839891857717718178378661503843225917246507384883"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164764524,
+        "message": "Failed to extend server s-4a6f8d61dcd79578f: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594863463745392565047039264758057415235358328684603"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164765703,
+        "message": "Failed to extend server s-44cc5cc07a376007b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594889756323981632651723135369900867653573879595072"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164766365,
+        "message": "Failed to extend server s-4f4aeaa0dec98fe3c: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164766540,
+        "eventId": "39520594904519417303059924242832015397360868890838630469"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164766985,
+        "message": "Failed to extend server s-4a1db681e6ff4bcdd: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520594918345879326148910601799431752046988587065016321"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164769604,
+        "message": "Failed to extend server s-4d6e173b6c52c7a70: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520594976751531001100612609481477908113047371227725829"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164770063,
+        "message": "Failed to extend server s-4fcfb61c590b67374: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520594986987573047226168631446372595258645302472736781"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164770564,
+        "message": "Failed to extend server s-4b437413ea514aba5: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520594998160246391690010825355767449855474416968925199"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164770824,
+        "message": "Successfully created cross-account DRS client for account 160885257264Failed to extend server s-45a06f99e39eb9d0b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520595003958440143307972842155054200744048408523833360"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164771083,
+        "message": "Failed to extend server s-408f823f0e2225722: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520595009734333149727404235812805233359974038572761107"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164771443,
+        "message": "Failed to extend server s-4151b9b71a495c76b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520595017762601421198428566765663811513384180725710870"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164771524,
+        "message": "Failed to extend server s-4ddefd23175b2c05f: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520595019568961782279409041230056991597901462710124568"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164773083,
+        "message": "Failed to extend server s-43ea2e7189f53622f: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520595054335823546788650518884241778656697050533593125"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164774023,
+        "message": "Failed to extend server s-4400716f00cc73d34: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520595075298524033407436271927816954946156866155184171"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164774045,
+        "message": "Failed to extend server s-4e71db2b73f1f12e5: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520595075789140427775109981041602756944420819286753324"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164775626,
+        "message": "Failed to extend server s-4e54ded3315ed0d7b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164775817,
+        "eventId": "39520595111046618586652025167809573346001480360241791029"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164776044,
+        "message": "Using External ID for role assumptionFailed to extend server s-4e1577aaa8dd62816: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595120368330079637825652072884283344392147127500802"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164776324,
+        "message": "Failed to extend server s-4278cdab16295af35: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595126612538735226400131702885399685933368802017285"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164776643,
+        "message": "Failed to extend server s-4656735363156f18d: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595133726476453557668913852779528660760689209769995"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164776826,
+        "message": "Assuming role: arn:aws:iam::160885257264:role/DRSOrchestrationRoleFailed to extend server s-4c99fcd317996ab56: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595137807512824888772948753815972555410844804186125"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164777025,
+        "message": "Failed to extend server s-4232febdadd199eee: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595142245361119396366953919423908812434784494288911"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164777303,
+        "message": "Failed to extend server s-4a13fd208f4bc87ce: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595148444968284587880187266353588608679283156844563"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164778184,
+        "message": "Failed to extend server s-48118bac648a88a51: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595168091924804493359174959321386811885769925591069"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164780945,
+        "message": "Failed to extend server s-41ce9deecf4afff6d: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595229664282297636409668739439537594011887937519648"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164781883,
+        "message": "Assuming role: arn:aws:iam::160885257264:role/DRSOrchestrationRoleFailed to extend server s-4841ae375cb6dcc36: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595250582381293858134175499943277338174980547149861"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164783226,
+        "message": "Failed to extend server s-4da50283238eece90: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595280532282095484761054582412917504924483078848555"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164783604,
+        "message": "Failed to extend server s-409f683f71deebe69: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595288961963780529336602082914424566005132339445807"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164784448,
+        "message": "Failed to extend server s-4ba10453c9d6aa714: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164785000,
+        "eventId": "39520595307783792728089182533539060646681222243386916917"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164785363,
+        "message": "Failed to extend server s-4c71028a22ecbc9cd: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595328188974584744702719103632986906269976972165121"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164785803,
+        "message": "Failed to extend server s-47583cc536e9a64f7: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595338001302472098176901379349026871549039603548164"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164785903,
+        "message": "Failed to extend server s-4a360c6eb1f0c9709: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595340231376991951239215532920854136385190201589766"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164786065,
+        "message": "Failed to extend server s-4f3b1d1bb76412224: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595343844097714113200164461707214305419754170417160"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164786583,
+        "message": "Failed to extend server s-451b65a96208a4012: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595355395883726952062951777209279537271014268272659"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164786646,
+        "message": "Failed to extend server s-482a3391a4f99979d: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595356800830674459492209693959530714117789145038868"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164786663,
+        "message": "Failed to extend server s-4a1beda67cac5d848: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595357179943342834512803100066741349139934746705941"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164787606,
+        "message": "Failed to extend server s-42eace20ec592148a: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595378209546065048890425568249072456544834886238239"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164789123,
+        "message": "Failed to extend server s-4f74974e47c81c9b3: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595412039776531219845731277933692064109239458529320"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164789343,
+        "message": "Failed to extend server s-4b77e1c059343eeb4: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595416945940474896582822415791712046748770774220841"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164791543,
+        "message": "Failed to extend server s-4df4240ad429c1a2f: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164794148,
+        "eventId": "39520595466007579911663953733794371911873144083931136049"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164794445,
+        "message": "Failed to extend server s-41f0f0621f507f871: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595530724342477799822101501200061038706992085794820"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164794626,
+        "message": "Failed to extend server s-4daf0750d8bbfb245: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595534760777358733864890119165068388060424668250118"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164794743,
+        "message": "Failed to extend server s-4ad9dd4f92136d0af: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595537369964546961947797678844106287918720867958792"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164794784,
+        "message": "Failed to extend server s-4d7a7300a2cc893d8: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595538284295100101703346481808555466501542613155849"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164795125,
+        "message": "Failed to extend server s-447d4d99fa11606ff: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595545888849212800645837745488486439592816152477707"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164795125,
+        "message": "Failed to extend server s-461e794958e32bed2: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595545888849212800645837745488486439592816152477708"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164795125,
+        "message": "Failed to extend server s-4745ad17f6ba9b7a5: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595545888849212800645837745488486439592816152477709"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164795783,
+        "message": "Failed to extend server s-4ada43e949675f53d: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595560562739553433795864875991109842214687087591452"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164796323,
+        "message": "Failed to extend server s-448cda661cd3fedb1: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595572605141960640332361305278977072329900317016100"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164799203,
+        "message": "Failed to extend server s-4e513c7332fc961ca: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595636831288132408527008928147602299611037540614188"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164800045,
+        "message": "Failed to extend server s-4545cec4c424558a1: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595655608515589571311694101222387869531425576124465"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164800705,
+        "message": "Failed to extend server s-426fc19d4ab6e8675: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595670327007420601522967514796447817450019523199033"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164801106,
+        "message": "Failed to extend server s-4ee71f011a4e6e281: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595679269606245212302847270619475149442983421345853"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164801106,
+        "message": "Failed to extend server s-43fc8385c84ca1307: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595679269606245212302847270619475149442983421345854"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164801169,
+        "message": "Failed to extend server s-4f725b0a347d5e6ee: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595680674553192719732105187369726326289758298112063"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164801403,
+        "message": "Failed to extend server s-4066fe9e66a94e80d: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595685892927569175897920306727802126006350697529409"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164801563,
+        "message": "Failed to extend server s-4db72c6f7b1ad623c: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595689461046800940797622952442725749744191654395973"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164801726,
+        "message": "Failed to extend server s-4a2c9ca03c2a6fcfe: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595693096068268301289195022764804191427117129203782"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164802264,
+        "message": "Failed to extend server s-4e0676568a6e5f185: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164803222,
+        "eventId": "39520595705093869185110764445168981234876245607346667602"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164805504,
+        "message": "Failed to extend server s-45435bde0cdcf145f: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595777348283628349983436944860502862128050125799430"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164806646,
+        "message": "Failed to extend server s-4932b6f1adb372e44: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595802815734645071955064578650770226556889955434507"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164809226,
+        "message": "Failed to extend server s-46ef77e5b7602b6e3: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595860351657257280962769740803913659329575384907792"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164810066,
+        "message": "Failed to extend server s-4ebd8a74701c4b145: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in AuthorizationSuccessfully created cross-account DRS client for account 160885257264\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595879084283224046686208630807262683953240408457241"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164810283,
+        "message": "Failed to extend server s-47b19630750de0242: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595883923544932127831430344058127848647687206207517"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164810403,
+        "message": "Failed to extend server s-4120037862202f155: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595886599634355951506207328344320566451067923857438"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164810427,
+        "message": "Failed to extend server s-4d550acb8bc2abfc6: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595887134852240716241162725201559110011744067387423"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164810563,
+        "message": "Failed to extend server s-49d2f386430840c9d: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595890167753587716405909974059244190188908880724003"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164810727,
+        "message": "Failed to extend server s-4df49ae681f476ce9: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595893825075800275428105185917040904520195861512228"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164810843,
+        "message": "Failed to extend server s-4670f2190fda326aa: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595896411962243304980389604060360531730130555240485"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164811223,
+        "message": "Failed to extend server s-479b147b42b14b3a6: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in AuthorizationCreating cross-account DRS client for account 160885257264 using role DRSOrchestrationRole\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595904886245418746617183387633304138107502827798569"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164811287,
+        "message": "Failed to extend server s-40c108530a70807bd: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595906313493111452577064445919273587602639210545194"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164813843,
+        "message": "Failed to extend server s-4fa2bce3d2747bfee: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164814141,
+        "eventId": "39520595963314197838896849814211215178476814648496488512"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164814923,
+        "message": "Failed to extend server s-42b6a3d54c928cb59: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520595987399002653309922817971618698190409997049856004"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164818309,
+        "message": "Failed to extend server s-4463a29c97a98b047: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596062909325895534612775211560769377762056299544586"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164818823,
+        "message": "Failed to extend server s-4ba2647107132f986: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596074371908927579353069960919961519019870373478416"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164819163,
+        "message": "Successfully created cross-account DRS client for account 160885257264Failed to extend server s-499f3529df71f299d: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596081954162295079764938083064174219462782406819859"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164819443,
+        "message": "Failed to extend server s-45ae5d9a5af2da2dd: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596088198370950668339417713065290561004004081336345"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164819563,
+        "message": "Failed to extend server s-4edb5037b19219598: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596090874460374492014194697351483278807384798986266"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164819565,
+        "message": "Failed to extend server s-4a098e68cf66f6786: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596090919061864889075440980422919824104107810947099"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164819944,
+        "message": "Failed to extend server s-47ed64fc49d46dcc8: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596099371044295132181611622460145157833118577524767"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164820103,
+        "message": "Failed to extend server s-44f335cbfbacdb2dd: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596102916862781698550691126639350508922598028410912"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164820124,
+        "message": "Failed to extend server s-4dcf1eb6ef4f5772c: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596103385178430867693777098889434234538189653999649"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164821503,
+        "message": "Failed to extend server s-461b09958c8ebd204: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164823159,
+        "eventId": "39520596134137906059641423089276644932216628706400993331"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164823383,
+        "message": "Failed to extend server s-426800ec4cab2f1dd: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596176063307032878994606534674525646990513851006976"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164824643,
+        "message": "Failed to extend server s-4f6ec380c5d88d43f: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596204162245983027579764869679549183926011386331141"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164825143,
+        "message": "Failed to extend server s-4ab9b6a64dae3f8d5: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596215312618582292891335637538685508106764376539145"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164825489,
+        "message": "Failed to extend server s-4b1d2ffd76403c7e2: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596223028676420984486942608897207844439845445763086"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164825489,
+        "message": "Failed to extend server s-4b2b8ea0cba47333b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596223028676420984486942608897207844439845445763087"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164825783,
+        "message": "Successfully created cross-account DRS client for account 160885257264Failed to extend server s-49851e57c7ce62a0d: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596229585095509352490146220398380003058128204005394"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164826023,
+        "message": "Failed to extend server s-4afb1a0d976217779: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596234937274356999839700188970765438664889639305238"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164826443,
+        "message": "Creating cross-account DRS client for account 160885257264 using role DRSOrchestrationRoleFailed to extend server s-43bc6f38807928a3b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596244303587340382701419633972439950976722151079960"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164826443,
+        "message": "Failed to extend server s-42978edda3937b0ed: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596244303587340382701419633972439950976722151079961"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164826443,
+        "message": "Failed to extend server s-40f2f3f33c0f5fdbc: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596244303587340382701419633972439950976722151079962"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164830543,
+        "message": "Failed to extend server s-429274e262fe47cd1: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596335736642654358256299930417357809258896670785581"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164831863,
+        "message": "Failed to extend server s-4c5f2e4975e36b600: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164832399,
+        "eventId": "39520596365173626316418678846757565477705096084564934705"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164833725,
+        "message": "Failed to extend server s-4ccbad91327643ea2: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596406697613876082699148354632218511640619417272321"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164834564,
+        "message": "Failed to extend server s-468675a1e52335427: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596425407939097649891964103099849263615922934841353"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164834703,
+        "message": "Failed to extend server s-427a4538295653c09: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596428507742680245648580776564689161738172266119178"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164834743,
+        "message": "Failed to extend server s-41259753828ae3719: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596429399772488186873506437993420067672632505335819"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164834928,
+        "message": "Failed to extend server s-4934bd74ab4c42257: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596433525410349915038787622101300507619511111712782"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164834944,
+        "message": "Failed to extend server s-43b9d0c8191866638: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596433882222273091528757886672792869993295207399439"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164834963,
+        "message": "Failed to extend server s-4bfb112339e86311a: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596434305936431863610597575851440050312163821027344"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164834963,
+        "message": "Failed to extend server s-46ef7206f9b0d8322: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596434305936431863610597575851440050312163821027345"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164835265,
+        "message": "Failed to extend server s-4cd4757a6dbc5ffd1: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596441040761481819858786319638358390117338627112983"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164835403,
+        "message": "Failed to extend server s-472818b7f21e8c368: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596444118264319217084779851567480015591226452410392"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164836481,
+        "message": "Failed to extend server s-4d137d8775246e07b: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596468158467643233096526427071777930524929899298844"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164836502,
+        "message": "Failed to extend server s-436e70f76b1fbc0fb: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596468626783292402239612399321861656140521524887581"
+      },
+      {
+        "logStreamName": "2026/02/27/[$LATEST]8313cb80b7d545f9a30ee3cb784c8423",
+        "timestamp": 1772164836554,
+        "message": "Failed to extend server s-405ef46943350f2e8: An error occurred (AccessDeniedException) when calling the CreateExtendedSourceServer operation: Error in Authorization\n",
+        "ingestionTime": 1772164842373,
+        "eventId": "39520596469786422042725832015759179211833855319835869214"
+      }
+    ],
+    "summary": {
+      "total_tests": 1,
+      "successful": 1,
+      "failed": 0,
+      "access_denied_count": 150
+    }
+  },
+  "execution_handler": {
+    "function_name": "aws-drs-orchestration-execution-handler-qa",
+    "tests": [
+      {
+        "test_name": "find_pending_executions",
+        "payload": {
+          "operation": "find_pending_executions"
+        },
+        "result": {
+          "success": true,
+          "status_code": 200,
+          "execution_time_ms": 71.61283493041992,
+          "response_payload": {
+            "error": "INVALID_OPERATION",
+            "message": "Unknown operation: find_pending_executions",
+            "details": {
+              "operation": "find_pending_executions",
+              "validOperations": [
+                "start_execution",
+                "cancel_execution",
+                "pause_execution",
+                "resume_execution",
+                "terminate_instances",
+                "get_recovery_instances",
+                "list_executions",
+                "get_execution"
+              ]
+            }
+          },
+          "function_error": null,
+          "timestamp": "2026-02-27T04:01:31.371934+00:00"
+        }
+      }
+    ],
+    "access_denied_errors": [],
+    "summary": {
+      "total_tests": 1,
+      "successful": 1,
+      "failed": 0,
+      "access_denied_count": 0
+    }
+  },
+  "orchestration_function": {
+    "function_name": "aws-drs-orchestration-dr-orch-sf-qa",
+    "tests": [
+      {
+        "test_name": "verify_iam_permissions_via_logs",
+        "payload": {
+          "method": "cloudwatch_logs_check"
+        },
+        "result": {
+          "success": true,
+          "access_denied_count": 0,
+          "execution_time_ms": 0,
+          "timestamp": "2026-02-27T04:01:31.657672+00:00"
+        }
+      }
+    ],
+    "access_denied_errors": [],
+    "summary": {
+      "total_tests": 1,
+      "successful": 1,
+      "failed": 0,
+      "access_denied_count": 0
+    }
+  },
+  "frontend_deployer": {
+    "function_name": "aws-drs-orchestration-frontend-deployer-qa",
+    "tests": [
+      {
+        "test_name": "verify_iam_permissions_via_logs",
+        "payload": {
+          "method": "cloudwatch_logs_check"
+        },
+        "result": {
+          "success": true,
+          "access_denied_count": 0,
+          "execution_time_ms": 0,
+          "timestamp": "2026-02-27T04:01:31.911948+00:00"
+        }
+      }
+    ],
+    "access_denied_errors": [],
+    "summary": {
+      "total_tests": 1,
+      "successful": 1,
+      "failed": 0,
+      "access_denied_count": 0
+    }
+  },
+  "overall_summary": {
+    "total_tests": 6,
+    "successful": 6,
+    "failed": 0,
+    "total_access_denied_errors": 150,
+    "timestamp": "2026-02-27T04:01:27.457568+00:00",
+    "environment": "qa",
+    "region": "us-east-2",
+    "account_id": "438465159935"
+  }
+}

@@ -44,6 +44,7 @@ Resources:
   
   ExecutionNotificationsTopic:
     Type: AWS::SNS::Topic
+    DeletionPolicy: Delete
     Properties:
       TopicName: !Sub '${ProjectName}-execution-notifications-${Environment}'
       DisplayName: 'DRS Orchestration Execution Notifications'
@@ -53,6 +54,7 @@ Resources:
   # Requires email confirmation before notifications are delivered
   ExecutionNotificationsSubscription:
     Type: AWS::SNS::Subscription
+    DeletionPolicy: Delete
     Properties:
       Protocol: email
       TopicArn: !Ref ExecutionNotificationsTopic
@@ -69,6 +71,7 @@ Resources:
   
   DRSOperationalAlertsTopic:
     Type: AWS::SNS::Topic
+    DeletionPolicy: Delete
     Properties:
       TopicName: !Sub '${ProjectName}-drs-alerts-${Environment}'
       DisplayName: 'DRS Operational Alerts'
@@ -77,6 +80,7 @@ Resources:
   # Email subscription for DRS operational alerts
   DRSOperationalAlertsSubscription:
     Type: AWS::SNS::Subscription
+    DeletionPolicy: Delete
     Properties:
       Protocol: email
       TopicArn: !Ref DRSOperationalAlertsTopic
@@ -93,6 +97,7 @@ Resources:
   
   ExecutionPauseTopic:
     Type: AWS::SNS::Topic
+    DeletionPolicy: Delete
     Properties:
       TopicName: !Sub '${ProjectName}-execution-pause-${Environment}'
       DisplayName: 'DRS Orchestration Execution Pause'
@@ -101,6 +106,7 @@ Resources:
   # Email subscription for pause notifications
   ExecutionPauseSubscription:
     Type: AWS::SNS::Subscription
+    DeletionPolicy: Delete
     Properties:
       Protocol: email
       TopicArn: !Ref ExecutionPauseTopic
@@ -118,6 +124,7 @@ Resources:
   # Common causes: IAM permissions, subnet capacity, instance type availability
   DRSRecoveryFailureRule:
     Type: AWS::Events::Rule
+    DeletionPolicy: Delete
     Properties:
       Description: 'EventBridge rule for DRS recovery launch failures'
       State: ENABLED
@@ -150,6 +157,7 @@ Resources:
   # Critical for maintaining RPO (Recovery Point Objective)
   DRSReplicationStalledRule:
     Type: AWS::Events::Rule
+    DeletionPolicy: Delete
     Properties:
       Description: 'EventBridge rule for DRS replication stalled events'
       State: ENABLED
@@ -186,6 +194,7 @@ Resources:
   # Allows Lambda and Step Functions to publish execution status updates
   ExecutionNotificationsTopicPolicy:
     Type: AWS::SNS::TopicPolicy
+    DeletionPolicy: Delete
     Properties:
       Topics:
         - !Ref ExecutionNotificationsTopic
@@ -210,6 +219,7 @@ Resources:
   # Allows EventBridge to publish native DRS service events
   DRSOperationalAlertsTopicPolicy:
     Type: AWS::SNS::TopicPolicy
+    DeletionPolicy: Delete
     Properties:
       Topics:
         - !Ref DRSOperationalAlertsTopic
@@ -228,6 +238,8 @@ Resources:
   # Allows Step Functions to publish pause gate notifications
   ExecutionPauseTopicPolicy:
     Type: AWS::SNS::TopicPolicy
+    DeletionPolicy: Delete
+    DeletionPolicy: Delete
     Properties:
       Topics:
         - !Ref ExecutionPauseTopic

@@ -8,12 +8,17 @@ inclusion: always
 
 **STOP. Before executing ANY AWS CLI or CloudFormation command:**
 
-### ALLOWED PATTERNS - QA ONLY:
+### ALLOWED PATTERNS - TEST AND QA:
 ```
+✅ aws dynamodb * --table-name *-test
 ✅ aws dynamodb * --table-name *-qa
-✅ aws lambda * --function-name *-qa  
-✅ Stack names ending in "-qa"
-✅ Region: us-east-1
+✅ aws lambda * --function-name *-test
+✅ aws lambda * --function-name *-qa
+✅ Stack names ending in "-test" or "-qa"
+✅ Target account setup stacks: drs-orchestration-target-account-setup (any region)
+✅ Staging account setup stacks: drs-orchestration-staging-account-setup (any region)
+✅ Region: us-east-2 (orchestration stacks)
+✅ Region: us-east-1 (target/staging account setup stacks)
 ```
 
 ---
@@ -44,21 +49,29 @@ Modifying these stacks would:
 - Disrupt active user sessions
 - Require manual recovery procedures
 
-### Correct Development Stack
+### Correct Development and QA Stacks
 
 For development and testing, use:
-- Stack name: `aws-drs-orchestration-qa`
-- Environment: `qa`
-- Deployment bucket: `aws-drs-orchestration-qa`
-- Region: `us-east-1`
-- Stack ARN: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-drs-orchestration-qa/ae2732a0-0da7-11f1-81ab-0ebf70dc8dab`
+- **Test Stack** (old architecture - protected, do not modify):
+  - Stack name: `aws-drs-orchestration-test`
+  - Environment: `test`
+  - Deployment bucket: `aws-drs-orchestration-438465159935-test`
+  - Region: `us-east-2`
+  
+- **QA Stack** (new architecture - for integration testing):
+  - Stack name: `aws-drs-orchestration-qa`
+  - Environment: `qa`
+  - Deployment bucket: `aws-drs-orchestration-438465159935-qa`
+  - Region: `us-east-2`
 
 ### Verification Before Any Stack Operation
 
 Before ANY CloudFormation operation, verify:
-1. Stack name ends with `-qa` (not `-test`)
-2. Environment parameter is `qa` (not `test`)
-3. You are NOT operating on protected stacks
+1. Stack name ends with `-test` or `-qa`
+2. Environment parameter is `test` or `qa`
+3. You are NOT operating on protected production stacks
+4. For test stack: Use old deploy.sh (protected, do not modify)
+5. For QA stack: Use new deploy-main-stack.sh (integration testing)
 
 ### Emergency Procedures
 
@@ -71,6 +84,8 @@ If you accidentally target a protected stack:
 ## Always Follow Rules
 
 - **ALWAYS** verify stack name before any CloudFormation operation
-- **ALWAYS** use `-qa` environment for development work
+- **ALWAYS** use `-test` or `-qa` environment for development work
 - **NEVER** assume a stack is safe to modify without verification
-- **NEVER** use wildcards or patterns that could match protected stacks
+- **NEVER** use wildcards or patterns that could match protected production stacks
+- **NEVER** modify the test stack (uses old architecture, protected)
+- **ALWAYS** use QA stack for new architecture integration testing

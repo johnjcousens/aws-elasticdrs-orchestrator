@@ -317,20 +317,17 @@ export const TargetAccountSettingsModal: React.FC<
         visible={showAddStagingModal}
         onDismiss={() => setShowAddStagingModal(false)}
         targetAccountId={displayAccount.accountId}
-        onAdd={(stagingAccount) => {
-          // Refresh account data after adding
+        onAdd={async (stagingAccount) => {
+          // Close the add modal first
           setShowAddStagingModal(false);
-          setLoading(true);
-          apiClient.getTargetAccount(displayAccount.accountId)
-            .then((data) => {
-              setFreshAccountData(data);
-            })
-            .catch((err) => {
-              console.error('Error refreshing account data:', err);
-            })
-            .finally(() => {
-              setLoading(false);
-            });
+          
+          // Refresh account data after adding (non-blocking)
+          try {
+            const data = await apiClient.getTargetAccount(displayAccount.accountId);
+            setFreshAccountData(data);
+          } catch (err) {
+            console.error('Error refreshing account data:', err);
+          }
         }}
       />
     </Modal>

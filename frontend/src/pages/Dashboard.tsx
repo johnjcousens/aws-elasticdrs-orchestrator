@@ -72,7 +72,7 @@ const STATUS_LABELS: Record<string, string> = {
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { selectedAccount, getCurrentAccountId, getCurrentAccountName, availableAccounts, accountsLoading } = useAccount();
-  const { openSettingsModal } = useSettings();
+  const { openSettingsModal, settingsModalVisible } = useSettings();
   
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +137,9 @@ export const Dashboard: React.FC = () => {
 
   // Open settings modal if no accounts configured
   useEffect(() => {
+    // Don't reopen if modal is already visible
+    if (settingsModalVisible) return;
+    
     if (!accountsLoading && availableAccounts.length === 0) {
       const timer = setTimeout(() => {
         if (availableAccounts.length === 0) {
@@ -146,7 +149,7 @@ export const Dashboard: React.FC = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [accountsLoading, availableAccounts.length, openSettingsModal]);
+  }, [accountsLoading, availableAccounts.length, openSettingsModal, settingsModalVisible]);
 
   // Fetch executions when account changes - setup interval
   useEffect(() => {

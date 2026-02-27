@@ -111,17 +111,14 @@ export interface LaunchConfigStatus {
   completionTime?: number;
   progressCount?: number;
   totalCount?: number;
+  completedServers?: number;  // Alias for progressCount
+  totalServers?: number;      // Alias for totalCount
   percentage?: number;
   estimatedTimeRemaining?: number;
   serverConfigs?: ServerConfigStatus[];
+  servers?: ServerConfigStatus[];  // Alias for serverConfigs
   error?: string;
 }
-
-// Launch configuration sync status
-export type LaunchConfigStatusType = 
-  | 'not_configured'  // No launch config defined
-  | 'pending'         // Config saved, sync not started
-  | 
 
 // Result from IP validation endpoint
 export interface IPValidationResult {

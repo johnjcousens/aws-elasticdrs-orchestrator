@@ -155,6 +155,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       });
       toast.success(`Current account ${currentAccount.accountName} (${currentAccount.accountId}) added successfully and set as default`);
       
+      // Refresh accounts after adding
       await refreshAccounts();
     } catch (err) {
       console.error('Error adding current account:', err);
@@ -230,8 +231,11 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
         }
       }
       
-      await refreshAccounts();
+      // Close modal first to prevent state conflicts
       handleCloseModal();
+      
+      // Then refresh accounts
+      await refreshAccounts();
     } catch (err) {
       console.error('Error saving target account:', err);
       toast.error(err instanceof Error ? err.message : 'Failed to save target account');
