@@ -226,23 +226,31 @@ else
     echo -e "${YELLOW}  ⚠ cfn-lint not installed${NC}"
 fi
 
-# flake8, black, TypeScript (same as deploy.sh)
+# flake8 - ZERO TOLERANCE for warnings
 if [ -f ".venv/bin/flake8" ]; then
     FLAKE8_COUNT=$(.venv/bin/flake8 lambda/ --config .flake8 --count -q | tail -1)
     if [ -n "$FLAKE8_COUNT" ] && [ "$FLAKE8_COUNT" -gt 0 ]; then
-        echo -e "${YELLOW}  ⚠ flake8: $FLAKE8_COUNT warnings${NC}"
+        echo -e "${RED}  ✗ flake8: $FLAKE8_COUNT warnings (ZERO TOLERANCE)${NC}"
+        .venv/bin/flake8 lambda/ --config .flake8 | head -10
+        FAILED=true
     else
         echo -e "${GREEN}  ✓ flake8${NC}"
     fi
+else
+    echo -e "${YELLOW}  ⚠ flake8 not installed${NC}"
 fi
 
+# black - ZERO TOLERANCE for formatting issues
 if [ -f ".venv/bin/black" ]; then
     if ! .venv/bin/black --check --quiet lambda/ 2>/dev/null; then
-        echo -e "${RED}  ✗ black: needs formatting${NC}"
+        echo -e "${RED}  ✗ black: needs formatting (ZERO TOLERANCE)${NC}"
+        echo -e "${YELLOW}    Run: black lambda/${NC}"
         FAILED=true
     else
         echo -e "${GREEN}  ✓ black${NC}"
     fi
+else
+    echo -e "${YELLOW}  ⚠ black not installed${NC}"
 fi
 
 if [ -d "frontend" ]; then
@@ -263,58 +271,83 @@ echo ""
 # ============================================================================
 echo -e "${BLUE}[2/5] Security${NC}"
 
-# Bandit, cfn_nag, detect-secrets, shellcheck, npm audit, git-secrets, checkov, semgrep, grype, syft
-# (Same security checks as deploy.sh)
-
+# Bandit - ZERO TOLERANCE for medium/high/critical issues
 if [ -f ".venv/bin/bandit" ]; then
-    if .venv/bin/bandit -r lambda/ -ll -q 2>/dev/null; then
-        echo -e "${GREEN}  ✓ bandit${NC}"
+    BANDIT_OUTPUT=$(.venv/bin/bandit -r lambda/ -ll -q 2>&1 || true)
+    if echo "$BANDIT_OUTPUT" | grep -q "Issue:"; then
+        echo -e "${RED}  ✗ bandit: security issues found (ZERO TOLERANCE)${NC}"
+        echo "$BANDIT_OUTPUT" | head -20
+        FAILED=true
     else
-        echo -e "${YELLOW}  ⚠ bandit: issues found${NC}"
+        echo -e "${GREEN}  ✓ bandit${NC}"
     fi
+else
+    echo -e "${YELLOW}  ⚠ bandit not installed${NC}"
 fi
 
+# cfn_nag - ZERO TOLERANCE for failures
 if command -v cfn_nag_scan &> /dev/null; then
-    if cfn_nag_scan --input-path cfn/ --deny-list-path .cfn_nag_deny_list.yml 2>/dev/null | grep -q "Failures count: 0"; then
+    CFN_NAG_OUTPUT=$(cfn_nag_scan --input-path cfn/ --deny-list-path .cfn_nag_deny_list.yml 2>&1 || true)
+    if echo "$CFN_NAG_OUTPUT" | grep -q "Failures count: 0"; then
         echo -e "${GREEN}  ✓ cfn_nag${NC}"
     else
-        echo -e "${YELLOW}  ⚠ cfn_nag: issues found${NC}"
+        echo -e "${RED}  ✗ cfn_nag: security issues found (ZERO TOLERANCE)${NC}"
+        echo "$CFN_NAG_OUTPUT" | grep -A 5 "Failures count:"
+        FAILED=true
     fi
+else
+    echo -e "${YELLOW}  ⚠ cfn_nag not installed${NC}"
 fi
 
+# detect-secrets - ZERO TOLERANCE for new secrets
 if [ -f ".venv/bin/detect-secrets" ]; then
     if .venv/bin/detect-secrets scan --baseline .secrets.baseline > /dev/null 2>&1; then
         echo -e "${GREEN}  ✓ detect-secrets${NC}"
     else
-        echo -e "${YELLOW}  ⚠ detect-secrets: potential secrets${NC}"
+        echo -e "${RED}  ✗ detect-secrets: potential secrets found (ZERO TOLERANCE)${NC}"
+        .venv/bin/detect-secrets scan --baseline .secrets.baseline 2>&1 | head -10
+        FAILED=true
     fi
+else
+    echo -e "${YELLOW}  ⚠ detect-secrets not installed${NC}"
 fi
 
+# shellcheck - ZERO TOLERANCE for warnings
 if command -v shellcheck &> /dev/null; then
     if [ -d "lambda" ] && find lambda/ -name "*.sh" 2>/dev/null | grep -q .; then
-        if find lambda/ -name "*.sh" -exec shellcheck -S warning {} + 2>/dev/null; then
-            echo -e "${GREEN}  ✓ shellcheck${NC}"
+        SHELLCHECK_OUTPUT=$(find lambda/ -name "*.sh" -exec shellcheck -S warning {} + 2>&1 || true)
+        if [ -n "$SHELLCHECK_OUTPUT" ]; then
+            echo -e "${RED}  ✗ shellcheck: issues found (ZERO TOLERANCE)${NC}"
+            echo "$SHELLCHECK_OUTPUT" | head -20
+            FAILED=true
         else
-            echo -e "${YELLOW}  ⚠ shellcheck: issues${NC}"
+            echo -e "${GREEN}  ✓ shellcheck${NC}"
         fi
     else
         echo -e "${GREEN}  ✓ shellcheck (no scripts)${NC}"
     fi
+else
+    echo -e "${YELLOW}  ⚠ shellcheck not installed${NC}"
 fi
 
+# npm audit - ZERO TOLERANCE for critical/high vulnerabilities
 if [ -d "frontend" ]; then
     cd frontend
-    AUDIT_JSON=$(npm audit --json 2>/dev/null)
-    CRITICAL_COUNT=$(echo "$AUDIT_JSON" | grep '"critical":' | grep -o '[0-9]*' | head -1)
-    if [ -z "$CRITICAL_COUNT" ]; then CRITICAL_COUNT=0; fi
+    AUDIT_JSON=$(npm audit --json 2>/dev/null || echo '{}')
+    CRITICAL_COUNT=$(echo "$AUDIT_JSON" | jq -r '.metadata.vulnerabilities.critical // 0' 2>/dev/null || echo "0")
+    HIGH_COUNT=$(echo "$AUDIT_JSON" | jq -r '.metadata.vulnerabilities.high // 0' 2>/dev/null || echo "0")
     
-    if [ "$CRITICAL_COUNT" = "0" ]; then
+    if [ "$CRITICAL_COUNT" = "0" ] && [ "$HIGH_COUNT" = "0" ]; then
         echo -e "${GREEN}  ✓ npm audit${NC}"
     else
-        echo -e "${RED}  ✗ npm audit: $CRITICAL_COUNT critical${NC}"
+        echo -e "${RED}  ✗ npm audit: $CRITICAL_COUNT critical, $HIGH_COUNT high (ZERO TOLERANCE)${NC}"
+        echo -e "${YELLOW}    Run: cd frontend && npm audit fix${NC}"
+        npm audit --audit-level=high 2>&1 | head -30
         FAILED=true
     fi
     cd ..
+else
+    echo -e "${YELLOW}  ⚠ frontend directory not found${NC}"
 fi
 
 echo ""
@@ -372,7 +405,14 @@ fi
 echo ""
 
 if [ "$FAILED" = true ]; then
-    echo -e "${RED}❌ Validation failed${NC}"
+    echo -e "${RED}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${RED}  ❌ VALIDATION FAILED - ZERO TOLERANCE POLICY${NC}"
+    echo -e "${RED}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}This is production code in a public repository.${NC}"
+    echo -e "${YELLOW}All code must be solid without critical issues or warnings.${NC}"
+    echo ""
+    echo -e "${YELLOW}Fix the issues above and run again.${NC}"
+    echo ""
     exit 1
 fi
 
