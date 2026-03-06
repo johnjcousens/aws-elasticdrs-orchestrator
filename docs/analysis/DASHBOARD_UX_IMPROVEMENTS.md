@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # Dashboard UX Improvements - Per-Account Breakdown
 
 **Date**: February 2, 2026  

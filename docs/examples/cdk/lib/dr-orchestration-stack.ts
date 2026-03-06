@@ -1,3 +1,6 @@
+// Copyright Amazon.com and Affiliates. All rights reserved.
+// This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';

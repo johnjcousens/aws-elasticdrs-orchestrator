@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 #
 # Main Stack Deployment Script (New Architecture)
 # Usage: ./scripts/deploy-main-stack.sh [environment] [options]

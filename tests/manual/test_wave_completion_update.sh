@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 # Manual test script for update_wave_completion_status() function
 # Tests wave completion update via direct Lambda invocation
 

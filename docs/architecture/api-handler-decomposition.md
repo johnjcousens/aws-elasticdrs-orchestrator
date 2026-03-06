@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # API Handler Decomposition Architecture
 
 **Date**: 2026-01-24  

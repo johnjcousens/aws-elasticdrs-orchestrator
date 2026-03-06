@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # AWS CDK Example for DR Orchestration Platform
 
 This directory contains a complete AWS CDK (Cloud Development Kit) example demonstrating how to deploy the AWS DRS Orchestration Platform in **headless mode** (without API Gateway, Cognito, or frontend) using TypeScript.

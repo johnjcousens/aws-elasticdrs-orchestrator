@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # Orchestration Refactoring - Test Summary
 
 **Date**: February 3, 2026  

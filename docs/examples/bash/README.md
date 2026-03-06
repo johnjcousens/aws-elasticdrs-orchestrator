@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # Bash Examples for AWS DRS Orchestration Platform
 
 This directory contains Bash scripts demonstrating how to integrate the AWS DRS Orchestration Platform into CI/CD pipelines for automated disaster recovery testing.

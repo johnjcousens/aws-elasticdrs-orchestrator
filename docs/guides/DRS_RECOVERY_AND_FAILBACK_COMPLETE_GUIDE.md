@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # AWS DRS Recovery and Failback Complete Guide
 
 **Complete reference for AWS Elastic Disaster Recovery (DRS) recovery process, failback procedures, API calls, and IAM permissions**

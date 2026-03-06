@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # Wave Completion Status Update Test Events
 
 This directory contains test events for testing the `update_wave_completion_status()` function in execution-handler via direct Lambda invocation.

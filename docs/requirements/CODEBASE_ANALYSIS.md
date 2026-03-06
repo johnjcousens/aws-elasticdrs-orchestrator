@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # AWS DRS Orchestration - Codebase Analysis
 **Purpose**: Deep analysis of /cfn, /lambda, and /frontend to align requirements documentation with actual implementation
 

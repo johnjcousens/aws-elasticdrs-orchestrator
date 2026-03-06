@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 # Data Integrity Verification for Wave Status Polling Refactoring
 # Task 4.10: Verify no data loss during wave transitions
 

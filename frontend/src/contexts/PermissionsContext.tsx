@@ -1,3 +1,6 @@
+// Copyright Amazon.com and Affiliates. All rights reserved.
+// This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { fetchAuthSession } from 'aws-amplify/auth';

@@ -1,3 +1,6 @@
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 description: 'Install AWS DRS Replication Agent with cross-account support'
 schemaVersion: '2.2'
 parameters:

@@ -1,3 +1,6 @@
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 """
 Unit tests for apply_launch_configs and get_launch_config_status operations.
 

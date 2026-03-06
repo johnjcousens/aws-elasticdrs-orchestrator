@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # CI/CD Deployment Guide
 
 Complete guide for deploying AWS DRS Orchestration using the local deploy.sh script with future CI/CD platform migration options.

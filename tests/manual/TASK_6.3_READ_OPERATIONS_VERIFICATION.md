@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # Task 6.3 - Read Operations Verification Report
 
 **Spec**: Query Handler Read-Only Audit (06-query-handler-read-only-audit)  

@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # Per-Server Launch Template Customization - Deployment Summary
 
 ## Date: January 28, 2026

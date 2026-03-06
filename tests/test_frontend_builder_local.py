@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 """
 Local test for frontend-builder Lambda
 Tests the Lambda package before CloudFormation deployment

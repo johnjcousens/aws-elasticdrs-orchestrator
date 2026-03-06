@@ -1,3 +1,6 @@
+// Copyright Amazon.com and Affiliates. All rights reserved.
+// This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 /**
  * InvocationSourceBadge Component
  * Displays the source of an execution (UI, CLI, Scheduled, SSM, etc.)

@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # AWS DRS Execution Walkthrough - Complete API Reference
 
 **Document Version**: 2.1  

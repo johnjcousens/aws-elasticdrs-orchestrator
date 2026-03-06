@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 """
 Test Read Operations - Query Handler Read-Only Audit Task 6.3
 
