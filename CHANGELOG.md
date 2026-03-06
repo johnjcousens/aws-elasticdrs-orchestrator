@@ -12,7 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Copyright Headers**: Applied Apache 2.0 copyright headers to 575 project files (Python, TypeScript, YAML, Markdown, Shell) using `scripts/apply_copyright_headers.py`
+- **LICENSE.txt**: Added Apache License 2.0 full text
+- **Copyright Validation Tests**: Added `test_copyright_header_unit.py` and `test_copyright_header_property.py` to verify headers are present
+
 ### Changed
+- **License Badge**: Updated README license badge from MIT to Apache 2.0 to match LICENSE.txt
 - **Documentation Organization**: Reorganized documentation into logical subdirectories for improved navigation
   - Moved deployment guides to `docs/deployment/` (DEPLOY_MAIN_STACK_GUIDE.md, QA_DEPLOYMENT_CONFIGURATION.md, MIGRATION_GUIDE.md)
   - Moved IAM documentation to `docs/iam/` (IAM_ROLE_REFERENCE.md, STAGING_ACCOUNT_SYNC_IAM_REQUIREMENTS.md)
