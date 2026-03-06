@@ -19,9 +19,9 @@ repos:
     hooks:
       - id: semgrep
         name: Semgrep security scanner
-        args: ['--config=python.lang.security', '--config=yaml.lang.security', '--error']
-        files: '\.(py|yaml|yml)$'
-        exclude: '^(tests/|node_modules/|\.git/)'
+        args: ['--config=p/security-audit', '--error']
+        files: '\.(py|yaml|yml|ts|tsx|js|jsx)$'
+        exclude: '^(tests/|node_modules/|\.git/|frontend/node_modules/)'
 
   # Python dependency vulnerability scanning
   - repo: local
@@ -91,6 +91,39 @@ repos:
         name: Detect secrets
         args: ['--baseline', '.secrets.baseline']
         exclude: '^(\.git/|\.venv/|node_modules/|\.hypothesis/)'
+
+  # pip-audit - Python dependency CVE scanning
+  - repo: local
+    hooks:
+      - id: pip-audit
+        name: pip-audit Python dependency CVE scanner
+        entry: pip-audit
+        args: ['-r']
+        language: system
+        files: 'requirements.*\.txt$'
+        pass_filenames: true
+
+  # License compliance - Python
+  - repo: local
+    hooks:
+      - id: pip-licenses
+        name: pip-licenses Python license check
+        entry: bash
+        args: ['-c', 'pip-licenses --fail-on="GPL-3.0-only;GPL-3.0-or-later;AGPL-3.0-only;AGPL-3.0-or-later" --format=plain']
+        language: system
+        files: 'requirements.*\.txt$'
+        pass_filenames: false
+
+  # License compliance - npm
+  - repo: local
+    hooks:
+      - id: license-checker
+        name: license-checker npm license check
+        entry: bash
+        args: ['-c', 'cd frontend && npx license-checker --failOn "GPL-3.0;AGPL-3.0" --summary']
+        language: system
+        files: 'frontend/package.*\.json$'
+        pass_filenames: false
 
   # Python code formatting (security-adjacent)
   - repo: https://github.com/psf/black

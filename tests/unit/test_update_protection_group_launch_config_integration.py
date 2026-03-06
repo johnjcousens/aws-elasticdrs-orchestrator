@@ -31,6 +31,7 @@ os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history"
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts"
 os.environ["TAG_SYNC_CONFIG_TABLE"] = "test-tag-sync-config"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+os.environ["ASYNC_LAUNCH_CONFIG_ENABLED"] = "false"
 
 # Import handler module
 import importlib
@@ -64,8 +65,8 @@ def create_existing_group():
         "serverSelectionTags": {},
         "launchConfig": {
             "instanceType": "t3.medium",
-            "subnetId": "subnet-111",
-            "securityGroupIds": ["sg-111"],
+            "subnetId": "subnet-1234567890abcdef0",
+            "securityGroupIds": ["sg-1234567890abcdef0"],
         },
         "version": 1,
         "createdDate": int(time.time()),
@@ -211,8 +212,8 @@ def test_update_with_config_changes_reapplies_configs():
                                 "sourceServerIds": existing_group["sourceServerIds"],
                                 "launchConfig": {
                                     "instanceType": "t3.large",  # Changed
-                                    "subnetId": "subnet-111",
-                                    "securityGroupIds": ["sg-111"],
+                                    "subnetId": "subnet-1234567890abcdef0",
+                                    "securityGroupIds": ["sg-1234567890abcdef0"],
                                 },
                                 "version": 1,
                             }
@@ -407,8 +408,8 @@ def test_update_succeeds_when_config_application_fails():
                                 "sourceServerIds": existing_group["sourceServerIds"],
                                 "launchConfig": {
                                     "instanceType": "t3.large",
-                                    "subnetId": "subnet-invalid",
-                                    "securityGroupIds": ["sg-111"],
+                                    "subnetId": "subnet-abcdef1234567890a",
+                                    "securityGroupIds": ["sg-abcdef1234567890a"],
                                 },
                                 "version": 1,
                             }

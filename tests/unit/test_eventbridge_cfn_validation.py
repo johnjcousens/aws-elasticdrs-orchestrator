@@ -22,7 +22,8 @@ def load_eventbridge_template_as_text():
         "..",
         "..",
         "cfn",
-        "eventbridge-stack.yaml"
+        "eventbridge",
+        "rules-stack.yaml"
     )
     with open(template_path, "r") as f:
         return f.read()
