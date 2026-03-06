@@ -10,7 +10,7 @@ Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wav
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019.1.1-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE.txt)
 
 > **🎯 Current Sprint Priorities**: This sprint focuses on three high-priority DRS enhancements to improve rate limit handling, agent deployment, and targeted recovery capabilities. See [Future Enhancements](#future-enhancements) for implementation details and dependencies.
 >
