@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # Task 18.7 Status Report: Negative Security Tests
 
 **Date**: 2025-02-26  

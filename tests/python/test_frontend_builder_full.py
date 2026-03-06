@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 """
 Full localhost test environment for frontend-builder Lambda
 Mocks AWS services (S3, CloudFront) to test complete deployment flow

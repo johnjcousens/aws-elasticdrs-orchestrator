@@ -1,3 +1,6 @@
+// Copyright Amazon.com and Affiliates. All rights reserved.
+// This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

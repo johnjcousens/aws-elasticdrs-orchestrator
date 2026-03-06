@@ -1,3 +1,6 @@
+// Copyright Amazon.com and Affiliates. All rights reserved.
+// This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 // Test setup file for vitest
 import { beforeAll, afterEach } from 'vitest';
 import '@testing-library/jest-dom';

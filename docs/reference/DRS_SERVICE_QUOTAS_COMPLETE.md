@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # AWS Elastic Disaster Recovery (DRS) Service Quotas - Complete Reference
 
 **Source**: [AWS General Reference - DRS Endpoints and Quotas](https://docs.aws.amazon.com/general/latest/gr/drs.html)  

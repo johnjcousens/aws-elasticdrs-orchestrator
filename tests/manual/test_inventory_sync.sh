@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
+
 # Task 7.1: Inventory Sync End-to-End Test Script
 # Tests EventBridge rule triggering and inventory table updates
 

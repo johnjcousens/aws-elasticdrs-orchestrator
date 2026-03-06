@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # Pre-Creation Quota Validation Gaps Analysis
 
 **Date**: February 1, 2026  

@@ -1,3 +1,6 @@
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 """
 End-to-End Integration Tests for Complete DR Workflows.
 

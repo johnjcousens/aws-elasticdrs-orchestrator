@@ -1,3 +1,6 @@
+// Copyright Amazon.com and Affiliates. All rights reserved.
+// This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
 import React, { useState } from 'react';
 import { Checkbox, StatusIndicator } from '@cloudscape-design/components';
 import type { DRSServer } from '../types';

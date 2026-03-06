@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # IAM Troubleshooting Guide
 
 Comprehensive guide for diagnosing and resolving IAM permission issues, CloudFormation deployment errors, and operational problems with function-specific IAM roles.

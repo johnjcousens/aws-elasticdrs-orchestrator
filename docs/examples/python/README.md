@@ -1,3 +1,6 @@
+<!-- Copyright Amazon.com and Affiliates. All rights reserved.
+     This deliverable is considered Developed Content as defined in the AWS Service Terms. -->
+
 # Python Examples for AWS DRS Orchestration Platform
 
 This directory contains Python examples demonstrating how to use the AWS DRS Orchestration Platform with direct Lambda invocation (headless mode).
