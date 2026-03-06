@@ -31,7 +31,9 @@ dev = [
     "isort>=5.13.0",
     "bandit>=1.9.0",
     "semgrep>=1.146.0",
-    "safety>=3.7.0"
+    "safety>=3.7.0",
+    "pip-audit>=2.9.0",
+    "pip-licenses>=5.0.0"
 ]
 
 [tool.black]

@@ -1,0 +1,25 @@
+{
+  "enabled": true,
+  "name": "Copyright Header Enforcement",
+  "description": "When a new source file is created, checks if it contains the required AWS copyright header and reminds the agent to add it if missing. Applies to .py, .ts, .tsx, .js, .jsx, .yaml, .yml, .sh, .css, .html files.",
+  "version": "1",
+  "when": {
+    "type": "fileCreated",
+    "patterns": [
+      "*.py",
+      "*.ts",
+      "*.tsx",
+      "*.js",
+      "*.jsx",
+      "*.yaml",
+      "*.yml",
+      "*.sh",
+      "*.css",
+      "*.html"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A new source file was just created. Check if it contains the required copyright header: \"Copyright Amazon.com and Affiliates. All rights reserved.\" followed by \"This deliverable is considered Developed Content as defined in the AWS Service Terms.\" If the header is missing, add it at the top of the file using the appropriate comment syntax for the file type. For shell scripts, place it after the shebang line. Do NOT add headers to files in node_modules, .venv, dist, build, .git, or other generated/third-party directories."
+  }
+}

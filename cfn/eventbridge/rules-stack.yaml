@@ -172,6 +172,7 @@ Resources:
 
   # ===========================================================================
   # STAGING ACCOUNT SYNC SCHEDULED RULE
+  # Routes to data-management-handler for write operations (account sync)
   # ===========================================================================
   StagingAccountSyncScheduleRule:
     Type: AWS::Events::Rule

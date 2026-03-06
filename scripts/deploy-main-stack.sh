@@ -350,6 +350,79 @@ else
     echo -e "${YELLOW}  ⚠ frontend directory not found${NC}"
 fi
 
+# pip-audit - ZERO TOLERANCE for known Python dependency CVEs
+if [ -f ".venv/bin/pip-audit" ]; then
+    PIP_AUDIT_OUTPUT=$(.venv/bin/pip-audit -r lambda/requirements.txt 2>&1 || true)
+    if echo "$PIP_AUDIT_OUTPUT" | grep -q "No known vulnerabilities found"; then
+        echo -e "${GREEN}  ✓ pip-audit${NC}"
+    elif echo "$PIP_AUDIT_OUTPUT" | grep -qE "found [0-9]+ vulnerabilit"; then
+        echo -e "${RED}  ✗ pip-audit: vulnerabilities found (ZERO TOLERANCE)${NC}"
+        echo "$PIP_AUDIT_OUTPUT" | head -20
+        FAILED=true
+    else
+        echo -e "${GREEN}  ✓ pip-audit${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ pip-audit not installed${NC}"
+fi
+
+# Semgrep - ZERO TOLERANCE for security findings
+if [ -f ".venv/bin/semgrep" ]; then
+    SEMGREP_EXIT=0
+    .venv/bin/semgrep --config=p/security-audit \
+        --error --quiet lambda/ cfn/ 2>/dev/null || SEMGREP_EXIT=$?
+    if [ $SEMGREP_EXIT -eq 0 ]; then
+        echo -e "${GREEN}  ✓ semgrep (Python/YAML)${NC}"
+    else
+        echo -e "${RED}  ✗ semgrep: security issues in Python/YAML (ZERO TOLERANCE)${NC}"
+        .venv/bin/semgrep --config=p/security-audit \
+            --error lambda/ cfn/ 2>&1 | head -30
+        FAILED=true
+    fi
+    if [ -d "frontend/src" ]; then
+        SEMGREP_TS_EXIT=0
+        .venv/bin/semgrep --config=p/security-audit \
+            --error --quiet frontend/src/ 2>/dev/null || SEMGREP_TS_EXIT=$?
+        if [ $SEMGREP_TS_EXIT -eq 0 ]; then
+            echo -e "${GREEN}  ✓ semgrep (TypeScript)${NC}"
+        else
+            echo -e "${RED}  ✗ semgrep: security issues in TypeScript (ZERO TOLERANCE)${NC}"
+            .venv/bin/semgrep --config=p/security-audit \
+                --error frontend/src/ 2>&1 | head -30
+            FAILED=true
+        fi
+    fi
+else
+    echo -e "${YELLOW}  ⚠ semgrep not installed${NC}"
+fi
+
+# License compliance - ZERO TOLERANCE for copyleft licenses
+if [ -f ".venv/bin/pip-licenses" ]; then
+    LICENSE_OUTPUT=$(.venv/bin/pip-licenses --fail-on="GPL-3.0-only;GPL-3.0-or-later;AGPL-3.0-only;AGPL-3.0-or-later" 2>&1 || true)
+    if echo "$LICENSE_OUTPUT" | grep -qi "fail"; then
+        echo -e "${RED}  ✗ pip-licenses: copyleft license detected (ZERO TOLERANCE)${NC}"
+        echo "$LICENSE_OUTPUT" | head -20
+        FAILED=true
+    else
+        echo -e "${GREEN}  ✓ pip-licenses${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ pip-licenses not installed${NC}"
+fi
+
+if [ -d "frontend" ]; then
+    cd frontend
+    LICENSE_NPM_OUTPUT=$(npx license-checker --failOn "GPL-3.0;AGPL-3.0" --summary 2>&1 || true)
+    if echo "$LICENSE_NPM_OUTPUT" | grep -qi "found restricted license"; then
+        echo -e "${RED}  ✗ license-checker: copyleft license detected (ZERO TOLERANCE)${NC}"
+        echo "$LICENSE_NPM_OUTPUT" | head -20
+        FAILED=true
+    else
+        echo -e "${GREEN}  ✓ license-checker (npm)${NC}"
+    fi
+    cd ..
+fi
+
 echo ""
 
 # ============================================================================

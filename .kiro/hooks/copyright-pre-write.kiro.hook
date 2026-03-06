@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Copyright Header Pre-Write Check",
+  "description": "Before writing a new file, reminds the agent to include the AWS copyright header in the content being written. Only applies to write operations that create new source files.",
+  "version": "1",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      "write"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "You are about to write a file. If this is a NEW source file (.py, .ts, .tsx, .js, .jsx, .yaml, .yml, .sh, .css, .html), ensure the copyright header is included at the top: \"Copyright Amazon.com and Affiliates. All rights reserved.\" and \"This deliverable is considered Developed Content as defined in the AWS Service Terms.\" Use the appropriate comment syntax for the file type. Skip this for: JSON files, config dot-files (.gitignore, .flake8, etc.), files in node_modules/.venv/dist/build/.git, lock files, and existing files being edited (not newly created). If the file already exists and already has the header, do not duplicate it."
+  }
+}

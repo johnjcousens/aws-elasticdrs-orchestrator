@@ -128,14 +128,14 @@ class TestWaveCompletionSync:
     """Test recovery instance sync triggered by wave completion."""
 
     def test_completed_wave_triggers_sync(self, eh_handler_module):
-        """COMPLETED status with server_ids and region triggers recovery instance sync."""
+        """COMPLETED status with server_ids and region triggers async Lambda invoke."""
         index_module, mock_table = eh_handler_module
 
-        mock_sync = sys.modules["shared.recovery_instance_sync"].sync_recovery_instances_for_account
-        mock_sync.return_value = {"instancesUpdated": 3, "errors": []}
-
-        # Mock get_current_account_id
-        sys.modules["shared.cross_account"].get_current_account_id.return_value = "123456789012"
+        # The source code now invokes data-management-handler Lambda asynchronously
+        # instead of calling sync_recovery_instances_for_account directly
+        mock_lambda_client = MagicMock()
+        mock_boto3_client = sys.modules["boto3"].client
+        mock_boto3_client.return_value = mock_lambda_client
 
         wave_data = {
             "wave_number": 1,
@@ -152,9 +152,15 @@ class TestWaveCompletionSync:
         )
 
         assert result["statusCode"] == 200
-        mock_sync.assert_called_once_with(
-            "123456789012", "us-east-2", {"accountId": "123456789012"}
-        )
+        # Verify async Lambda invoke was called
+        mock_lambda_client.invoke.assert_called_once()
+        invoke_args = mock_lambda_client.invoke.call_args
+        assert invoke_args[1]["InvocationType"] == "Event"
+        payload = json.loads(invoke_args[1]["Payload"])
+        assert payload["operation"] == "sync-recovery-instances"
+        assert payload["accountId"] == "123456789012"
+        assert payload["region"] == "us-east-2"
+        assert payload["accountContext"] == {"accountId": "123456789012"}
 
     def test_completed_wave_without_server_ids_skips_sync(self, eh_handler_module):
         """COMPLETED status without server_ids skips sync."""
@@ -269,11 +275,12 @@ class TestWaveCompletionSync:
         mock_sync.assert_not_called()
 
     def test_sync_uses_current_account_when_no_context(self, eh_handler_module):
-        """When account_context is missing, sync uses current account ID."""
+        """When account_context is missing, async invoke uses current account ID."""
         index_module, mock_table = eh_handler_module
 
-        mock_sync = sys.modules["shared.recovery_instance_sync"].sync_recovery_instances_for_account
-        mock_sync.return_value = {"instancesUpdated": 1, "errors": []}
+        mock_lambda_client = MagicMock()
+        mock_boto3_client = sys.modules["boto3"].client
+        mock_boto3_client.return_value = mock_lambda_client
 
         sys.modules["shared.cross_account"].get_current_account_id.return_value = "999888777666"
 
@@ -292,7 +299,12 @@ class TestWaveCompletionSync:
         )
 
         assert result["statusCode"] == 200
-        mock_sync.assert_called_once_with("999888777666", "us-east-2", None)
+        mock_lambda_client.invoke.assert_called_once()
+        invoke_args = mock_lambda_client.invoke.call_args
+        payload = json.loads(invoke_args[1]["Payload"])
+        assert payload["accountId"] == "999888777666"
+        assert payload["region"] == "us-east-2"
+        assert payload["accountContext"] is None
 
 
 

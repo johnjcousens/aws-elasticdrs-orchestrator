@@ -565,7 +565,7 @@ class TestPollWaveStatusFailed:
 
         mock_dynamodb_table.get_item.return_value = {"Item": {"status": "RUNNING"}}
 
-        # Job completed but no servers launched
+        # Job completed but all servers failed to launch
         mock_drs_client.describe_jobs.return_value = {
             "items": [
                 {
@@ -574,17 +574,17 @@ class TestPollWaveStatusFailed:
                     "participatingServers": [
                         {
                             "sourceServerID": "s-001",
-                            "launchStatus": "PENDING",
+                            "launchStatus": "FAILED",
                             "recoveryInstanceID": None,
                         },
                         {
                             "sourceServerID": "s-002",
-                            "launchStatus": "PENDING",
+                            "launchStatus": "FAILED",
                             "recoveryInstanceID": None,
                         },
                         {
                             "sourceServerID": "s-003",
-                            "launchStatus": "PENDING",
+                            "launchStatus": "FAILED",
                             "recoveryInstanceID": None,
                         },
                     ],
@@ -598,7 +598,7 @@ class TestPollWaveStatusFailed:
             with patch("index.create_drs_client", return_value=mock_drs_client):
                 result = poll_wave_status(sample_state)
 
-        # Verify wave failed
+        # Verify wave failed (failed_count > 0 branch)
         assert result["wave_completed"] is True
         assert result["status"] == "failed"
         assert "no recovery instances created" in result["error"]

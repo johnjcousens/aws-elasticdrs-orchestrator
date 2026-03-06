@@ -155,155 +155,147 @@ def mock_apply_result_partial():
 class TestApplyLaunchConfigsForceTrue:
     """Test apply_launch_configs with force=true (always re-apply)."""
 
-    @patch("shared.launch_config_service.apply_launch_configs_to_group")
+    @patch.object(data_management_handler, "_invoke_async_sync")
+    @patch("shared.launch_config_service.persist_config_status")
+    @patch("shared.launch_config_service.get_config_status")
     @patch.object(data_management_handler, "get_protection_groups_table")
-    @patch.object(data_management_handler, "get_effective_launch_config")
     def test_force_true_always_applies(
         self,
-        mock_get_effective,
         mock_table,
-        mock_apply,
+        mock_get_status,
+        mock_persist_status,
+        mock_invoke_async,
         mock_protection_group,
-        mock_apply_result_success,
     ):
-        """Test force=true always applies configs regardless of current status."""
+        """Test force=true initiates async sync regardless of current status."""
         # Setup mocks
         mock_table_instance = Mock()
         mock_table.return_value = mock_table_instance
         mock_table_instance.get_item.return_value = {
             "Item": mock_protection_group
         }
-        mock_get_effective.return_value = {"instanceType": "t3.medium"}
-        mock_apply.return_value = mock_apply_result_success
+        mock_get_status.return_value = {"status": "ready"}
 
         # Execute
         result = apply_launch_configs("pg-test123", {"force": True})
 
-        # Verify
-        assert result["statusCode"] == 200
+        # Verify async 202 response
+        assert result["statusCode"] == 202
         body = json.loads(result["body"])
         assert body["groupId"] == "pg-test123"
-        assert body["status"] == "ready"
-        assert body["appliedServers"] == 2
-        assert body["failedServers"] == 0
+        assert "syncJobId" in body
+        assert "sync initiated" in body["message"].lower()
 
-        # Verify apply was called (force=true bypasses status check)
-        mock_apply.assert_called_once()
+        # Verify async sync was triggered
+        mock_invoke_async.assert_called_once()
+        mock_persist_status.assert_called_once()
 
-    @patch("shared.launch_config_service.apply_launch_configs_to_group")
+    @patch.object(data_management_handler, "_invoke_async_sync")
+    @patch("shared.launch_config_service.persist_config_status")
+    @patch("shared.launch_config_service.get_config_status")
     @patch.object(data_management_handler, "get_protection_groups_table")
-    @patch.object(data_management_handler, "get_effective_launch_config")
-    def test_force_true_with_partial_success(
+    def test_force_true_with_partial_status(
         self,
-        mock_get_effective,
         mock_table,
-        mock_apply,
+        mock_get_status,
+        mock_persist_status,
+        mock_invoke_async,
         mock_protection_group,
-        mock_apply_result_partial,
     ):
-        """Test force=true with partial success (some servers fail)."""
+        """Test force=true initiates sync even when current status is partial."""
         # Setup mocks
         mock_table_instance = Mock()
         mock_table.return_value = mock_table_instance
         mock_table_instance.get_item.return_value = {
             "Item": mock_protection_group
         }
-        mock_get_effective.return_value = {"instanceType": "t3.medium"}
-        mock_apply.return_value = mock_apply_result_partial
+        mock_get_status.return_value = {"status": "partial"}
 
         # Execute
         result = apply_launch_configs("pg-test123", {"force": True})
 
-        # Verify
-        assert result["statusCode"] == 200
+        # Verify async 202 response
+        assert result["statusCode"] == 202
         body = json.loads(result["body"])
-        assert body["status"] == "partial"
-        assert body["appliedServers"] == 1
-        assert body["failedServers"] == 1
-        assert len(body["errors"]) > 0
+        assert body["groupId"] == "pg-test123"
+        assert "syncJobId" in body
+        mock_invoke_async.assert_called_once()
 
 
 class TestApplyLaunchConfigsForceFalse:
-    """Test apply_launch_configs with force=false (skip if ready)."""
+    """Test apply_launch_configs with force=false (concurrency checks)."""
 
     @patch("shared.launch_config_service.get_config_status")
     @patch.object(data_management_handler, "get_protection_groups_table")
-    def test_force_false_skips_if_ready(
+    def test_force_false_rejects_if_syncing(
         self,
         mock_table,
         mock_get_status,
         mock_protection_group,
-        mock_config_status_ready,
     ):
-        """Test force=false skips apply if status is already ready."""
+        """Test force=false rejects with 409 if status is syncing."""
         # Setup mocks
         mock_table_instance = Mock()
         mock_table.return_value = mock_table_instance
         mock_table_instance.get_item.return_value = {
             "Item": mock_protection_group
         }
-        mock_get_status.return_value = mock_config_status_ready
+        mock_get_status.return_value = {"status": "syncing"}
 
         # Execute
         result = apply_launch_configs("pg-test123", {"force": False})
 
-        # Verify
-        assert result["statusCode"] == 200
+        # Verify concurrency rejection
+        assert result["statusCode"] == 409
         body = json.loads(result["body"])
-        assert body["groupId"] == "pg-test123"
-        assert body["status"] == "ready"
-        assert "already applied" in body["message"]
-        assert body["appliedServers"] == 2
-        assert body["failedServers"] == 0
+        assert "in progress" in body["message"].lower()
 
-    @patch.object(data_management_handler, "get_effective_launch_config")
-    @patch("shared.launch_config_service.apply_launch_configs_to_group")
+    @patch.object(data_management_handler, "_invoke_async_sync")
+    @patch("shared.launch_config_service.persist_config_status")
     @patch("shared.launch_config_service.get_config_status")
     @patch.object(data_management_handler, "get_protection_groups_table")
     def test_force_false_applies_if_failed(
         self,
         mock_table,
         mock_get_status,
-        mock_apply,
-        mock_get_effective,
+        mock_persist_status,
+        mock_invoke_async,
         mock_protection_group,
-        mock_config_status_failed,
-        mock_apply_result_success,
     ):
-        """Test force=false applies configs if current status is failed."""
+        """Test force=false initiates sync if current status is failed."""
         # Setup mocks
         mock_table_instance = Mock()
         mock_table.return_value = mock_table_instance
         mock_table_instance.get_item.return_value = {
             "Item": mock_protection_group
         }
-        mock_get_status.return_value = mock_config_status_failed
-        mock_get_effective.return_value = {"instanceType": "t3.medium"}
-        mock_apply.return_value = mock_apply_result_success
+        mock_get_status.return_value = {"status": "failed"}
 
         # Execute
         result = apply_launch_configs("pg-test123", {"force": False})
 
-        # Verify - should apply because status was failed
-        assert result["statusCode"] == 200
+        # Verify async 202 response (failed state allows re-sync)
+        assert result["statusCode"] == 202
         body = json.loads(result["body"])
-        assert body["status"] == "ready"
-        mock_apply.assert_called_once()
+        assert body["groupId"] == "pg-test123"
+        assert "syncJobId" in body
+        mock_invoke_async.assert_called_once()
 
 
 class TestApplyLaunchConfigsInvocationMethods:
     """Test all three invocation methods for apply_launch_configs."""
 
-    @patch.object(data_management_handler, "get_effective_launch_config")
-    @patch("shared.launch_config_service.apply_launch_configs_to_group")
+    @patch.object(data_management_handler, "_invoke_async_sync")
+    @patch("shared.launch_config_service.persist_config_status")
+    @patch("shared.launch_config_service.get_config_status")
     @patch.object(data_management_handler, "get_protection_groups_table")
     def test_frontend_invocation_via_api_gateway(
         self,
         mock_table,
-        mock_apply,
-        mock_get_effective,
+        mock_get_status,
+        mock_persist_status,
+        mock_invoke_async,
         mock_protection_group,
-        mock_apply_result_success,
     ):
         """Test Frontend invocation via API Gateway with Cognito auth."""
         # Setup mocks
@@ -312,57 +304,59 @@ class TestApplyLaunchConfigsInvocationMethods:
         mock_table_instance.get_item.return_value = {
             "Item": mock_protection_group
         }
-        mock_get_effective.return_value = {"instanceType": "t3.medium"}
-        mock_apply.return_value = mock_apply_result_success
+        mock_get_status.return_value = {"status": "not_configured"}
 
         # Execute (simulating API Gateway call)
         result = apply_launch_configs("pg-test123", {"force": True})
 
-        # Verify
-        assert result["statusCode"] == 200
+        # Verify async 202 response
+        assert result["statusCode"] == 202
         body = json.loads(result["body"])
         assert body["groupId"] == "pg-test123"
-        assert body["status"] == "ready"
+        assert "syncJobId" in body
+        mock_invoke_async.assert_called_once()
 
-    @patch.object(data_management_handler, "get_effective_launch_config")
-    @patch("shared.launch_config_service.apply_launch_configs_to_group")
+    @patch.object(data_management_handler, "_invoke_async_sync")
+    @patch("shared.launch_config_service.persist_config_status")
+    @patch("shared.launch_config_service.get_config_status")
     @patch.object(data_management_handler, "get_protection_groups_table")
     def test_api_invocation_via_api_gateway(
         self,
         mock_table,
-        mock_apply,
-        mock_get_effective,
+        mock_get_status,
+        mock_persist_status,
+        mock_invoke_async,
         mock_protection_group,
-        mock_apply_result_success,
     ):
         """Test API invocation via API Gateway with IAM auth."""
-        # Setup mocks (same as frontend - function doesn't distinguish)
+        # Setup mocks
         mock_table_instance = Mock()
         mock_table.return_value = mock_table_instance
         mock_table_instance.get_item.return_value = {
             "Item": mock_protection_group
         }
-        mock_get_effective.return_value = {"instanceType": "t3.medium"}
-        mock_apply.return_value = mock_apply_result_success
+        mock_get_status.return_value = {"status": "not_configured"}
 
         # Execute
         result = apply_launch_configs("pg-test123", {"force": True})
 
-        # Verify
-        assert result["statusCode"] == 200
+        # Verify async 202 response
+        assert result["statusCode"] == 202
         body = json.loads(result["body"])
         assert body["groupId"] == "pg-test123"
+        assert "syncJobId" in body
 
-    @patch.object(data_management_handler, "get_effective_launch_config")
-    @patch("shared.launch_config_service.apply_launch_configs_to_group")
+    @patch.object(data_management_handler, "_invoke_async_sync")
+    @patch("shared.launch_config_service.persist_config_status")
+    @patch("shared.launch_config_service.get_config_status")
     @patch.object(data_management_handler, "get_protection_groups_table")
     def test_direct_lambda_invocation(
         self,
         mock_table,
-        mock_apply,
-        mock_get_effective,
+        mock_get_status,
+        mock_persist_status,
+        mock_invoke_async,
         mock_protection_group,
-        mock_apply_result_success,
     ):
         """Test Direct Lambda invocation (no API Gateway)."""
         # Setup mocks
@@ -371,16 +365,16 @@ class TestApplyLaunchConfigsInvocationMethods:
         mock_table_instance.get_item.return_value = {
             "Item": mock_protection_group
         }
-        mock_get_effective.return_value = {"instanceType": "t3.medium"}
-        mock_apply.return_value = mock_apply_result_success
+        mock_get_status.return_value = {"status": "not_configured"}
 
         # Execute (direct invocation uses same function)
         result = apply_launch_configs("pg-test123", {"force": True})
 
-        # Verify
-        assert result["statusCode"] == 200
+        # Verify async 202 response
+        assert result["statusCode"] == 202
         body = json.loads(result["body"])
         assert body["groupId"] == "pg-test123"
+        assert "syncJobId" in body
 
 
 class TestApplyLaunchConfigsErrorHandling:
