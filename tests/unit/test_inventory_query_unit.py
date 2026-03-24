@@ -331,17 +331,17 @@ class TestQueryInventoryByStagingAccount:
 
     def test_query_staging_account(self, mock_dynamodb_table, fresh_timestamp):
         """Test querying by staging account ID."""
-        mock_dynamodb_table.scan.side_effect = [
-            {"Items": [{"sourceServerID": "s-123", "lastUpdated": fresh_timestamp}]},
-            {
-                "Items": [
-                    {
-                        "sourceServerID": "s-123",
-                        "stagingAccountId": "123456789012",
-                    }
-                ]
-            },
-        ]
+        mock_dynamodb_table.scan.return_value = {
+            "Items": [{"sourceServerID": "s-123", "lastUpdated": fresh_timestamp}]
+        }
+        mock_dynamodb_table.query.return_value = {
+            "Items": [
+                {
+                    "sourceServerID": "s-123",
+                    "stagingAccountId": "123456789012",
+                }
+            ]
+        }
 
         with patch(
             "shared.inventory_query.get_inventory_table",
@@ -356,18 +356,18 @@ class TestQueryInventoryByStagingAccount:
         self, mock_dynamodb_table, fresh_timestamp
     ):
         """Test querying staging account with region filter."""
-        mock_dynamodb_table.scan.side_effect = [
-            {"Items": [{"sourceServerID": "s-123", "lastUpdated": fresh_timestamp}]},
-            {
-                "Items": [
-                    {
-                        "sourceServerID": "s-123",
-                        "stagingAccountId": "123456789012",
-                        "replicationRegion": "us-east-1",
-                    }
-                ]
-            },
-        ]
+        mock_dynamodb_table.scan.return_value = {
+            "Items": [{"sourceServerID": "s-123", "lastUpdated": fresh_timestamp}]
+        }
+        mock_dynamodb_table.query.return_value = {
+            "Items": [
+                {
+                    "sourceServerID": "s-123",
+                    "stagingAccountId": "123456789012",
+                    "replicationRegion": "us-east-1",
+                }
+            ]
+        }
 
         with patch(
             "shared.inventory_query.get_inventory_table",

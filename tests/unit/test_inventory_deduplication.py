@@ -63,8 +63,8 @@ def test_deduplication_keeps_most_recent(mock_inventory_table, duplicate_servers
     
     with patch("shared.inventory_query.get_inventory_table", return_value=mock_inventory_table):
         with patch("shared.inventory_query.is_inventory_fresh", return_value=True):
-            # Mock scan response
-            mock_inventory_table.scan.return_value = {
+            # Mock GSI query response (query_inventory_by_regions uses ReplicationRegionIndex GSI)
+            mock_inventory_table.query.return_value = {
                 "Items": duplicate_servers
             }
             
@@ -101,7 +101,8 @@ def test_deduplication_with_no_duplicates(mock_inventory_table):
     
     with patch("shared.inventory_query.get_inventory_table", return_value=mock_inventory_table):
         with patch("shared.inventory_query.is_inventory_fresh", return_value=True):
-            mock_inventory_table.scan.return_value = {
+            # Mock GSI query response
+            mock_inventory_table.query.return_value = {
                 "Items": unique_servers
             }
             
@@ -131,7 +132,8 @@ def test_deduplication_handles_missing_timestamp(mock_inventory_table):
     
     with patch("shared.inventory_query.get_inventory_table", return_value=mock_inventory_table):
         with patch("shared.inventory_query.is_inventory_fresh", return_value=True):
-            mock_inventory_table.scan.return_value = {
+            # Mock GSI query response
+            mock_inventory_table.query.return_value = {
                 "Items": servers_with_missing_timestamp
             }
             
@@ -171,7 +173,8 @@ def test_deduplication_with_many_duplicates(mock_inventory_table):
     
     with patch("shared.inventory_query.get_inventory_table", return_value=mock_inventory_table):
         with patch("shared.inventory_query.is_inventory_fresh", return_value=True):
-            mock_inventory_table.scan.return_value = {
+            # Mock GSI query response
+            mock_inventory_table.query.return_value = {
                 "Items": servers
             }
             

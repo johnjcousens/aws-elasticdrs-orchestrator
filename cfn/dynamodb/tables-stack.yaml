@@ -186,6 +186,8 @@ Resources:
           AttributeType: S
         - AttributeName: sourceAccountId
           AttributeType: S
+        - AttributeName: replicationRegion
+          AttributeType: S
       KeySchema:
         - AttributeName: sourceServerArn
           KeyType: HASH
@@ -203,6 +205,14 @@ Resources:
         - IndexName: StagingAccountIndex
           KeySchema:
             - AttributeName: stagingAccountId
+              KeyType: HASH
+            - AttributeName: sourceServerArn
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: ReplicationRegionIndex
+          KeySchema:
+            - AttributeName: replicationRegion
               KeyType: HASH
             - AttributeName: sourceServerArn
               KeyType: RANGE
