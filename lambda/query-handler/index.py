@@ -1338,7 +1338,9 @@ def handle_get_source_server_inventory(query_params: Dict) -> Dict:
     direct DRS/EC2 API calls, providing faster responses and avoiding rate limits.
 
     Query Parameters:
+        region: Single region to query (preferred for fast GSI lookup)
         regions: Comma-separated list of regions (optional, defaults to active regions)
+        sourceAccountId: Filter by source account ID (enables fast GSI query)
         filters: JSON object with filter criteria (optional)
 
     Returns:
@@ -1348,15 +1350,17 @@ def handle_get_source_server_inventory(query_params: Dict) -> Dict:
     from shared.active_region_filter import get_active_regions
 
     try:
-        # Parse regions parameter
+        # Parse region(s) - accept both singular and plural forms
+        region_param = query_params.get("region")
         regions_param = query_params.get("regions")
-        if regions_param:
+        if region_param:
+            regions = [region_param.strip()]
+        elif regions_param:
             regions = [r.strip() for r in regions_param.split(",")]
         else:
-            # Default to active regions
             regions = get_active_regions()
 
-        # Parse filters parameter (optional)
+        # Build filters from query params
         filters = None
         filters_param = query_params.get("filters")
         if filters_param:
@@ -1372,6 +1376,13 @@ def handle_get_source_server_inventory(query_params: Dict) -> Dict:
                     ),
                 )
 
+        # Accept sourceAccountId as a direct query param for fast GSI lookup
+        source_account_id = query_params.get("sourceAccountId")
+        if source_account_id:
+            if filters is None:
+                filters = {}
+            filters["sourceAccountId"] = source_account_id
+
         # Query inventory database
         servers = query_inventory_by_regions(regions, filters)
 
@@ -1379,6 +1390,7 @@ def handle_get_source_server_inventory(query_params: Dict) -> Dict:
             200,
             {
                 "servers": servers,
+                "count": len(servers),
                 "totalCount": len(servers),
                 "regions": regions,
                 "source": "inventory_database",

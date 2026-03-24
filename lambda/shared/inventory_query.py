@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import boto3
-from boto3.dynamodb.conditions import Attr
+from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 # Configure logging
@@ -119,9 +119,10 @@ def is_inventory_fresh(
     """
     Check if inventory database contains fresh data.
 
-    Queries the inventory table for the most recent lastUpdated timestamp
+    Queries the region status table for the most recent lastChecked timestamp
     and compares it to the current time. Data is considered fresh if it
-    was updated within the specified time window.
+    was updated within the specified time window. Falls back to scanning
+    the inventory table if the region status table is unavailable.
 
     Args:
         max_age_minutes: Maximum age in minutes to consider fresh (default: 15)
@@ -135,6 +136,63 @@ def is_inventory_fresh(
         ... else:
         ...     servers = query_drs_api_directly(['us-east-1'])
     """
+    # Try region status table first (tiny table, max ~28 regions)
+    try:
+        from shared.active_region_filter import get_region_status_table
+
+        region_status_table = get_region_status_table()
+        if region_status_table is not None:
+            response = region_status_table.scan(Limit=1)
+            items = response.get("Items", [])
+            if items:
+                last_checked_str = items[0].get("lastChecked")
+                if last_checked_str:
+                    return _check_freshness(last_checked_str, max_age_minutes)
+            else:
+                logger.debug("Region status table is empty")
+                return False
+    except Exception as e:
+        logger.warning(f"Region status table unavailable, falling back to inventory table: {e}")
+
+    # Fallback to inventory table scan
+    return _check_freshness_from_inventory(max_age_minutes)
+
+
+def _check_freshness(timestamp_str: str, max_age_minutes: int) -> bool:
+    """
+    Check if a timestamp is within the freshness threshold.
+
+    Args:
+        timestamp_str: ISO format timestamp string
+        max_age_minutes: Maximum age in minutes to consider fresh
+
+    Returns:
+        True if timestamp is within max_age_minutes, False otherwise
+    """
+    last_updated = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+    now = datetime.now(timezone.utc)
+    age = now - last_updated
+
+    is_fresh = age.total_seconds() < (max_age_minutes * 60)
+
+    if is_fresh:
+        logger.debug(f"Inventory is fresh (age: {age.total_seconds():.0f}s, threshold: {max_age_minutes * 60}s)")
+    else:
+        logger.info(f"Inventory is stale (age: {age.total_seconds():.0f}s, threshold: {max_age_minutes * 60}s)")
+
+    return is_fresh
+
+
+def _check_freshness_from_inventory(max_age_minutes: int) -> bool:
+    """
+    Fallback freshness check using the inventory table.
+
+    Args:
+        max_age_minutes: Maximum age in minutes to consider fresh
+
+    Returns:
+        True if inventory was updated within max_age_minutes, False otherwise
+    """
     inventory_table = get_inventory_table()
 
     if not inventory_table:
@@ -142,8 +200,6 @@ def is_inventory_fresh(
         return False
 
     try:
-        # Query for any record to check lastUpdated timestamp
-        # Use limit=1 for efficiency - we only need one record
         response = inventory_table.scan(Limit=1)
 
         items = response.get("Items", [])
@@ -151,27 +207,12 @@ def is_inventory_fresh(
             logger.debug("Inventory table is empty")
             return False
 
-        # Get the lastUpdated timestamp from the first item
         last_updated_str = items[0].get("lastUpdated")
         if not last_updated_str:
             logger.warning("Inventory record missing lastUpdated timestamp")
             return False
 
-        # Parse ISO timestamp
-        last_updated = datetime.fromisoformat(last_updated_str.replace("Z", "+00:00"))
-        now = datetime.now(timezone.utc)
-        age = now - last_updated
-
-        is_fresh = age.total_seconds() < (max_age_minutes * 60)
-
-        if is_fresh:
-            logger.debug(
-                f"Inventory is fresh (age: {age.total_seconds():.0f}s, " f"threshold: {max_age_minutes * 60}s)"
-            )
-        else:
-            logger.info(f"Inventory is stale (age: {age.total_seconds():.0f}s, " f"threshold: {max_age_minutes * 60}s)")
-
-        return is_fresh
+        return _check_freshness(last_updated_str, max_age_minutes)
 
     except ClientError as e:
         logger.error(f"DynamoDB error checking inventory freshness: {e}")
@@ -179,6 +220,67 @@ def is_inventory_fresh(
     except Exception as e:
         logger.error(f"Unexpected error checking inventory freshness: {e}")
         return False
+
+
+def _query_gsi_with_pagination(table: Any, index_name: str, key_condition: Any) -> List[Dict[str, Any]]:
+    """
+    Query a GSI with automatic pagination handling.
+
+    Args:
+        table: DynamoDB Table resource
+        index_name: Name of the GSI to query
+        key_condition: KeyConditionExpression for the query
+
+    Returns:
+        List of all items from the GSI query across all pages
+    """
+    response = table.query(IndexName=index_name, KeyConditionExpression=key_condition)
+    items = response.get("Items", [])
+
+    while "LastEvaluatedKey" in response:
+        response = table.query(
+            IndexName=index_name,
+            KeyConditionExpression=key_condition,
+            ExclusiveStartKey=response["LastEvaluatedKey"],
+        )
+        items.extend(response.get("Items", []))
+
+    return items
+
+
+def _apply_post_filters(
+    servers: List[Dict[str, Any]], regions: List[str], filters: Optional[Dict[str, Any]] = None
+) -> List[Dict[str, Any]]:
+    """
+    Apply region and optional filters in Python after GSI query.
+
+    Args:
+        servers: Raw results from GSI query
+        regions: List of regions to filter by
+        filters: Optional additional filters
+
+    Returns:
+        Filtered list of servers
+    """
+    # Filter by replicationRegion
+    filtered = [s for s in servers if s.get("replicationRegion") in regions]
+
+    if not filters:
+        return filtered
+
+    if "hostname" in filters:
+        filtered = [s for s in filtered if s.get("hostname") == filters["hostname"]]
+
+    if "replicationState" in filters:
+        filtered = [s for s in filtered if s.get("replicationState") == filters["replicationState"]]
+
+    if "minCpuCores" in filters:
+        filtered = [s for s in filtered if s.get("cpuCores", 0) >= filters["minCpuCores"]]
+
+    if "minRamBytes" in filters:
+        filtered = [s for s in filtered if s.get("ramBytes", 0) >= filters["minRamBytes"]]
+
+    return filtered
 
 
 def query_inventory_by_regions(
@@ -190,6 +292,13 @@ def query_inventory_by_regions(
     Provides fast access to server data without DRS API calls.
     Falls back to empty list if inventory is stale or unavailable
     (caller should handle fallback to DRS API).
+
+    Uses GSI queries for efficient lookups:
+    - sourceAccountId filter → SourceAccountIndex GSI
+    - stagingAccountId filter → StagingAccountIndex GSI
+    - region(s) only → ReplicationRegionIndex GSI per region
+
+    Falls back to full table scan if GSI is not yet available.
 
     OPTIMIZATION: When update_on_fallback=True and inventory is stale,
     this function will query DRS API directly and update the inventory
@@ -234,42 +343,57 @@ def query_inventory_by_regions(
             return []
 
     try:
-        # Build filter expression for regions
-        filter_expression = Attr("replicationRegion").is_in(regions)
+        servers = []
 
-        # Add optional filters
-        if filters:
-            if "hostname" in filters:
-                filter_expression &= Attr("hostname").eq(filters["hostname"])
+        try:
+            # Select GSI query strategy based on available filters (priority order)
+            if filters and "sourceAccountId" in filters:
+                # Case A: Query SourceAccountIndex GSI, post-filter on region
+                source_account_id = filters["sourceAccountId"]
+                logger.debug(f"Querying SourceAccountIndex GSI for sourceAccountId={source_account_id}")
+                raw_results = _query_gsi_with_pagination(
+                    inventory_table, "SourceAccountIndex", Key("sourceAccountId").eq(source_account_id)
+                )
+                # Post-filter on region and remaining optional filters (exclude sourceAccountId)
+                remaining_filters = {k: v for k, v in filters.items() if k != "sourceAccountId"}
+                servers = _apply_post_filters(raw_results, regions, remaining_filters if remaining_filters else None)
 
-            if "replicationState" in filters:
-                filter_expression &= Attr("replicationState").eq(filters["replicationState"])
+            elif filters and "stagingAccountId" in filters:
+                # Case C: Query StagingAccountIndex GSI, post-filter on region
+                staging_account_id = filters["stagingAccountId"]
+                logger.debug(f"Querying StagingAccountIndex GSI for stagingAccountId={staging_account_id}")
+                raw_results = _query_gsi_with_pagination(
+                    inventory_table, "StagingAccountIndex", Key("stagingAccountId").eq(staging_account_id)
+                )
+                # Post-filter on region and remaining optional filters (exclude stagingAccountId)
+                remaining_filters = {k: v for k, v in filters.items() if k != "stagingAccountId"}
+                servers = _apply_post_filters(raw_results, regions, remaining_filters if remaining_filters else None)
 
-            if "stagingAccountId" in filters:
-                filter_expression &= Attr("stagingAccountId").eq(filters["stagingAccountId"])
+            else:
+                # Case B: Query ReplicationRegionIndex GSI per region, merge results
+                logger.debug(f"Querying ReplicationRegionIndex GSI for {len(regions)} regions")
+                raw_results = []
+                for region in regions:
+                    region_results = _query_gsi_with_pagination(
+                        inventory_table, "ReplicationRegionIndex", Key("replicationRegion").eq(region)
+                    )
+                    raw_results.extend(region_results)
 
-            if "sourceAccountId" in filters:
-                filter_expression &= Attr("sourceAccountId").eq(filters["sourceAccountId"])
+                # Apply remaining optional filters (no region filter needed, GSI handles it)
+                if filters:
+                    remaining_filters = filters
+                    servers = _apply_post_filters(raw_results, regions, remaining_filters)
+                else:
+                    servers = raw_results
 
-            if "minCpuCores" in filters:
-                filter_expression &= Attr("cpuCores").gte(filters["minCpuCores"])
-
-            if "minRamBytes" in filters:
-                filter_expression &= Attr("ramBytes").gte(filters["minRamBytes"])
-
-        # Query DynamoDB with filter
-        logger.debug(f"Querying inventory for {len(regions)} regions with filters: {filters}")
-        response = inventory_table.scan(FilterExpression=filter_expression)
-
-        servers = response.get("Items", [])
-
-        # Handle pagination (inventory table can be large)
-        while "LastEvaluatedKey" in response:
-            response = inventory_table.scan(
-                FilterExpression=filter_expression,
-                ExclusiveStartKey=response["LastEvaluatedKey"],
-            )
-            servers.extend(response.get("Items", []))
+        except ClientError as e:
+            # Fallback to scan if GSI doesn't exist yet (handles deployment window)
+            logger.warning(f"GSI query failed, falling back to table scan: {e}")
+            servers = _scan_inventory_fallback(inventory_table, regions, filters)
+        except Exception as e:
+            # Fallback to scan for any unexpected GSI query error
+            logger.warning(f"GSI query failed unexpectedly, falling back to table scan: {e}")
+            servers = _scan_inventory_fallback(inventory_table, regions, filters)
 
         # Deduplicate servers by sourceServerID (keep most recent by lastUpdatedDateTime)
         seen_servers = {}
@@ -312,6 +436,49 @@ def query_inventory_by_regions(
         return []
 
 
+def _scan_inventory_fallback(
+    inventory_table: Any, regions: List[str], filters: Optional[Dict[str, Any]] = None
+) -> List[Dict[str, Any]]:
+    """
+    Fallback to full table scan when GSI is not available.
+
+    Args:
+        inventory_table: DynamoDB Table resource
+        regions: List of regions to filter by
+        filters: Optional additional filters
+
+    Returns:
+        List of matching server items from scan
+    """
+    filter_expression = Attr("replicationRegion").is_in(regions)
+
+    if filters:
+        if "hostname" in filters:
+            filter_expression &= Attr("hostname").eq(filters["hostname"])
+        if "replicationState" in filters:
+            filter_expression &= Attr("replicationState").eq(filters["replicationState"])
+        if "stagingAccountId" in filters:
+            filter_expression &= Attr("stagingAccountId").eq(filters["stagingAccountId"])
+        if "sourceAccountId" in filters:
+            filter_expression &= Attr("sourceAccountId").eq(filters["sourceAccountId"])
+        if "minCpuCores" in filters:
+            filter_expression &= Attr("cpuCores").gte(filters["minCpuCores"])
+        if "minRamBytes" in filters:
+            filter_expression &= Attr("ramBytes").gte(filters["minRamBytes"])
+
+    response = inventory_table.scan(FilterExpression=filter_expression)
+    servers = response.get("Items", [])
+
+    while "LastEvaluatedKey" in response:
+        response = inventory_table.scan(
+            FilterExpression=filter_expression,
+            ExclusiveStartKey=response["LastEvaluatedKey"],
+        )
+        servers.extend(response.get("Items", []))
+
+    return servers
+
+
 def query_inventory_by_staging_account(
     staging_account_id: str, regions: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
@@ -345,24 +512,24 @@ def query_inventory_by_staging_account(
         return []
 
     try:
-        # Build filter expression
-        filter_expression = Attr("stagingAccountId").eq(staging_account_id)
-
-        if regions:
-            filter_expression &= Attr("replicationRegion").is_in(regions)
-
-        logger.debug(f"Querying inventory for staging account {staging_account_id}")
-        response = inventory_table.scan(FilterExpression=filter_expression)
+        logger.debug(f"Querying StagingAccountIndex GSI for staging account {staging_account_id}")
+        key_condition = Key("stagingAccountId").eq(staging_account_id)
+        response = inventory_table.query(IndexName="StagingAccountIndex", KeyConditionExpression=key_condition)
 
         servers = response.get("Items", [])
 
         # Handle pagination
         while "LastEvaluatedKey" in response:
-            response = inventory_table.scan(
-                FilterExpression=filter_expression,
+            response = inventory_table.query(
+                IndexName="StagingAccountIndex",
+                KeyConditionExpression=key_condition,
                 ExclusiveStartKey=response["LastEvaluatedKey"],
             )
             servers.extend(response.get("Items", []))
+
+        # Post-filter on replicationRegion if regions parameter is provided
+        if regions:
+            servers = [s for s in servers if s.get("replicationRegion") in regions]
 
         logger.info(
             f"Retrieved {len(servers)} servers from inventory database " f"for staging account {staging_account_id}"
