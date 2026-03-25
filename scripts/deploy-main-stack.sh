@@ -592,9 +592,11 @@ if [ "$FRONTEND_ONLY" = false ]; then
     
     echo -e "${GREEN}  ✓ Nested stack templates synced${NC}"
     
-    # Sync Lambda packages to S3
+    # Sync Lambda packages to S3 (force upload to ensure new code is always deployed)
     echo "  Syncing Lambda packages to S3..."
-    aws s3 sync build/lambda/ "s3://${DEPLOYMENT_BUCKET}/lambda/" --delete --quiet --region "$AWS_REGION"
+    for zipfile in build/lambda/*.zip; do
+        aws s3 cp "$zipfile" "s3://${DEPLOYMENT_BUCKET}/lambda/$(basename "$zipfile")" --quiet --region "$AWS_REGION"
+    done
     echo -e "${GREEN}  ✓ Lambda packages synced${NC}"
 fi
 
@@ -705,6 +707,7 @@ else
     
     # Generate versions
     FRONTEND_VERSION=$(date +"%Y%m%d-%H%M")
+    LAMBDA_CODE_VERSION=$(date +"%Y%m%d-%H%M%S")
     
     # Deploy main stack with nested stacks
     aws cloudformation deploy \
@@ -719,11 +722,32 @@ else
             AdminEmail="$ADMIN_EMAIL" \
             UseFunctionSpecificRoles="$USE_FUNCTION_SPECIFIC_ROLES" \
             FrontendBuildVersion="$FRONTEND_VERSION" \
+            LambdaCodeVersion="$LAMBDA_CODE_VERSION" \
         --capabilities CAPABILITY_NAMED_IAM \
         --no-fail-on-empty-changeset \
         --region "$AWS_REGION"
     
     echo -e "${GREEN}  ✓ Stack deployed${NC}"
+fi
+
+# Force Lambda code update after every deploy (CFN doesn't detect S3 content changes with static keys)
+if [ "$FRONTEND_ONLY" = false ]; then
+    echo "  Updating Lambda function code..."
+    LAMBDA_UPDATED=0
+    for zipfile in build/lambda/*.zip; do
+        FUNC_BASE=$(basename "$zipfile" .zip)
+        FUNC_NAME="${PROJECT_NAME}-${FUNC_BASE}-${ENVIRONMENT}"
+        if aws lambda get-function --function-name "$FUNC_NAME" --region "$AWS_REGION" > /dev/null 2>&1; then
+            aws lambda update-function-code \
+                --function-name "$FUNC_NAME" \
+                --s3-bucket "$DEPLOYMENT_BUCKET" \
+                --s3-key "lambda/${FUNC_BASE}.zip" \
+                --region "$AWS_REGION" \
+                --output json > /dev/null 2>&1
+            LAMBDA_UPDATED=$((LAMBDA_UPDATED + 1))
+        fi
+    done
+    echo -e "${GREEN}  ✓ Lambda code updated (${LAMBDA_UPDATED} functions)${NC}"
 fi
 
 echo ""
