@@ -1327,7 +1327,9 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                             # Sort by StartTime descending to find most recent match
                             exec_items = sorted(
                                 exec_scan.get("Items", []),
-                                key=lambda x: x.get("startTime", 0),
+                                key=lambda x: (
+                                    float(x.get("startTime", 0)) if not isinstance(x.get("startTime"), str) else 0
+                                ),
                                 reverse=True,
                             )
 
@@ -1961,6 +1963,8 @@ def apply_launch_config_before_recovery(
         recovery. This ensures partial success when some servers have
         configuration issues.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     ec2_client = boto3.client("ec2", region_name=region)
 
     # Import config merge function for per-server overrides
@@ -1970,7 +1974,7 @@ def apply_launch_config_before_recovery(
         print("Warning: config_merge module not found, per-server configs " "disabled")
         get_effective_launch_config = None
 
-    for server_id in server_ids:
+    def apply_config_to_server(server_id):
         try:
             # Get effective config (group defaults + per-server overrides)
             if protection_group and get_effective_launch_config:
@@ -1984,7 +1988,7 @@ def apply_launch_config_before_recovery(
 
             if not template_id:
                 print(f"No launch template found for {server_id}, skipping")
-                continue
+                return server_id, None
 
             # Update DRS launch configuration settings
             drs_update = {"sourceServerID": server_id}
@@ -2044,7 +2048,21 @@ def apply_launch_config_before_recovery(
 
         except Exception as e:
             print(f"Warning: Failed to apply launch config to {server_id}: {e}")
-            # Continue with other servers - partial success is acceptable
+            return server_id, str(e)
+        return server_id, None
+
+    # Apply configs in parallel (max 10 concurrent to avoid DRS throttling)
+    failed = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(apply_config_to_server, sid): sid for sid in server_ids}
+        for future in as_completed(futures):
+            sid, error = future.result()
+            if error:
+                failed.append(sid)
+    if failed:
+        print(f"Warning: Failed to apply launch config to {len(failed)} servers")
+    else:
+        print(f"Applied launch config to all {len(server_ids)} servers")
 
 
 def start_wave_recovery(state: Dict, wave_number: int) -> None:
@@ -2131,28 +2149,46 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         pg = pg_response["Item"]
         region = pg.get("region", "us-east-1")
 
-        # FIXED: Use pre-resolved serverIds from recovery plan wave
-        # Recovery plan waves always have serverIds populated from protection group's
-        # sourceServerIds at plan creation time. These servers have launch configs applied.
-        # DO NOT re-query DRS at execution time - this causes discovery of new servers
-        # without launch configs, resulting in recovery failures.
+        # Use pre-resolved serverIds from recovery plan wave when available.
+        # For tag-based protection groups, resolve servers at execution time from inventory.
         server_ids = wave.get("serverIds", [])
 
         if not server_ids:
-            # This should not happen - waves must have servers
+            # Tag-based protection groups: resolve servers from inventory
+            selection_tags = pg.get("serverSelectionTags", {})
+            if selection_tags:
+                try:
+                    from shared.inventory_query import query_inventory_by_regions
+
+                    inv_servers = query_inventory_by_regions(regions=[region])
+                    server_ids = [
+                        s.get("sourceServerID")
+                        for s in inv_servers
+                        if s.get("sourceServerID")
+                        and all(s.get("tags", {}).get(k) == v for k, v in selection_tags.items())
+                    ]
+                    print(f"Resolved {len(server_ids)} servers from inventory tags for wave {wave_number}")
+                except Exception as e:
+                    print(f"Inventory tag resolution failed, trying DRS API: {e}")
+                    account_context = state.get("accountContext") or state.get("account_context", {})
+                    try:
+                        resolved = query_drs_servers_by_tags(region, selection_tags, account_context)
+                        server_ids = [s.get("sourceServerID") for s in resolved if s.get("sourceServerID")]
+                        print(f"Resolved {len(server_ids)} servers from DRS API for wave {wave_number}")
+                    except Exception as e2:
+                        print(f"DRS API tag resolution also failed: {e2}")
+
+        if not server_ids:
             print(
                 f"ERROR: Wave {wave_number} has no server IDs. "
-                f"Recovery plan waves must have serverIds populated from protection group."
+                f"No servers found from protection group or tag resolution."
             )
             state["wave_completed"] = True
             state["status"] = "failed"
             state["error"] = f"Wave {wave_number} has no server IDs"
             return
 
-        print(
-            f"Starting recovery for wave {wave_number} with "
-            f"{len(server_ids)} pre-resolved servers from recovery plan"
-        )
+        print(f"Starting recovery for wave {wave_number} with " f"{len(server_ids)} servers")
 
         print(f"Starting DRS recovery for wave {wave_number} " f"({wave_name})")
         print(f"Region: {region}, Servers: {server_ids}, " f"isDrill: {is_drill}")
@@ -2250,24 +2286,40 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                         f"starting recovery immediately"
                     )
             else:
-                # Fallback path: Configs not ready, apply at runtime
-                print(
-                    f"⚠️  Launch configs not ready for {protection_group_id} "
-                    f"(status: {status_value}), applying at runtime"
+                # Fallback path: Configs not ready, check if there's actual infrastructure config to apply
+                launch_config = pg.get("launchConfig", {})
+                has_infra_config = (
+                    launch_config.get("subnetId")
+                    or launch_config.get("securityGroupIds")
+                    or launch_config.get("instanceType")
+                    or launch_config.get("instanceProfileName")
                 )
-                launch_config = pg.get("launchConfig")
-                if launch_config:
-                    print(f"Applying launchConfig to {len(server_ids)} servers " f"before recovery")
+                if has_infra_config:
+                    print(
+                        f"⚠️  Launch configs not ready for {protection_group_id} "
+                        f"(status: {status_value}), applying at runtime"
+                    )
+                    print(f"Applying launchConfig to {len(server_ids)} servers before recovery")
                     apply_launch_config_before_recovery(drs_client, server_ids, launch_config, region, pg)
+                else:
+                    print(
+                        f"No infrastructure launch config for {protection_group_id}, " f"skipping runtime application"
+                    )
         except Exception as e:
-            # If config status check fails, fall back to runtime application
+            # If config status check fails, fall back to runtime application only if infra config exists
             print(
                 f"⚠️  Failed to check config status for {protection_group_id}: "
-                f"{e}, falling back to runtime application"
+                f"{e}, checking if runtime application needed"
             )
-            launch_config = pg.get("launchConfig")
-            if launch_config:
-                print(f"Applying launchConfig to {len(server_ids)} servers " f"before recovery")
+            launch_config = pg.get("launchConfig", {})
+            has_infra_config = (
+                launch_config.get("subnetId")
+                or launch_config.get("securityGroupIds")
+                or launch_config.get("instanceType")
+                or launch_config.get("instanceProfileName")
+            )
+            if has_infra_config:
+                print(f"Applying launchConfig to {len(server_ids)} servers before recovery")
                 apply_launch_config_before_recovery(drs_client, server_ids, launch_config, region, pg)
 
         # Use start_drs_recovery_for_wave to get Name tags
@@ -2458,7 +2510,9 @@ def list_executions(query_params: Dict) -> Dict:
             executions = filtered_executions
 
         # Sort by startTime descending (most recent first)
-        executions.sort(key=lambda x: x.get("startTime", 0), reverse=True)
+        executions.sort(
+            key=lambda x: float(x.get("startTime", 0)) if not isinstance(x.get("startTime"), str) else 0, reverse=True
+        )
 
         # Enrich with recovery plan names and account names
         for execution in executions:
