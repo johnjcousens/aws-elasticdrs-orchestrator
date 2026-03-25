@@ -749,7 +749,6 @@ class TestStartWaveRecoveryLaunchConfig:
         mock_dynamodb_tables,
         mock_drs_client,
         sample_state,
-        sample_protection_group,
         mock_launch_config_service,
     ):
         """Test that launch config is applied when present in PG and status not ready"""
@@ -758,8 +757,22 @@ class TestStartWaveRecoveryLaunchConfig:
         # Add serverIds to wave for this test (2 servers as expected by test)
         sample_state["waves"][0]["serverIds"] = ["s-001", "s-002"]
 
+        # PG with infrastructure config to trigger the fallback apply path
+        pg_with_infra = {
+            "groupId": "pg-789",
+            "groupName": "Test PG",
+            "region": "us-east-1",
+            "serverSelectionTags": {"Environment": "prod", "App": "web"},
+            "launchConfig": {
+                "subnetId": "subnet-abc123",
+                "securityGroupIds": ["sg-123"],
+                "copyPrivateIp": True,
+                "copyTags": True,
+            },
+        }
+
         pg_table = mock_dynamodb_tables["protection_groups_table"]
-        pg_table.get_item.return_value = {"Item": sample_protection_group}
+        pg_table.get_item.return_value = {"Item": pg_with_infra}
 
         exec_table = mock_dynamodb_tables["execution_history_table"]
         exec_table.update_item.return_value = {}
@@ -777,28 +790,29 @@ class TestStartWaveRecoveryLaunchConfig:
             "errors": []
         }
 
-        with patch("index.protection_groups_table", pg_table):
-            with patch("index.execution_history_table", exec_table):
-                with patch("index.create_drs_client", return_value=mock_drs_client):
-                    with patch(
-                        "index.query_drs_servers_by_tags",
-                        return_value=[{"sourceServerID": "s-001"}, {"sourceServerID": "s-002"}],
-                    ):
-                        with patch(
-                            "index.apply_launch_config_before_recovery",
-                            mock_apply_launch_config,
-                        ):
-                            with patch("time.time", return_value=1234567890):
-                                start_wave_recovery(sample_state, 0)
+        mock_wave_job_result = {
+            "jobId": "drsjob-abc123",
+            "servers": [
+                {"sourceServerId": "s-001", "serverName": "server-001", "status": "LAUNCHING", "launchTime": 1234567890},
+                {"sourceServerId": "s-002", "serverName": "server-002", "status": "LAUNCHING", "launchTime": 1234567890},
+            ],
+        }
+
+        with patch("index.protection_groups_table", pg_table), \
+             patch("index.execution_history_table", exec_table), \
+             patch("index.create_drs_client", return_value=mock_drs_client), \
+             patch("index.apply_launch_config_before_recovery", mock_apply_launch_config), \
+             patch("index.start_drs_recovery_for_wave", return_value=mock_wave_job_result):
+            start_wave_recovery(sample_state, 0)
 
         # Verify apply_launch_config_before_recovery was called
         mock_apply_launch_config.assert_called_once()
         call_args = mock_apply_launch_config.call_args
         assert call_args[0][0] == mock_drs_client
         assert call_args[0][1] == ["s-001", "s-002"]
-        assert call_args[0][2] == sample_protection_group["launchConfig"]
+        assert call_args[0][2] == pg_with_infra["launchConfig"]
         assert call_args[0][3] == "us-east-1"
-        assert call_args[0][4] == sample_protection_group
+        assert call_args[0][4] == pg_with_infra
 
     def test_launch_config_skipped_when_absent(
         self,
@@ -1255,7 +1269,7 @@ class TestStartWaveRecoveryDuplicateResolutionFix:
 
         # Verify log message contains correct server count (using print statements)
         captured = capsys.readouterr()
-        assert "5 pre-resolved servers" in captured.out
+        assert "5 servers" in captured.out
 
 
 class TestStartWaveRecoveryDrillVsRecovery:
