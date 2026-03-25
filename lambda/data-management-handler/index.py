@@ -9329,6 +9329,32 @@ def handle_sync_source_server_inventory() -> Dict:
                     print(f"Error writing {srv.get('sourceServerID', '?')}: {e}")
                     total_errors += 1
 
+        # Delete stale inventory records for servers no longer in DRS
+        synced_server_ids = {srv.get("sourceServerID") for srv in all_servers if srv.get("sourceServerID")}
+        for region, status_info in region_statuses.items():
+            if status_info["status"] not in ("ACTIVE", "NOT_INITIALIZED"):
+                continue
+            try:
+                existing = inventory_table.query(
+                    IndexName="ReplicationRegionIndex",
+                    KeyConditionExpression=Key("replicationRegion").eq(region),
+                )
+                stale_items = [
+                    item for item in existing.get("Items", []) if item.get("sourceServerID") not in synced_server_ids
+                ]
+                if stale_items:
+                    with inventory_table.batch_writer() as delete_batch:
+                        for item in stale_items:
+                            delete_batch.delete_item(
+                                Key={
+                                    "sourceServerArn": item["sourceServerArn"],
+                                    "stagingAccountId": item["stagingAccountId"],
+                                }
+                            )
+                    print(f"Deleted {len(stale_items)} stale inventory records for region {region}")
+            except Exception as e:
+                print(f"Error cleaning stale records for region {region}: {e}")
+
     result = {
         "message": "Source server inventory sync complete",
         "totalSynced": total_synced,

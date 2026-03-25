@@ -65,6 +65,11 @@ Parameters:
     Description: 'Frontend build version - timestamp to trigger rebuilds'
     Default: 'v1'
 
+  LambdaCodeVersion:
+    Type: String
+    Description: 'Lambda code version - timestamp to force code updates on deploy'
+    Default: 'initial'
+
 # =============================================================================
 # CONDITIONS
 # =============================================================================
@@ -187,6 +192,7 @@ Resources:
         ExecutionNotificationsTopicArn: !GetAtt SNSStack.Outputs.ExecutionNotificationsTopicArn
         DRSAlertsTopicArn: !GetAtt SNSStack.Outputs.DRSOperationalAlertsTopicArn
         ExecutionPauseTopicArn: !GetAtt SNSStack.Outputs.ExecutionPauseTopicArn
+        LambdaCodeVersion: !Ref LambdaCodeVersion
         ApiGatewayUrl: ''
       Tags:
         - Key: Project

@@ -1384,7 +1384,19 @@ def handle_get_source_server_inventory(query_params: Dict) -> Dict:
             filters["sourceAccountId"] = source_account_id
 
         # Query inventory database
-        servers = query_inventory_by_regions(regions, filters)
+        from shared.drs_utils import transform_drs_server_for_frontend
+
+        raw_servers = query_inventory_by_regions(regions, filters)
+
+        # Transform raw DynamoDB items to frontend format
+        servers = []
+        for s in raw_servers:
+            try:
+                transformed = transform_drs_server_for_frontend(s)
+                servers.append(transformed)
+            except Exception as transform_err:
+                print(f"Transform error for {s.get('sourceServerID', '?')}: {transform_err}")
+                servers.append(s)
 
         return response(
             200,
