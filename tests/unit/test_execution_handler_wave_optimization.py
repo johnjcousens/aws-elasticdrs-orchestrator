@@ -117,6 +117,8 @@ def sample_protection_group():
         "region": "us-east-1",
         "serverSelectionTags": {"Environment": "prod", "App": "web"},
         "launchConfig": {
+            "subnetId": "subnet-abc123",
+            "securityGroupIds": ["sg-123"],
             "targetInstanceTypeRightSizing": "NONE",
             "copyPrivateIp": True,
             "copyTags": True,
