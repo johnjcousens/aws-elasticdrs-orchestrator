@@ -486,12 +486,9 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         startPolling();
       }
 
+      // Close dialog first, then notify parent
+      onClose();
       onSave(savedGroup);
-      
-      // Only close the main dialog if no launch config (no async work)
-      if (!hasLaunchConfig) {
-        onClose();
-      }
     } catch (err: unknown) {
       const error = err as Error & { 
         message?: string; 
