@@ -452,15 +452,15 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       }
 
       // Add launch config if any settings are configured
+      // Only infrastructure settings trigger async apply (not default DRS settings like copyTags/launchDisposition)
       const hasLaunchConfig = launchConfig.subnetId ||
         (launchConfig.securityGroupIds && launchConfig.securityGroupIds.length > 0) ||
         launchConfig.instanceType ||
         launchConfig.instanceProfileName ||
         launchConfig.copyPrivateIp ||
-        launchConfig.copyTags ||
         launchConfig.licensing?.osByol;
 
-      if (hasLaunchConfig) {
+      if (hasLaunchConfig || launchConfig.copyTags !== undefined || launchConfig.launchDisposition) {
         groupData.launchConfig = launchConfig;
       }
 
