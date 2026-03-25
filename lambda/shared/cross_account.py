@@ -440,7 +440,10 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
     current_account_id = get_current_account_id()
     if current_account_id == account_id:
         print(f"Already running with credentials for account {account_id}, " f"skipping role assumption")
-        return boto3.client("drs", region_name=region)
+        from botocore.config import Config
+
+        drs_config = Config(read_timeout=120, connect_timeout=10, retries={"max_attempts": 2})
+        return boto3.client("drs", region_name=region, config=drs_config)
 
     print(f"Creating cross-account DRS client for account {account_id} using role {assume_role_name}")
 
@@ -452,8 +455,11 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
         # Use get_cross_account_session to assume role
         session = get_cross_account_session(role_arn=role_arn, external_id=external_id)
 
-        # Create DRS client with assumed role session
-        drs_client = session.client("drs", region_name=region)
+        # Create DRS client with assumed role session and extended timeout for large batch operations
+        from botocore.config import Config
+
+        drs_config = Config(read_timeout=120, connect_timeout=10, retries={"max_attempts": 2})
+        drs_client = session.client("drs", region_name=region, config=drs_config)
 
         print(f"Successfully created cross-account DRS client for account {account_id}")
         return drs_client

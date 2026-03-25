@@ -4202,7 +4202,8 @@ def create_recovery_plan(event: Dict, body: Dict) -> Dict:
                             if pg:
                                 camelcase_wave["serverIds"] = pg.get("sourceServerIds", [])
                                 print(
-                                    f"Resolved {len(camelcase_wave['serverIds'])} servers from protection group {pg_id} for wave {idx}"
+                                    f"Resolved {len(camelcase_wave['serverIds'])} servers "
+                                    f"from protection group {pg_id} for wave {idx}"
                                 )
                         except Exception as e:
                             print(f"Warning: Could not resolve servers from protection group {pg_id}: {e}")
@@ -5076,7 +5077,8 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                             if pg:
                                 camelcase_wave["serverIds"] = pg.get("sourceServerIds", [])
                                 print(
-                                    f"Resolved {len(camelcase_wave['serverIds'])} servers from protection group {pg_id} for wave {idx}"
+                                    f"Resolved {len(camelcase_wave['serverIds'])} servers "
+                                    f"from protection group {pg_id} for wave {idx}"
                                 )
                         except Exception as e:
                             print(f"Warning: Could not resolve servers from protection group {pg_id}: {e}")
