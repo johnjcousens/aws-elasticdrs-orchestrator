@@ -2205,7 +2205,13 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         # Determine if this PG has any meaningful launch configuration
         _launch_config = pg.get("launchConfig")
         _infra_fields = ("subnetId", "securityGroupIds", "instanceType", "instanceProfileName")
-        _drs_fields = ("copyPrivateIp", "copyTags", "licensing", "targetInstanceTypeRightSizingMethod", "launchDisposition")
+        _drs_fields = (
+            "copyPrivateIp",
+            "copyTags",
+            "licensing",
+            "targetInstanceTypeRightSizingMethod",
+            "launchDisposition",
+        )
         _has_launch_config = (
             _launch_config
             and isinstance(_launch_config, dict)
@@ -2232,7 +2238,9 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                 # Timeout guard: if config check already exceeded 30s, skip remaining config steps
                 config_elapsed = time.time() - config_start
                 if config_elapsed > 30:
-                    print(f"⚠️  Config check exceeded 30s timeout ({config_elapsed:.1f}s), skipping remaining config steps")
+                    print(
+                        f"⚠️  Config check exceeded 30s timeout ({config_elapsed:.1f}s), skipping remaining config steps"
+                    )
                 else:
                     status_value = config_status.get("status", "not_configured")
 
@@ -2336,7 +2344,9 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                             t0 = time.time()
                             apply_launch_config_before_recovery(drs_client, server_ids, launch_config, region, pg)
                             elapsed = time.time() - t0
-                            print(f"⏱️  apply_launch_config_before_recovery took {elapsed:.1f}s for {len(server_ids)} servers")
+                            print(
+                                f"⏱️  apply_launch_config_before_recovery took {elapsed:.1f}s for {len(server_ids)} servers"
+                            )
                         else:
                             print(
                                 f"No infrastructure launch config for {protection_group_id}, "
