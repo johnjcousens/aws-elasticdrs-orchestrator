@@ -665,37 +665,6 @@ def log_security_event(event_type: str, details: Dict[str, Any], severity: str =
         logger.info(json.dumps(security_log))
 
 
-def check_rate_limit(user_id: str, action: str, limit: int = 100, window: int = 3600) -> bool:
-    """
-    Simple rate limiting check (would need Redis/DynamoDB in production)
-
-    Args:
-        user_id: User identifier
-        action: Action being performed
-        limit: Maximum requests per window
-        window: Time window in seconds
-
-    Returns:
-        True if within rate limit, False if exceeded
-    """
-    # This is a simplified implementation
-    # In production, use DynamoDB or Redis for distributed rate limiting
-
-    # For now, just log the rate limit check
-    log_security_event(
-        "rate_limit_check",
-        {
-            "user_id": user_id,
-            "action": action,
-            "limit": limit,
-            "window": window,
-        },
-    )
-
-    # Always return True for now (implement proper rate limiting later)
-    return True
-
-
 def mask_sensitive_data(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Mask sensitive data in logs and responses
