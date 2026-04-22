@@ -11,7 +11,7 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import type { DRSQuotaStatus } from './drsQuotaService';
+import type { DRSQuotaStatus } from '../types/drs-quota';
 import { sanitizeErrorMessage, sanitizeForLogging } from '../utils/security';
 import { recordActivity } from '../utils/activityTracker';
 import type {

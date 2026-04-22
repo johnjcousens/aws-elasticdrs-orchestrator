@@ -2,13 +2,11 @@
 // This deliverable is considered Developed Content as defined in the AWS Service Terms.
 
 /**
- * DRS Quota Service
- * 
- * Service for fetching DRS account quotas and current usage.
- * Used to display capacity warnings and validate operations.
+ * DRS quota and capacity types used by the quota endpoint and by
+ * recovery-plan validation. Kept in the types layer (no runtime
+ * imports) so services and components can reference them without
+ * introducing import cycles.
  */
-
-import apiClient from './api';
 
 export interface DRSLimits {
   MAX_SERVERS_PER_JOB: number;
@@ -52,9 +50,10 @@ export interface DRSQuotaStatus {
   };
 }
 
-
-
-// DRS hard limits (matching backend constants)
+/**
+ * DRS hard limits. Keep in sync with backend constants in
+ * lambda/shared/drs_limits.py.
+ */
 export const DRS_LIMITS: DRSLimits = {
   MAX_SERVERS_PER_JOB: 100,
   MAX_CONCURRENT_JOBS: 20,
@@ -63,40 +62,4 @@ export const DRS_LIMITS: DRSLimits = {
   MAX_SOURCE_SERVERS: 4000,
   WARNING_REPLICATING_THRESHOLD: 250,
   CRITICAL_REPLICATING_THRESHOLD: 280,
-};
-
-/**
- * Fetch DRS quotas and current usage for an account
- */
-export const getDRSQuotas = async (accountId: string, region?: string): Promise<DRSQuotaStatus> => {
-  return apiClient.getDRSQuotas(accountId, region);
-};
-
-
-
-/**
- * Validate wave size against DRS limit
- * @returns Error message if invalid, null if valid
- */
-export const validateWaveSize = (serverCount: number): string | null => {
-  if (serverCount > DRS_LIMITS.MAX_SERVERS_PER_JOB) {
-    return `Wave cannot exceed ${DRS_LIMITS.MAX_SERVERS_PER_JOB} servers (DRS limit). Current: ${serverCount}`;
-  }
-  return null;
-};
-
-/**
- * Get capacity status color for UI
- */
-export const getCapacityStatusType = (status: string): 'success' | 'info' | 'warning' | 'error' => {
-  switch (status) {
-    case 'CRITICAL':
-      return 'error';
-    case 'WARNING':
-      return 'warning';
-    case 'INFO':
-      return 'info';
-    default:
-      return 'success';
-  }
 };
