@@ -296,8 +296,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     setStagingAccountsForModal([]);
   };
 
-  // REVIEW: [type-strengthening] updatedAccount: any depends on TargetAccount unification above
-  const handleSaveSettings = async (updatedAccount: any) => {
+  const handleSaveSettings = async () => {
     try {
       // The TargetAccountSettingsModal handles the API calls internally
       // Just refresh the accounts list after save

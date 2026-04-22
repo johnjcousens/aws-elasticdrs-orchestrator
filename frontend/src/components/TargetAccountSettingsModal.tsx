@@ -43,6 +43,7 @@ import { AddStagingAccountModal } from "./AddStagingAccountModal";
 import type {
   TargetAccountSettingsModalProps,
   StagingAccount,
+  TargetAccountWithStaging,
 } from "../types/staging-accounts";
 
 
@@ -55,8 +56,7 @@ import type {
 export const TargetAccountSettingsModal: React.FC<
   TargetAccountSettingsModalProps
 > = ({ targetAccount, visible, onDismiss }) => {
-  // REVIEW: [type-strengthening] freshAccountData shape comes from apiClient.getTargetAccounts response
-  const [freshAccountData, setFreshAccountData] = useState<any>(null);
+  const [freshAccountData, setFreshAccountData] = useState<TargetAccountWithStaging | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddStagingModal, setShowAddStagingModal] = useState(false);
