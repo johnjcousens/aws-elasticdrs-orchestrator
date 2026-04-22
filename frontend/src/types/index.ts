@@ -492,7 +492,7 @@ export interface ExecuteRecoveryPlanRequest {
 }
 
 // Invocation source types for unified orchestration
-export type InvocationSource = 'UI' | 'CLI' | 'SSM' | 'STEPFUNCTIONS' | 'API';
+export type InvocationSource = 'UI' | 'CLI' | 'EVENTBRIDGE' | 'SSM' | 'STEPFUNCTIONS' | 'API';
 
 export interface InvocationDetails {
   userEmail?: string;
@@ -775,3 +775,36 @@ export * from './staging-accounts';
 
 // Re-export all region status types
 export * from './region-status';
+
+// ============================================================================
+// Configuration Import/Export Types
+// ============================================================================
+
+/**
+ * Shape of a single resource entry returned by an import operation.
+ * Used for created, skipped, and failed collections.
+ */
+export interface ImportResourceResult {
+  type: string;
+  name: string;
+  status?: string;
+  reason?: string;
+  details?: Record<string, unknown>;
+}
+
+/**
+ * Result payload returned by the /configuration/import endpoint.
+ * Reported back to the UI after dry-run or actual import operations.
+ */
+export interface ImportResults {
+  success: boolean;
+  dryRun: boolean;
+  correlationId: string;
+  summary: {
+    protectionGroups: { created: number; skipped: number; failed: number };
+    recoveryPlans: { created: number; skipped: number; failed: number };
+  };
+  created: ImportResourceResult[];
+  skipped: ImportResourceResult[];
+  failed: ImportResourceResult[];
+}

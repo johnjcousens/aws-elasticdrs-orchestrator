@@ -21,6 +21,7 @@ import {
 } from '@cloudscape-design/components';
 import { useApi } from '../contexts/ApiContext';
 import { ImportResultsDialog } from './ImportResultsDialog';
+import type { ImportResults, ProtectionGroup, ServerLaunchConfig, RecoveryPlan } from '../types';
 import toast from 'react-hot-toast';
 
 interface ImportPreview {
@@ -33,19 +34,6 @@ interface ImportPreview {
   serversWithStaticIPs?: number;
   pgsWithoutAccountContext?: number;
   rpsWithoutAccountContext?: number;
-}
-
-interface ImportResults {
-  success: boolean;
-  dryRun: boolean;
-  correlationId: string;
-  summary: {
-    protectionGroups: { created: number; skipped: number; failed: number };
-    recoveryPlans: { created: number; skipped: number; failed: number };
-  };
-  created: Array<{ type: string; name: string; details?: Record<string, unknown> }>;
-  skipped: Array<{ type: string; name: string; reason: string; details?: Record<string, unknown> }>;
-  failed: Array<{ type: string; name: string; reason: string; details?: Record<string, unknown> }>;
 }
 
 interface ConfigImportPanelProps {
@@ -91,12 +79,12 @@ export const ConfigImportPanel: React.FC<ConfigImportPanelProps> = ({
       let pgsWithoutAccountContext = 0;
       
       if (data.protectionGroups && Array.isArray(data.protectionGroups)) {
-        data.protectionGroups.forEach((group: any) => {
+        data.protectionGroups.forEach((group: ProtectionGroup) => {
           if (!group.accountId) {
             pgsWithoutAccountContext++;
           }
           if (group.servers && Array.isArray(group.servers)) {
-            group.servers.forEach((server: any) => {
+            group.servers.forEach((server: ServerLaunchConfig) => {
               // Count servers with custom config
               if (!server.useGroupDefaults || (server.launchTemplate && Object.keys(server.launchTemplate).length > 0)) {
                 serversWithCustomConfig++;
@@ -112,7 +100,7 @@ export const ConfigImportPanel: React.FC<ConfigImportPanelProps> = ({
 
       let rpsWithoutAccountContext = 0;
       if (data.recoveryPlans && Array.isArray(data.recoveryPlans)) {
-        data.recoveryPlans.forEach((plan: any) => {
+        data.recoveryPlans.forEach((plan: RecoveryPlan) => {
           if (!plan.accountId) {
             rpsWithoutAccountContext++;
           }

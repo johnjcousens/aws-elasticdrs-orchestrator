@@ -42,6 +42,7 @@ import { removeStagingAccount } from "../services/staging-accounts-api";
 import { AddStagingAccountModal } from "./AddStagingAccountModal";
 import type {
   TargetAccountSettingsModalProps,
+  StagingAccount,
 } from "../types/staging-accounts";
 
 
@@ -54,6 +55,7 @@ import type {
 export const TargetAccountSettingsModal: React.FC<
   TargetAccountSettingsModalProps
 > = ({ targetAccount, visible, onDismiss }) => {
+  // REVIEW: [type-strengthening] freshAccountData shape comes from apiClient.getTargetAccounts response
   const [freshAccountData, setFreshAccountData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -271,7 +273,7 @@ export const TargetAccountSettingsModal: React.FC<
             </Box>
           ) : (
             <SpaceBetween size="m">
-              {stagingAccounts.map((stagingAccount: any) => (
+              {stagingAccounts.map((stagingAccount: StagingAccount) => (
                 <Container key={stagingAccount.accountId}>
                   <SpaceBetween size="s">
                     <ColumnLayout columns={2} variant="text-grid">

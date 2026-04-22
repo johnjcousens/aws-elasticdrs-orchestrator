@@ -788,6 +788,8 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
       if (!jobLogs) return;
       
       for (const wave of waves) {
+        // REVIEW: [type-strengthening] DRSJobDetails is accessed via (wave as any) in 5 places.
+        // Extend the Wave interface with an optional DRSJobDetails field to remove these casts.
         const stagingJobs = (wave as any).DRSJobDetails?.stagingJobs as StagingJobDetails[] | undefined;
         
         if (stagingJobs && stagingJobs.length > 0) {

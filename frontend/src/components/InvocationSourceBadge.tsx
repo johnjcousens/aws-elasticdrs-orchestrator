@@ -8,22 +8,7 @@
 
 import React from 'react';
 import { Badge, Icon } from '@cloudscape-design/components';
-
-export type InvocationSource = 'UI' | 'CLI' | 'EVENTBRIDGE' | 'SSM' | 'STEPFUNCTIONS' | 'API';
-
-export interface InvocationDetails {
-  userEmail?: string;
-  userId?: string;
-  scheduleRuleName?: string;
-  scheduleExpression?: string;
-  ssmDocumentName?: string;
-  ssmExecutionId?: string;
-  parentStepFunctionArn?: string;
-  parentExecutionId?: string;
-  apiKeyId?: string;
-  correlationId?: string;
-  iamUser?: string;
-}
+import type { InvocationSource, InvocationDetails } from '../types';
 
 interface InvocationSourceBadgeProps {
   source: InvocationSource | string;

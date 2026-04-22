@@ -28,6 +28,8 @@ import { TargetAccountSettingsModal } from './TargetAccountSettingsModal';
 import { getCombinedCapacity } from '../services/staging-accounts-api';
 import type { StagingAccount } from '../types/staging-accounts';
 
+// REVIEW: [type-consolidation] This TargetAccount differs from types/staging-accounts.ts
+// (has isCurrentAccount, mixed-case status values, lacks stagingAccounts). Unify or rename.
 export interface TargetAccount {
   accountId: string;
   accountName?: string;
@@ -307,6 +309,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     setStagingAccountsForModal([]);
   };
 
+  // REVIEW: [type-strengthening] updatedAccount: any depends on TargetAccount unification above
   const handleSaveSettings = async (updatedAccount: any) => {
     try {
       // The TargetAccountSettingsModal handles the API calls internally

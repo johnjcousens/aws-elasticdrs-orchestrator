@@ -18,27 +18,7 @@ import {
   ColumnLayout,
   Badge,
 } from '@cloudscape-design/components';
-
-interface ResourceResult {
-  type: string;
-  name: string;
-  status?: string;
-  reason?: string;
-  details?: Record<string, unknown>;
-}
-
-interface ImportResults {
-  success: boolean;
-  dryRun: boolean;
-  correlationId: string;
-  summary: {
-    protectionGroups: { created: number; skipped: number; failed: number };
-    recoveryPlans: { created: number; skipped: number; failed: number };
-  };
-  created: ResourceResult[];
-  skipped: ResourceResult[];
-  failed: ResourceResult[];
-}
+import type { ImportResults, ImportResourceResult } from '../types';
 
 interface ImportResultsDialogProps {
   visible: boolean;
@@ -77,7 +57,7 @@ export const ImportResultsDialog: React.FC<ImportResultsDialogProps> = ({
     {
       id: 'type',
       header: 'Type',
-      cell: (item: ResourceResult) => (
+      cell: (item: ImportResourceResult) => (
         <Badge color={item.type === 'ProtectionGroup' ? 'blue' : 'green'}>
           {item.type === 'ProtectionGroup' ? 'PG' : 'RP'}
         </Badge>
@@ -87,12 +67,12 @@ export const ImportResultsDialog: React.FC<ImportResultsDialogProps> = ({
     {
       id: 'name',
       header: 'Name',
-      cell: (item: ResourceResult) => item.name,
+      cell: (item: ImportResourceResult) => item.name,
     },
     {
       id: 'reason',
       header: 'Reason',
-      cell: (item: ResourceResult) => item.reason ? getReasonLabel(item.reason) : '-',
+      cell: (item: ImportResourceResult) => item.reason ? getReasonLabel(item.reason) : '-',
     },
   ];
 

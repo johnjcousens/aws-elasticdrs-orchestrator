@@ -36,7 +36,7 @@ import { DRSPermission } from '../types/permissions';
 import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { InvocationSourceBadge } from '../components/InvocationSourceBadge';
-import type { InvocationSource, InvocationDetails } from '../components/InvocationSourceBadge';
+import type { InvocationSource, InvocationDetails } from '../types';
 import { useApiErrorHandler } from '../hooks/useApiErrorHandler';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';

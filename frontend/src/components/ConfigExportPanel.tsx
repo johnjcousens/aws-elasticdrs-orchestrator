@@ -16,6 +16,7 @@ import {
   TextContent,
 } from '@cloudscape-design/components';
 import { useApi } from '../contexts/ApiContext';
+import type { ProtectionGroup } from '../types';
 import toast from 'react-hot-toast';
 
 interface ConfigExportPanelProps {
@@ -39,7 +40,7 @@ export const ConfigExportPanel: React.FC<ConfigExportPanelProps> = ({
       // Count servers with custom configs
       let serversWithCustomConfig = 0;
       if (config.protectionGroups) {
-        config.protectionGroups.forEach((group: any) => {
+        config.protectionGroups.forEach((group: ProtectionGroup) => {
           if (group.servers && Array.isArray(group.servers)) {
             serversWithCustomConfig += group.servers.length;
           }
