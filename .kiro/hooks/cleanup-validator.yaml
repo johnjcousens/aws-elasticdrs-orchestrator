@@ -1,0 +1,12 @@
+title: Cleanup Validator
+description: After file save during cleanup, verify build and types still pass
+event: on_file_save
+pattern: "**/*.{ts,tsx,js,jsx,py}"
+action: ask_kiro
+instructions: |
+  A file was just saved during a cleanup operation. Verify:
+  1. Run the project's type checker (tsc --noEmit or equivalent)
+  2. If types fail, report which track likely caused the issue
+  3. Run the project's test suite
+  4. If tests fail, report which test and suggest a revert
+  Do NOT auto-fix — report findings only.

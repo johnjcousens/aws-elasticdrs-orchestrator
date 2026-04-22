@@ -1,0 +1,16 @@
+title: Post-Cleanup Summary
+description: Generate a comprehensive cleanup summary report
+event: manual
+action: ask_kiro
+instructions: |
+  Generate a cleanup summary report. For each of the 7 tracks, report:
+  
+  1. **Files changed** — list of modified/deleted files
+  2. **Lines added/removed** — use `git diff --stat` against the pre-cleanup branch
+  3. **Key changes** — brief description of each logical change
+  4. **Items flagged for review** — anything the track marked as uncertain
+  5. **Test impact** — any tests added, modified, or removed
+  
+  Format as a markdown report. Save to `CLEANUP-REPORT.md` in the project root.
+  
+  Use git log and diff against the cleanup base branch to gather data.
