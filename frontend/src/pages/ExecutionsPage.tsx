@@ -422,7 +422,7 @@ export const ExecutionsPage: React.FC = () => {
                 content: (
                   <SpaceBetween size="m">
                     {loading ? (
-                      <CardSkeleton count={3} />
+                      <CardSkeleton />
                     ) : activeExecutions.length === 0 ? (
                       <Container>
                         <Box textAlign="center" padding="xxl">
