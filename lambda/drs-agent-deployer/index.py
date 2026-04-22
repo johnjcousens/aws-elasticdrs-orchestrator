@@ -47,12 +47,16 @@ Cross-Account Replication Pattern:
 """
 
 import json
+import logging
 import os
 import time
 import boto3
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from botocore.exceptions import ClientError
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -604,8 +608,8 @@ Timestamp: {result.get('timestamp')}
 
         print(f"✅ Notification sent to {topic_arn}")
 
-    except Exception as e:
-        print(f"Error sending notification: {e}")
+    except Exception:
+        logger.exception("Error sending notification")
 
 
 def success_response(data: Dict[str, Any]) -> Dict[str, Any]:

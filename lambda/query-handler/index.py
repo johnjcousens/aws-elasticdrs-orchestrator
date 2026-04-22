@@ -342,6 +342,7 @@ from shared.drs_limits import (  # noqa: E402
     validate_servers_in_all_jobs,
 )
 from shared.drs_regions import DRS_REGIONS  # noqa: E402
+from shared.dynamodb_tables import get_table  # noqa: E402
 from shared.drs_utils import (  # noqa: E402
     map_replication_state_to_display,
 )
@@ -408,50 +409,32 @@ CACHE_TTL_CAPACITY = 30
 
 def get_protection_groups_table():
     """Get or initialize protection groups table."""
-    global _protection_groups_table
-    if _protection_groups_table is None:
-        _protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
-    return _protection_groups_table
+    return get_table("PROTECTION_GROUPS_TABLE")
 
 
 def get_recovery_plans_table():
     """Get or initialize recovery plans table."""
-    global _recovery_plans_table
-    if _recovery_plans_table is None:
-        _recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
-    return _recovery_plans_table
+    return get_table("RECOVERY_PLANS_TABLE")
 
 
 def get_target_accounts_table():
     """Get or initialize target accounts table."""
-    global _target_accounts_table
-    if _target_accounts_table is None:
-        _target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE) if TARGET_ACCOUNTS_TABLE else None
-    return _target_accounts_table
+    return get_table("TARGET_ACCOUNTS_TABLE")
 
 
 def get_execution_history_table():
     """Get or initialize execution history table."""
-    global _execution_history_table
-    if _execution_history_table is None:
-        _execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE) if EXECUTION_HISTORY_TABLE else None
-    return _execution_history_table
+    return get_table("EXECUTION_HISTORY_TABLE")
 
 
 def get_region_status_table():
     """Get or initialize region status table."""
-    global _region_status_table
-    if _region_status_table is None:
-        _region_status_table = dynamodb.Table(DRS_REGION_STATUS_TABLE) if DRS_REGION_STATUS_TABLE else None
-    return _region_status_table
+    return get_table("DRS_REGION_STATUS_TABLE")
 
 
 def get_recovery_instances_table():
     """Get or initialize recovery instances table."""
-    global _recovery_instances_table
-    if _recovery_instances_table is None:
-        _recovery_instances_table = dynamodb.Table(RECOVERY_INSTANCES_TABLE) if RECOVERY_INSTANCES_TABLE else None
-    return _recovery_instances_table
+    return get_table("RECOVERY_INSTANCES_TABLE")
 
 
 def _get_region_statuses() -> List[Dict]:
@@ -476,8 +459,8 @@ def _get_region_statuses() -> List[Dict]:
             items.extend(result.get("Items", []))
 
         return items
-    except Exception as e:
-        print(f"Error querying region status table: {e}")
+    except Exception:
+        logger.exception("Error querying region status table")
         return []
 
 
@@ -1528,8 +1511,8 @@ def _query_servers_from_inventory(region: str, account_id: Optional[str]) -> Opt
 
         return servers
 
-    except Exception as e:
-        print(f"Error querying inventory database: {e}")
+    except Exception:
+        logger.exception("Error querying inventory database")
         publish_metric("InventoryDatabaseMisses", 1)
         return None
 

@@ -232,6 +232,7 @@ from shared.response_utils import (
 )
 
 from shared.drs_regions import DRS_REGIONS
+from shared.dynamodb_tables import get_table
 from shared.active_region_filter import get_region_status_table
 from shared.launch_config_service import (
     apply_launch_configs_to_group,
@@ -264,51 +265,33 @@ _recovery_instances_table = None
 
 
 def get_protection_groups_table():
-    """Lazy-load Protection Groups table for test mocking"""
-    global _protection_groups_table
-    if _protection_groups_table is None and PROTECTION_GROUPS_TABLE:
-        _protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE)
-    return _protection_groups_table
+    """Lazy-load Protection Groups table for test mocking."""
+    return get_table("PROTECTION_GROUPS_TABLE")
 
 
 def get_recovery_plans_table():
-    """Lazy-load Recovery Plans table for test mocking"""
-    global _recovery_plans_table
-    if _recovery_plans_table is None and RECOVERY_PLANS_TABLE:
-        _recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE)
-    return _recovery_plans_table
+    """Lazy-load Recovery Plans table for test mocking."""
+    return get_table("RECOVERY_PLANS_TABLE")
 
 
 def get_executions_table():
-    """Lazy-load Executions table for test mocking"""
-    global _executions_table
-    if _executions_table is None and EXECUTIONS_TABLE:
-        _executions_table = dynamodb.Table(EXECUTIONS_TABLE)
-    return _executions_table
+    """Lazy-load Executions table for test mocking."""
+    return get_table("EXECUTIONS_TABLE")
 
 
 def get_target_accounts_table():
-    """Lazy-load Target Accounts table for test mocking"""
-    global _target_accounts_table
-    if _target_accounts_table is None and TARGET_ACCOUNTS_TABLE:
-        _target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE)
-    return _target_accounts_table
+    """Lazy-load Target Accounts table for test mocking."""
+    return get_table("TARGET_ACCOUNTS_TABLE")
 
 
 def get_tag_sync_config_table():
-    """Lazy-load Tag Sync Config table for test mocking"""
-    global _tag_sync_config_table
-    if _tag_sync_config_table is None and TAG_SYNC_CONFIG_TABLE:
-        _tag_sync_config_table = dynamodb.Table(TAG_SYNC_CONFIG_TABLE)
-    return _tag_sync_config_table
+    """Lazy-load Tag Sync Config table for test mocking."""
+    return get_table("TAG_SYNC_CONFIG_TABLE")
 
 
 def get_recovery_instances_table():
-    """Lazy-load Recovery Instances table for test mocking"""
-    global _recovery_instances_table
-    if _recovery_instances_table is None and RECOVERY_INSTANCES_TABLE:
-        _recovery_instances_table = dynamodb.Table(RECOVERY_INSTANCES_TABLE)
-    return _recovery_instances_table
+    """Lazy-load Recovery Instances table for test mocking."""
+    return get_table("RECOVERY_INSTANCES_TABLE")
 
 
 # Invalid replication states that block DR operations
