@@ -63,9 +63,14 @@ export interface StagingAccount {
 /**
  * Target account with staging accounts configuration.
  *
- * Extends the base target account with staging accounts list.
+ * This shape is specific to the staging-accounts management workflow
+ * (TargetAccountSettingsModal) — it's the runtime object passed when
+ * a user is editing a target account and its attached staging accounts.
+ * For the general account-list / context shape returned by
+ * `apiClient.getTargetAccounts()`, see the canonical `TargetAccount`
+ * in `types/index.ts`.
  */
-export interface TargetAccount {
+export interface TargetAccountWithStaging {
   /** AWS account ID (12-digit string) */
   accountId: string;
 
@@ -495,7 +500,7 @@ export interface CapacityDashboardProps {
  */
 export interface TargetAccountSettingsModalProps {
   /** Target account to edit */
-  targetAccount: TargetAccount;
+  targetAccount: TargetAccountWithStaging;
 
   /** Whether modal is visible */
   visible: boolean;
@@ -504,7 +509,7 @@ export interface TargetAccountSettingsModalProps {
   onDismiss: () => void;
 
   /** Callback when account is saved */
-  onSave: (updatedAccount: TargetAccount) => Promise<void>;
+  onSave: (updatedAccount: TargetAccountWithStaging) => Promise<void>;
 }
 
 /**
@@ -598,7 +603,7 @@ export interface AddStagingAccountModalState {
  */
 export interface TargetAccountSettingsModalState {
   /** Form data (editable copy of target account) */
-  formData: TargetAccount;
+  formData: TargetAccountWithStaging;
 
   /** Whether add staging account modal is visible */
   showAddStaging: boolean;

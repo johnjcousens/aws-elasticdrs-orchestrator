@@ -26,21 +26,8 @@ import { PermissionAwareButton } from './PermissionAware';
 import { DRSPermission } from '../types/permissions';
 import { TargetAccountSettingsModal } from './TargetAccountSettingsModal';
 import { getCombinedCapacity } from '../services/staging-accounts-api';
-import type { StagingAccount } from '../types/staging-accounts';
-
-// REVIEW: [type-consolidation] This TargetAccount differs from types/staging-accounts.ts
-// (has isCurrentAccount, mixed-case status values, lacks stagingAccounts). Unify or rename.
-export interface TargetAccount {
-  accountId: string;
-  accountName?: string;
-  isCurrentAccount: boolean;
-  status: 'active' | 'pending' | 'error' | 'ACTIVE' | 'INACTIVE' | 'ERROR';
-  lastValidated?: string;
-  crossAccountRoleArn?: string;
-  roleArn?: string;
-  assumeRoleName?: string;
-  externalId?: string;
-}
+import type { StagingAccount, TargetAccountWithStaging } from '../types/staging-accounts';
+import type { TargetAccount } from '../types';
 
 interface AccountManagementPanelProps {
   onAccountsChange?: (accounts: TargetAccount[]) => void;

@@ -770,6 +770,28 @@ export interface AuthState {
 export * from './staging-accounts';
 
 // ============================================================================
+// Target Account Types
+// ============================================================================
+
+/**
+ * Target account shape returned by `apiClient.getTargetAccounts()` and used
+ * by account selection, context, and management UI. This is the runtime
+ * list-item shape — for the workflow-specific shape with attached staging
+ * accounts, see `TargetAccountWithStaging` in `types/staging-accounts.ts`.
+ */
+export interface TargetAccount {
+  accountId: string;
+  accountName?: string;
+  isCurrentAccount: boolean;
+  status: 'active' | 'pending' | 'error' | 'ACTIVE' | 'INACTIVE' | 'ERROR';
+  lastValidated?: string;
+  crossAccountRoleArn?: string;
+  roleArn?: string;
+  assumeRoleName?: string;
+  externalId?: string;
+}
+
+// ============================================================================
 // Region Status Types
 // ============================================================================
 

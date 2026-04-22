@@ -11,7 +11,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { SelectProps } from '@cloudscape-design/components';
 import apiClient from '../services/api';
-import type { TargetAccount } from '../components/AccountManagementPanel';
+import type { TargetAccount } from '../types';
 import { useAuth } from './AuthContext';
 
 /**
