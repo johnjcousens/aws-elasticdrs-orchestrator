@@ -565,19 +565,6 @@ export interface JobLogEvent {
 // API Response Types
 // ============================================================================
 
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: ApiError;
-  message?: string;
-}
-
-export interface ApiError {
-  code: string;
-  message: string;
-  details?: Record<string, unknown>;
-}
-
 export interface PaginatedResponse<T> {
   items: T[];
   nextToken?: string;
@@ -586,42 +573,6 @@ export interface PaginatedResponse<T> {
 
 // ============================================================================
 // DRS-Specific Types
-// ============================================================================
-
-export interface DRSSourceServer {
-  sourceServerID: string;
-  hostname?: string;
-  arn: string;
-  tags?: Record<string, string>;
-  dataReplicationInfo?: {
-    dataReplicationState?: string;
-    lagDuration?: string;
-  };
-  launchConfiguration?: {
-    name?: string;
-    launchDisposition?: string;
-  };
-  lifeCycle?: {
-    state?: string;
-    lastLaunch?: {
-      initiated?: {
-        apiCallDateTime?: string;
-      };
-    };
-  };
-}
-
-export interface DRSRecoveryInstance {
-  recoveryInstanceID: string;
-  sourceServerID: string;
-  ec2InstanceID?: string;
-  ec2InstanceState?: string;
-  jobID?: string;
-  pointInTime?: string;
-}
-
-// ============================================================================
-// DRS Server Discovery Types
 // ============================================================================
 
 export interface DRSServer {
@@ -672,77 +623,6 @@ export interface DRSServer {
     protectionGroupName: string;
   } | null;
   selectable: boolean;
-}
-
-export interface DRSServerResponse {
-  region: string;
-  initialized: boolean;
-  servers: DRSServer[];
-  totalCount: number;
-  availableCount: number;
-  assignedCount: number;
-}
-
-// ============================================================================
-// Legacy Types (for backward compatibility)
-// ============================================================================
-
-export interface TagFilter {
-  KeyName: string;
-  KeyValue: string;
-  Values?: string[];
-}
-
-// ============================================================================
-// UI State Types
-// ============================================================================
-
-export interface LoadingState {
-  isLoading: boolean;
-  message?: string;
-}
-
-export interface FormErrors {
-  [fieldName: string]: string;
-}
-
-export interface FilterOptions {
-  searchTerm?: string;
-  status?: string[];
-  dateRange?: {
-    startDate: string;
-    endDate: string;
-  };
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}
-
-export interface TablePagination {
-  page: number;
-  rowsPerPage: number;
-  totalRows: number;
-}
-
-// ============================================================================
-// Chart/Visualization Types
-// ============================================================================
-
-export interface WaveDependencyNode {
-  id: number;
-  name: string;
-  serverCount: number;
-  status?: ExecutionStatus;
-  dependencies: number[];
-}
-
-export interface ExecutionTimeline {
-  waveNumber: number;
-  waveName: string;
-  startTime: string;
-  endTime?: string;
-  duration?: number;
-  status: ExecutionStatus;
-  serverCount: number;
 }
 
 // ============================================================================
