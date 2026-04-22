@@ -427,6 +427,34 @@ export interface WaveExecution {
   preWaveActionsStatus?: ActionStatus[];
   postWaveActionsStatus?: ActionStatus[];
   error?: ExecutionError;
+  /**
+   * DRS job metadata attached to this wave execution when the recovery
+   * plan runs across multiple accounts. Populated by the execution
+   * handler after a DRS StartRecovery call.
+   */
+  DRSJobDetails?: {
+    targetAccountId?: string;
+    targetAccountName?: string;
+    statusMessage?: string;
+    stagingJobs?: StagingJobDetails[];
+  };
+}
+
+/**
+ * Details for a DRS job executed in a staging account (extended
+ * capacity mode). Populated on WaveExecution.DRSJobDetails.stagingJobs
+ * when servers live outside the target account.
+ */
+export interface StagingJobDetails {
+  jobId: string;
+  stagingAccountId: string;
+  type: string;
+  status: string;
+  statusMessage?: string;
+  creationDateTime: string;
+  endDateTime?: string;
+  participatingServers: number;
+  serverIds: string[];
 }
 
 export interface ServerExecution {

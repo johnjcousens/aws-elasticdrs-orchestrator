@@ -24,25 +24,13 @@ import {
 } from '@cloudscape-design/components';
 import { StatusBadge } from './StatusBadge';
 import apiClient from '../services/api';
-import type { WaveExecution, ServerExecution, JobLogsResponse, JobLogEvent } from '../types';
+import type { WaveExecution, ServerExecution, JobLogsResponse, JobLogEvent, StagingJobDetails } from '../types';
 
 interface WaveProgressProps {
   waves: WaveExecution[];
   currentWave?: number;
   totalWaves?: number;
   jobLogs?: JobLogsResponse | null;
-}
-
-interface StagingJobDetails {
-  jobId: string;
-  stagingAccountId: string;
-  type: string;
-  status: string;
-  statusMessage?: string;
-  creationDateTime: string;
-  endDateTime?: string;
-  participatingServers: number;
-  serverIds: string[];
 }
 
 interface StagingJobLogs {
@@ -788,9 +776,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
       if (!jobLogs) return;
       
       for (const wave of waves) {
-        // REVIEW: [type-strengthening] DRSJobDetails is accessed via (wave as any) in 5 places.
-        // Extend the Wave interface with an optional DRSJobDetails field to remove these casts.
-        const stagingJobs = (wave as any).DRSJobDetails?.stagingJobs as StagingJobDetails[] | undefined;
+        const stagingJobs = wave.DRSJobDetails?.stagingJobs;
         
         if (stagingJobs && stagingJobs.length > 0) {
           for (const stagingJob of stagingJobs) {
@@ -1000,9 +986,9 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
               )}
 
               {/* DRS Job Status Message (for failed/problematic jobs) */}
-              {!wave.error && !wave.statusMessage && (wave as any).DRSJobDetails?.statusMessage && effectiveStatus === 'failed' && (
+              {!wave.error && !wave.statusMessage && wave.DRSJobDetails?.statusMessage && effectiveStatus === 'failed' && (
                 <Alert type="error" header="DRS Job Failure">
-                  {(wave as any).DRSJobDetails.statusMessage}
+                  {wave.DRSJobDetails.statusMessage}
                 </Alert>
               )}
 
@@ -1090,15 +1076,15 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 >
                   {(() => {
                     const waveJobLogs = getWaveJobLogs(jobLogs, waveNum);
-                    const stagingJobs = (wave as any).DRSJobDetails?.stagingJobs as StagingJobDetails[] | undefined;
+                    const stagingJobs = wave.DRSJobDetails?.stagingJobs;
                     const hasStagingJobs = stagingJobs && stagingJobs.length > 0;
                     
                     // Combine all events from all jobs (staging + target) into unified timeline
                     const allEvents: Array<JobLogEvent & { jobId: string; accountId: string; accountName?: string; jobType: string }> = [];
                     
                     // Add target account job events
-                    const targetAccountId = (wave as any).DRSJobDetails?.targetAccountId;
-                    const targetAccountName = (wave as any).DRSJobDetails?.targetAccountName;
+                    const targetAccountId = wave.DRSJobDetails?.targetAccountId;
+                    const targetAccountName = wave.DRSJobDetails?.targetAccountName;
                     waveJobLogs.forEach(event => {
                       allEvents.push({
                         ...event,
