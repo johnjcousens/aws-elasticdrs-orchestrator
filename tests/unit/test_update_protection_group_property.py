@@ -280,7 +280,8 @@ class TestProperty21PendingUpdateReplacement:
 
         body = {"launchConfig": {"instanceType": new_instance_type}}
 
-        with patch.object(data_management_handler, "get_protection_groups_table") as mock_table:
+        with patch.object(data_management_handler, "get_protection_groups_table") as mock_table, \
+             patch.dict(os.environ, {"ASYNC_LAUNCH_CONFIG_ENABLED": "true"}):
             mock_table_instance = MagicMock()
             mock_table.return_value = mock_table_instance
             mock_table_instance.get_item.return_value = create_mock_table_response(existing_group)
@@ -293,15 +294,21 @@ class TestProperty21PendingUpdateReplacement:
 
             # Mock persist_config_status to prevent real AWS calls
             with patch.object(data_management_handler, "persist_config_status"):
-                # Mock conflict detection (otherwise it scans DynamoDB via boto3)
-                # and account resolution (otherwise it calls STS GetCallerIdentity).
-                # Without these patches the test passes against a fresh SSO session
-                # but fails intermittently under the full suite when boto3 credentials
-                # hiccup — the test shouldn't depend on real AWS at all.
+                # Mock conflict detection (otherwise it scans DynamoDB via boto3),
+                # account resolution (otherwise it calls STS GetCallerIdentity),
+                # active-execution lookup (otherwise Scan hits DynamoDB), and
+                # the sync-path apply (fallback if async_enabled is ever False).
+                # The test must be fully hermetic — it was failing intermittently
+                # under deploy-validate when real AWS APIs were reachable.
                 with patch.object(
                     data_management_handler, "check_server_conflicts_for_update", return_value=[]
                 ), patch.object(
                     data_management_handler, "get_current_account_id", return_value="123456789012"
+                ), patch.object(
+                    data_management_handler, "get_active_execution_for_protection_group", return_value=None
+                ), patch.object(
+                    data_management_handler, "apply_launch_configs_to_group",
+                    return_value={"status": "ready", "serverConfigs": {}, "errors": [], "appliedServers": 1, "failedServers": 0},
                 ):
                     # Mock async invocation
                     with patch.object(data_management_handler, "_invoke_async_sync") as mock_invoke:
