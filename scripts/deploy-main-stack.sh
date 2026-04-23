@@ -454,7 +454,12 @@ else
         else
             echo "  Running fast unit tests..."
             set +e
-            .venv/bin/pytest tests/unit/ -m "not property" -v --tb=short 2>&1 | tee /tmp/pytest_output.txt
+            # --forked: run each test in its own subprocess. Required because
+            # several handler modules keep module-level boto3 client/table
+            # caches that aren't fully reset between tests in a shared process,
+            # causing order-dependent flakes. The validate-only / full-tests
+            # paths above already use --forked for the same reason.
+            .venv/bin/pytest tests/unit/ -m "not property" -v --forked --tb=short 2>&1 | tee /tmp/pytest_output.txt
             PYTEST_EXIT_CODE=$?
             set -e
             
