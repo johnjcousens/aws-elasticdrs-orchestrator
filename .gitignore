@@ -19,8 +19,8 @@
 .amazonq/
 .cline_memory/
 .kiro/settings/
-.kiro/steering/
 .kiro/specs/
+.kiro/steering/deployment-and-safety.md
 history/
 
 # -------------------------
