@@ -1044,7 +1044,7 @@ def poll_wave_status(event: Dict) -> Dict:
         result = json.loads(response["Payload"].read())
 
         # Notify on execution completion or failure
-        _notify_on_status_change(state, result)
+        _notify_on_status_change(result)
 
         return result
 
@@ -1080,7 +1080,7 @@ def poll_wave_status(event: Dict) -> Dict:
         return state
 
 
-def _notify_on_status_change(old_state: Dict, new_state: Dict) -> None:
+def _notify_on_status_change(new_state: Dict) -> None:
     """
     Publish notification when execution status changes.
 
@@ -1089,7 +1089,6 @@ def _notify_on_status_change(old_state: Dict, new_state: Dict) -> None:
     notification publishing are logged but never raised.
 
     Args:
-        old_state: State before polling
         new_state: State returned by query-handler
     """
     new_status = new_state.get("status", "")

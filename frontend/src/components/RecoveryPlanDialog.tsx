@@ -27,7 +27,7 @@ import { LoadingState } from './LoadingState';
 import { WaveConfigEditor } from './WaveConfigEditor';
 import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
-import { DRS_LIMITS } from '../services/drsQuotaService';
+import { DRS_LIMITS } from '../types/drs-quota';
 import { PermissionAwareButton } from './PermissionAware';
 import { DRSPermission } from '../types/permissions';
 

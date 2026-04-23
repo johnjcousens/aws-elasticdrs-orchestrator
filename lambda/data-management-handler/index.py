@@ -7392,8 +7392,10 @@ def sync_launch_configs(body: Dict) -> Dict:
         xray_recorder.put_annotation("syncJobId", sync_job_id)
         xray_recorder.put_annotation("requestId", request_id)
         xray_recorder.put_annotation("operation", "sync_launch_configs")
-    except Exception:
-        pass
+    except Exception as xray_err:
+        # X-Ray annotations are auxiliary; failures must not block sync,
+        # but log so they're traceable (e.g., SDK not installed in local test).
+        print(f"X-Ray annotation failed: {xray_err}")
 
     # Record start time for duration metric
     start_time_obj = datetime.now(timezone.utc)
@@ -9209,8 +9211,10 @@ def handle_sync_source_server_inventory() -> Dict:
                         if src_acct_item:
                             src_role_arn = src_acct_item.get("roleArn", src_role_arn)
                             src_ext_id = src_acct_item.get("externalId", src_ext_id)
-                    except Exception:
-                        pass
+                    except Exception as lookup_err:
+                        # Fall back to default cross-account role/external-id. Log so that a
+                        # subsequent AssumeRole failure can be traced back to the missing record.
+                        print(f"Target account lookup failed for {src_account}, using defaults: {lookup_err}")
                     sts = boto3.client("sts")
                     src_creds = sts.assume_role(
                         RoleArn=src_role_arn,

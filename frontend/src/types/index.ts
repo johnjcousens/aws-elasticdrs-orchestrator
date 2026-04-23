@@ -427,6 +427,34 @@ export interface WaveExecution {
   preWaveActionsStatus?: ActionStatus[];
   postWaveActionsStatus?: ActionStatus[];
   error?: ExecutionError;
+  /**
+   * DRS job metadata attached to this wave execution when the recovery
+   * plan runs across multiple accounts. Populated by the execution
+   * handler after a DRS StartRecovery call.
+   */
+  DRSJobDetails?: {
+    targetAccountId?: string;
+    targetAccountName?: string;
+    statusMessage?: string;
+    stagingJobs?: StagingJobDetails[];
+  };
+}
+
+/**
+ * Details for a DRS job executed in a staging account (extended
+ * capacity mode). Populated on WaveExecution.DRSJobDetails.stagingJobs
+ * when servers live outside the target account.
+ */
+export interface StagingJobDetails {
+  jobId: string;
+  stagingAccountId: string;
+  type: string;
+  status: string;
+  statusMessage?: string;
+  creationDateTime: string;
+  endDateTime?: string;
+  participatingServers: number;
+  serverIds: string[];
 }
 
 export interface ServerExecution {
@@ -565,19 +593,6 @@ export interface JobLogEvent {
 // API Response Types
 // ============================================================================
 
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: ApiError;
-  message?: string;
-}
-
-export interface ApiError {
-  code: string;
-  message: string;
-  details?: Record<string, unknown>;
-}
-
 export interface PaginatedResponse<T> {
   items: T[];
   nextToken?: string;
@@ -586,42 +601,6 @@ export interface PaginatedResponse<T> {
 
 // ============================================================================
 // DRS-Specific Types
-// ============================================================================
-
-export interface DRSSourceServer {
-  sourceServerID: string;
-  hostname?: string;
-  arn: string;
-  tags?: Record<string, string>;
-  dataReplicationInfo?: {
-    dataReplicationState?: string;
-    lagDuration?: string;
-  };
-  launchConfiguration?: {
-    name?: string;
-    launchDisposition?: string;
-  };
-  lifeCycle?: {
-    state?: string;
-    lastLaunch?: {
-      initiated?: {
-        apiCallDateTime?: string;
-      };
-    };
-  };
-}
-
-export interface DRSRecoveryInstance {
-  recoveryInstanceID: string;
-  sourceServerID: string;
-  ec2InstanceID?: string;
-  ec2InstanceState?: string;
-  jobID?: string;
-  pointInTime?: string;
-}
-
-// ============================================================================
-// DRS Server Discovery Types
 // ============================================================================
 
 export interface DRSServer {
@@ -674,77 +653,6 @@ export interface DRSServer {
   selectable: boolean;
 }
 
-export interface DRSServerResponse {
-  region: string;
-  initialized: boolean;
-  servers: DRSServer[];
-  totalCount: number;
-  availableCount: number;
-  assignedCount: number;
-}
-
-// ============================================================================
-// Legacy Types (for backward compatibility)
-// ============================================================================
-
-export interface TagFilter {
-  KeyName: string;
-  KeyValue: string;
-  Values?: string[];
-}
-
-// ============================================================================
-// UI State Types
-// ============================================================================
-
-export interface LoadingState {
-  isLoading: boolean;
-  message?: string;
-}
-
-export interface FormErrors {
-  [fieldName: string]: string;
-}
-
-export interface FilterOptions {
-  searchTerm?: string;
-  status?: string[];
-  dateRange?: {
-    startDate: string;
-    endDate: string;
-  };
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}
-
-export interface TablePagination {
-  page: number;
-  rowsPerPage: number;
-  totalRows: number;
-}
-
-// ============================================================================
-// Chart/Visualization Types
-// ============================================================================
-
-export interface WaveDependencyNode {
-  id: number;
-  name: string;
-  serverCount: number;
-  status?: ExecutionStatus;
-  dependencies: number[];
-}
-
-export interface ExecutionTimeline {
-  waveNumber: number;
-  waveName: string;
-  startTime: string;
-  endTime?: string;
-  duration?: number;
-  status: ExecutionStatus;
-  serverCount: number;
-}
-
 // ============================================================================
 // Authentication Types
 // ============================================================================
@@ -768,6 +676,28 @@ export interface AuthState {
 
 // Re-export all staging accounts types
 export * from './staging-accounts';
+
+// ============================================================================
+// Target Account Types
+// ============================================================================
+
+/**
+ * Target account shape returned by `apiClient.getTargetAccounts()` and used
+ * by account selection, context, and management UI. This is the runtime
+ * list-item shape — for the workflow-specific shape with attached staging
+ * accounts, see `TargetAccountWithStaging` in `types/staging-accounts.ts`.
+ */
+export interface TargetAccount {
+  accountId: string;
+  accountName?: string;
+  isCurrentAccount: boolean;
+  status: 'active' | 'pending' | 'error' | 'ACTIVE' | 'INACTIVE' | 'ERROR';
+  lastValidated?: string;
+  crossAccountRoleArn?: string;
+  roleArn?: string;
+  assumeRoleName?: string;
+  externalId?: string;
+}
 
 // ============================================================================
 // Region Status Types

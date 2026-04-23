@@ -111,6 +111,81 @@ class RecoveryInstanceSyncValidationError(RecoveryInstanceSyncError):
     pass
 
 
+def _enrich_and_cache_instances(instances: List[Dict]) -> Dict[str, Any]:
+    """
+    Enrich a list of raw DRS recovery instance records with EC2 details and
+    source execution metadata, then write them to the DynamoDB cache.
+
+    This is the shared inner loop used by both the all-accounts background
+    sync and the per-account sync path — extracted to keep enrichment and
+    cache-write behavior identical between the two.
+
+    Args:
+        instances: Raw recovery instance records from
+            get_recovery_instances_for_region().
+
+    Returns:
+        Dict with "instancesUpdated" (count actually written) and "errors"
+        (list of error messages from individual enrichments and the cache
+        write). Errors on individual instances are collected, not raised —
+        the caller decides whether to surface them.
+    """
+    enriched_instances: List[Dict] = []
+    errors: List[str] = []
+
+    for instance in instances:
+        try:
+            ec2_details = enrich_with_ec2_details(
+                instance["ec2InstanceId"], instance["region"], instance["accountId"], instance.get("accountContext")
+            )
+
+            source_execution = find_source_execution(instance["sourceServerId"], instance.get("launchTime"))
+
+            enriched_instance = {
+                "sourceServerId": instance["sourceServerId"],
+                "recoveryInstanceId": instance["recoveryInstanceId"],
+                "ec2InstanceId": instance["ec2InstanceId"],
+                "ec2InstanceState": instance["ec2InstanceState"],
+                "sourceServerName": instance.get("sourceServerName", instance["sourceServerId"]),
+                "name": ec2_details.get("Name", f"Recovery of {instance['sourceServerId']}"),
+                "privateIp": ec2_details.get("PrivateIpAddress"),
+                "publicIp": ec2_details.get("PublicIpAddress"),
+                "instanceType": ec2_details.get("InstanceType", "unknown"),
+                "launchTime": instance.get("launchTime"),
+                "region": instance["region"],
+                "accountId": instance["accountId"],
+                "sourceExecutionId": source_execution.get("executionId"),
+                "sourcePlanName": source_execution.get("planName"),
+                "lastSyncTime": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "replicationStagingAccountId": instance.get("replicationStagingAccountId"),
+                "sourceVpcId": instance.get("sourceVpcId"),
+                "sourceSubnetId": instance.get("sourceSubnetId"),
+                "sourceSecurityGroupIds": instance.get("sourceSecurityGroupIds", []),
+                "sourceInstanceProfile": instance.get("sourceInstanceProfile"),
+            }
+            enriched_instances.append(enriched_instance)
+
+        except Exception as e:
+            error_msg = f"Failed to enrich instance {instance.get('recoveryInstanceId', 'unknown')}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            errors.append(error_msg)
+            # Continue with other instances
+
+    if enriched_instances:
+        try:
+            table = _get_recovery_instances_table()
+            with table.batch_writer() as batch:
+                for instance in enriched_instances:
+                    batch.put_item(Item=instance)
+            logger.info(f"Wrote {len(enriched_instances)} instances to cache")
+        except Exception as e:
+            error_msg = f"Failed to write to DynamoDB cache: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            errors.append(error_msg)
+
+    return {"instancesUpdated": len(enriched_instances), "errors": errors}
+
+
 def sync_all_recovery_instances() -> Dict[str, Any]:
     """
     Background sync of recovery instances across all target accounts and regions.
@@ -154,65 +229,15 @@ def sync_all_recovery_instances() -> Dict[str, Any]:
                 errors.append(error_msg)
                 # Continue with other accounts/regions
 
-    # Enrich with EC2 details and find source executions
-    enriched_instances = []
-    for instance in all_instances:
-        try:
-            # Enrich with EC2 details
-            ec2_details = enrich_with_ec2_details(
-                instance["ec2InstanceId"], instance["region"], instance["accountId"], instance.get("accountContext")
-            )
+    # Enrich with EC2 details, find source executions, and write to cache.
+    # Shared helper is used here and by sync_recovery_instances_for_account.
+    cache_result = _enrich_and_cache_instances(all_instances)
+    enriched_count = cache_result["instancesUpdated"]
+    errors.extend(cache_result["errors"])
 
-            # Find source execution from history
-            source_execution = find_source_execution(instance["sourceServerId"], instance.get("launchTime"))
+    logger.info(f"Background sync completed: {enriched_count} instances updated, {regions_scanned} regions")
 
-            # Build enriched instance record
-            enriched_instance = {
-                "sourceServerId": instance["sourceServerId"],
-                "recoveryInstanceId": instance["recoveryInstanceId"],
-                "ec2InstanceId": instance["ec2InstanceId"],
-                "ec2InstanceState": instance["ec2InstanceState"],
-                "sourceServerName": instance.get("sourceServerName", instance["sourceServerId"]),
-                "name": ec2_details.get("Name", f"Recovery of {instance['sourceServerId']}"),
-                "privateIp": ec2_details.get("PrivateIpAddress"),
-                "publicIp": ec2_details.get("PublicIpAddress"),
-                "instanceType": ec2_details.get("InstanceType", "unknown"),
-                "launchTime": instance.get("launchTime"),
-                "region": instance["region"],
-                "accountId": instance["accountId"],
-                "sourceExecutionId": source_execution.get("executionId"),
-                "sourcePlanName": source_execution.get("planName"),
-                "lastSyncTime": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "replicationStagingAccountId": instance.get("replicationStagingAccountId"),
-                "sourceVpcId": instance.get("sourceVpcId"),
-                "sourceSubnetId": instance.get("sourceSubnetId"),
-                "sourceSecurityGroupIds": instance.get("sourceSecurityGroupIds", []),
-                "sourceInstanceProfile": instance.get("sourceInstanceProfile"),
-            }
-            enriched_instances.append(enriched_instance)
-
-        except Exception as e:
-            error_msg = f"Failed to enrich instance {instance.get('recoveryInstanceId', 'unknown')}: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            errors.append(error_msg)
-            # Continue with other instances
-
-    # Update DynamoDB cache
-    if enriched_instances:
-        try:
-            table = _get_recovery_instances_table()
-            with table.batch_writer() as batch:
-                for instance in enriched_instances:
-                    batch.put_item(Item=instance)
-            logger.info(f"Wrote {len(enriched_instances)} instances to cache")
-        except Exception as e:
-            error_msg = f"Failed to write to DynamoDB cache: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            errors.append(error_msg)
-
-    logger.info(f"Background sync completed: {len(enriched_instances)} instances updated, {regions_scanned} regions")
-
-    return {"instancesUpdated": len(enriched_instances), "regionsScanned": regions_scanned, "errors": errors}
+    return {"instancesUpdated": enriched_count, "regionsScanned": regions_scanned, "errors": errors}
 
 
 def sync_recovery_instances_for_account(account_id: str, region: str, account_context: Optional[Dict] = None) -> Dict:
@@ -236,70 +261,13 @@ def sync_recovery_instances_for_account(account_id: str, region: str, account_co
     """
     logger.info(f"Syncing recovery instances for account {account_id} in region {region}")
 
-    errors = []
-
     try:
         # Get recovery instances for this account/region
         instances = get_recovery_instances_for_region(account_id, region, account_context)
         logger.info(f"Found {len(instances)} recovery instances in {account_id}/{region}")
 
-        # Enrich with EC2 details and find source executions
-        enriched_instances = []
-        for instance in instances:
-            try:
-                # Enrich with EC2 details
-                ec2_details = enrich_with_ec2_details(
-                    instance["ec2InstanceId"], instance["region"], instance["accountId"], instance.get("accountContext")
-                )
-
-                # Find source execution from history
-                source_execution = find_source_execution(instance["sourceServerId"], instance.get("launchTime"))
-
-                # Build enriched instance record
-                enriched_instance = {
-                    "sourceServerId": instance["sourceServerId"],
-                    "recoveryInstanceId": instance["recoveryInstanceId"],
-                    "ec2InstanceId": instance["ec2InstanceId"],
-                    "ec2InstanceState": instance["ec2InstanceState"],
-                    "sourceServerName": instance.get("sourceServerName", instance["sourceServerId"]),
-                    "name": ec2_details.get("Name", f"Recovery of {instance['sourceServerId']}"),
-                    "privateIp": ec2_details.get("PrivateIpAddress"),
-                    "publicIp": ec2_details.get("PublicIpAddress"),
-                    "instanceType": ec2_details.get("InstanceType", "unknown"),
-                    "launchTime": instance.get("launchTime"),
-                    "region": instance["region"],
-                    "accountId": instance["accountId"],
-                    "sourceExecutionId": source_execution.get("executionId"),
-                    "sourcePlanName": source_execution.get("planName"),
-                    "lastSyncTime": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                    "replicationStagingAccountId": instance.get("replicationStagingAccountId"),
-                    "sourceVpcId": instance.get("sourceVpcId"),
-                    "sourceSubnetId": instance.get("sourceSubnetId"),
-                    "sourceSecurityGroupIds": instance.get("sourceSecurityGroupIds", []),
-                    "sourceInstanceProfile": instance.get("sourceInstanceProfile"),
-                }
-                enriched_instances.append(enriched_instance)
-
-            except Exception as e:
-                error_msg = f"Failed to enrich instance {instance.get('recoveryInstanceId', 'unknown')}: {str(e)}"
-                logger.error(error_msg, exc_info=True)
-                errors.append(error_msg)
-                # Continue with other instances
-
-        # Update DynamoDB cache
-        if enriched_instances:
-            try:
-                table = _get_recovery_instances_table()
-                with table.batch_writer() as batch:
-                    for instance in enriched_instances:
-                        batch.put_item(Item=instance)
-                logger.info(f"Wrote {len(enriched_instances)} instances to cache")
-            except Exception as e:
-                error_msg = f"Failed to write to DynamoDB cache: {str(e)}"
-                logger.error(error_msg, exc_info=True)
-                errors.append(error_msg)
-
-        return {"instancesUpdated": len(enriched_instances), "errors": errors}
+        # Shared enrichment + cache write (see _enrich_and_cache_instances)
+        return _enrich_and_cache_instances(instances)
 
     except Exception as e:
         error_msg = f"Failed to sync {account_id}/{region}: {str(e)}"

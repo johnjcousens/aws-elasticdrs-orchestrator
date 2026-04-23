@@ -20,7 +20,7 @@
 import { render, screen, fireEvent, waitFor, cleanup, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { TargetAccountSettingsModal } from "../TargetAccountSettingsModal";
-import type { TargetAccount, StagingAccount } from "../../types/staging-accounts";
+import type { TargetAccountWithStaging, StagingAccount } from "../../types/staging-accounts";
 import "@testing-library/jest-dom";
 import apiClient from "../../services/api";
 
@@ -66,7 +66,7 @@ describe("TargetAccountSettingsModal", () => {
     replicatingCount: 0,
   };
 
-  const mockTargetAccount: TargetAccount = {
+  const mockTargetAccount: TargetAccountWithStaging = {
     accountId: "111122223333",
     accountName: "DEMO_TARGET",
     roleArn: "arn:aws:iam::111122223333:role/DRSOrchestrationRole-test",
@@ -75,7 +75,7 @@ describe("TargetAccountSettingsModal", () => {
     status: "active",
   };
 
-  const mockTargetAccountNoStaging: TargetAccount = {
+  const mockTargetAccountNoStaging: TargetAccountWithStaging = {
     accountId: "111122223333",
     accountName: "DEMO_TARGET",
     roleArn: "arn:aws:iam::111122223333:role/DRSOrchestrationRole-test",
@@ -619,7 +619,7 @@ describe("TargetAccountSettingsModal", () => {
         status: "active",
       });
 
-      const targetWithErrorAccount: TargetAccount = {
+      const targetWithErrorAccount: TargetAccountWithStaging = {
         ...mockTargetAccount,
         stagingAccounts: [
           {

@@ -102,6 +102,25 @@ export const LaunchConfigProgressModal: React.FC<LaunchConfigProgressModalProps>
     return status.servers.filter(s => s.status === 'failed');
   }, [status]);
 
+  // Summary list of failed servers. Shared between the 'partial' and 'failed'
+  // alerts — both surfaces need the same truncated list of the first 5
+  // failures with an "and N more" line when the list overflows.
+  const failedServersSummary = failedServers.length > 0 ? (
+    <Box>
+      <strong>Failed servers:</strong>
+      <ul>
+        {failedServers.slice(0, 5).map(server => (
+          <li key={server.sourceServerId}>
+            {server.sourceServerId}: {server.error || 'Unknown error'}
+          </li>
+        ))}
+        {failedServers.length > 5 && (
+          <li>...and {failedServers.length - 5} more</li>
+        )}
+      </ul>
+    </Box>
+  ) : null;
+
   return (
     <Modal
       visible={visible}
@@ -160,21 +179,7 @@ export const LaunchConfigProgressModal: React.FC<LaunchConfigProgressModalProps>
               <div>
                 {status.completedServers} servers configured successfully, but {failedServers.length} failed.
               </div>
-              {failedServers.length > 0 && (
-                <Box>
-                  <strong>Failed servers:</strong>
-                  <ul>
-                    {failedServers.slice(0, 5).map(server => (
-                      <li key={server.sourceServerId}>
-                        {server.sourceServerId}: {server.error || 'Unknown error'}
-                      </li>
-                    ))}
-                    {failedServers.length > 5 && (
-                      <li>...and {failedServers.length - 5} more</li>
-                    )}
-                  </ul>
-                </Box>
-              )}
+              {failedServersSummary}
             </SpaceBetween>
           </Alert>
         )}
@@ -186,21 +191,7 @@ export const LaunchConfigProgressModal: React.FC<LaunchConfigProgressModalProps>
               <div>
                 Failed to apply launch configurations. Please check the error details below and try again.
               </div>
-              {failedServers.length > 0 && (
-                <Box>
-                  <strong>Failed servers:</strong>
-                  <ul>
-                    {failedServers.slice(0, 5).map(server => (
-                      <li key={server.sourceServerId}>
-                        {server.sourceServerId}: {server.error || 'Unknown error'}
-                      </li>
-                    ))}
-                    {failedServers.length > 5 && (
-                      <li>...and {failedServers.length - 5} more</li>
-                    )}
-                  </ul>
-                </Box>
-              )}
+              {failedServersSummary}
             </SpaceBetween>
           </Alert>
         )}
