@@ -131,16 +131,39 @@ def reset_module_caches():
         conflict_detection._execution_history_table = None
     except ImportError:
         pass
+
+    try:
+        import shared.active_region_filter as active_region_filter
+        # Reset active_region_filter module-level cache and table handle.
+        # The _region_cache is a module-global dict that caches get_active_regions()
+        # results for CACHE_TTL seconds. Without this reset, tests that populate
+        # the cache can bleed results into later tests that expect a fresh query
+        # (most visibly test_property_cache_invalidation_after_inventory_sync).
+        active_region_filter._region_cache.clear()
+        active_region_filter._region_status_table = None
+    except ImportError:
+        pass
     
     try:
         import sys
-        # Reset data-management-handler if loaded
+        # Reset data-management-handler module-level table caches if loaded.
+        # The handler lazy-inits 7 boto3 Table resources and stores them as
+        # module globals. Tests that patch these tables must ensure the
+        # globals are reset; otherwise a later test with a different mock
+        # can inherit the previous test's table instance.
         if 'data-management-handler.index' in sys.modules:
             handler = sys.modules['data-management-handler.index']
-            if hasattr(handler, '_target_accounts_table'):
-                handler._target_accounts_table = None
-            if hasattr(handler, '_tag_sync_config_table'):
-                handler._tag_sync_config_table = None
+            for attr in (
+                '_protection_groups_table',
+                '_recovery_plans_table',
+                '_executions_table',
+                '_target_accounts_table',
+                '_tag_sync_config_table',
+                '_inventory_table',
+                '_recovery_instances_table',
+            ):
+                if hasattr(handler, attr):
+                    setattr(handler, attr, None)
     except (ImportError, AttributeError):
         pass
     
