@@ -9214,9 +9214,7 @@ def handle_sync_source_server_inventory() -> Dict:
                     except Exception as lookup_err:
                         # Fall back to default cross-account role/external-id. Log so that a
                         # subsequent AssumeRole failure can be traced back to the missing record.
-                        print(
-                            f"Target account lookup failed for {src_account}, using defaults: {lookup_err}"
-                        )
+                        print(f"Target account lookup failed for {src_account}, using defaults: {lookup_err}")
                     sts = boto3.client("sts")
                     src_creds = sts.assume_role(
                         RoleArn=src_role_arn,
