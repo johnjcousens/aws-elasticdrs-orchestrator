@@ -92,8 +92,10 @@ export interface TargetAccountWithStaging {
   /** List of staging account configurations */
   stagingAccounts: StagingAccount[];
 
-  /** Account status */
-  status?: "active" | "inactive" | "error";
+  /** Account status. Widened to string because the API returns arbitrary
+   *  status strings from DRS and DDB records; consumers use loose equality
+   *  against known values like "active". */
+  status?: string;
 
   /** ISO 8601 timestamp when account was created */
   createdAt?: string;

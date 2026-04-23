@@ -1129,7 +1129,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                       servers: Array<{
                         sourceServerId?: string;
                         conversionServerId?: string;
-                        eventData?: unknown;
+                        eventData?: Record<string, unknown>;
                         error?: string;
                       }>;
                       count: number;
