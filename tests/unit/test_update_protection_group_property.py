@@ -293,17 +293,27 @@ class TestProperty21PendingUpdateReplacement:
 
             # Mock persist_config_status to prevent real AWS calls
             with patch.object(data_management_handler, "persist_config_status"):
-                # Mock async invocation
-                with patch.object(data_management_handler, "_invoke_async_sync") as mock_invoke:
-                    # Act
-                    result = update_protection_group(group_id, body, query_parameters={})
+                # Mock conflict detection (otherwise it scans DynamoDB via boto3)
+                # and account resolution (otherwise it calls STS GetCallerIdentity).
+                # Without these patches the test passes against a fresh SSO session
+                # but fails intermittently under the full suite when boto3 credentials
+                # hiccup — the test shouldn't depend on real AWS at all.
+                with patch.object(
+                    data_management_handler, "check_server_conflicts_for_update", return_value=[]
+                ), patch.object(
+                    data_management_handler, "get_current_account_id", return_value="123456789012"
+                ):
+                    # Mock async invocation
+                    with patch.object(data_management_handler, "_invoke_async_sync") as mock_invoke:
+                        # Act
+                        result = update_protection_group(group_id, body, query_parameters={})
 
-                    # Assert
-                    # Property: HTTP 200 must be returned (update succeeds)
-                    assert result["statusCode"] == 200
+                        # Assert
+                        # Property: HTTP 200 must be returned (update succeeds)
+                        assert result["statusCode"] == 200
 
-                    # Property: Async invocation must be triggered
-                    assert mock_invoke.called
+                        # Property: Async invocation must be triggered
+                        assert mock_invoke.called
 
 
 # ===========================================================================
