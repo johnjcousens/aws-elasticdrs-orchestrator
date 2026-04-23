@@ -6,12 +6,10 @@ Unit tests for new query-handler direct invocation operations.
 
 Tests Phase 3 operations:
 - get_staging_accounts (task 4.3)
-- get_tag_sync_status (task 4.4)
-- get_tag_sync_settings (task 4.5)
 - get_drs_capacity_conflicts (task 4.6)
 
 Feature: direct-lambda-invocation-mode
-Requirements: 4.3, 4.4, 4.5, 4.6
+Requirements: 4.3, 4.6
 """
 
 import json
@@ -187,76 +185,6 @@ def test_get_staging_accounts_empty_list(mock_target_accounts_table):
 
     assert result["targetAccountId"] == "123456789012"
     assert result["stagingAccounts"] == []
-
-
-# ============================================================================
-# Test get_tag_sync_status operation (task 4.4)
-# ============================================================================
-
-
-def test_get_tag_sync_status_not_implemented():
-    """Test tag sync status returns not implemented placeholder."""
-    from index import get_tag_sync_status_direct
-
-    event = {}
-
-    result = get_tag_sync_status_direct(event)
-
-    assert result["enabled"] is False
-    assert result["lastSyncTime"] is None
-    assert result["serversProcessed"] == 0
-    assert result["tagsSynchronized"] == 0
-    assert result["status"] == "not_implemented"
-    assert "not yet implemented" in result["note"]
-
-
-def test_get_tag_sync_status_no_parameters_required():
-    """Test tag sync status works without any parameters."""
-    from index import get_tag_sync_status_direct
-
-    event = {}
-
-    result = get_tag_sync_status_direct(event)
-
-    # Should not return error
-    assert "error" not in result
-    assert "status" in result
-
-
-# ============================================================================
-# Test get_tag_sync_settings operation (task 4.5)
-# ============================================================================
-
-
-def test_get_tag_sync_settings_not_implemented():
-    """Test tag sync settings returns not implemented placeholder."""
-    from index import get_tag_sync_settings_direct
-
-    event = {}
-
-    result = get_tag_sync_settings_direct(event)
-
-    assert result["enabled"] is False
-    assert result["schedule"] is None
-    assert "tagFilters" in result
-    assert result["tagFilters"]["include"] == []
-    assert result["tagFilters"]["exclude"] == []
-    assert result["sourceAccounts"] == []
-    assert result["targetAccounts"] == []
-    assert "not yet implemented" in result["note"]
-
-
-def test_get_tag_sync_settings_no_parameters_required():
-    """Test tag sync settings works without any parameters."""
-    from index import get_tag_sync_settings_direct
-
-    event = {}
-
-    result = get_tag_sync_settings_direct(event)
-
-    # Should not return error
-    assert "error" not in result
-    assert "tagFilters" in result
 
 
 # ============================================================================
@@ -473,36 +401,6 @@ def test_handle_direct_invocation_get_staging_accounts(mock_validate, mock_targe
 
     assert result["targetAccountId"] == "123456789012"
     assert "stagingAccounts" in result
-
-
-@patch("shared.iam_utils.validate_iam_authorization")
-def test_handle_direct_invocation_get_tag_sync_status(mock_validate, lambda_context):
-    """Test direct invocation routing for get_tag_sync_status operation."""
-    from index import handle_direct_invocation
-
-    mock_validate.return_value = True
-
-    event = {"operation": "get_tag_sync_status"}
-
-    result = handle_direct_invocation(event, lambda_context)
-
-    assert "status" in result
-    assert result["status"] == "not_implemented"
-
-
-@patch("shared.iam_utils.validate_iam_authorization")
-def test_handle_direct_invocation_get_tag_sync_settings(mock_validate, lambda_context):
-    """Test direct invocation routing for get_tag_sync_settings operation."""
-    from index import handle_direct_invocation
-
-    mock_validate.return_value = True
-
-    event = {"operation": "get_tag_sync_settings"}
-
-    result = handle_direct_invocation(event, lambda_context)
-
-    assert "tagFilters" in result
-    assert "enabled" in result
 
 
 @patch("shared.iam_utils.validate_iam_authorization")
