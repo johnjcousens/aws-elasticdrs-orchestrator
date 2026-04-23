@@ -15,7 +15,7 @@ Task: 1.2 Verify cross_account.py functions work correctly
 
 import os
 import sys
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import ANY, Mock, MagicMock, patch
 
 import pytest
 from botocore.exceptions import ClientError
@@ -321,8 +321,11 @@ class TestCreateDrsClient:
         # Verify no external ID
         assert call_args["external_id"] is None
 
-        # Verify DRS client was created with correct region
-        mock_session.client.assert_called_once_with("drs", region_name="us-east-1")
+        # Verify DRS client was created with correct region.
+        # config=ANY accepts the botocore Config (timeouts + retry policy) passed
+        # by the production code; the test cares about the client+region, not
+        # the specific config values.
+        mock_session.client.assert_called_once_with("drs", region_name="us-east-1", config=ANY)
         assert client == mock_drs_client
 
     @patch("cross_account.get_cross_account_session")
@@ -453,8 +456,10 @@ class TestCreateDrsClient:
         # Execute
         client = create_drs_client("us-east-1", account_context)
 
-        # Verify standard boto3 client was created (no session)
-        mock_boto_client.assert_called_once_with("drs", region_name="us-east-1")
+        # Verify standard boto3 client was created (no session).
+        # config=ANY accepts the botocore Config (timeouts + retry policy) passed
+        # by the production same-account path.
+        mock_boto_client.assert_called_once_with("drs", region_name="us-east-1", config=ANY)
         assert client == mock_drs_client
 
     @patch("cross_account.get_cross_account_session")
