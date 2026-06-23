@@ -20,13 +20,13 @@ This guide covers:
 
 ![AWS DRS Orchestration - Comprehensive Architecture](../architecture/AWS-DRS-Orchestration-Architecture-Comprehensive.png)
 
-**Components**: CloudFront CDN, S3 Static Hosting, Cognito User Pool, API Gateway, 6 Lambda Functions, Step Functions, DynamoDB (4 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
+**Components**: CloudFront CDN, S3 Static Hosting, Cognito User Pool, API Gateway, 6 Lambda Functions, Step Functions, DynamoDB (7 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
 
 ### Backend-Only Architecture (Modes 2 & 3)
 
 ![AWS DRS Orchestration - Backend Only](../architecture/AWS-DRS-Orchestration-Backend-Only.png)
 
-**Components**: Direct Lambda invocation via CLI/SDK, 6 Lambda Functions, Step Functions, DynamoDB (4 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
+**Components**: Direct Lambda invocation via CLI/SDK, 6 Lambda Functions, Step Functions, DynamoDB (7 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
 
 **Benefits**: 60% lower cost (no API Gateway), simpler architecture, native AWS authentication
 
@@ -233,7 +233,7 @@ print(result)
 │      External Platform                      │
 │  ┌──────────────┬──────────────────────┐   │
 │  │  DynamoDB    │  Step Functions      │   │
-│  │  (4 tables)  │  (State Machine)     │   │
+│  │  (7 tables)  │  (State Machine)     │   │
 │  └──────┬───────┴──────────┬───────────┘   │
 │         │                  │               │
 │         │  ┌───────────────▼──────────┐    │
@@ -250,7 +250,7 @@ print(result)
 │   - query-handler                           │
 │   - dr-orchestration-stepfunction           │
 │   - frontend-deployer                       │
-│   - notification-formatter                  │
+│   - drs-agent-deployer                      │
 └─────────────────────────────────────────────┘
 ```
 

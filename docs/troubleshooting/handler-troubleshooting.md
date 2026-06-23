@@ -255,7 +255,7 @@ aws stepfunctions list-state-machines \
   --query 'stateMachines[?name==`DROrchestrator`]'
 
 # If not found, deploy Step Functions stack
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 **Solution 2: Add Step Functions permissions**

@@ -190,7 +190,7 @@ Target Account (111122223333)
 
 ```bash
 # 1. Deploy Lambda changes
-./scripts/deploy.sh test --lambda-only
+./scripts/deploy-main-stack.sh test --lambda-only
 
 # 2. Update cross-account roles (already done)
 # 3. Update DynamoDB (already done)

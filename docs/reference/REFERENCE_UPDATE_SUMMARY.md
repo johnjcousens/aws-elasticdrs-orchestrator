@@ -45,7 +45,7 @@
 - ~~BucketCleaner~~ → `frontend-deployer`
 - ~~ExecutionFinder~~ → `execution-handler`
 - ~~ExecutionPoller~~ → `execution-handler`, `orch-sf`
-- ~~NotificationFormatter~~ → `notification-formatter`
+- ~~NotificationFormatter~~ → `drs-agent-deployer`
 - ~~Orchestration~~ → `orch-sf`
 
 ### 3. ORCHESTRATION_ROLE_SPECIFICATION.md
@@ -69,7 +69,7 @@
 12. Lambda Invoke Access: `execution-handler`, `data-management-handler`
 13. EventBridge Access: `data-management-handler`
 14. SSM Access: `orch-sf`
-15. SNS Access: `orch-sf`, `notification-formatter`
+15. SNS Access: `orch-sf`
 16. CloudWatch Access: `execution-handler`, `orch-sf`
 
 ## Verification Status
@@ -94,8 +94,8 @@ All 6 Lambda functions verified against actual directory structure:
 - `lambda/execution-handler/`
 - `lambda/query-handler/`
 - `lambda/frontend-deployer/`
-- `lambda/orchestration-stepfunctions/` (deployed as `orch-sf`)
-- `lambda/notification-formatter/`
+- `lambda/dr-orchestration-stepfunction/` (deployed as `orch-sf`)
+- `lambda/drs-agent-deployer/`
 
 ## Files NOT Updated (Accurate As-Is)
 

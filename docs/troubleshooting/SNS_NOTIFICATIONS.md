@@ -165,7 +165,7 @@ aws cloudformation describe-stacks \
 ```bash
 # Check Lambda environment variables
 aws lambda get-function-configuration \
-  --function-name aws-drs-orch-orchestration-stepfunctions-dev \
+  --function-name aws-drs-orch-dr-orchestration-stepfunction-dev \
   --query 'Environment.Variables' \
   --output json
 ```
@@ -179,7 +179,7 @@ Look for:
 ```bash
 # Get Lambda role ARN
 aws lambda get-function \
-  --function-name aws-drs-orch-orchestration-stepfunctions-dev \
+  --function-name aws-drs-orch-dr-orchestration-stepfunction-dev \
   --query 'Configuration.Role' \
   --output text
 
@@ -194,7 +194,7 @@ Verify SNS publish permissions exist for the topic ARNs.
 
 ```bash
 # View Lambda logs
-aws logs tail /aws/lambda/aws-drs-orch-orchestration-stepfunctions-dev --follow
+aws logs tail /aws/lambda/aws-drs-orch-dr-orchestration-stepfunction-dev --follow
 ```
 
 Look for:

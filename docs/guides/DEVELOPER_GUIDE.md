@@ -435,8 +435,8 @@ Package sizes:
   build/lambda/execution-finder.zip: 10.1 KB
   build/lambda/execution-poller.zip: 4.2 KB
   build/lambda/bucket-cleaner.zip: 7.3 KB
-  build/lambda/notification-formatter.zip: 2.1 KB
-  build/lambda/orchestration-stepfunctions.zip: 4.5 KB
+  build/lambda/drs-agent-deployer.zip: 2.1 KB
+  build/lambda/dr-orchestration-stepfunction.zip: 4.5 KB
   build/lambda/frontend-builder.zip: 1.3 MB
 ```
 
@@ -468,9 +468,9 @@ Duration: ~45-60 seconds | Runs: All validation, security, tests, build
 
 Quick Mode (Fast Iteration):
 ```bash
-./scripts/safe-push.sh --quick
+./scripts/safe-push.sh --skip-tests
 ```
-Duration: ~15-20 seconds | Runs: Validation and build only (skips security and tests)
+Duration: ~15-20 seconds | Runs: Validation, security, and build (skips tests only)
 
 Force Mode (Emergency Only):
 ```bash
@@ -550,7 +550,7 @@ cat reports/tests/python-unit.txt
 
 **Best Practices:**
 1. Always use full pipeline for production code: `./scripts/safe-push.sh`
-2. Use quick mode for rapid iteration during development: `./scripts/safe-push.sh --quick`
+2. Use quick mode for rapid iteration during development: `./scripts/safe-push.sh --skip-tests`
 3. Never use force mode unless emergency: `./scripts/safe-push.sh --force`
 4. Check reports after failures: `cat reports/validation/*.txt`
 5. Clean up reports periodically: `rm -rf reports/`
@@ -564,8 +564,8 @@ source .env.dev
 # Run full CI/CD pipeline: Validate → Security → Build → Test → Deploy
 ./scripts/local-deploy.sh dev full
 
-# Quick deployment (skip validation for faster iteration)
-./scripts/local-deploy.sh dev full --quick
+# Quick deployment (skip tests for faster iteration)
+./scripts/local-deploy.sh dev full --skip-tests
 ```
 
 #### Local CI Checks Only (No Deployment)
@@ -575,7 +575,7 @@ source .env.dev
 ./scripts/local-ci-checks.sh
 
 # Quick validation (skip tests and security)
-./scripts/local-ci-checks.sh --quick
+./scripts/local-ci-checks.sh --skip-tests --skip-security
 
 # Skip only tests
 ./scripts/local-ci-checks.sh --skip-tests
@@ -910,12 +910,12 @@ s3://aws-drs-orchestration/
 ├── cfn/                          # CloudFormation templates
 ├── lambda/                       # Lambda deployment packages (7 functions)
 │   ├── api-handler.zip
-│   ├── orchestration-stepfunctions.zip
+│   ├── dr-orchestration-stepfunction.zip
 │   ├── execution-finder.zip
 │   ├── execution-poller.zip
 │   ├── frontend-builder.zip
 │   ├── bucket-cleaner.zip
-│   └── notification-formatter.zip
+│   └── drs-agent-deployer.zip
 ├── frontend/                     # Frontend build artifacts
 └── scripts/                      # Deployment scripts
 ```
@@ -941,7 +941,7 @@ aws lambda get-function \
 curl https://{api-id}.execute-api.{region}.amazonaws.com/{environment}/health
 
 # Verify all Lambda functions are deployed
-for func in api-handler orchestration-stepfunctions execution-finder execution-poller frontend-builder bucket-cleaner notification-formatter; do
+for func in api-handler dr-orchestration-stepfunction execution-finder execution-poller frontend-builder bucket-cleaner drs-agent-deployer; do
   echo "Checking aws-drs-orchestration-${func}-{environment}..."
   aws lambda get-function --function-name aws-drs-orchestration-${func}-{environment} --query 'Configuration.LastModified' --output text
 done

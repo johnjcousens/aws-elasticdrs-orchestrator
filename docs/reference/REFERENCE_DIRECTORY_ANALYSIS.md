@@ -53,7 +53,7 @@ Analyzed all 8 files in `docs/reference/` directory against actual codebase impl
 1. **Claims 42+ endpoints** but actual implementation has fewer
 2. **References non-existent Lambda functions**:
    - Document mentions: "ApiHandler", "CustomResource", "BucketCleaner", "ExecutionFinder"
-   - Actual functions: `data-management-handler`, `execution-handler`, `query-handler`, `frontend-deployer`, `orch-sf`, `notification-formatter`
+   - Actual functions: `data-management-handler`, `execution-handler`, `query-handler`, `frontend-deployer`, `orch-sf`, `drs-agent-deployer`
 3. **Some documented endpoints not implemented**:
    - `/recovery-plans/{id}/check-existing-instances` - Returns 501 "Not yet implemented"
 4. **Missing handler routing details** - Document doesn't clarify which handler serves which endpoints
@@ -70,7 +70,7 @@ Analyzed all 8 files in `docs/reference/` directory against actual codebase impl
 **Issues Found**:
 1. **References outdated Lambda function names**:
    - Document mentions: "ApiHandler", "CustomResource", "BucketCleaner", "ExecutionFinder", "ExecutionPoller"
-   - Should reference: `data-management-handler`, `execution-handler`, `query-handler`, `frontend-deployer`, `orch-sf`, `notification-formatter`
+   - Should reference: `data-management-handler`, `execution-handler`, `query-handler`, `frontend-deployer`, `orch-sf`, `drs-agent-deployer`
 2. **IAM permissions appear accurate** - Verified against `cfn/master-template.yaml` UnifiedOrchestrationRole
 3. **Cross-account setup is accurate** - Matches AWS DRS service requirements
 
@@ -87,7 +87,7 @@ Analyzed all 8 files in `docs/reference/` directory against actual codebase impl
 **Issues Found**:
 1. **References outdated Lambda function names**:
    - Document mentions: "ApiHandler", "CustomResource", "BucketCleaner", "ExecutionFinder", "ExecutionPoller", "NotificationFormatter"
-   - Should reference: `data-management-handler`, `execution-handler`, `query-handler`, `frontend-deployer`, `orch-sf`, `notification-formatter`
+   - Should reference: `data-management-handler`, `execution-handler`, `query-handler`, `frontend-deployer`, `orch-sf`, `drs-agent-deployer`
 2. **IAM policies are accurate** - All 16 policies verified against `cfn/master-template.yaml`
 3. **Critical permissions correctly identified**
 
@@ -108,8 +108,8 @@ Analyzed all 8 files in `docs/reference/` directory against actual codebase impl
 - `execution-handler/`
 - `query-handler/`
 - `frontend-deployer/`
-- `orchestration-stepfunctions/` (deployed as `orch-sf`)
-- `notification-formatter/`
+- `dr-orchestration-stepfunction/` (deployed as `orch-sf`)
+- `drs-agent-deployer/`
 
 ### 2. IAM Permissions
 **Verified Against**: `cfn/master-template.yaml` lines 125-500  

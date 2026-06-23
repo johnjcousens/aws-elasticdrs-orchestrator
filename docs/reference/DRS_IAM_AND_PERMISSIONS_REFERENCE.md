@@ -22,7 +22,7 @@ The orchestration platform uses **6 Lambda functions** with the unified orchestr
 - **query-handler**: Read-only queries, DRS status, EC2 resource discovery
 - **frontend-deployer**: Frontend build and deployment operations
 - **orch-sf**: Step Functions orchestration logic
-- **notification-formatter**: SNS notification routing and formatting
+- **drs-agent-deployer**: DRS agent installation automation (in development, not yet deployed by the main stack)
 
 All handlers share the **UnifiedOrchestrationRole** with comprehensive permissions.
 
@@ -116,7 +116,7 @@ When Lambda calls `drs:StartRecovery`, DRS service performs these phases:
 
 For orchestration Lambda functions calling DRS APIs:
 
-**Functions**: `data-management-handler`, `execution-handler`, `query-handler`, `frontend-deployer`, `orch-sf`, `notification-formatter`
+**Functions**: `data-management-handler`, `execution-handler`, `query-handler`, `frontend-deployer`, `orch-sf`, `drs-agent-deployer`
 
 ```yaml
 # DRS Permissions (CRITICAL)

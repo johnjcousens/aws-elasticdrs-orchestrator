@@ -82,7 +82,7 @@ AWS_PAGER="" aws logs tail /aws/lambda/drs-orchestration-api-handler-test \
 ### Step Functions Logs
 ```bash
 # Get orchestration logs
-AWS_PAGER="" aws logs tail /aws/lambda/drs-orchestration-orchestration-stepfunctions-test \
+AWS_PAGER="" aws logs tail /aws/lambda/drs-orchestration-dr-orchestration-stepfunction-test \
   --since 10m --region us-east-1
 ```
 

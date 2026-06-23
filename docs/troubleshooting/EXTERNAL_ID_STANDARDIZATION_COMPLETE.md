@@ -95,7 +95,7 @@ aws cloudformation deploy \
 ### 4. Lambda Deployment
 
 ```bash
-./scripts/deploy.sh test --lambda-only
+./scripts/deploy-main-stack.sh test --lambda-only
 ```
 
 ## Verification

@@ -332,7 +332,7 @@ curl "$API_ENDPOINT/protection-groups" -H "Authorization: Bearer $TOKEN"
 #### 2. OrchestrationRole ✅ DEPLOYED
 
 **CloudFormation Resource**: `cfn/lambda-stack.yaml` → `OrchestrationRole`
-**Lambda Functions**: `orchestration` (legacy), `orchestration-stepfunctions` (active)
+**Lambda Functions**: `orchestration` (legacy), `dr-orchestration-stepfunction` (active)
 
 **DRS Permissions** (as deployed, includes all ApiHandlerRole permissions plus):
 
@@ -504,7 +504,7 @@ curl "$API_ENDPOINT/protection-groups" -H "Authorization: Bearer $TOKEN"
 |----------|------|------------------------|----------|
 | `api-handler` | ApiHandlerRole | `ApiHandlerFunction` | REST API endpoints |
 | `orchestration` | OrchestrationRole | `OrchestrationFunction` | Legacy orchestrator (deprecated) |
-| `orchestration-stepfunctions` | OrchestrationRole | `OrchestrationStepFunctionsFunction` | Step Functions orchestration (active) |
+| `dr-orchestration-stepfunction` | OrchestrationRole | `OrchestrationStepFunctionsFunction` | Step Functions orchestration (active) |
 | `frontend-builder` | CustomResourceRole | `FrontendBuilderFunction` | Frontend deployment |
 | `execution-finder` | ExecutionFinderRole | `ExecutionFinderFunction` | Find active executions (EventBridge scheduled) |
 | `execution-poller` | ExecutionPollerRole | `ExecutionPollerFunction` | Poll DRS job status |

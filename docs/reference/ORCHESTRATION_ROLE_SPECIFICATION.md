@@ -20,7 +20,7 @@ The orchestration platform uses **6 Lambda functions** that share this unified r
 - **query-handler**: Read-only queries, DRS status, EC2 resource discovery
 - **frontend-deployer**: Frontend build and deployment operations
 - **orch-sf**: Step Functions orchestration logic
-- **notification-formatter**: SNS notification routing and formatting
+- **drs-agent-deployer**: DRS agent installation automation (in development, not yet deployed by the main stack)
 
 ## Purpose
 
@@ -576,7 +576,7 @@ The role requires 16 custom inline policies with specific permissions:
 
 **Purpose**: Publish notifications for DR execution events and alerts.
 
-**Used by**: `orch-sf`, `notification-formatter`
+**Used by**: `orch-sf`
 
 ```json
 {
@@ -1277,7 +1277,7 @@ When deprecating features:
 
 **Purpose**: Send notifications for DR execution status and alerts.
 
-**Used by**: `orch-sf`, `notification-formatter`
+**Used by**: `orch-sf`
 
 ```json
 {
