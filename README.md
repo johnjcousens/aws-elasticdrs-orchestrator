@@ -440,7 +440,7 @@ aws cloudformation deploy \
 
 **See Documentation:**
 - [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) - Complete deployment mode documentation
-- [Deploy Main Stack Guide](docs/DEPLOY_MAIN_STACK_GUIDE.md) - New architecture deployment procedures
+- [Deploy Main Stack Guide](docs/deployment/DEPLOY_MAIN_STACK_GUIDE.md) - New architecture deployment procedures
 
 ## Configuration Example
 
@@ -697,7 +697,7 @@ aws drs create-extended-source-server \
 
 **Error Symptoms**: If you see `AccessDeniedException` on `CreateExtendedSourceServer` in CloudWatch logs, the target account IAM role needs updating.
 
-**See**: [Staging Account Sync IAM Requirements](docs/STAGING_ACCOUNT_SYNC_IAM_REQUIREMENTS.md) for detailed troubleshooting.
+**See**: [Staging Account Sync IAM Requirements](docs/iam/STAGING_ACCOUNT_SYNC_IAM_REQUIREMENTS.md) for detailed troubleshooting.
 
 ### CloudFormation Deployment
 
@@ -903,7 +903,6 @@ AWS_PAGER="" aws cloudwatch get-metric-statistics \
 - [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design
 - [Architecture](docs/architecture/ARCHITECTURE.md) - System architecture and AWS service integration
 - [Lambda Handlers Architecture](docs/architecture/LAMBDA_HANDLERS_ARCHITECTURE.md) - Detailed Lambda handler architecture with Mermaid diagrams and direct invocation examples
-- [Lambda Handlers Complete Analysis](docs/analysis/LAMBDA_HANDLERS_COMPLETE_ANALYSIS.md) - Comprehensive analysis of all three Lambda handlers (15,000+ lines of code)
 
 ### Reference Documentation
 - [API Endpoints Reference](docs/reference/API_ENDPOINTS_CURRENT.md) - Complete API endpoint documentation (66 endpoints)
@@ -969,7 +968,6 @@ Complete API documentation for all Lambda handlers with direct invocation suppor
   - Manage target accounts and staging accounts
   - Configure launch templates and per-server settings
 
-- **[Execution Handler API](docs/api-reference/EXECUTION_HANDLER_API.md)** - 8 execution control operations
   - Start recovery executions
   - Resume, cancel, terminate executions
   - Get execution status and details
@@ -991,7 +989,6 @@ Complete API documentation for all Lambda handlers with direct invocation suppor
   - Step-by-step migration procedures
   - Rollback procedures and testing strategies
 
-- **[Error Codes Reference](docs/troubleshooting/ERROR_CODES.md)** - 13 error codes with troubleshooting
   - VALIDATION_ERROR, RESOURCE_NOT_FOUND, CONFLICT_ERROR
   - DRS_SERVICE_ERROR, EXECUTION_ERROR, AUTHORIZATION_ERROR
   - Detailed troubleshooting steps for each error type
@@ -1347,7 +1344,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE.txt](LICENSE.txt) file for details.
 
 ## Support
 
