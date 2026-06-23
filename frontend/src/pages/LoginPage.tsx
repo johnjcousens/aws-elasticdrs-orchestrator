@@ -138,7 +138,7 @@ export const LoginPage: React.FC = () => {
           {/* AWS Logo and Title */}
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
             <img
-              src="/aws-logo@2x.png"
+              src="https://a0.awsstatic.com/libra-css/images/logos/aws_smile-header-desktop-en-white_59x35.png"
               alt="AWS"
               style={{ height: '50px', marginBottom: '16px' }}
             />
