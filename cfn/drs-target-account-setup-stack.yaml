@@ -37,6 +37,14 @@ Parameters:
     Description: 'Environment name (dev, test, prod, qa)'
     Default: 'prod'
 
+  ExternalId:
+    Type: String
+    Description: >-
+      External ID required when the orchestration account assumes this role.
+      Must match the value the orchestrator sends (its standardized default is
+      "drs-orchestration-cross-account").
+    Default: 'drs-orchestration-cross-account'
+
 Resources:
   # Cross-Account IAM Role
   DRSOrchestrationRole:
@@ -55,7 +63,7 @@ Resources:
             Action: 'sts:AssumeRole'
             Condition:
               StringEquals:
-                'sts:ExternalId': !Sub '${ProjectName}-${Environment}'
+                'sts:ExternalId': !Ref ExternalId
       ManagedPolicyArns:
         - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AWSElasticDisasterRecoveryConsoleFullAccess'
       Tags:
@@ -307,8 +315,8 @@ Outputs:
       Name: !Sub '${ProjectName}-role-name'
   
   ExternalId:
-    Description: 'External ID for role assumption (auto-generated from ProjectName-Environment)'
-    Value: !Sub '${ProjectName}-${Environment}'
+    Description: 'External ID required for cross-account role assumption'
+    Value: !Ref ExternalId
     Export:
       Name: !Sub '${ProjectName}-external-id'
   
