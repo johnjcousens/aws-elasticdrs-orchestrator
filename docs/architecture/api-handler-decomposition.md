@@ -546,7 +546,7 @@ If Query Handler issues detected:
 ```bash
 # Update api-gateway-infrastructure-methods-stack.yaml
 # Change QueryHandlerArn back to ApiHandlerFunctionArn
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 2. Verify all 10 query endpoints work
@@ -560,7 +560,7 @@ If Execution Handler issues detected:
 ```bash
 # Update api-gateway-operations-methods-stack.yaml
 # Change ExecutionHandlerArn back to ApiHandlerFunctionArn
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 2. Verify all 13 execution endpoints work
@@ -574,7 +574,7 @@ If Data Management Handler issues detected:
 ```bash
 # Update api-gateway-core-methods-stack.yaml
 # Change DataManagementHandlerArn back to ApiHandlerFunctionArn
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 2. Verify all 16 data management endpoints work
@@ -588,7 +588,7 @@ If complete rollback needed:
 ```bash
 # Restore api-handler function in lambda-stack.yaml
 # Revert all API Gateway stacks to use ApiHandlerFunctionArn
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 2. Verify all 48 endpoints work

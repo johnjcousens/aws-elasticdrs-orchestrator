@@ -5,7 +5,9 @@
 
 ## Overview
 
-The AWS DRS Orchestration platform provides a comprehensive REST API with **44 endpoints** across **9 categories**. All endpoints require Cognito JWT authentication except for health checks and EventBridge-triggered operations.
+The AWS DRS Orchestration platform provides a comprehensive REST API with **66 endpoints** (functional methods, excluding CORS `OPTIONS`) across **9 categories**. All endpoints require Cognito JWT authentication except for health checks and EventBridge-triggered operations.
+
+> Note: the per-category enumeration below documents the established categories. Newer endpoints (staging-account management, per-account capacity, recovery-instance-sync, per-server launch configs, and DRS replication/service queries) are part of the 66 total but are not all enumerated in this document yet.
 
 **Base URL**: `https://api-gateway-url/stage`  
 **Authentication**: Cognito JWT Bearer token  
@@ -44,9 +46,9 @@ The API is served by **3 specialized Lambda handlers** for optimal performance a
 - User Permissions (1 endpoint)
 
 ### Supporting Handlers
-- **orchestration-stepfunctions**: Step Functions orchestration logic (internal)
+- **dr-orchestration-stepfunction**: Step Functions orchestration logic (internal)
 - **frontend-deployer**: Frontend build and deployment (internal)
-- **notification-formatter**: SNS notification routing (internal)
+- **drs-agent-deployer**: DRS replication agent installation via SSM (in development; not yet deployed by the main stack)
 
 ## API Categories
 

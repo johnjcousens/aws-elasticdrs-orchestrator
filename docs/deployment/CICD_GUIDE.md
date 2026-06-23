@@ -3,7 +3,7 @@
 
 # CI/CD Deployment Guide
 
-Complete guide for deploying AWS DRS Orchestration using the local deploy.sh script with future CI/CD platform migration options.
+Complete guide for deploying AWS DRS Orchestration using the local deploy-main-stack.sh script with future CI/CD platform migration options.
 
 ## Table of Contents
 
@@ -21,13 +21,13 @@ Complete guide for deploying AWS DRS Orchestration using the local deploy.sh scr
 
 ### Local Deploy Script (Primary)
 
-All deployments use the unified `./scripts/deploy.sh` script that runs a complete 5-stage pipeline locally:
+All deployments use the unified `./scripts/deploy-main-stack.sh` script that runs a complete 5-stage pipeline locally:
 
 ```bash
 # From project directory with venv activated
 cd infra/orchestration/drs-orchestration
 source .venv/bin/activate
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 **Pipeline Features:**
@@ -42,13 +42,13 @@ source .venv/bin/activate
 
 | Component | Value | Purpose |
 |-----------|-------|---------|
-| **Deploy Script** | `./scripts/deploy.sh` | Unified deployment orchestration |
+| **Deploy Script** | `./scripts/deploy-main-stack.sh` | Unified deployment orchestration |
 | **Project Name** | `aws-drs-orchestration` | Standardized project naming |
 | **Environment** | `dev` | Current development environment |
 | **Stack Name** | `aws-drs-orchestration-dev` | Active CloudFormation stack |
 | **Deployment Bucket** | `aws-drs-orchestration-dev` | Artifact storage with versioning |
 | **AWS Region** | `us-east-1` | Primary deployment region |
-| **Protected Stacks** | `*-test`, `*elasticdrs*` | Production stacks (never touch) |
+| **Protected Stacks** | `*-prod`, `aws-drs-orchestration-prod*` | Production stacks (never modify) |
 
 ---
 
@@ -86,8 +86,6 @@ All deployment methods (local, GitHub Actions, GitLab CI) follow the same 5-stag
 - Known dependency vulnerabilities
 - Shell script security issues
 
-**Skip with --quick flag** (emergency only, requires approval)
-
 ### Stage 3: Tests (~2 min)
 
 **Test Suites:**
@@ -100,7 +98,7 @@ All deployment methods (local, GitHub Actions, GitLab CI) follow the same 5-stag
 - Integration failures
 - Component rendering issues
 
-**Skip with --quick flag** (emergency only, requires approval)
+**Skip with --skip-tests flag** (use sparingly)
 
 ### Stage 4: Git Push (~10s)
 
@@ -109,12 +107,10 @@ All deployment methods (local, GitHub Actions, GitLab CI) follow the same 5-stag
 - Push to remote repository
 - Create audit trail
 
-**Skip with --skip-push flag** (local testing only)
-
 ### Stage 5: Deploy (~10-15 min)
 
 **Deployment Steps:**
-1. Build Lambda packages (7 functions)
+1. Build Lambda packages
 2. Sync artifacts to S3 deployment bucket
 3. Deploy CloudFormation stack
 4. Update Lambda function code (if --lambda-only)
@@ -141,7 +137,7 @@ git add .
 git commit -m "feat: describe your changes"
 
 # 4. Deploy (runs full 5-stage pipeline)
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 
 # Monitor output for validation, security, test, and deployment results
 ```
@@ -150,26 +146,20 @@ git commit -m "feat: describe your changes"
 
 **Quick Development (Emergency Only)**:
 ```bash
-# Skip security scans and tests (requires approval)
-./scripts/deploy.sh dev --quick
+# Skips the tests stage
+./scripts/deploy-main-stack.sh dev --skip-tests
 ```
 
 **Lambda-Only Update**:
 ```bash
 # Fast Lambda code update without CloudFormation
-./scripts/deploy.sh dev --lambda-only
+./scripts/deploy-main-stack.sh dev --lambda-only
 ```
 
 **Frontend-Only Update**:
 ```bash
 # Rebuild and deploy frontend only
-./scripts/deploy.sh dev --frontend-only
-```
-
-**Local Testing (No Push)**:
-```bash
-# Test deployment without pushing to git
-./scripts/deploy.sh dev --skip-push
+./scripts/deploy-main-stack.sh dev --frontend-only
 ```
 
 ### Deployment Flexibility Options
@@ -178,17 +168,17 @@ The deploy script supports multiple deployment modes via flags:
 
 **API-Only Deployment** (no frontend):
 ```bash
-./scripts/deploy.sh dev --no-frontend
+./scripts/deploy-main-stack.sh dev --no-frontend
 ```
 
 **External Orchestration Integration** (use external orchestration role):
 ```bash
-./scripts/deploy.sh dev --orchestration-role arn:aws:iam::123456789012:role/ExternalOrchestrationRole
+./scripts/deploy-main-stack.sh dev --orchestration-role arn:aws:iam::123456789012:role/ExternalOrchestrationRole
 ```
 
 **Full External Orchestration Integration** (API-only with external role):
 ```bash
-./scripts/deploy.sh dev --no-frontend --orchestration-role arn:aws:iam::123456789012:role/ExternalOrchestrationRole
+./scripts/deploy-main-stack.sh dev --no-frontend --orchestration-role arn:aws:iam::123456789012:role/ExternalOrchestrationRole
 ```
 
 ---
@@ -199,13 +189,12 @@ The deploy script supports multiple deployment modes via flags:
 
 | Option | Command | Duration | Use Case |
 |--------|---------|----------|----------|
-| **Full Deployment** | `./scripts/deploy.sh dev` | ~22 min | Complete infrastructure, Lambda, and frontend |
-| **Quick Deploy** | `./scripts/deploy.sh dev --quick` | ~15 min | Emergency only - skips security/tests |
-| **Lambda Only** | `./scripts/deploy.sh dev --lambda-only` | ~2 min | Fast Lambda code updates |
-| **Frontend Only** | `./scripts/deploy.sh dev --frontend-only` | ~5 min | Frontend rebuild and deployment |
-| **No Git Push** | `./scripts/deploy.sh dev --skip-push` | varies | Local testing without remote push |
-| **API Only** | `./scripts/deploy.sh dev --no-frontend` | ~18 min | Deploy without frontend (S3/CloudFront) |
-| **External Orchestration Integration** | `./scripts/deploy.sh dev --orchestration-role <arn>` | ~22 min | Use external orchestration role |
+| **Full Deployment** | `./scripts/deploy-main-stack.sh dev` | ~22 min | Complete infrastructure, Lambda, and frontend |
+| **Skip Tests** | `./scripts/deploy-main-stack.sh dev --skip-tests` | ~15 min | Faster iteration - skips the tests stage |
+| **Lambda Only** | `./scripts/deploy-main-stack.sh dev --lambda-only` | ~2 min | Fast Lambda code updates |
+| **Frontend Only** | `./scripts/deploy-main-stack.sh dev --frontend-only` | ~5 min | Frontend rebuild and deployment |
+| **API Only** | `./scripts/deploy-main-stack.sh dev --no-frontend` | ~18 min | Deploy without frontend (S3/CloudFront) |
+| **External Orchestration Integration** | `./scripts/deploy-main-stack.sh dev --orchestration-role <arn>` | ~22 min | Use external orchestration role |
 
 ### Validation Failure Handling
 
@@ -215,14 +204,14 @@ When validation fails, fix the issues and re-run:
 ```bash
 source .venv/bin/activate
 black --line-length 79 lambda/
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 **cfn-lint Errors**:
 ```bash
 cfn-lint cfn/*.yaml  # Review errors
 # Fix templates, then:
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 **flake8 Warnings**:
@@ -230,7 +219,7 @@ cfn-lint cfn/*.yaml  # Review errors
 source .venv/bin/activate
 flake8 lambda/ --config .flake8  # Review warnings
 # Fix code, then:
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 **Test Failures**:
@@ -238,12 +227,12 @@ flake8 lambda/ --config .flake8  # Review warnings
 source .venv/bin/activate
 pytest tests/  # Run tests locally
 # Fix failures, then:
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 ### Prohibited Practices
 
-❌ **NEVER use --quick for convenience** (emergency only)  
+❌ **NEVER use --skip-tests to bypass failing tests**  
 ❌ **NEVER deploy without activating venv**  
 ❌ **NEVER use manual AWS CLI deployments**  
 ❌ **NEVER commit unformatted code**  
@@ -273,8 +262,7 @@ s3://aws-drs-orchestration-dev/
 │   ├── execution-handler.zip
 │   ├── query-handler.zip
 │   ├── frontend-deployer.zip
-│   ├── orch-sf.zip              # orchestration-stepfunctions
-│   └── notification-formatter.zip
+│   └── dr-orch-sf.zip            # dr-orchestration-stepfunction
 └── frontend/                     # Frontend build artifacts (optional)
     └── dist/                     # Built React application
 ```
@@ -314,7 +302,7 @@ aws s3api list-object-versions \
 # Revert to previous commit
 git revert HEAD
 source .venv/bin/activate
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 **Option 2: S3 Version Restore**:
@@ -332,7 +320,7 @@ aws s3api copy-object \
 
 # Redeploy
 source .venv/bin/activate
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 **Option 3: Lambda Rollback**:
@@ -354,7 +342,7 @@ aws lambda update-function-code \
 
 ## Future CI/CD Migration
 
-The local deploy.sh script follows the same 5-stage pipeline as GitHub Actions and GitLab CI, making migration straightforward when ready.
+The local deploy-main-stack.sh script follows the same 5-stage pipeline as GitHub Actions and GitLab CI, making migration straightforward when ready.
 
 ### Migration Benefits
 
@@ -583,7 +571,7 @@ Create `.gitlab-ci.yml`:
 
 ```yaml
 # GitLab CI/CD Pipeline for DRS Orchestration
-# Matches local deploy.sh workflow
+# Matches local deploy-main-stack.sh workflow
 
 variables:
   AWS_REGION: us-east-1
@@ -710,7 +698,7 @@ deploy:
 - [ ] Update team documentation
 - [ ] Train team on new workflow
 - [ ] Set up pipeline failure notifications
-- [ ] Archive local deploy.sh (keep for emergencies)
+- [ ] Archive local deploy-main-stack.sh (keep for emergencies)
 - [ ] Monitor deployment metrics
 
 ---
@@ -719,10 +707,10 @@ deploy:
 
 ### Local Deployment Monitoring
 
-**Watch deploy.sh output:**
+**Watch deploy-main-stack.sh output:**
 ```bash
 source .venv/bin/activate
-./scripts/deploy.sh dev 2>&1 | tee deployment.log
+./scripts/deploy-main-stack.sh dev 2>&1 | tee deployment.log
 ```
 
 **Check CloudFormation status:**
@@ -747,7 +735,7 @@ aws cloudformation describe-stack-events \
 ```bash
 source .venv/bin/activate
 black --line-length 79 lambda/
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 **cfn-lint errors:**
@@ -792,7 +780,7 @@ npm test -- --run  # Run tests locally
 
 **Stack in UPDATE_ROLLBACK_FAILED:**
 ```bash
-# deploy.sh automatically attempts recovery
+# deploy-main-stack.sh automatically attempts recovery
 # If manual intervention needed:
 aws cloudformation continue-update-rollback \
   --stack-name aws-drs-orchestration-dev
@@ -807,7 +795,7 @@ aws cloudformation describe-stacks \
 
 # Then retry
 source .venv/bin/activate
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 #### 5. Lambda Update Failures
@@ -819,7 +807,7 @@ aws lambda get-function \
   --function-name aws-drs-orchestration-data-management-handler-dev
 
 # If missing, run full deployment (not --lambda-only)
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 #### 6. Frontend Deployment Issues
@@ -850,7 +838,7 @@ aws cloudformation describe-stacks --stack-name <protected-stack>
 # Option 1: Git revert (recommended)
 git revert HEAD
 source .venv/bin/activate
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 
 # Option 2: S3 version restore (see S3 Repository section)
 

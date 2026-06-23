@@ -46,7 +46,7 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 - **Wave-Based Recovery**: Execute disaster recovery in coordinated waves with explicit dependencies
 - **Protection Groups**: Organize DRS source servers into logical groups for coordinated recovery (tag-based or explicit selection)
 - **Pause/Resume Execution**: Pause execution before specific waves for manual validation
-- **API-First Design**: Complete REST API (44 endpoints across 9 categories) for DevOps integration
+- **API-First Design**: Complete REST API (66 endpoints across 9 categories) for DevOps integration
 - **Enterprise-Grade**: Built on AWS serverless architecture with CloudFormation IaC
 - **Cross-Account Support**: Multi-account DRS operations via assumed roles
 - **Real-Time Monitoring**: Continuous DRS job status polling with CloudWatch metrics
@@ -58,14 +58,14 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 **Frontend**:
 - React 19.1.1 with TypeScript 5.9.3
 - CloudScape Design System 3.0.1148 (AWS-native UI)
-- AWS Amplify 6.15.8 for authentication
+- AWS Amplify 6.16.0 for authentication
 - Vite 7.1.7 for build tooling
 
 **Backend**:
 - AWS Lambda (Python 3.12 runtime)
 - API Gateway with Cognito JWT authentication
 - Step Functions orchestration with waitForTaskToken
-- DynamoDB (4 tables with GSI)
+- DynamoDB (7 tables with GSI)
 - EventBridge for scheduled polling
 
 **Infrastructure**:
@@ -116,7 +116,7 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 **Rationale**: Enable programmatic access, DevOps integration, and automation workflows.
 
 **Implementation**:
-- Complete REST API with 44 endpoints across 9 categories
+- Complete REST API with 66 endpoints across 9 categories
 - OpenAPI specification compliance
 - Comprehensive RBAC authorization
 - Real-time integration with AWS DRS
@@ -171,10 +171,10 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 **Architecture Overview**:
 - **Frontend Layer**: CloudFront CDN → S3 Static Hosting (React 19.1.1 + CloudScape)
 - **Authentication**: Cognito User Pool with 5 RBAC roles (45-minute JWT sessions)
-- **API Layer**: API Gateway REST API with Cognito authorizer (44 endpoints across 9 categories)
-- **Application Layer**: 6 Lambda functions (data-management-handler, execution-handler, query-handler, orchestration-stepfunctions, frontend-deployer, notification-formatter)
+- **API Layer**: API Gateway REST API with Cognito authorizer (66 endpoints across 9 categories)
+- **Application Layer**: 6 Lambda functions (data-management-handler, execution-handler, query-handler, dr-orchestration-stepfunction, frontend-deployer, drs-agent-deployer)
 - **Orchestration**: Step Functions with waitForTaskToken pattern for pause/resume
-- **Data Layer**: 4 DynamoDB tables with camelCase schema (protection-groups, recovery-plans, execution-history, target-accounts)
+- **Data Layer**: 7 DynamoDB tables with camelCase schema (protection-groups, recovery-plans, execution-history, target-accounts, source-server-inventory, drs-region-status, recovery-instances)
 - **Monitoring**: EventBridge (1-min polling), CloudWatch Logs/Metrics, SNS notifications
 - **DR Services**: AWS DRS + Cross-Account IAM Roles for multi-account operations
 
@@ -221,9 +221,9 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 - **data-management-handler**: CRUD operations for Protection Groups, Recovery Plans, Configuration (21 endpoints)
 - **execution-handler**: Execution control, DRS operations, job monitoring (11 endpoints)
 - **query-handler**: Read-only queries, discovery, health checks (12 endpoints)
-- **orchestration-stepfunctions**: Wave execution logic, DRS integration, launch config sync
+- **dr-orchestration-stepfunction**: Wave execution logic, DRS integration, launch config sync
 - **frontend-deployer**: React build and deployment (CloudFormation custom resource)
-- **notification-formatter**: SNS message formatting (EventBridge target)
+- **drs-agent-deployer**: DRS replication agent installation via SSM across accounts (in development; not yet deployed by the main stack)
 
 #### Orchestration Layer
 - **Step Functions**: Wave-based orchestration, pause/resume control
@@ -469,6 +469,12 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 - List all accounts: `scan()`
 - Find accounts by region: `scan(FilterExpression=contains(regions, region))`
 
+#### Additional Tables (5-7)
+
+5. **source-server-inventory** - DRS source server inventory cache
+6. **drs-region-status** - Active-region tracking
+7. **recovery-instances** - Recovery instance cache for fast Recovery Plans page loads
+
 ---
 
 ## AWS Service Integration
@@ -555,7 +561,7 @@ table.update_item(
    - **Purpose**: List/describe operations, DRS discovery, EC2 resources, health checks
    - **Endpoints**: 12 total (DRS servers, quotas, EC2 resources, user profile, health)
 
-4. **orchestration-stepfunctions** (Wave Orchestration)
+4. **dr-orchestration-stepfunction** (Wave Orchestration)
    - **Runtime**: Python 3.12
    - **Memory**: 512 MB
    - **Timeout**: 120 seconds
@@ -569,12 +575,10 @@ table.update_item(
    - **Purpose**: React build (npm build), S3 deployment, CloudFront invalidation
    - **Invocation**: CloudFormation custom resource only
 
-6. **notification-formatter** (Notifications)
+6. **drs-agent-deployer** (DRS Agent Deployment)
    - **Runtime**: Python 3.12
-   - **Memory**: 256 MB
-   - **Timeout**: 60 seconds
-   - **Purpose**: SNS message formatting, email notifications
-   - **Invocation**: EventBridge target only
+   - **Purpose**: DRS replication agent installation via SSM across accounts (in development; not yet deployed by the main stack)
+   - **Invocation**: Not yet deployed by the main stack (exists in `lambda/`, referenced only in `cfn/ARCHIVE`)
 
 **Unified Orchestration Role**:
 - All Lambda functions share a single IAM role: `UnifiedOrchestrationRole`
@@ -624,7 +628,7 @@ table.update_item(
     "Type": "Task",
     "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
     "Parameters": {
-      "FunctionName": "orchestration-stepfunctions",
+      "FunctionName": "dr-orchestration-stepfunction",
       "Payload": {
         "action": "pause_before_wave",
         "TaskToken.$": "$$.Task.Token",
@@ -659,7 +663,7 @@ def resume_execution(execution_id: str):
 
 ### Amazon API Gateway - REST API
 
-**Service Role**: Unified entry point for all 44 REST API endpoints across 9 categories
+**Service Role**: Unified entry point for all 66 REST API endpoints across 9 categories
 
 **Configuration**:
 - **Endpoint Type**: Regional (CloudFront handles CDN)
@@ -667,7 +671,11 @@ def resume_execution(execution_id: str):
 - **Throttling**: 500 burst, 1,000 sustained requests/second
 - **CORS**: Enabled for all endpoints
 
-**Complete API Endpoint Catalog (44 Endpoints across 9 Categories)**:
+**Complete API Endpoint Catalog (66 endpoints across 9 categories)**:
+
+> The full authoritative list is maintained in `docs/reference/API_ENDPOINTS_CURRENT.md`. The categories below are representative; newer endpoints (staging accounts, account capacity, recovery-instance-sync, per-server launch configs, DRS replication/service) are not all enumerated here.
+
+> Handler decomposition is transitional — some endpoints still route to a monolithic api-handler integration while others route to the decomposed query-handler/execution-handler/data-management-handler.
 
 **Protection Groups (6 endpoints)**:
 - `GET /protection-groups` - List with filtering
@@ -1016,7 +1024,7 @@ sequenceDiagram
     participant User
     participant API
     participant StepFn as Step Functions
-    participant Lambda as orchestration-stepfunctions
+    participant Lambda as dr-orchestration-stepfunction
     participant DRS
     participant DDB as DynamoDB
     
@@ -1087,18 +1095,18 @@ graph TB
 
 - **React**: 19.1.1 with TypeScript 5.9.3
 - **UI Framework**: CloudScape Design System 3.0.1148
-- **Authentication**: AWS Amplify 6.15.8
+- **Authentication**: AWS Amplify 6.16.0
 - **Build Tool**: Vite 7.1.7
 - **Routing**: React Router 7.9.5
 
 ### Component Structure
 
-**35+ Total Components across 8 Pages**:
+**35+ Total Components across 6 Pages**:
 
-**Page Components (8)**:
-- LoginPage, Dashboard, GettingStartedPage
+**Page Components (6)**:
+- LoginPage, Dashboard
 - ProtectionGroupsPage, RecoveryPlansPage
-- ExecutionsPage, ExecutionDetailsPage, ExecutionDetailsPageMinimal
+- ExecutionsPage, ExecutionDetailsPage
 
 **Modal Dialogs (7)**:
 - ProtectionGroupDialog (tag-based or explicit server selection, launch config)
@@ -1169,7 +1177,7 @@ class APIClient {
 - Cross-stack references
 
 **Nested Stacks (16 Total)**:
-1. `database-stack.yaml` - 4 DynamoDB tables with camelCase schema
+1. `database-stack.yaml` - 7 DynamoDB tables with camelCase schema
 2. `lambda-stack.yaml` - 6 Lambda functions with UnifiedOrchestrationRole
 3. `api-gateway-core-stack.yaml` - API Gateway base
 4. `api-gateway-resources-stack.yaml` - API resources (50+ paths)
@@ -1186,7 +1194,7 @@ class APIClient {
 15. `github-oidc-stack.yaml` - GitHub Actions OIDC (optional)
 
 **Deployment Parameters**:
-- Environment: test, dev, prod
+- Environment: qa (primary non-production environment), prod (production — never modify)
 - AdminEmail: Administrator email
 - DeploymentBucket: S3 bucket for artifacts
 - OrchestrationRoleArn: Optional external IAM role (for platform integration)
@@ -1206,7 +1214,7 @@ aws cloudformation create-stack \
   --region us-east-1
 ```
 
-**Note**: Always use `-dev` stack names for development. Never use `-test` stacks (production-critical).
+**Note**: QA (`aws-drs-orchestration-qa`, us-east-2) is the primary non-production environment. Never modify production (`aws-drs-orchestration-prod*`).
 
 ### CI/CD Pipeline
 
@@ -1214,10 +1222,10 @@ aws cloudformation create-stack \
 
 1. **Unified Deploy Script** (Recommended):
 ```bash
-./scripts/deploy.sh dev                    # Full pipeline
-./scripts/deploy.sh dev --quick            # Skip security/tests
-./scripts/deploy.sh dev --lambda-only      # Just update Lambda code
-./scripts/deploy.sh dev --frontend-only    # Just rebuild frontend
+./scripts/deploy-main-stack.sh dev                    # Full pipeline
+./scripts/deploy-main-stack.sh dev --skip-tests       # Skip security/tests
+./scripts/deploy-main-stack.sh dev --lambda-only      # Just update Lambda code
+./scripts/deploy-main-stack.sh dev --frontend-only    # Just rebuild frontend
 ```
 
 2. **GitHub Actions Workflow** (Automated):
@@ -1243,8 +1251,8 @@ concurrency:
 - Full deployment: ~22 minutes
 
 **Protected Stacks**:
-- ⛔ Never deploy to `-test` stacks (production-critical)
-- ✅ Always use `-dev` stacks for development
+- ⛔ Never modify production (`aws-drs-orchestration-prod*`) stacks
+- ✅ QA (`aws-drs-orchestration-qa`, us-east-2) is the primary non-production environment
 
 ---
 
@@ -1304,7 +1312,7 @@ The AWS DRS Orchestration Solution implements a comprehensive serverless archite
 **Key Architectural Strengths**:
 - Serverless-first design eliminates operational overhead
 - Event-driven architecture enables real-time responsiveness
-- API-first approach supports DevOps automation (44 endpoints across 9 categories)
+- API-first approach supports DevOps automation (66 endpoints across 9 categories)
 - Security by design with defense-in-depth controls
 - Infrastructure as Code ensures reproducible deployments (16 CloudFormation templates)
 - Wave-based execution with pause/resume control
@@ -1315,7 +1323,7 @@ The AWS DRS Orchestration Solution implements a comprehensive serverless archite
 
 **Production Readiness**:
 - All systems operational and tested
-- Complete API coverage (44 endpoints across 9 categories)
+- Complete API coverage (66 endpoints across 9 categories)
 - 6 Lambda functions with decomposed architecture
 - Comprehensive RBAC with 5 roles and 11 permissions
 - Enterprise-grade security and compliance

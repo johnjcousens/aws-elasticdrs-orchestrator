@@ -22,7 +22,7 @@ This document establishes mandatory CI/CD workflow practices to ensure code qual
 # From the project directory with venv activated
 cd infra/orchestration/drs-orchestration
 source .venv/bin/activate
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 ### Validation Pipeline (5 Stages)
@@ -61,37 +61,30 @@ All options run full validation pipeline:
 
 ### Full Deployment
 ```bash
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 Deploys everything: Lambda, frontend, CloudFormation
 
 ### Lambda-Only Update
 ```bash
-./scripts/deploy.sh dev --lambda-only
+./scripts/deploy-main-stack.sh dev --lambda-only
 ```
 Updates Lambda functions only (still runs full validation)
 
 ### Frontend-Only Update
 ```bash
-./scripts/deploy.sh dev --frontend-only
+./scripts/deploy-main-stack.sh dev --frontend-only
 ```
 Rebuilds and deploys frontend only (still runs full validation)
 
-### Skip Git Push (Testing Only)
-```bash
-./scripts/deploy.sh dev --skip-push
-```
-Skips git push step (still runs full validation)
-
 ## Prohibited Practices
 
-### NEVER Use --quick Flag
+### NEVER Use --skip-tests Flag
 
-The `--quick` flag exists for emergency situations only and requires explicit approval.
+The `--skip-tests` flag exists for emergency situations only and requires explicit approval.
 
 **Why it's prohibited**:
-- Skips security scans that catch vulnerabilities
-- Skips tests that prevent regressions
+- Skips the tests stage that prevents regressions
 - Creates technical debt
 - Violates compliance requirements
 - Leads to production incidents
@@ -99,7 +92,7 @@ The `--quick` flag exists for emergency situations only and requires explicit ap
 ### NEVER Skip Validation Fixes
 
 When validation fails:
-- ❌ Don't use `--quick` to bypass
+- ❌ Don't use `--skip-tests` to bypass
 - ❌ Don't manually deploy via AWS CLI
 - ❌ Don't commit without fixing issues
 - ✅ Fix the validation errors
@@ -134,9 +127,9 @@ Prohibited commands:
 
 Use the unified deploy script instead:
 ```bash
-✅ ./scripts/deploy.sh dev --lambda-only
-✅ ./scripts/deploy.sh dev --frontend-only
-✅ ./scripts/deploy.sh dev
+✅ ./scripts/deploy-main-stack.sh dev --lambda-only
+✅ ./scripts/deploy-main-stack.sh dev --frontend-only
+✅ ./scripts/deploy-main-stack.sh dev
 ```
 
 ## Handling Validation Failures
@@ -152,7 +145,7 @@ black --line-length 79 lambda/
 black --check --line-length 79 lambda/
 
 # Deploy
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 ### cfn-lint Errors
@@ -163,7 +156,7 @@ cfn-lint cfn/*.yaml
 
 # Fix CloudFormation templates
 # Then deploy
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 ### flake8 Warnings
@@ -175,7 +168,7 @@ flake8 lambda/ --config .flake8
 
 # Fix Python code issues
 # Then deploy
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 ### Test Failures
@@ -187,7 +180,7 @@ pytest tests/
 
 # Fix failing tests
 # Then deploy
-./scripts/deploy.sh dev
+./scripts/deploy-main-stack.sh dev
 ```
 
 ## Why This Matters
@@ -223,14 +216,14 @@ If you believe you need to bypass validation:
 1. **Stop and assess**: Is this truly an emergency?
 2. **Document**: Why is bypass necessary?
 3. **Get approval**: From team lead or architect
-4. **Use --quick**: Only after approval
+4. **Use --skip-tests**: Only after approval
 5. **Follow up**: Fix validation issues immediately after
 6. **Document**: What was bypassed and why
 
 ## Common Mistakes to Avoid
 
-### Mistake 1: Using --quick for Convenience
-**Wrong**: "Validation is slow, I'll use --quick"  
+### Mistake 1: Using --skip-tests for Convenience
+**Wrong**: "Validation is slow, I'll use --skip-tests"  
 **Right**: "I'll fix the validation errors and run the full pipeline"
 
 ### Mistake 2: Deploying Without venv
@@ -239,7 +232,7 @@ If you believe you need to bypass validation:
 
 ### Mistake 3: Manual AWS CLI Deployments
 **Wrong**: `aws lambda update-function-code ...`  
-**Right**: `./scripts/deploy.sh dev --lambda-only`
+**Right**: `./scripts/deploy-main-stack.sh dev --lambda-only`
 
 ### Mistake 4: Committing Unformatted Code
 **Wrong**: Committing without running black  

@@ -214,7 +214,7 @@ Test that orchestration account can assume roles with new External IDs:
 Deploy updated Lambda function (removes hardcoded EXTERNAL_ID):
 
 ```bash
-./scripts/deploy.sh dev --lambda-only
+./scripts/deploy-main-stack.sh dev --lambda-only
 ```
 
 ### 5. Test DRS Agent Deployment

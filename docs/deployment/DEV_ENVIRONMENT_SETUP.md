@@ -168,7 +168,7 @@ Recommended extensions:
 
 ```bash
 # Full validation (what deploy script runs)
-./scripts/deploy.sh dev --validate-only
+./scripts/deploy-main-stack.sh dev --validate-only
 
 # Individual tools
 source .venv/bin/activate

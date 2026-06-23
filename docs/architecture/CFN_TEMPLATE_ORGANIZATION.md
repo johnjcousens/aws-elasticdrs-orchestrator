@@ -744,7 +744,7 @@ If issues occur, rollback to unified role:
 Or rollback to old architecture:
 
 ```bash
-./scripts/deploy.sh qa  # Uses old master-template.yaml
+./cfn/ARCHIVE/deploy.sh qa  # Legacy: uses old master-template.yaml (deprecated)
 ```
 
 ## Related Documentation

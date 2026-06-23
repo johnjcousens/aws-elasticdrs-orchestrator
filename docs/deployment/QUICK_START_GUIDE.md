@@ -47,10 +47,10 @@ source .env.dev
 
 ```bash
 # Run full CI/CD pipeline: Validate → Security → Build → Test → Deploy
-./scripts/local-deploy.sh dev full
+./scripts/deploy-main-stack.sh dev
 
-# Or quick deployment (skip validation)
-./scripts/local-deploy.sh dev full --quick
+# Or skip the tests stage only (validation and security still run)
+./scripts/deploy-main-stack.sh dev --skip-tests
 ```
 
 ### Option B: Direct CloudFormation Deployment
@@ -162,7 +162,7 @@ AWS_PAGER="" aws stepfunctions list-executions \
 AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestration-data-management-handler-dev --follow --region us-east-1
 
 # Orchestration
-AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestration-orchestration-stepfunctions-dev --follow --region us-east-1
+AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestration-dr-orchestration-stepfunction-dev --follow --region us-east-1
 ```
 
 ### Query DynamoDB Tables

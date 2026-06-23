@@ -6,7 +6,7 @@
 Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, dependency management, and automated health checks.
 
 [![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
-[![Version](https://img.shields.io/badge/version-6.1.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-6.2.0-blue)](CHANGELOG.md)
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019.1.1-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
@@ -17,7 +17,7 @@ Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wav
 > **📌 Stable Checkpoint**: Tag `spec-05-inventory-sync-refactoring` marks the latest stable state with query handler read-only audit complete. If issues arise during implementation, rollback with:
 > ```bash
 > git checkout spec-05-inventory-sync-refactoring
-> ./scripts/deploy.sh dev
+> ./scripts/deploy-main-stack.sh qa
 > ```
 
 ## Overview
@@ -76,7 +76,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Simplified DRS Management**: Eliminates need to manually configure each server's launch template in the DRS console
 
 ### Comprehensive REST API
-- **58 API Endpoints**: Complete REST API across 9 categories with RBAC security
+- **66 API Endpoints**: Complete REST API across 9 categories with RBAC security
 - **Cross-Account Operations**: Manage DRS across multiple AWS accounts
 - **Direct Lambda Invocation**: Bypass API Gateway for AWS-native automation
 - **DRS Operations**: Supports core orchestration operations (describe servers, start recovery, get/update launch configuration, describe jobs and events, describe recovery instances)
@@ -87,7 +87,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ![AWS DRS Orchestration - Comprehensive Architecture](docs/architecture/AWS-DRS-Orchestration-Architecture-Comprehensive.png)
 
-**Components**: CloudFront CDN, S3 Static Hosting, Cognito User Pool, API Gateway, 6 Lambda functions, Step Functions, DynamoDB (4 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
+**Components**: CloudFront CDN, S3 Static Hosting, Cognito User Pool, API Gateway, Lambda functions, Step Functions, DynamoDB (7 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
 
 **User Roles**: DRSOrchestrationAdmin, DRSRecoveryManager, DRSPlanManager, DRSOperator, DRSReadOnly
 
@@ -108,7 +108,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 | Frontend   | React 19.1.1, TypeScript 5.9.3, CloudScape Design System 3.0.1148 |
 | API        | Amazon API Gateway (REST), Amazon Cognito                     |
 | Compute    | AWS Lambda (Python 3.12), AWS Step Functions                  |
-| Database   | Amazon DynamoDB (4 tables with GSI, native camelCase schema)  |
+| Database   | Amazon DynamoDB (7 tables with GSI, native camelCase schema)  |
 | Hosting    | Amazon S3, Amazon CloudFront                                  |
 | DR Service | AWS Elastic Disaster Recovery (DRS)                           |
 
@@ -307,7 +307,7 @@ The solution supports two CloudFormation template architectures:
 - Flat template structure with all resources in one file
 - Unified IAM role for all Lambda functions
 - Backward compatible with existing deployments
-- Deployed via `./scripts/deploy.sh`
+- Deployed via the archived `cfn/ARCHIVE/deploy.sh` (deprecated; superseded by `deploy-main-stack.sh`)
 
 ```bash
 # New Architecture - Deploy with function-specific roles
@@ -319,8 +319,8 @@ The solution supports two CloudFormation template architectures:
 # New Architecture - Validate only (no deployment)
 ./scripts/deploy-main-stack.sh qa --validate-only
 
-# Legacy Architecture - Deploy to test environment
-./scripts/deploy.sh test
+# Legacy Architecture - deprecated, archived at cfn/ARCHIVE/deploy.sh
+# ./cfn/ARCHIVE/deploy.sh qa
 
 # Direct CloudFormation - New architecture with function-specific roles
 aws cloudformation deploy \
@@ -754,7 +754,7 @@ The solution uses a modular nested stack architecture. The API Gateway is split 
 | Stack | Purpose | Key Resources |
 | ----- | ------- | ------------- |
 | `master-template.yaml` | Root orchestrator | Parameter propagation, nested stack coordination, **UnifiedOrchestrationRole** |
-| `database-stack.yaml` | Data persistence | 4 DynamoDB tables with encryption (camelCase schema) |
+| `database-stack.yaml` | Data persistence | 7 DynamoDB tables with encryption (camelCase schema) |
 | `lambda-stack.yaml` | Compute layer | 5 Lambda functions with reserved concurrency (100) |
 | `api-auth-stack.yaml` | Authentication | Cognito User Pool, Identity Pool, RBAC groups |
 | `api-gateway-core-stack.yaml` | API Gateway base | REST API, Cognito authorizer |
@@ -783,7 +783,7 @@ All Lambda functions use the **UnifiedOrchestrationRole** (or externally-provide
 | `dr-orchestration-stepfunction` | `lambda/dr-orchestration-stepfunction/` | Step Functions orchestration with launch config sync | N/A |
 | `frontend-deployer` | `lambda/frontend-deployer/` | Frontend deployment automation (CloudFormation Custom Resource) | N/A |
 
-**Total API Endpoints**: 44 endpoints across 3 API handlers
+**Total API Endpoints**: 66 REST methods (excluding CORS `OPTIONS`) across 9 categories
 
 **Note**: `drs-agent-deployer` is in development (spec 06-drs-agent-deployer) and not yet deployed.
 
@@ -908,7 +908,7 @@ AWS_PAGER="" aws cloudwatch get-metric-statistics \
 - [Lambda Handlers Complete Analysis](docs/analysis/LAMBDA_HANDLERS_COMPLETE_ANALYSIS.md) - Comprehensive analysis of all three Lambda handlers (15,000+ lines of code)
 
 ### Reference Documentation
-- [API Endpoints Reference](docs/reference/API_ENDPOINTS_CURRENT.md) - Complete API endpoint documentation (58 endpoints)
+- [API Endpoints Reference](docs/reference/API_ENDPOINTS_CURRENT.md) - Complete API endpoint documentation (66 endpoints)
 - [Orchestration Role Specification](docs/reference/ORCHESTRATION_ROLE_SPECIFICATION.md) - IAM role requirements
 - [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) - Comprehensive IAM policy analysis
 - [DRS Service Limits and Capabilities](docs/reference/DRS_SERVICE_LIMITS_AND_CAPABILITIES.md) - Service quotas and constraints
@@ -1215,7 +1215,7 @@ All CloudFormation resources in this project have explicit `DeletionPolicy: Dele
 **Resources with DeletionPolicy**:
 - IAM Roles (6 roles: unified + 5 function-specific)
 - Lambda Functions (5 functions)
-- DynamoDB Tables (4 tables)
+- DynamoDB Tables (7 tables)
 - S3 Buckets (2 buckets: deployment + frontend)
 - CloudFront Distribution
 - Cognito User Pool and Identity Pool
@@ -1321,9 +1321,9 @@ aws-drs-orchestration/
 │   ├── data-management-handler/  # Protection groups, recovery plans CRUD
 │   ├── execution-handler/        # Recovery execution control
 │   ├── query-handler/            # Read-only queries, DRS status
-│   ├── orchestration-stepfunctions/  # Step Functions orchestration
+│   ├── dr-orchestration-stepfunction/  # Step Functions orchestration
 │   ├── frontend-deployer/        # Frontend deployment automation
-│   ├── notification-formatter/   # SNS notification formatting
+│   ├── drs-agent-deployer/       # DRS agent install (SSM, cross-account; in development)
 │   └── shared/                   # Shared utilities (RBAC, DRS, security)
 ├── docs/                         # Comprehensive documentation
 │   ├── guides/                   # User guides and walkthroughs

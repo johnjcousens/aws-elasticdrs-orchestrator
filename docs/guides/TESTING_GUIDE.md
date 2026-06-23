@@ -220,11 +220,11 @@ export AWS_PROFILE=qa
 
 ### Deploy Script Integration
 
-The `./scripts/deploy.sh` script runs all tests as part of the deployment pipeline:
+The `./scripts/deploy-main-stack.sh` script runs all tests as part of the deployment pipeline:
 
 ```bash
 # Full deployment with all quality gates
-./scripts/deploy.sh qa
+./scripts/deploy-main-stack.sh qa
 
 # Stages executed:
 # [1/5] Validation - cfn-lint, flake8, black, TypeScript checks
@@ -273,7 +273,7 @@ Run all quality gates without deploying:
 
 ```bash
 # Run validation, security, and tests without deployment
-./scripts/deploy.sh qa --validate-only
+./scripts/deploy-main-stack.sh qa --validate-only
 
 # Useful for:
 # - Pre-commit validation
@@ -722,7 +722,7 @@ source .venv/bin/activate
 
 ```bash
 # Run all quality gates without deploying
-./scripts/deploy.sh qa --validate-only
+./scripts/deploy-main-stack.sh qa --validate-only
 ```
 
 ### 4. Monitor Test Execution Time

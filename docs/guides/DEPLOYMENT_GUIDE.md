@@ -171,16 +171,16 @@ Use the unified deploy script for all deployments:
 
 ```bash
 # Full deployment (validation, security, tests, deploy)
-./scripts/deploy.sh qa
+./scripts/deploy-main-stack.sh qa
 
 # Lambda-only update (fast code update)
-./scripts/deploy.sh qa --lambda-only
+./scripts/deploy-main-stack.sh qa --lambda-only
 
 # Frontend-only update
-./scripts/deploy.sh qa --frontend-only
+./scripts/deploy-main-stack.sh qa --frontend-only
 
 # Validation only (no deployment)
-./scripts/deploy.sh qa --validate-only
+./scripts/deploy-main-stack.sh qa --validate-only
 ```
 
 ### Handler-Specific Deployments
@@ -188,7 +188,7 @@ Use the unified deploy script for all deployments:
 **Deploy data-management-handler only**:
 ```bash
 # Update CloudFormation with data-management-handler changes
-./scripts/deploy.sh qa --lambda-only
+./scripts/deploy-main-stack.sh qa --lambda-only
 
 # Verify EventBridge rules
 aws events list-rules --name-prefix "aws-drs-orchestration" --region us-east-2
@@ -203,7 +203,7 @@ aws lambda invoke \
 **Deploy execution-handler only**:
 ```bash
 # Update CloudFormation with execution-handler changes
-./scripts/deploy.sh qa --lambda-only
+./scripts/deploy-main-stack.sh qa --lambda-only
 
 # Test wave completion update
 aws lambda invoke \
@@ -215,7 +215,7 @@ aws lambda invoke \
 **Deploy query-handler only**:
 ```bash
 # Update CloudFormation with query-handler changes
-./scripts/deploy.sh qa --lambda-only
+./scripts/deploy-main-stack.sh qa --lambda-only
 
 # Test read-only operation
 aws lambda invoke \
