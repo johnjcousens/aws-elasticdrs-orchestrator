@@ -197,7 +197,6 @@ Quick filter buttons (Last Hour, Last 6 Hours, Today, Last 3 Days, Last Week, La
 - **Requirements**:
   - [Product Requirements Document](./PRODUCT_REQUIREMENTS_DOCUMENT.md)
   - [Software Requirements Specification](./SOFTWARE_REQUIREMENTS_SPECIFICATION.md)
-  - [Codebase Analysis](./CODEBASE_ANALYSIS.md)
 
 - **Architecture**:
   - [Architecture Guide](../architecture/ARCHITECTURE.md)

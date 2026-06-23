@@ -750,7 +750,6 @@ Or rollback to old architecture:
 ## Related Documentation
 
 - [IAM Role Reference](IAM_ROLE_REFERENCE.md) - Detailed IAM role permissions
-- [QA Deployment Configuration](QA_DEPLOYMENT_CONFIGURATION.md) - QA environment setup
 - [Architecture Decision Record](architecture/ADR-001-function-specific-iam-roles.md) - Design rationale
 - [Deployment Guide](../docs/deployment-guide.md) - Deployment procedures
 - [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md) - Common issues and resolutions

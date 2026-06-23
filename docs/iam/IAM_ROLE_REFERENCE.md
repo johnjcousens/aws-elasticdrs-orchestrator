@@ -2242,7 +2242,6 @@ aws dynamodb scan \
 - [ADR-001: Function-Specific IAM Roles and CloudFormation Reorganization](architecture/ADR-001-function-specific-iam-roles.md)
 - [Design Document](.kiro/specs/function-specific-iam-roles/design.md)
 - [Requirements Document](.kiro/specs/function-specific-iam-roles/requirements.md)
-- [QA Deployment Configuration](QA_DEPLOYMENT_CONFIGURATION.md)
 - [Functional Equivalence Test Results](../tests/integration/TASK_18_6_FUNCTIONAL_EQUIVALENCE_SUMMARY.md)
 - [Negative Security Test Results](../tests/integration/TASK_18_7_NEGATIVE_SECURITY_TESTS.md)
 - [Rollback Test Guide](../tests/integration/TASK_18_8_ROLLBACK_TEST_GUIDE.md)
