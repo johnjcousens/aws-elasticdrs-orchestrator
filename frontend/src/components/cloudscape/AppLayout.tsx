@@ -100,7 +100,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             href: '/',
             title: 'Elastic Disaster Recovery Orchestrator',
             logo: {
-              src: '/aws-logo.png',
+              src: 'https://a0.awsstatic.com/libra-css/images/logos/aws_smile-header-desktop-en-white_59x35.png',
               alt: 'AWS',
             },
             onFollow: (e) => {
