@@ -270,12 +270,12 @@ export const LoginPage: React.FC = () => {
           This is not an official AWS product and is not covered by AWS Support plans. By using this tool, you acknowledge that you are responsible for testing, validating, and maintaining it within your environment. 
           For continued development, we recommend{' '}
           <Link
-            href="https://aws.amazon.com/q/developer/"
+            href="https://kiro.dev/"
             external
             variant="secondary"
             fontSize="inherit"
           >
-            Amazon Q Developer
+            Kiro
           </Link>.
         </div>
       </div>
