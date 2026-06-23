@@ -891,66 +891,8 @@ AWS_PAGER="" aws cloudwatch get-metric-statistics \
 - [DRS Pre-Provisioned Instance Recovery](docs/guides/DRS_PRE_PROVISIONED_INSTANCE_RECOVERY.md) - AllowLaunchingIntoThisInstance pattern
 - [DRS Recovery and Failback Complete Guide](docs/guides/DRS_RECOVERY_AND_FAILBACK_COMPLETE_GUIDE.md) - End-to-end recovery procedures
 - [API Development Quick Reference](docs/guides/API_DEVELOPMENT_QUICK_REFERENCE.md) - API development patterns
-
-### Deployment & CI/CD
-- [Quick Start Guide](docs/deployment/QUICK_START_GUIDE.md) - Fast deployment walkthrough
-- [CI/CD Guide](docs/deployment/CICD_GUIDE.md) - Deployment workflows and automation
-- [CI/CD Enforcement](docs/deployment/CI_CD_ENFORCEMENT.md) - Deployment policy and validation
-
-### Requirements & Architecture
-- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD with feature specifications
-- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications
-- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design
-- [Architecture](docs/architecture/ARCHITECTURE.md) - System architecture and AWS service integration
-- [Lambda Handlers Architecture](docs/architecture/LAMBDA_HANDLERS_ARCHITECTURE.md) - Detailed Lambda handler architecture with Mermaid diagrams and direct invocation examples
-
-### Reference Documentation
-- [API Endpoints Reference](docs/reference/API_ENDPOINTS_CURRENT.md) - Complete API endpoint documentation (66 endpoints)
-- [Orchestration Role Specification](docs/reference/ORCHESTRATION_ROLE_SPECIFICATION.md) - IAM role requirements
-- [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) - Comprehensive IAM policy analysis
-- [DRS Service Limits and Capabilities](docs/reference/DRS_SERVICE_LIMITS_AND_CAPABILITIES.md) - Service quotas and constraints
-- [DRS Cross-Account Reference](docs/reference/DRS_CROSS_ACCOUNT_REFERENCE.md) - Multi-account configuration
-- [DRS Launch Configuration Reference](docs/reference/DRS_LAUNCH_CONFIGURATION_REFERENCE.md) - Launch template management
-- [DR Wave Priority Mapping](docs/reference/DR_WAVE_PRIORITY_MAPPING.md) - Wave and priority assignment strategy
-
-### Troubleshooting
-- [Deployment Troubleshooting Guide](docs/troubleshooting/DEPLOYMENT_TROUBLESHOOTING_GUIDE.md) - Common deployment issues
-- [DRS Execution Troubleshooting Guide](docs/troubleshooting/DRS_EXECUTION_TROUBLESHOOTING_GUIDE.md) - Recovery execution debugging
-- [Authentication Issues](docs/troubleshooting/AUTHENTICATION_ISSUES.md) - Cognito and API Gateway troubleshooting
-- [Known Issues](docs/troubleshooting/KNOWN_ISSUES.md) - Current known issues and workarounds
-
-## CI/CD Pipeline
-
-The project uses CloudFormation for infrastructure deployment with comprehensive validation and security scanning capabilities.
-
-### CloudFormation Deployment
-
-Deploy the complete solution using AWS CloudFormation:
-
-```bash
-# Full deployment
-aws cloudformation deploy \
-  --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
-  --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
-    Environment=dev \
-    SourceBucket=aws-drs-orchestration-139023234756-dev \
-    AdminEmail=your-email@example.com \
-  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-1
-```
-
-### Built-in Protections
-
-The CloudFormation templates include automatic safety checks:
-
-- **Stack Protection**: Termination protection on production stacks
-- **Encryption**: All data encrypted at rest and in transit
-- **IAM Policies**: Least-privilege access controls
-- **Resource Tagging**: Consistent tagging for cost allocation and governance
-
-## Documentation
+- [Migration Guide](docs/guides/MIGRATION_GUIDE.md) - API Gateway to Direct Lambda invocation migration
+- [DRS Cross-Account Setup](docs/guides/DRS_CROSS_ACCOUNT_SETUP_VERIFICATION.md) - Multi-account configuration
 
 ### API Reference
 
@@ -973,25 +915,33 @@ Complete API documentation for all Lambda handlers with direct invocation suppor
   - Get execution status and details
   - Manage execution lifecycle
 
-### IAM & Security
+### Deployment & CI/CD
+- [Quick Start Guide](docs/deployment/QUICK_START_GUIDE.md) - Fast deployment walkthrough
+- [CI/CD Guide](docs/deployment/CICD_GUIDE.md) - Deployment workflows and automation
+- [CI/CD Enforcement](docs/deployment/CI_CD_ENFORCEMENT.md) - Deployment policy and validation
 
+### Requirements & Architecture
+- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD with feature specifications
+- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications
+- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design
+- [Architecture](docs/architecture/ARCHITECTURE.md) - System architecture and AWS service integration
+- [Lambda Handlers Architecture](docs/architecture/LAMBDA_HANDLERS_ARCHITECTURE.md) - Detailed Lambda handler architecture with Mermaid diagrams and direct invocation examples
+
+### Reference Documentation
+- [API Endpoints Reference](docs/reference/API_ENDPOINTS_CURRENT.md) - Complete API endpoint documentation (66 endpoints)
+- [Orchestration Role Specification](docs/reference/ORCHESTRATION_ROLE_SPECIFICATION.md) - IAM role requirements
+- [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) - Comprehensive IAM policy analysis
+- [DRS Service Limits and Capabilities](docs/reference/DRS_SERVICE_LIMITS_AND_CAPABILITIES.md) - Service quotas and constraints
+- [DRS Cross-Account Reference](docs/reference/DRS_CROSS_ACCOUNT_REFERENCE.md) - Multi-account configuration
+- [DRS Launch Configuration Reference](docs/reference/DRS_LAUNCH_CONFIGURATION_REFERENCE.md) - Launch template management
+- [DR Wave Priority Mapping](docs/reference/DR_WAVE_PRIORITY_MAPPING.md) - Wave and priority assignment strategy
+
+### IAM & Security
 - **[Orchestration Role Policy](docs/iam/ORCHESTRATION_ROLE_POLICY.md)** - Complete IAM policy specification
   - 16 policy statements with detailed permissions
   - DRS, EC2, Step Functions, DynamoDB, SNS, CloudWatch access
   - Cross-account role assumption patterns
   - External role integration guidance
-
-### Migration & Troubleshooting
-
-- **[Migration Guide](docs/guides/MIGRATION_GUIDE.md)** - Comprehensive migration procedures
-  - API Gateway to Direct Lambda invocation migration
-  - Cost analysis and comparison ($12-40/month vs $8-30/month)
-  - Step-by-step migration procedures
-  - Rollback procedures and testing strategies
-
-  - VALIDATION_ERROR, RESOURCE_NOT_FOUND, CONFLICT_ERROR
-  - DRS_SERVICE_ERROR, EXECUTION_ERROR, AUTHORIZATION_ERROR
-  - Detailed troubleshooting steps for each error type
 
 ### Integration Examples
 
@@ -999,58 +949,38 @@ Complete working examples for AWS service integration:
 
 #### Python & Bash Scripts
 - **[Python Example](docs/examples/python/complete_dr_workflow.py)** - Complete DR workflow automation
-  - Create protection groups and recovery plans
-  - Start recovery execution with monitoring
-  - Error handling and retry logic
-  - IAM policy included
-
 - **[Bash Example](docs/examples/bash/dr_ci_pipeline.sh)** - CI/CD pipeline integration
-  - Automated DR testing in CI/CD pipelines
-  - Pre-deployment validation
-  - Post-deployment verification
-  - Exit code handling for pipeline integration
 
 #### AWS CDK Examples
 - **[CDK Stack](docs/examples/cdk/)** - Complete TypeScript CDK stack
-  - Lambda function definitions with direct invocation
-  - DynamoDB table integration
-  - Step Functions state machine
-  - IAM role configuration
-
 - **[DynamoDB Integration](docs/examples/cdk/docs/DYNAMODB_INTEGRATION.md)** - DynamoDB patterns
-  - Table schema and GSI configuration
-  - Query and scan patterns
-  - Batch operations and transactions
-  - Error handling and retries
-
 - **[Step Functions Integration](docs/examples/cdk/docs/STEPFUNCTIONS_INTEGRATION.md)** - State machine patterns
-  - Lambda invocation from Step Functions
-  - Error handling and retries
-  - Parallel execution patterns
-  - Wait states and callbacks
-
 - **[IAM Role Integration](docs/examples/cdk/docs/IAM_ROLE_INTEGRATION.md)** - IAM configuration (1600+ lines)
-  - Complete role and policy definitions
-  - Cross-account access patterns
-  - Service-specific permissions
-  - Security best practices
 
 #### AWS Service Integration
 - **[Step Functions Example](docs/examples/stepfunctions/)** - Lambda invocation patterns
-  - Complete state machine definition
-  - Task states with Lambda invocation
-  - Error handling and retries
-  - Parallel and sequential execution
-
 - **[EventBridge Example](docs/examples/eventbridge/)** - Event-driven invocation
-  - 8 EventBridge rule definitions
-  - Scheduled invocation (cron, rate)
-  - Event pattern matching
-  - Target configuration with input transformation
 
-### Additional Guides
+### Troubleshooting
+- [Deployment Troubleshooting Guide](docs/troubleshooting/DEPLOYMENT_TROUBLESHOOTING_GUIDE.md) - Common deployment issues
+- [DRS Execution Troubleshooting Guide](docs/troubleshooting/DRS_EXECUTION_TROUBLESHOOTING_GUIDE.md) - Recovery execution debugging
+- [Authentication Issues](docs/troubleshooting/AUTHENTICATION_ISSUES.md) - Cognito and API Gateway troubleshooting
+- [Known Issues](docs/troubleshooting/KNOWN_ISSUES.md) - Current known issues and workarounds
 
-- **[Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md)** - Complete deployment mode documentation
+## CI/CD Pipeline
+
+The project uses CloudFormation for infrastructure deployment with comprehensive validation and security scanning capabilities.
+
+
+### Built-in Protections
+
+The CloudFormation templates include automatic safety checks:
+
+- **Stack Protection**: Termination protection on production stacks
+- **Encryption**: All data encrypted at rest and in transit
+- **IAM Policies**: Least-privilege access controls
+- **Resource Tagging**: Consistent tagging for cost allocation and governance
+
 
 ## Future Enhancements
 
@@ -1125,21 +1055,6 @@ The following three DRS enhancements are targeted for completion in the next wee
 2. **07-drs-agent-deployer** - Can be developed in parallel with rate limiting
 3. **03-drs-allow-launching-into-instance** - Depends on rate limit handling completion
 
-### Contributing
-
-To contribute to any enhancement:
-
-1. Review the spec in `.kiro/specs/{enhancement-name}/`
-2. Read `requirements.md` for feature specifications
-3. Review `design.md` for technical approach
-4. Check `tasks.md` for implementation checklist
-5. Follow development standards in `.kiro/steering/`
-
-### Additional Guides
-
-- **[Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md)** - Deployment modes and configuration
-- **[Developer Guide](docs/guides/DEVELOPER_GUIDE.md)** - Local development setup and workflows
-- **[DRS Cross-Account Setup](docs/guides/DRS_CROSS_ACCOUNT_SETUP_VERIFICATION.md)** - Multi-account configuration
 
 ## Contributing
 
@@ -1149,6 +1064,16 @@ To contribute to any enhancement:
 4. **Commit changes** (`git commit -m 'Add amazing feature'`)
 5. **Push to remote** (`git push origin feature/amazing-feature`)
 6. **Open a Pull Request**
+
+### Enhancement Specs
+
+To contribute to a specific enhancement:
+
+1. Review the spec in `.kiro/specs/{enhancement-name}/`
+2. Read `requirements.md` for feature specifications
+3. Review `design.md` for technical approach
+4. Check `tasks.md` for implementation checklist
+5. Follow development standards in `.kiro/steering/`
 
 ### Local Development
 
@@ -1166,18 +1091,6 @@ pip install -r requirements-dev.txt
 cd frontend
 npm install
 npm run dev  # Development server at localhost:5173
-
-# CloudFormation deployment
-aws cloudformation deploy \
-  --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-dev \
-  --parameter-overrides \
-    ProjectName=aws-drs-orchestration \
-    Environment=dev \
-    SourceBucket=aws-drs-orchestration-139023234756-dev \
-    AdminEmail=your-email@example.com \
-  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-1
 ```
 
 ## Upcoming Features
