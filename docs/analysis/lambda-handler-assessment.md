@@ -18,10 +18,9 @@ All Lambda handlers are properly configured for deployment. Placeholder handlers
 |---------|--------|--------------|------|-------|
 | api-handler | ✅ Active | lambda/requirements.txt | ~500 KB | Monolithic handler (being decomposed) |
 | query-handler | ✅ Active | lambda/requirements.txt | 43.2 KB | Phase 1 complete, 10 endpoints |
-| orchestration-stepfunctions | ✅ Active | lambda/requirements.txt | ~50 KB | Wave execution logic |
+| dr-orchestration-stepfunction | ✅ Active | lambda/requirements.txt | ~50 KB | Wave execution logic |
 | execution-finder | ✅ Active | lambda/requirements.txt | ~40 KB | EventBridge scheduled queries |
 | execution-poller | ✅ Active | lambda/requirements.txt | ~40 KB | DRS job status polling |
-| notification-formatter | ✅ Active | lambda/requirements.txt | ~35 KB | Event formatting |
 | frontend-deployer | ✅ Active | lambda/requirements.txt | ~2 MB | S3/CloudFront deployment |
 
 ### Placeholder Handlers (Phase 2/3)
@@ -56,14 +55,14 @@ lambdas = [
     ("bucket-cleaner", False),
     ("execution-finder", False),
     ("execution-poller", False),
-    ("notification-formatter", False),
-    ("orchestration-stepfunctions", False),
+    ("drs-agent-deployer", False),
+    ("dr-orchestration-stepfunction", False),
 ]
 ```
 
 **Issues Found**: None
 
-### deploy.sh
+### deploy-main-stack.sh
 
 **Status**: ✅ Properly configured
 
@@ -71,7 +70,7 @@ lambdas = [
 - 5-stage pipeline: Validation → Security → Tests → Git Push → Deploy
 - Supports --lambda-only for fast Lambda updates
 - Supports --frontend-only for frontend rebuilds
-- Supports --quick to skip security/tests
+- Supports --skip-tests to skip the tests stage
 - Calls package_lambda.py to build all handlers
 - Syncs to S3 deployment bucket
 - Deploys CloudFormation stack
@@ -183,7 +182,7 @@ All Lambda handlers are properly configured:
 1. ✅ **Placeholder handlers** correctly return 501 responses
 2. ✅ **Requirements files** properly structured (shared + handler-specific)
 3. ✅ **package_lambda.py** includes all handlers
-4. ✅ **deploy.sh** builds and deploys all handlers
+4. ✅ **deploy-main-stack.sh** builds and deploys all handlers
 5. ✅ **CloudFormation** defines all Lambda functions
 6. ✅ **Shared module** included in all packages
 
@@ -217,7 +216,7 @@ python3 package_lambda.py
 ls -lh build/lambda/*.zip
 
 # Deploy with Lambda-only mode
-./scripts/deploy.sh dev --lambda-only
+./scripts/deploy-main-stack.sh dev --lambda-only
 ```
 
 ## Conclusion

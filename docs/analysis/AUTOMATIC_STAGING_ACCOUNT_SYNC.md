@@ -135,7 +135,7 @@ EnableStagingAccountSync:
 Deploy using the standard workflow:
 
 ```bash
-./scripts/deploy.sh test
+./scripts/deploy-main-stack.sh test
 ```
 
 This will:

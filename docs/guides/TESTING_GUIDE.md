@@ -876,7 +876,7 @@ This testing guide provides comprehensive documentation for:
 
 1. **Dual Testing Approach**: Unit tests + property-based tests with Hypothesis
 2. **Local Execution**: How to run tests locally with virtual environment
-3. **CI/CD Integration**: How tests run in deploy.sh pipeline
+3. **CI/CD Integration**: How tests run in the deploy-main-stack.sh pipeline
 4. **Test Environment Setup**: QA environment configuration and AWS credentials
 5. **Negative Testing Patterns**: Verifying unauthorized operations fail correctly
 

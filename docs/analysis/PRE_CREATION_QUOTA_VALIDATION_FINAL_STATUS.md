@@ -183,7 +183,7 @@ User: 😊 Happy
 
 ### Deployment Command
 ```bash
-./scripts/deploy.sh test
+./scripts/deploy-main-stack.sh test
 ```
 
 ### Post-Deployment Verification

@@ -183,7 +183,7 @@ Code Size: 132536 bytes
 ### Deployment Details
 
 - **Deployed**: February 1, 2026, 21:10:19 UTC
-- **Method**: `./scripts/deploy.sh test --lambda-only`
+- **Method**: `./scripts/deploy-main-stack.sh test --lambda-only`
 - **Code Version**: v1.3.1-hotfix (camelCase migration complete)
 - **Test Results**: 245/245 passing (100%)
 

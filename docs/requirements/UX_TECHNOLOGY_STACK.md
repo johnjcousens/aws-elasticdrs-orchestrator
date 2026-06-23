@@ -31,7 +31,7 @@
 ### AWS Integration Setup
 | Package | Version | Installation | Purpose |
 |---------|---------|-------------|---------|
-| aws-amplify | 6.15.8 | `npm install aws-amplify@6.15.8` | Authentication and AWS integration |
+| aws-amplify | 6.16.0 | `npm install aws-amplify@6.16.0` | Authentication and AWS integration |
 | @aws-amplify/ui-react | 6.13.1 | `npm install @aws-amplify/ui-react@6.13.1` | Pre-built UI components for Amplify |
 
 ### Utility Libraries Setup
@@ -90,7 +90,7 @@ npm install @cloudscape-design/components@3.0.1148 \
   @cloudscape-design/global-styles@1.0.49
 
 # AWS Integration
-npm install aws-amplify@6.15.8 @aws-amplify/ui-react@6.13.1
+npm install aws-amplify@6.16.0 @aws-amplify/ui-react@6.13.1
 
 # Utilities
 npm install react-router-dom@7.9.5 axios@1.13.2 react-hot-toast@2.6.0 date-fns@4.1.0

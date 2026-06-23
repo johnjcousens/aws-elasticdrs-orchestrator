@@ -62,7 +62,7 @@ AWS DRS Orchestration provides complete orchestration and management capabilitie
 
 **Core Services**:
 - **DynamoDB**: 4 tables (protection-groups, recovery-plans, execution-history, target-accounts) with camelCase schema
-- **Lambda**: 6 functions (data-management-handler, execution-handler, query-handler, orchestration-stepfunctions, frontend-deployer, notification-formatter)
+- **Lambda**: 6 functions (data-management-handler, execution-handler, query-handler, dr-orchestration-stepfunction, frontend-deployer, drs-agent-deployer)
 - **Step Functions**: Workflow orchestration with waitForTaskToken pattern (1-year timeout)
 - **API Gateway**: REST API with 44 endpoints across 9 categories (optional - not deployed in backend-only mode)
 - **CloudFront + S3**: Frontend hosting (optional - not deployed in API-only modes)
@@ -127,7 +127,7 @@ The solution uses a decomposed Lambda architecture for improved maintainability,
 - User permissions and profile
 - EC2 resource queries
 
-**orchestration-stepfunctions** (Wave Orchestration):
+**dr-orchestration-stepfunction** (Wave Orchestration):
 - Wave-based orchestration logic
 - Tag-based server discovery at execution time
 - Launch configuration synchronization
@@ -141,7 +141,7 @@ The solution uses a decomposed Lambda architecture for improved maintainability,
 - Cleanup old deployment artifacts
 - CloudFormation custom resource
 
-**notification-formatter** (Notifications):
+**drs-agent-deployer** (Notifications):
 - SNS message formatting
 - Email notifications
 - Execution status updates
@@ -296,7 +296,7 @@ The solution uses a decomposed Lambda architecture for improved maintainability,
 - React 19.1.1
 - TypeScript 5.9.3
 - CloudScape Design System 3.0.1148
-- AWS Amplify 6.15.8
+- AWS Amplify 6.16.0
 - Vite 7.1.7
 
 ### 5. Multi-Account Management

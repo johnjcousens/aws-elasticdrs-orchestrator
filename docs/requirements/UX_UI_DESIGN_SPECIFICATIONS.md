@@ -185,7 +185,7 @@ Quick filter buttons (Last Hour, Last 6 Hours, Today, Last 3 Days, Last Week, La
 | CloudScape Design System | 3.0.1148 | AWS-native UI components |
 | Vite | 7.1.7 | Build tool and development server |
 | React Router | 7.9.5 | Client-side routing with code splitting |
-| AWS Amplify | 6.15.8 | Cognito authentication with auto token refresh |
+| AWS Amplify | 6.16.0 | Cognito authentication with auto token refresh |
 | Axios | 1.13.2 | HTTP client with request/response interceptors |
 | react-hot-toast | 2.6.0 | Toast notifications |
 | date-fns | 4.1.0 | Date formatting and manipulation |

@@ -137,7 +137,7 @@ Both routes now return React Router's catch-all redirect to `/`.
 
 ### Deployment Process
 1. ✅ Code committed to git with proper commit message
-2. ✅ Deployed backend via `./scripts/deploy.sh test` (completed 02:10:53 UTC)
+2. ✅ Deployed backend via `./scripts/deploy-main-stack.sh test` (completed 02:10:53 UTC)
 3. ✅ Frontend stack updated (completed 06:03:26 UTC)
 4. ✅ CloudFront invalidation completed (06:03:26 UTC)
 5. ✅ Build version: 20260202-0102

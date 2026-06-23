@@ -53,7 +53,7 @@ The frontend code had not been rebuilt and redeployed after adding the gauge com
 
 2. **Deployed Frontend**
    ```bash
-   ./scripts/deploy.sh test --frontend-only
+   ./scripts/deploy-main-stack.sh test --frontend-only
    ```
 
 3. **Verified CloudFront Invalidation**
@@ -107,7 +107,7 @@ All 6 gauges now displaying correctly:
 ## Files Modified
 
 - `frontend/src/pages/SystemStatusPage.tsx` (lines 107-109: debug logging)
-- Frontend rebuilt and deployed via `./scripts/deploy.sh test --frontend-only`
+- Frontend rebuilt and deployed via `./scripts/deploy-main-stack.sh test --frontend-only`
 
 ## Deployment Details
 

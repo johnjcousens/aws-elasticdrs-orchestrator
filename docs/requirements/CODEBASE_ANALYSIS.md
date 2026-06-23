@@ -24,7 +24,7 @@ The AWS DRS Orchestration Platform is **fully implemented and production-ready**
 | 5 Lambda functions | 6 Lambda functions | Update PRD, SRS |
 | 18 CloudFormation templates | 16 CloudFormation templates | Update PRD |
 | 12 API categories | 9 API categories | Update PRD, API docs |
-| "orchestration-stepfunctions" as entry point | Separate handlers for API routing | Update architecture docs |
+| "dr-orchestration-stepfunction" as entry point | Separate handlers for API routing | Update architecture docs |
 
 ---
 
@@ -84,9 +84,9 @@ All Lambda functions share a **single IAM role** with 16 policy statements:
 | **data-management-handler** | 512 MB | 120s | Protection Groups, Recovery Plans, Config | 21 |
 | **execution-handler** | 512 MB | 300s | Execution control, DRS operations | 11 |
 | **query-handler** | 256 MB | 60s | Read-only queries, discovery | 12 |
-| **orchestration-stepfunctions** | 512 MB | 120s | Wave orchestration logic | N/A (internal) |
+| **dr-orchestration-stepfunction** | 512 MB | 120s | Wave orchestration logic | N/A (internal) |
 | **frontend-deployer** | 2048 MB | 900s | React build and deployment | N/A (CloudFormation custom resource) |
-| **notification-formatter** | 256 MB | 60s | SNS message formatting | N/A (EventBridge target) |
+| **drs-agent-deployer** | 256 MB | 60s | SNS message formatting | N/A (EventBridge target) |
 
 **Total**: 6 functions (not 5)
 

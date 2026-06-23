@@ -123,7 +123,7 @@ If issues are discovered, rollback is simple:
 
 2. **Redeploy CloudFormation**:
    ```bash
-   ./scripts/deploy.sh test
+   ./scripts/deploy-main-stack.sh test
    ```
 
 3. **Verify rollback**:

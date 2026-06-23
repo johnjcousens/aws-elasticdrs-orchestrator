@@ -223,7 +223,7 @@ Deploy script incorrectly handled test failures, allowing broken code to deploy.
 3. **Test Fixes**: Updated 5 failing tests to use appropriate isolation fixtures
 
 ### Files Changed
-- `scripts/deploy.sh` (lines 636-663): Fixed test detection in 3 locations
+- `scripts/deploy-main-stack.sh` (lines 636-663): Fixed test detection in 3 locations
 - `tests/unit/conftest.py`: Added 5 autouse fixtures
 - `tests/unit/test_data_management_response_format.py`: Added reset_environment_variables fixture
 - `tests/unit/test_error_handling_query_handler.py`: Added reset_module_caches fixture to 3 tests

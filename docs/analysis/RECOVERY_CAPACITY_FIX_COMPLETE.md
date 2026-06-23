@@ -130,7 +130,7 @@ All tests passing:
 git commit -m "fix: Recovery Capacity now counts total servers (replicating + extended)"
 
 # Deployed to test environment
-./scripts/deploy.sh test
+./scripts/deploy-main-stack.sh test
 
 # Status: UPDATE_COMPLETE
 ```

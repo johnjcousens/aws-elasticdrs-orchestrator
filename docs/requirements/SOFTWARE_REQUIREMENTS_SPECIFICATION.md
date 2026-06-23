@@ -185,7 +185,7 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 - Service quotas: 1-hour TTL
 - EC2 resources: 15-minute TTL
 
-#### FR-1.4: orchestration-stepfunctions
+#### FR-1.4: dr-orchestration-stepfunction
 
 **Purpose**: Wave-based orchestration logic for Step Functions
 
@@ -262,7 +262,7 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 5. Invalidate CloudFront cache
 6. Return success/failure to CloudFormation
 
-#### FR-1.6: notification-formatter
+#### FR-1.6: drs-agent-deployer
 
 **Purpose**: Format and send notifications (EventBridge target)
 
@@ -507,7 +507,7 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
     "Type": "Task",
     "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
     "Parameters": {
-      "FunctionName": "orchestration-stepfunctions",
+      "FunctionName": "dr-orchestration-stepfunction",
       "Payload": {
         "action": "pause_before_wave",
         "TaskToken.$": "$.Task.Token",
@@ -714,7 +714,7 @@ def check_permission(user_roles: List[str], required_permission: str) -> bool:
 - React 19.1.1
 - TypeScript 5.9.3
 - CloudScape Design System 3.0.1148
-- AWS Amplify 6.15.8
+- AWS Amplify 6.16.0
 - Vite 7.1.7
 
 #### FR-6.1: Pages (8 Total)

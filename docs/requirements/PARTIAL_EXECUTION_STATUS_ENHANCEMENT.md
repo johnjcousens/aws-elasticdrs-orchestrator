@@ -113,7 +113,7 @@ else:
     final_status = "CANCELLED"
 ```
 
-**File:** `lambda/orchestration-stepfunctions/index.py`
+**File:** `lambda/dr-orchestration-stepfunction/index.py`
 
 Update Step Functions polling to detect partial success:
 ```python
@@ -241,7 +241,7 @@ function WaveStatusBadge({ wave }) {
 
 ### Phase 4: Notification Updates
 
-**File:** `lambda/notification-formatter/index.py`
+**File:** `lambda/drs-agent-deployer/index.py`
 
 Add `PARTIAL_SUCCESS` notification template:
 ```python
@@ -338,8 +338,8 @@ If issues arise:
 
 - `lambda/shared/execution_utils.py` - Status constants and termination logic
 - `lambda/execution-handler/index.py` - Cancel execution endpoint
-- `lambda/orchestration-stepfunctions/index.py` - Step Functions polling
-- `lambda/notification-formatter/index.py` - Notification templates
+- `lambda/dr-orchestration-stepfunction/index.py` - Step Functions polling
+- `lambda/drs-agent-deployer/index.py` - Notification templates
 - `frontend/src/components/ExecutionCard.tsx` - Execution display
 - `frontend/src/components/WaveList.tsx` - Wave status display
 

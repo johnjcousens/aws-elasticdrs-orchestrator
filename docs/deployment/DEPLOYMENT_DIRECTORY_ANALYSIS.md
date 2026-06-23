@@ -96,7 +96,7 @@ The deployment directory contains massive duplication with 28 files covering sim
    - Superseded by CICD_GUIDE.md
 
 8. **CI_CD_CONFIGURATION.md** ❌
-   - GitLab CI documentation (project uses local deploy.sh)
+   - GitLab CI documentation (project uses local deploy-main-stack.sh)
    - Outdated architecture references
    - Superseded by CICD_GUIDE.md
 

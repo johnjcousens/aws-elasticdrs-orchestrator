@@ -322,7 +322,7 @@ User: 😊 Happy
 **Deployed**: February 1, 2026, 21:10:19 UTC  
 **Environment**: `aws-drs-orchestration-dev`  
 **Lambda Version**: v1.3.1-hotfix  
-**Deployment Method**: `./scripts/deploy.sh test --lambda-only`
+**Deployment Method**: `./scripts/deploy-main-stack.sh test --lambda-only`
 
 **Verification**:
 - ✅ Lambda function updated successfully

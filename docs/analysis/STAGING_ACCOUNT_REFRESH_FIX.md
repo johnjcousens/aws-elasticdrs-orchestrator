@@ -214,7 +214,7 @@ const handleAddStagingAccount = async (accountData) => {
 Deploy using the standard workflow:
 
 ```bash
-./scripts/deploy.sh test --frontend-only
+./scripts/deploy-main-stack.sh test --frontend-only
 ```
 
 This will rebuild and deploy the frontend with the refresh fixes.
