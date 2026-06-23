@@ -19,6 +19,27 @@ Parameters:
     Type: String
     Description: 'Environment name (dev, test, staging, prod)'
 
+  WafRuleAction:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Count
+      - Block
+    Description: >-
+      Action for the rate-limit and AWS managed rule groups. "Count" observes
+      and logs matches without blocking (safe first deploy, no lockout risk).
+      "Block" enforces the rules. Deploy with Count first, validate via WAF
+      sampled requests / CloudWatch metrics, then switch to Block.
+
+# =============================================================================
+# CONDITIONS
+# =============================================================================
+
+Conditions:
+  # When Block: rate rule blocks and managed groups use their own (block)
+  # actions. When Count: every rule only counts, so nothing is blocked.
+  IsBlockMode: !Equals [!Ref WafRuleAction, 'Block']
+
 # =============================================================================
 # RESOURCES
 # =============================================================================
@@ -40,8 +61,7 @@ Resources:
       Rules:
         - Name: RateLimitRule
           Priority: 0
-          Action:
-            Block: {}
+          Action: !If [IsBlockMode, { Block: {} }, { Count: {} }]
           Statement:
             RateBasedStatement:
               Limit: 2000
@@ -53,8 +73,7 @@ Resources:
 
         - Name: AWSManagedRulesAmazonIpReputationList
           Priority: 1
-          OverrideAction:
-            None: {}
+          OverrideAction: !If [IsBlockMode, { None: {} }, { Count: {} }]
           Statement:
             ManagedRuleGroupStatement:
               VendorName: AWS
@@ -66,8 +85,7 @@ Resources:
 
         - Name: AWSManagedRulesCommonRuleSet
           Priority: 2
-          OverrideAction:
-            None: {}
+          OverrideAction: !If [IsBlockMode, { None: {} }, { Count: {} }]
           Statement:
             ManagedRuleGroupStatement:
               VendorName: AWS
@@ -79,8 +97,7 @@ Resources:
 
         - Name: AWSManagedRulesKnownBadInputsRuleSet
           Priority: 3
-          OverrideAction:
-            None: {}
+          OverrideAction: !If [IsBlockMode, { None: {} }, { Count: {} }]
           Statement:
             ManagedRuleGroupStatement:
               VendorName: AWS

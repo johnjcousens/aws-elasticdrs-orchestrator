@@ -53,10 +53,14 @@ NC='\033[0m'
 # ============================================================================
 
 # Required Parameters
-ENVIRONMENT="${1:-test}"
-AWS_REGION="${AWS_REGION:-us-east-2}"
+ENVIRONMENT="${1:-dev}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
 PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestration}"
 STACK_NAME="${STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
+
+# Default to the shared-services account profile so the account-based bucket
+# name and all subsequent AWS calls target the orchestrator's home account.
+export AWS_PROFILE="${AWS_PROFILE:-commercial_shared-services}"
 
 # Get AWS Account ID for unique bucket naming
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")
@@ -69,6 +73,10 @@ fi
 ADMIN_EMAIL="${ADMIN_EMAIL:-jocousen@amazon.com}"
 ENABLE_NOTIFICATIONS="${ENABLE_NOTIFICATIONS:-true}"
 USE_FUNCTION_SPECIFIC_ROLES="${USE_FUNCTION_SPECIFIC_ROLES:-false}"
+# WAF rule action: Count (observe/log only, no blocking - safe first deploy) or
+# Block (enforce). Defaults to Count so a fresh deploy cannot lock you out of
+# the console; switch with WAF_RULE_ACTION=Block after validating WAF metrics.
+WAF_RULE_ACTION="${WAF_RULE_ACTION:-Count}"
 
 # Parse options
 LAMBDA_ONLY=false
@@ -164,16 +172,17 @@ fi
 echo ""
 
 # Set AWS profile if not already set
+# Default to the shared-services account (139023234756) where the orchestrator runs
 if [ -z "$AWS_PROFILE" ]; then
-    export AWS_PROFILE="AdministratorAccess-210987654321"
+    export AWS_PROFILE="commercial_shared-services"
     echo -e "${BLUE}Using AWS profile: $AWS_PROFILE${NC}"
 fi
 
 # Verify AWS credentials
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
-if [[ "$ACCOUNT_ID" == *"SSO session"* ]] || [[ "$ACCOUNT_ID" == *"expired"* ]]; then
+if [[ "$ACCOUNT_ID" == *"SSO session"* ]] || [[ "$ACCOUNT_ID" == *"expired"* ]] || [[ "$ACCOUNT_ID" == *"InvalidClientTokenId"* ]]; then
     echo -e "${YELLOW}⚠ SSO session expired - logging in...${NC}"
-    aws sso login --profile ${AWS_PROFILE:-AdministratorAccess-210987654321}
+    aws sso login --sso-session COMMERCIAL_LAB
     ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text 2>&1 || true)
 fi
 
@@ -687,6 +696,9 @@ elif [ "$FRONTEND_ONLY" = true ]; then
     
     # Extract current parameter values
     CURRENT_USE_FUNC_ROLES=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="UseFunctionSpecificRoles") | .ParameterValue // "false"')
+    # Preserve the existing WAF rule action so a frontend-only deploy never
+    # silently reverts Block back to Count.
+    CURRENT_WAF_ACTION=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="WafRuleAction") | .ParameterValue // "Count"')
     
     # Update main stack with new FrontendBuildVersion parameter
     # Keep all other parameters the same to avoid unnecessary updates
@@ -702,6 +714,7 @@ elif [ "$FRONTEND_ONLY" = true ]; then
             AdminEmail="$ADMIN_EMAIL" \
             UseFunctionSpecificRoles="$CURRENT_USE_FUNC_ROLES" \
             FrontendBuildVersion="$FRONTEND_VERSION" \
+            WafRuleAction="$CURRENT_WAF_ACTION" \
         --capabilities CAPABILITY_NAMED_IAM \
         --no-fail-on-empty-changeset \
         --region "$AWS_REGION"
@@ -728,6 +741,7 @@ else
             UseFunctionSpecificRoles="$USE_FUNCTION_SPECIFIC_ROLES" \
             FrontendBuildVersion="$FRONTEND_VERSION" \
             LambdaCodeVersion="$LAMBDA_CODE_VERSION" \
+            WafRuleAction="$WAF_RULE_ACTION" \
         --capabilities CAPABILITY_NAMED_IAM \
         --no-fail-on-empty-changeset \
         --region "$AWS_REGION"

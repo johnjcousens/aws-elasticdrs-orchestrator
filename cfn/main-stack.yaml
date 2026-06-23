@@ -70,6 +70,17 @@ Parameters:
     Description: 'Lambda code version - timestamp to force code updates on deploy'
     Default: 'initial'
 
+  WafRuleAction:
+    Type: String
+    Description: >-
+      WAF rule action for CloudFront. "Count" observes/logs only (no blocking,
+      no lockout risk) - use for the first deploy. "Block" enforces the rules
+      after validation.
+    AllowedValues:
+      - Count
+      - Block
+    Default: Count
+
 # =============================================================================
 # CONDITIONS
 # =============================================================================
@@ -280,21 +291,25 @@ Resources:
   # ===========================================================================
   # 8. WAF STACK (NO DEPENDENCIES)
   # ===========================================================================
-  # COMMENTED OUT: WAF requires us-east-1 region, but QA stack is in us-east-2
-  # WAFStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   Properties:
-  #     TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/waf/webacl-stack.yaml'
-  #     Parameters:
-  #       ProjectName: !Ref ProjectName
-  #       Environment: !Ref Environment
-  #     Tags:
-  #       - Key: Project
-  #         Value: !Ref ProjectName
-  #       - Key: Environment
-  #         Value: !Ref Environment
-  #       - Key: StackType
-  #         Value: WAF
+  # WAF Web ACL for CloudFront (scope CLOUDFRONT must be created in us-east-1).
+  # Deploys in Count mode by default (WafRuleAction) so the first rollout cannot
+  # block legitimate console traffic; switch to Block after validation.
+  WAFStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/waf/webacl-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        WafRuleAction: !Ref WafRuleAction
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: StackType
+          Value: WAF
 
   # ===========================================================================
   # 9. CLOUDFRONT STACK (DEPENDS ON: S3, LAMBDA, COGNITO)
@@ -307,6 +322,7 @@ Resources:
       - LambdaStack
       - CognitoStack
       - APIGatewayDeploymentStack
+      - WAFStack
     Properties:
       TemplateURL: !Sub 'https://${DeploymentBucket}.s3.amazonaws.com/cfn/cloudfront/distribution-stack.yaml'
       Parameters:
@@ -318,6 +334,7 @@ Resources:
         FrontendDeployerFunctionArn: !GetAtt LambdaStack.Outputs.FrontendDeployerFunctionArn
         DeploymentBucket: !Ref DeploymentBucket
         ApiEndpoint: !Sub 'https://${APIGatewayCoreStack.Outputs.RestApiId}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+        WebACLArn: !GetAtt WAFStack.Outputs.WebACLArn
         UserPoolId: !GetAtt CognitoStack.Outputs.UserPoolId
         UserPoolClientId: !GetAtt CognitoStack.Outputs.UserPoolClientId
         IdentityPoolId: !GetAtt CognitoStack.Outputs.IdentityPoolId
@@ -782,7 +799,8 @@ Outputs:
       Name: !Sub '${ProjectName}-frontend-bucket-name-${Environment}'
 
   # WAF
-  # COMMENTED OUT: WAF stack is disabled for QA (requires us-east-1)
-  # WebACLArn:
-  #   Description: 'WAF Web ACL ARN'
-  #   Value: !GetAtt WAFStack.Outputs.WebACLArn
+  WebACLArn:
+    Description: 'WAF Web ACL ARN'
+    Value: !GetAtt WAFStack.Outputs.WebACLArn
+    Export:
+      Name: !Sub '${ProjectName}-web-acl-arn-${Environment}'
