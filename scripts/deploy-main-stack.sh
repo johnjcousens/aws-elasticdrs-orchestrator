@@ -579,8 +579,22 @@ if [ "$FRONTEND_ONLY" = false ]; then
             --bucket "${DEPLOYMENT_BUCKET}" \
             --versioning-configuration Status=Enabled \
             --region "$AWS_REGION"
-        
-        echo -e "${GREEN}  ✓ Deployment bucket created${NC}"
+
+        # Block all public access (security standard: BlockPublicAccess.BLOCK_ALL)
+        aws s3api put-public-access-block \
+            --bucket "${DEPLOYMENT_BUCKET}" \
+            --public-access-block-configuration \
+                BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true \
+            --region "$AWS_REGION"
+
+        # Enable default encryption at rest (SSE-S3)
+        aws s3api put-bucket-encryption \
+            --bucket "${DEPLOYMENT_BUCKET}" \
+            --server-side-encryption-configuration \
+                '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"},"BucketKeyEnabled":true}]}' \
+            --region "$AWS_REGION"
+
+        echo -e "${GREEN}  ✓ Deployment bucket created (versioning + BlockPublicAccess + SSE-S3)${NC}"
     fi
 
     
