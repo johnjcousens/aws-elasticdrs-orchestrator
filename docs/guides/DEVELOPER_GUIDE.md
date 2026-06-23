@@ -831,7 +831,9 @@ This re-syncs the API Gateway templates to S3 and redeploys the CloudFormation s
 
 ## References
 
-- [API and Integration Guide](API_AND_INTEGRATION_GUIDE.md)
-- [Deployment and Operations Guide](DEPLOYMENT_AND_OPERATIONS_GUIDE.md)
-- [Troubleshooting Guide](TROUBLESHOOTING_GUIDE.md)
-- [GitHub Actions CI/CD Guide](deployment/GITHUB_ACTIONS_CICD_GUIDE.md)
+- [API Development Quick Reference](API_DEVELOPMENT_QUICK_REFERENCE.md)
+- [API Endpoints Reference](../reference/API_ENDPOINTS_CURRENT.md)
+- [Deployment Guide](DEPLOYMENT_GUIDE.md)
+- [Deploy Main Stack Guide](../deployment/DEPLOY_MAIN_STACK_GUIDE.md)
+- [Troubleshooting Guide](../troubleshooting/TROUBLESHOOTING_GUIDE.md)
+- [CI/CD Guide](../deployment/CICD_GUIDE.md)
