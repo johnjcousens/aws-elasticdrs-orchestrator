@@ -241,7 +241,7 @@ function WaveStatusBadge({ wave }) {
 
 ### Phase 4: Notification Updates
 
-**File:** `lambda/drs-agent-deployer/index.py`
+**File:** `lambda/shared/notifications.py`
 
 Add `PARTIAL_SUCCESS` notification template:
 ```python
@@ -339,7 +339,7 @@ If issues arise:
 - `lambda/shared/execution_utils.py` - Status constants and termination logic
 - `lambda/execution-handler/index.py` - Cancel execution endpoint
 - `lambda/dr-orchestration-stepfunction/index.py` - Step Functions polling
-- `lambda/drs-agent-deployer/index.py` - Notification templates
+- `lambda/shared/notifications.py` - Notification templates
 - `frontend/src/components/ExecutionCard.tsx` - Execution display
 - `frontend/src/components/WaveList.tsx` - Wave status display
 

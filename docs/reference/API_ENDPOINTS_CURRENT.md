@@ -7,8 +7,6 @@
 
 The AWS DRS Orchestration platform provides a comprehensive REST API with **66 endpoints** (functional methods, excluding CORS `OPTIONS`) across **9 categories**. All endpoints require Cognito JWT authentication except for health checks and EventBridge-triggered operations.
 
-> Note: the per-category enumeration below documents the established categories. Newer endpoints (staging-account management, per-account capacity, recovery-instance-sync, per-server launch configs, and DRS replication/service queries) are part of the 66 total but are not all enumerated in this document yet.
-
 **Base URL**: `https://api-gateway-url/stage`  
 **Authentication**: Cognito JWT Bearer token  
 **RBAC**: 5 roles with granular permissions (see [RBAC System](#rbac-system))
@@ -17,50 +15,43 @@ The AWS DRS Orchestration platform provides a comprehensive REST API with **66 e
 
 ## Lambda Handler Architecture
 
-The API is served by **3 specialized Lambda handlers** for optimal performance and separation of concerns:
+The API is served by **3 specialized Lambda handlers** for separation of concerns. The decomposition is transitional: most routes target a specialized handler, while a subset still route to a shared API handler ARN pending full migration.
 
 ### 1. Data Management Handler
 **Function**: `data-management-handler`  
 **Purpose**: Create, update, delete operations for configuration data  
-**Endpoints**:
-- Protection Groups (6 endpoints)
-- Recovery Plans (6 endpoints)
-- Target Accounts (5 endpoints)
-- Tag Sync & Configuration (4 endpoints)
+**Endpoints**: Protection Groups, Recovery Plans, Target/Staging Accounts, Tag Sync & Configuration
 
 ### 2. Execution Handler
 **Function**: `execution-handler`  
 **Purpose**: Recovery execution control and monitoring  
-**Endpoints**:
-- Executions (11 endpoints)
-- Execution control (pause, resume, cancel, terminate)
-- DRS job monitoring
+**Endpoints**: Executions (control, monitoring, DRS job logs) plus internal `find`/`poll`/`finalize` operations
 
 ### 3. Query Handler
 **Function**: `query-handler`  
 **Purpose**: Read-only queries and resource discovery  
-**Endpoints**:
-- DRS Integration (4 endpoints)
-- EC2 Resources (4 endpoints)
-- Configuration Export (1 endpoint)
-- User Permissions (1 endpoint)
+**Endpoints**: DRS Integration, EC2 Resources, Configuration Export, User Management
 
 ### Supporting Handlers
 - **dr-orchestration-stepfunction**: Step Functions orchestration logic (internal)
 - **frontend-deployer**: Frontend build and deployment (internal)
 - **drs-agent-deployer**: DRS replication agent installation via SSM (in development; not yet deployed by the main stack)
 
+> **Notifications**: SNS execution/wave notifications are published inline by the handlers via the shared `lambda/shared/notifications.py` module. There is no dedicated notification Lambda.
+
 ## API Categories
 
-1. [Protection Groups](#1-protection-groups) - 6 endpoints
-2. [Recovery Plans](#2-recovery-plans) - 7 endpoints  
-3. [Executions](#3-executions) - 11 endpoints
-4. [DRS Integration](#4-drs-integration) - 4 endpoints
-5. [Account Management](#5-account-management) - 6 endpoints
+1. [Protection Groups](#1-protection-groups) - 8 endpoints
+2. [Recovery Plans](#2-recovery-plans) - 8 endpoints
+3. [Executions](#3-executions) - 13 endpoints
+4. [DRS Integration](#4-drs-integration) - 11 endpoints
+5. [Account & Staging Management](#5-account--staging-management) - 14 endpoints
 6. [EC2 Resources](#6-ec2-resources) - 4 endpoints
 7. [Configuration](#7-configuration) - 4 endpoints
-8. [User Management](#8-user-management) - 1 endpoint
+8. [User Management](#8-user-management) - 3 endpoints
 9. [Health Check](#9-health-check) - 1 endpoint
+
+**Total: 66 functional endpoints** (CORS `OPTIONS` preflight methods excluded).
 
 ---
 
@@ -140,6 +131,22 @@ Preview servers that would be selected by tag-based criteria.
 ```
 
 **Response:** Array of matching DRS source servers
+
+### `POST /protection-groups/{id}/apply-launch-configs`
+Apply per-server DRS launch configurations to all servers in the group.
+
+**Path Parameters:**
+- `id`: Protection group UUID
+
+**Response:** Job details for the launch-config apply operation
+
+### `GET /protection-groups/{id}/launch-config-status`
+Get the status of a launch-config apply operation for the group.
+
+**Path Parameters:**
+- `id`: Protection group UUID
+
+**Response:** Per-server launch-config apply status
 
 ---
 
@@ -233,7 +240,13 @@ Check for existing recovery instances before execution.
 
 **Response:** Array of existing recovery instances that would conflict
 
-**Status**: ⚠️ Not yet implemented (returns 501)
+### `POST /recovery-plans/{id}/check-existing-instances`
+Trigger an on-demand scan for existing recovery instances that would conflict with execution.
+
+**Path Parameters:**
+- `id`: Recovery plan UUID
+
+**Response:** Scan results with conflicting recovery instances
 
 ---
 
@@ -344,6 +357,21 @@ Delete specific executions by IDs.
 
 **Response:** Deletion results per execution
 
+### `GET /executions/{executionId}/recovery-instances`
+List recovery instances launched by an execution, enriched with EC2 details.
+
+**Path Parameters:**
+- `executionId`: Execution UUID
+
+**Response:** Array of recovery instance objects (instance ID, private IP, status)
+
+### `GET /execution-callback`
+Step Functions task callback endpoint for execution lifecycle transitions.
+
+**Authentication**: IAM role-based (invoked by Step Functions, not end users)
+
+**Response:** Callback acknowledgment
+
 ---
 
 ## 4. DRS Integration
@@ -388,18 +416,85 @@ Get available DRS-enabled accounts.
 
 **Response:** Array of accounts with DRS initialization status
 
+### `GET /drs/source-server-inventory`
+Get the cached source-server inventory (from the `source-server-inventory` table).
+
+**Query Parameters:**
+- `region` (optional): Filter by AWS region
+- `accountId` (optional): Target account ID
+
+**Response:** Array of inventoried source servers with last-sync metadata
+
+### `GET /drs/tag-sync`
+Get the status and configuration of the EC2-to-DRS tag sync.
+
+**Response:** Tag sync status and last-run results
+
+### `GET /drs/replication`
+Get DRS replication status across source servers.
+
+**Query Parameters:**
+- `region` (optional): AWS region
+- `accountId` (optional): Target account ID
+
+**Response:** Replication state per source server
+
+### `GET /drs/service`
+Get DRS service initialization and configuration status for a region/account.
+
+**Query Parameters:**
+- `region` (required): AWS region
+- `accountId` (optional): Target account ID
+
+**Response:** DRS service status details
+
+### `GET /drs/failover`
+Get failover status and available failover options.
+
+**Response:** Failover status details
+
+### `POST /drs/start-recovery`
+Start a direct DRS recovery for selected source servers (resource path `/drs/failover/start-recovery`).
+
+**Request Body:**
+```json
+{
+  "sourceServerIds": ["s-1234567890abcdef0"],
+  "isDrill": true
+}
+```
+
+**Response:** DRS recovery job details
+
+### `GET /drs/jobs`
+List DRS recovery/termination jobs.
+
+**Query Parameters:**
+- `region` (optional): AWS region
+- `accountId` (optional): Target account ID
+
+**Response:** Array of DRS job objects
+
 ---
 
-## 5. Account Management
+## 5. Account & Staging Management
 
 **Handler**: `data-management-handler`
 
-Manage cross-account DRS operations and target accounts.
+Manage cross-account DRS operations, target accounts, staging accounts, and capacity.
 
 ### `GET /accounts/targets`
 List all configured target accounts.
 
 **Response:** Array of target account configurations
+
+### `GET /accounts/targets/{id}`
+Get a single target account configuration.
+
+**Path Parameters:**
+- `id`: Account ID
+
+**Response:** Target account configuration object
 
 ### `POST /accounts/targets`
 Register a new target account.
@@ -445,6 +540,65 @@ Validate cross-account role and permissions.
 Get current account information.
 
 **Response:** Current account details
+
+### `POST /staging-accounts/validate`
+Validate a staging account's cross-account role and DRS configuration.
+
+**Request Body:**
+```json
+{
+  "stagingAccountId": "123456789012",
+  "crossAccountRoleArn": "arn:aws:iam::123456789012:role/DRSStagingRole"
+}
+```
+
+**Response:** Validation results
+
+### `POST /accounts/targets/{id}/staging-accounts`
+Associate a staging account with a target account.
+
+**Path Parameters:**
+- `id`: Target account ID
+
+**Response:** Created staging account association (201)
+
+### `DELETE /accounts/targets/{id}/staging-accounts/{stagingAccountId}`
+Remove a staging account association from a target account.
+
+**Path Parameters:**
+- `id`: Target account ID
+- `stagingAccountId`: Staging account ID
+
+**Response:** Success confirmation (204)
+
+### `GET /accounts/targets/{id}/staging-accounts/discover`
+Discover staging accounts available for a target account.
+
+**Path Parameters:**
+- `id`: Target account ID
+
+**Response:** Array of discovered staging accounts
+
+### `POST /accounts/targets/{id}/staging-accounts/sync`
+Sync staging account associations for a target account.
+
+**Path Parameters:**
+- `id`: Target account ID
+
+**Response:** Sync results
+
+### `GET /accounts/targets/{id}/capacity`
+Get DRS capacity metrics for a single target account.
+
+**Path Parameters:**
+- `id`: Target account ID
+
+**Response:** Capacity metrics (used/available source servers)
+
+### `GET /accounts/capacity/all`
+Get aggregated DRS capacity metrics across all target accounts.
+
+**Response:** Per-account capacity summary
 
 ---
 
@@ -538,7 +692,17 @@ Update tag synchronization settings.
 
 **Handler**: `query-handler`
 
-User permissions and role information.
+User profile, role, and permission information.
+
+### `GET /user/profile`
+Get the current user's profile (email, username, Cognito groups).
+
+**Response:** User profile object
+
+### `GET /user/roles`
+Get the current user's assigned RBAC roles.
+
+**Response:** Array of role identifiers
 
 ### `GET /user/permissions`
 Get current user's roles and permissions.

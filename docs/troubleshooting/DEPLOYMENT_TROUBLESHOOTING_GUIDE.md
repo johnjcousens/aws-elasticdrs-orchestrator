@@ -19,48 +19,49 @@ This guide consolidates all deployment-related troubleshooting for AWS DRS Orche
 
 ### Current Deployment Architecture
 
-**Deployment Script:** `./scripts/sync-to-deployment-bucket.sh`
+**Deployment Script:** `./scripts/deploy-main-stack.sh`
 
 ```bash
-# Automated deployment workflow
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-cfn
+# Full deployment pipeline
+./scripts/deploy-main-stack.sh qa
 
-# This automatically:
-# 1. Builds frontend from current source
-# 2. Packages Lambda functions with dependencies
-# 3. Syncs all artifacts to S3
-# 4. Deploys via CloudFormation
+# This runs a 5-stage pipeline:
+# 1. Validation (cfn-lint, flake8, black, TypeScript type-check)
+# 2. Security (cfn_nag, detect-secrets, npm audit, semgrep, pip-licenses, license-checker)
+# 3. Tests (pytest tests/unit/, npm test)
+# 4. Git push (git push origin HEAD)
+# 5. Deploy (build Lambda zips, sync cfn/ + lambda/ to S3, deploy CloudFormation main stack)
 ```
 
 **CloudFormation Integration:**
 ```yaml
-# All functions use single deployment package
-ApiHandlerFunction:
+# Functions reference packages synced to the deployment bucket
+DataManagementHandlerFunction:
   Code:
     S3Bucket: !Ref SourceBucket
-    S3Key: 'lambda/deployment-package.zip'  # Contains all current code
+    S3Key: 'lambda/data-management-handler.zip'
 ```
 
 ### Current Solution Benefits
 
-**Automated sync script provides:**
-- ✅ Frontend build from current source (`npm run build`)
+**The deploy script provides:**
+- ✅ Frontend build via the frontend-deployer custom resource
 - ✅ Lambda packaging with current code
-- ✅ Automatic artifact upload to S3
+- ✅ Automatic artifact upload to S3 (stage 5)
 - ✅ CloudFormation deployment with latest artifacts
 - ✅ Single command deployment
 
 **Deploy from scratch workflow:**
 ```bash
 # Complete deployment from current source
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-cfn
+./scripts/deploy-main-stack.sh qa
 ```
 
 ### Current Deployment Flow
 
 ```mermaid
 flowchart LR
-    Dev[Developer] --> Script[sync-to-deployment-bucket.sh]
+    Dev[Developer] --> Script[deploy-main-stack.sh]
     Script --> Build[Auto Build]
     Build --> Upload[Auto Upload]
     Upload --> CFN[CloudFormation Deploy]
@@ -78,20 +79,20 @@ flowchart LR
 
 **Fast Lambda Updates:**
 ```bash
-# Update Lambda code only (~5 seconds)
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+# Update Lambda code only
+./scripts/deploy-main-stack.sh qa --lambda-only
 ```
 
 **Full Stack Deployment:**
 ```bash
 # Deploy all infrastructure (~5-10 minutes)
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+./scripts/deploy-main-stack.sh qa
 ```
 
 **Frontend Only:**
 ```bash
 # Build and deploy frontend only
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+./scripts/deploy-main-stack.sh qa --frontend-only
 ```
 
 ### Common Deployment Issues
@@ -99,30 +100,25 @@ flowchart LR
 #### 1. Stale S3 Artifacts
 **Problem:** CloudFormation uses old artifacts from S3
 
-**Solution:** Always sync before deploying
+**Solution:** Run the deploy script, which syncs the latest code to S3 in stage 5 before deploying
 ```bash
-# Ensure S3 has latest code
-./scripts/sync-to-deployment-bucket.sh
-# Then deploy
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+./scripts/deploy-main-stack.sh qa
 ```
 
 #### 2. Frontend Configuration Mismatch
 **Problem:** Frontend can't connect to API after deployment
 
-**Solution:** Use automated frontend build
+**Solution:** Rebuild and redeploy the frontend
 ```bash
-# Build with correct configuration
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+./scripts/deploy-main-stack.sh qa --frontend-only
 ```
 
 #### 3. Lambda Function Not Updated
 **Problem:** Code changes not reflected in deployed function
 
-**Solution:** Use fast Lambda update
+**Solution:** Use a Lambda-only deploy
 ```bash
-# Quick code update
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+./scripts/deploy-main-stack.sh qa --lambda-only
 ```
 
 ### Deployment Best Practices
@@ -131,14 +127,11 @@ flowchart LR
 
 **Recommended workflow:**
 ```bash
-# Step 1: Sync all code to S3
-./scripts/sync-to-deployment-bucket.sh
+# Step 1: Deploy (validates, scans, tests, pushes, syncs to S3, deploys)
+./scripts/deploy-main-stack.sh qa
 
-# Step 2: Deploy infrastructure
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn
-
-# Step 3: Verify deployment
-aws cloudformation describe-stacks --stack-name aws-drs-orchestrator-dev
+# Step 2: Verify deployment
+aws cloudformation describe-stacks --stack-name aws-drs-orchestration-qa
 ```
 
 #### 2. Use Environment Files
@@ -156,7 +149,7 @@ cp .env.test.template .env.dev
 ```bash
 # Verify stack status
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestrator-dev \
+  --stack-name aws-drs-orchestration-qa \
   --query 'Stacks[0].StackStatus'
 
 # Check S3 artifacts are current
@@ -164,7 +157,7 @@ aws s3 ls s3://aws-drs-orchestration/lambda/ --region us-east-1
 
 # Test API endpoint
 API_ENDPOINT=$(aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestrator-dev \
+  --stack-name aws-drs-orchestration-qa \
   --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
   --output text)
 
@@ -188,19 +181,16 @@ curl "$API_ENDPOINT/protection-groups" -H "Authorization: Bearer $TOKEN"
 
 ```bash
 # Complete deployment from scratch
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-cfn
+./scripts/deploy-main-stack.sh qa
 
 # Update only Lambda code (fastest)
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+./scripts/deploy-main-stack.sh qa --lambda-only
 
 # Update only frontend
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+./scripts/deploy-main-stack.sh qa --frontend-only
 
-# Sync code without deploying
-./scripts/sync-to-deployment-bucket.sh
-
-# Preview changes (dry run)
-./scripts/sync-to-deployment-bucket.sh --dry-run
+# Validation only, no deployment
+./scripts/deploy-main-stack.sh qa --validate-only
 ```
 
 ### Advanced Deployment Options
@@ -214,9 +204,8 @@ curl "$API_ENDPOINT/protection-groups" -H "Authorization: Bearer $TOKEN"
 
 **Environment-specific deployments:**
 ```bash
-# Deploy to different environments
-./scripts/sync-to-deployment-bucket.sh --profile dev-profile --deploy-cfn
-./scripts/sync-to-deployment-bucket.sh --profile prod-profile --deploy-cfn
+# The deploy script does not take a --profile flag; set AWS_PROFILE in the environment
+AWS_PROFILE=qa-profile ./scripts/deploy-main-stack.sh qa
 ```
 
 ---
@@ -225,12 +214,18 @@ curl "$API_ENDPOINT/protection-groups" -H "Authorization: Bearer $TOKEN"
 
 ### Current IAM Roles (CloudFormation Deployed)
 
-#### 1. ApiHandlerRole ✅ DEPLOYED
+All 5 deployed Lambda functions share a single **UnifiedOrchestrationRole** defined in the IAM nested stack (`cfn/iam/`). Function-specific least-privilege roles can optionally be enabled via the `--use-function-specific-roles` deploy flag.
 
-**CloudFormation Resource**: `cfn/lambda-stack.yaml` → `ApiHandlerRole`
-**Lambda Function**: `api-handler` (REST API endpoints)
+#### UnifiedOrchestrationRole ✅ DEPLOYED
 
-**DRS Permissions** (as deployed):
+**CloudFormation Resource**: `cfn/iam/` → `UnifiedOrchestrationRole`
+**Lambda Functions**: `data-management-handler`, `query-handler`, `execution-handler`, `dr-orchestration-stepfunction`, `frontend-deployer`
+
+The role grants 16 policy-statement categories: DynamoDB, DRS (read + write), EC2, Step Functions, IAM PassRole, STS AssumeRole, KMS, CloudFormation, S3, CloudFront, Lambda invoke, EventBridge, SSM, SNS, CloudWatch, and License Manager.
+
+The YAML snippets below are illustrative of the DRS, EC2, launch-template, and volume permissions UnifiedOrchestrationRole grants.
+
+**DRS Permissions** (illustrative):
 
 ```yaml
 # Core DRS Operations
@@ -292,7 +287,7 @@ curl "$API_ENDPOINT/protection-groups" -H "Authorization: Bearer $TOKEN"
 - drs:UpdateSourceNetwork
 ```
 
-**EC2 Permissions** (as deployed):
+**EC2 Permissions** (illustrative):
 
 ```yaml
 # Instance Management
@@ -329,185 +324,62 @@ curl "$API_ENDPOINT/protection-groups" -H "Authorization: Bearer $TOKEN"
 - iam:PassRole
 ```
 
-#### 2. OrchestrationRole ✅ DEPLOYED
-
-**CloudFormation Resource**: `cfn/lambda-stack.yaml` → `OrchestrationRole`
-**Lambda Functions**: `orchestration` (legacy), `dr-orchestration-stepfunction` (active)
-
-**DRS Permissions** (as deployed, includes all ApiHandlerRole permissions plus):
+**EC2 Launch Template Permissions** (illustrative, CRITICAL when DRS calls start_recovery):
 
 ```yaml
-# CRITICAL: Required for DRS to register recovery instances
-- drs:CreateRecoveryInstanceForDrs
-```
-
-**EC2 Permissions** (comprehensive, as deployed):
-
-```yaml
-# Read Permissions (DRS needs all of these)
-- ec2:DescribeInstances
-- ec2:DescribeInstanceStatus
-- ec2:DescribeInstanceTypeOfferings
-- ec2:DescribeInstanceTypes
-- ec2:DescribeInstanceAttribute
-- ec2:DescribeAccountAttributes
-- ec2:DescribeTags
-- ec2:DescribeLaunchTemplates
-- ec2:DescribeLaunchTemplateVersions
-- ec2:DescribeAvailabilityZones
-- ec2:DescribeNetworkInterfaces
-- ec2:DescribeVolumeAttribute
-- ec2:GetEbsDefaultKmsKeyId
-- ec2:GetEbsEncryptionByDefault
-
-# Instance Operations
-- ec2:TerminateInstances
-- ec2:StopInstances
-- ec2:StartInstances
-- ec2:CreateTags
-
-# CRITICAL: Launch Template Operations (DRS needs when calling start_recovery)
 - ec2:CreateLaunchTemplate
 - ec2:CreateLaunchTemplateVersion
 - ec2:ModifyLaunchTemplate
 - ec2:DeleteLaunchTemplate
 - ec2:DeleteLaunchTemplateVersions
-
-# Volume Operations
-- ec2:ModifyVolume
-- ec2:DetachVolume  # CRITICAL for DRS cleanup
-- ec2:DeleteVolume  # CRITICAL for DRS cleanup
-
-# Network Operations
-- ec2:CreateSecurityGroup
-- ec2:DeleteNetworkInterface
-- ec2:ModifyNetworkInterfaceAttribute
-
-# DRS Instance Launching (conversion phase)
-- ec2:RunInstances
-- ec2:CreateVolume
-- ec2:AttachVolume
-- ec2:CreateNetworkInterface
-- ec2:AttachNetworkInterface
-- ec2:DescribeVolumes
-- ec2:DescribeSnapshots
-- ec2:ModifyInstanceAttribute
-- ec2:DescribeImages
-- ec2:DescribeSecurityGroups
-- ec2:DescribeSubnets
-- ec2:DescribeVpcs
-
-# Snapshot/AMI Operations
-- ec2:CreateSnapshot
-- ec2:DeleteSnapshot
-- ec2:CreateImage
-- ec2:DeregisterImage
-- ec2:CopyImage
-- ec2:RegisterImage
-
-# IAM PassRole
-- iam:PassRole
 ```
 
-**SSM Permissions** (for automation):
+**EC2 Volume Permissions** (illustrative, CRITICAL for DRS cleanup):
+
+```yaml
+- ec2:ModifyVolume
+- ec2:DetachVolume
+- ec2:DeleteVolume
+```
+
+**DRS Recovery Instance Registration** (illustrative, CRITICAL):
+
+```yaml
+# Required for DRS to register recovery instances
+- drs:CreateRecoveryInstanceForDrs
+```
+
+**SSM, S3, and CloudFront Permissions** (illustrative):
 
 ```yaml
 - ssm:StartAutomationExecution
-- ssm:DescribeAutomationExecutions
-- ssm:GetAutomationExecution
-- ssm:StopAutomationExecution
 - ssm:SendCommand
 - ssm:GetCommandInvocation
+- s3:GetObject
+- s3:PutObject
+- s3:DeleteObject
+- cloudfront:CreateInvalidation
+- cloudfront:GetInvalidation
 ```
 
-**Cross-Account Access**:
+**Cross-Account Access** (illustrative):
 
 ```yaml
 - sts:AssumeRole
   Resource: 'arn:aws:iam::*:role/drs-orchestration-cross-account-role'
 ```
 
-#### 3. ExecutionPollerRole ✅ DEPLOYED
-
-**CloudFormation Resource**: `cfn/lambda-stack.yaml` → `ExecutionPollerRole`
-**Lambda Function**: `execution-poller` (DRS job status monitoring)
-
-**DRS Permissions** (read-only, as deployed):
-
-```yaml
-# Job Monitoring (Essential for Poller)
-- drs:DescribeJobs
-- drs:DescribeJobLogItems
-
-# Recovery Instance Status
-- drs:DescribeRecoveryInstances
-
-# Source Server Status
-- drs:DescribeSourceServers
-```
-
-**CloudWatch Permissions**:
-
-```yaml
-- cloudwatch:PutMetricData
-```
-
-#### 4. ExecutionFinderRole ✅ DEPLOYED
-
-**CloudFormation Resource**: `cfn/lambda-stack.yaml` → `ExecutionFinderRole`
-**Lambda Function**: `execution-finder` (queries for active executions)
-
-**DynamoDB Permissions** (read-only, as deployed):
-
-```yaml
-- dynamodb:Query
-  Resource:
-    - execution-history table
-    - StatusIndex GSI
-```
-
-**Lambda Permissions**:
-
-```yaml
-- lambda:InvokeFunction
-  Resource: execution-poller function ARN
-```
-
-#### 5. CustomResourceRole ✅ DEPLOYED
-
-**CloudFormation Resource**: `cfn/lambda-stack.yaml` → `CustomResourceRole`
-**Lambda Function**: `frontend-builder` (CloudFormation custom resource)
-
-**S3 Permissions** (as deployed):
-
-```yaml
-- s3:ListBucket
-- s3:ListBucketVersions
-- s3:GetObject
-- s3:PutObject
-- s3:DeleteObject
-- s3:DeleteObjectVersion
-  Resource: frontend bucket and objects
-```
-
-**CloudFront Permissions**:
-
-```yaml
-- cloudfront:CreateInvalidation
-- cloudfront:GetInvalidation
-  Resource: all distributions
-```
-
 ### Lambda Functions and Their Roles (Deployed)
 
-| Function | Role | CloudFormation Resource | Purpose |
-|----------|------|------------------------|----------|
-| `api-handler` | ApiHandlerRole | `ApiHandlerFunction` | REST API endpoints |
-| `orchestration` | OrchestrationRole | `OrchestrationFunction` | Legacy orchestrator (deprecated) |
-| `dr-orchestration-stepfunction` | OrchestrationRole | `OrchestrationStepFunctionsFunction` | Step Functions orchestration (active) |
-| `frontend-builder` | CustomResourceRole | `FrontendBuilderFunction` | Frontend deployment |
-| `execution-finder` | ExecutionFinderRole | `ExecutionFinderFunction` | Find active executions (EventBridge scheduled) |
-| `execution-poller` | ExecutionPollerRole | `ExecutionPollerFunction` | Poll DRS job status |
+| Function | Role | Purpose |
+|----------|------|---------|
+| `data-management-handler` | UnifiedOrchestrationRole | Create/update/delete data resources (protection groups, recovery plans, target accounts) |
+| `query-handler` | UnifiedOrchestrationRole | Read/query API endpoints |
+| `execution-handler` | UnifiedOrchestrationRole | Execution lifecycle: find, poll, and finalize operations |
+| `dr-orchestration-stepfunction` | UnifiedOrchestrationRole | Step Functions orchestration |
+| `frontend-deployer` | UnifiedOrchestrationRole | Frontend deployment (CloudFormation custom resource) |
+
+Function-specific least-privilege roles are available via the `--use-function-specific-roles` deploy flag.
 
 ### Critical Permission Notes
 
@@ -550,13 +422,13 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 
 | Feature | Status | CloudFormation Location |
 |---------|--------|------------------------|
-| Drill Cleanup | ✅ Deployed | `OrchestrationRole` → EC2 volume permissions |
-| Failback Operations | ✅ Deployed | `OrchestrationRole` → DRS failback permissions |
-| Config Management | ✅ Deployed | All roles → DRS configuration permissions |
-| Launch Templates | ✅ Deployed | `OrchestrationRole` → EC2 launch template permissions |
-| Volume Cleanup | ✅ Deployed | `OrchestrationRole` → `ec2:DetachVolume`, `ec2:DeleteVolume` |
-| Cross-Account | ✅ Deployed | `OrchestrationRole` → STS assume role |
-| EventBridge Scheduling | ✅ Deployed | `ExecutionFinderScheduleRule` (1 minute intervals) |
+| Drill Cleanup | ✅ Deployed | `UnifiedOrchestrationRole` → EC2 volume permissions |
+| Failback Operations | ✅ Deployed | `UnifiedOrchestrationRole` → DRS failback permissions |
+| Config Management | ✅ Deployed | `UnifiedOrchestrationRole` → DRS configuration permissions |
+| Launch Templates | ✅ Deployed | `UnifiedOrchestrationRole` → EC2 launch template permissions |
+| Volume Cleanup | ✅ Deployed | `UnifiedOrchestrationRole` → `ec2:DetachVolume`, `ec2:DeleteVolume` |
+| Cross-Account | ✅ Deployed | `UnifiedOrchestrationRole` → STS assume role |
+| EventBridge Scheduling | ✅ Deployed | `UnifiedOrchestrationRole` → EventBridge scheduled rule |
 
 ### Troubleshooting Common IAM Errors
 
@@ -564,7 +436,7 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 
 **Cause**: Lambda IAM role missing EC2 launch template permissions.
 
-**Solution**: Verify OrchestrationRole has:
+**Solution**: Verify UnifiedOrchestrationRole has:
 
 ```yaml
 - ec2:CreateLaunchTemplate
@@ -578,7 +450,7 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 
 **Cause**: Lambda IAM role missing DRS permission to register recovery instances.
 
-**Solution**: Verify OrchestrationRole has:
+**Solution**: Verify UnifiedOrchestrationRole has:
 
 ```yaml
 - drs:CreateRecoveryInstanceForDrs
@@ -588,7 +460,7 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 
 **Cause**: Lambda IAM role missing EC2 volume permissions.
 
-**Solution**: Verify OrchestrationRole has:
+**Solution**: Verify UnifiedOrchestrationRole has:
 
 ```yaml
 - ec2:DetachVolume
@@ -602,7 +474,7 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 ```bash
 # Verify stack is deployed
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestrator-dev \
+  --stack-name aws-drs-orchestration-qa \
   --region us-east-1
 
 # Check Lambda functions
@@ -615,14 +487,14 @@ aws iam list-roles \
   --query 'Roles[?starts_with(RoleName, `drs-orchestration`)].RoleName'
 ```
 
-#### Sync and Deploy
+#### Deploy
 
 ```bash
-# Sync to S3 and deploy
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+# Full deploy (validates, scans, tests, pushes, syncs to S3, deploys)
+./scripts/deploy-main-stack.sh qa
 
 # Fast Lambda code update
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+./scripts/deploy-main-stack.sh qa --lambda-only
 ```
 
 ---
@@ -639,10 +511,10 @@ aws iam list-roles \
 - ✅ Complete DRS permissions deployed
 - ✅ Multiple deployment options
 
-**Best practice:** Always use `sync-to-deployment-bucket.sh` script for consistent, reliable deployments.
+**Best practice:** Always use the `deploy-main-stack.sh` script for consistent, reliable deployments.
 
 ## References
 
-- **CloudFormation Template**: `cfn/lambda-stack.yaml` (IAM roles and Lambda functions)
-- **Deployment Script**: `scripts/sync-to-deployment-bucket.sh`
+- **CloudFormation Templates**: `cfn/main-stack.yaml` with service-based nested stacks (`cfn/iam/`, `cfn/lambda/`)
+- **Deployment Script**: `scripts/deploy-main-stack.sh`
 - **AWS DRS Documentation**: [AWS Elastic Disaster Recovery](https://docs.aws.amazon.com/drs/)

@@ -333,282 +333,73 @@ pkill -f "vite"
 
 ## Development Workflow
 
-### Local CI/CD Pipeline (No External Dependencies)
+### Deployment Pipeline (`deploy-main-stack.sh`)
 
-The project includes a complete local CI/CD pipeline that mirrors GitHub Actions, requiring no external services like GitHub, GitLab, or CodePipeline.
+The project deploys through a single entrypoint, `./scripts/deploy-main-stack.sh`, which runs a 5-stage pipeline. No external CI service (GitHub Actions, GitLab, CodePipeline) is required to validate, scan, test, or deploy.
 
-#### Testing the Local CI/CD Pipeline
-
-**Quick Test:**
-```bash
-# 1. Make a small change
-echo "# Test change" >> README.md
-
-# 2. Commit the change
-git add README.md
-git commit -m "test: verify local CI/CD pipeline"
-
-# 3. Run safe push (full pipeline)
-./scripts/safe-push.sh
-```
-
-**What You'll See:**
-
-Stage 1: Validation (Real-time Output)
-```
-═══════════════════════════════════════════════════════════
-  STAGE 1: VALIDATION
-═══════════════════════════════════════════════════════════
-
-[1.1] CloudFormation Template Validation
-✓ cfn-lint: All templates valid
-✓ AWS CloudFormation: All templates valid
-
-[1.2] Python Code Quality
-✓ flake8: No issues found
-✓ black: Code is formatted correctly
-✓ isort: Imports are sorted correctly
-
-[1.3] Frontend Code Quality
-✓ TypeScript: No type errors
-✓ ESLint: No critical issues
-
-[1.4] CloudScape Design System Compliance
-✓ CloudScape: Compliant
-
-[1.5] CamelCase Consistency Validation
-✓ CamelCase: Consistent
-
-[1.6] API Gateway Architecture Validation
-✓ API Architecture: Valid
-```
-
-Stage 2: Security Scans
-```
-═══════════════════════════════════════════════════════════
-  STAGE 2: SECURITY SCANS
-═══════════════════════════════════════════════════════════
-
-[2.1] Python Security Scanning (Bandit)
-✓ Bandit: No high severity issues
-
-[2.2] Python Security Scanning (Semgrep)
-✓ Semgrep: Scan complete
-
-[2.3] Python Dependency Vulnerability Scan (Safety)
-✓ Safety: Scan complete
-
-[2.4] Frontend Security Scanning (NPM Audit)
-✓ NPM Audit: No critical vulnerabilities
-
-[2.5] Infrastructure Security Scanning
-✓ Semgrep CFN: Scan complete
-
-[2.6] Security Summary
-✓ Security thresholds: PASSED
-```
-
-Stage 3: Tests
-```
-═══════════════════════════════════════════════════════════
-  STAGE 3: TESTS
-═══════════════════════════════════════════════════════════
-
-[3.1] Python Unit Tests
-✓ Python unit tests: PASSED
-
-[3.2] Frontend Tests
-✓ Frontend tests: PASSED
-```
-
-Stage 4: Build
-```
-═══════════════════════════════════════════════════════════
-  BUILD STAGE
-═══════════════════════════════════════════════════════════
-
-Building Lambda packages...
-✓ Lambda packages built successfully
-
-Package sizes:
-  build/lambda/api-handler.zip: 93.2 KB
-  build/lambda/execution-finder.zip: 10.1 KB
-  build/lambda/execution-poller.zip: 4.2 KB
-  build/lambda/bucket-cleaner.zip: 7.3 KB
-  build/lambda/drs-agent-deployer.zip: 2.1 KB
-  build/lambda/dr-orchestration-stepfunction.zip: 4.5 KB
-  build/lambda/frontend-builder.zip: 1.3 MB
-```
-
-Pipeline Summary
-```
-═══════════════════════════════════════════════════════════
-  PIPELINE SUMMARY
-═══════════════════════════════════════════════════════════
-
-✅ Local CI/CD pipeline completed successfully
-Duration: 45s
-
-Pipeline stages completed:
-  ✅ Validation (CloudFormation, Python, Frontend, CloudScape)
-  ✅ Security Scan (Bandit, Semgrep, Safety, NPM Audit)
-  ✅ Build (Lambda packages, Frontend validation)
-  ✅ Test (Python unit tests, Frontend tests)
-
-📊 Reports available in: docs/logs/latest/
-```
-
-**Testing Different Modes:**
-
-Full Pipeline (Recommended):
-```bash
-./scripts/safe-push.sh
-```
-Duration: ~45-60 seconds | Runs: All validation, security, tests, build
-
-Quick Mode (Fast Iteration):
-```bash
-./scripts/safe-push.sh --skip-tests
-```
-Duration: ~15-20 seconds | Runs: Validation, security, and build (skips tests only)
-
-Force Mode (Emergency Only):
-```bash
-./scripts/safe-push.sh --force
-```
-Duration: ~2 seconds | Runs: Nothing - immediate push (NOT RECOMMENDED)
-
-**Monitoring Progress:**
-
-The pipeline provides real-time console output with:
-- ✅ Green checkmarks for passed stages
-- ❌ Red X marks for failed stages
-- ⚠️ Yellow warnings for skipped stages
-- 📊 Progress indicators
-- ⏱️ Duration tracking
-
-**Detailed Reports:**
-
-After each run, check the `docs/logs/latest/` directory:
-```bash
-# View validation reports
-cat docs/logs/latest/validation/flake8.txt
-cat docs/logs/latest/validation/eslint.txt
-
-# View security reports
-cat docs/logs/latest/security/summary.txt
-cat docs/logs/latest/security/thresholds.txt
-
-# View test reports
-cat docs/logs/latest/tests/python-unit.txt
-cat docs/logs/latest/tests/frontend.txt
-```
-
-**Handling Failures:**
-
-Validation Failure:
-```bash
-# 1. Check the specific report
-cat reports/validation/flake8.txt
-
-# 2. Fix the issues in your code
-
-# 3. Re-run
-./scripts/safe-push.sh
-```
-
-Security Failure:
-```bash
-# 1. Check security summary
-cat reports/security/summary.txt
-cat reports/security/thresholds.txt
-
-# 2. Fix critical/high severity issues
-
-# 3. Re-run
-./scripts/safe-push.sh
-```
-
-Test Failure:
-```bash
-# 1. Check test output
-cat reports/tests/python-unit.txt
-
-# 2. Fix failing tests
-
-# 3. Re-run
-./scripts/safe-push.sh
-```
-
-**Performance Benchmarks:**
-
-| Mode | Duration | Stages |
-|------|----------|--------|
-| Full | 45-60s | All stages |
-| Quick | 15-20s | Validation + Build |
-| Force | 2s | None (immediate push) |
-
-**Best Practices:**
-1. Always use full pipeline for production code: `./scripts/safe-push.sh`
-2. Use quick mode for rapid iteration during development: `./scripts/safe-push.sh --skip-tests`
-3. Never use force mode unless emergency: `./scripts/safe-push.sh --force`
-4. Check reports after failures: `cat reports/validation/*.txt`
-5. Clean up reports periodically: `rm -rf reports/`
-
-#### Full Local Deployment
+#### Running the Pipeline
 
 ```bash
-# Source environment configuration
-source .env.dev
-
-# Run full CI/CD pipeline: Validate → Security → Build → Test → Deploy
-./scripts/local-deploy.sh dev full
-
-# Quick deployment (skip tests for faster iteration)
-./scripts/local-deploy.sh dev full --skip-tests
+# Full pipeline: validation, security, tests, git push, deploy
+./scripts/deploy-main-stack.sh qa
 ```
 
-#### Local CI Checks Only (No Deployment)
+The pipeline runs these stages in order. If a stage fails, the pipeline stops before deployment.
+
+| Stage | Name | What it runs |
+|-------|------|--------------|
+| 1 | Validation | cfn-lint (against `cfn/`), flake8, black, TypeScript type-check |
+| 2 | Security | cfn_nag, detect-secrets, npm audit, semgrep, pip-licenses, license-checker |
+| 3 | Tests | pytest (`tests/unit/`), npm test |
+| 4 | Git Push | `git push origin HEAD` |
+| 5 | Deploy | Builds Lambda zips, syncs `cfn/` + `lambda/` to the S3 deployment bucket, deploys the CloudFormation main stack |
+
+Review the deploy script output to see which stage failed and why.
+
+#### Common Invocations
 
 ```bash
-# Full validation pipeline
-./scripts/local-ci-checks.sh
+# Full pipeline (validate, scan, test, push, deploy)
+./scripts/deploy-main-stack.sh qa
 
-# Quick validation (skip tests and security)
-./scripts/local-ci-checks.sh --skip-tests --skip-security
+# Validation only, no deployment (stops before stage 5)
+./scripts/deploy-main-stack.sh qa --validate-only
 
-# Skip only tests
-./scripts/local-ci-checks.sh --skip-tests
+# Update Lambda functions only
+./scripts/deploy-main-stack.sh qa --lambda-only
 
-# Skip only security scans
-./scripts/local-ci-checks.sh --skip-security
+# Rebuild and deploy the frontend only
+./scripts/deploy-main-stack.sh qa --frontend-only
+
+# Skip the test stage for faster iteration
+./scripts/deploy-main-stack.sh qa --skip-tests
 ```
 
-#### Fast Deployment Options
+Available flags: `--lambda-only`, `--frontend-only`, `--validate-only`, `--force`, `--full-tests`, `--skip-tests`, `--no-frontend`, `--use-function-specific-roles`, `--orchestration-role <arn>`.
 
-```bash
-# Lambda-only update (~5 seconds)
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+#### Build Artifacts
 
-# Frontend-only deployment
-./scripts/local-deploy.sh dev frontend-only
+Stage 5 builds the deployed Lambda packages and syncs them to the S3 deployment bucket. The deployed functions are:
 
-# CloudFormation deployment only
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn
-
-# Sync to S3 with validation
-./scripts/sync-to-deployment-bucket.sh --validate
+```
+data-management-handler
+query-handler
+execution-handler
+dr-orchestration-stepfunction
+frontend-deployer
 ```
 
-### Local CI/CD Stages
+`drs-agent-deployer` also has a code directory (DRS replication agent installation via SSM), but it is in development and not deployed by the main stack.
 
-| Stage | Duration | Tools Used |
-|-------|----------|------------|
-| **Validation** | ~2 min | cfn-lint, flake8, black, isort, TypeScript, ESLint |
-| **Security** | ~2 min | Bandit, Semgrep, Safety, NPM Audit |
-| **Build** | ~3 min | Lambda packaging (FrontendBuilder handles frontend) |
-| **Test** | ~2 min | pytest, vitest |
-| **Deploy** | ~10 min | CloudFormation |
+### Pipeline Stages
+
+| Stage | Tools Used |
+|-------|------------|
+| **Validation** | cfn-lint, flake8, black, TypeScript type-check |
+| **Security** | cfn_nag, detect-secrets, npm audit, semgrep, pip-licenses, license-checker |
+| **Tests** | pytest, npm test |
+| **Git Push** | `git push origin HEAD` |
+| **Deploy** | Lambda packaging (frontend-deployer handles the frontend), S3 sync, CloudFormation |
 
 ### CI/CD Reports
 
@@ -634,33 +425,17 @@ cat docs/logs/latest/security/summary.txt
 cat docs/logs/latest/tests/python-unit.txt
 ```
 
-### GitHub Actions CI/CD (Optional)
+### Git Push and CI/CD
 
-For repositories hosted on GitHub with OIDC authentication:
+Stage 4 of the deploy script runs `git push origin HEAD`, so a normal `./scripts/deploy-main-stack.sh qa` run validates, scans, tests, pushes, and deploys in one command. If the repository has a GitHub Actions workflow configured, the push from stage 4 triggers it.
 
-```bash
-# Check workflow status before pushing (optional but recommended)
-./scripts/check-workflow.sh && git push
+### frontend-deployer Lambda (CloudFormation-Driven Frontend Deployment)
 
-# OR use the safe push script (RECOMMENDED)
-./scripts/safe-push.sh
-
-# Monitor deployment at GitHub Actions page
-```
-
-**Workflow Behavior**:
-1. **First push** triggers workflow → starts running
-2. **Second push** triggers workflow → **automatically queued** (waits for first)
-3. **Third push** triggers workflow → **automatically queued** (waits for second)
-4. Workflows run sequentially, never overlapping
-
-### FrontendBuilder Lambda (100% CloudFormation Deployment)
-
-The solution uses a **FrontendBuilder Lambda Custom Resource** that eliminates the need for external CI/CD for frontend deployment:
+The solution uses a **frontend-deployer Lambda custom resource** that eliminates the need for external CI/CD for frontend deployment:
 
 **How It Works:**
 1. Lambda package includes pre-built `frontend/dist/` folder
-2. During CloudFormation deployment, FrontendBuilder:
+2. During CloudFormation deployment, frontend-deployer:
    - Copies pre-built dist to temp directory
    - Generates `aws-config.json` from stack outputs
    - Injects `aws-config.js` script tag into `index.html`
@@ -673,21 +448,12 @@ The solution uses a **FrontendBuilder Lambda Custom Resource** that eliminates t
 - ✅ Single CloudFormation deploy handles everything
 - ✅ Works without GitHub/GitLab/CodePipeline
 
-### Emergency Manual Deployment (RESTRICTED)
+### Fast Lambda-Only Updates
 
-**ONLY use manual deployment for:**
-- CI/CD service outage (confirmed issue)
-- Critical production hotfix when pipeline is broken
-- Pipeline debugging (with immediate Git follow-up)
+For rapid iteration on Lambda code without rebuilding the frontend, use the `--lambda-only` flag. The pipeline still runs validation, security, tests, and git push before deploying:
 
 ```bash
-# EMERGENCY ONLY: Fast Lambda code update
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code
-
-# IMMEDIATELY follow up with proper Git commit
-git add .
-git commit -m "emergency: describe the critical fix"
-git push  # Restores proper CI/CD tracking
+./scripts/deploy-main-stack.sh qa --lambda-only
 ```
 
 ### Development Commands
@@ -708,8 +474,8 @@ npm run type-check             # TypeScript validation
 cd lambda
 pip install -r requirements.txt
 
-# Use sync script for deployment (recommended)
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+# Deploy Lambda code via the deploy script
+./scripts/deploy-main-stack.sh qa --lambda-only
 ```
 
 **CloudFormation Validation**:
@@ -908,17 +674,17 @@ The S3 bucket serves as the source of truth for all deployable artifacts:
 ```
 s3://aws-drs-orchestration/
 ├── cfn/                          # CloudFormation templates
-├── lambda/                       # Lambda deployment packages (7 functions)
-│   ├── api-handler.zip
+├── lambda/                       # Lambda deployment packages (5 deployed functions)
+│   ├── data-management-handler.zip
+│   ├── query-handler.zip
+│   ├── execution-handler.zip
 │   ├── dr-orchestration-stepfunction.zip
-│   ├── execution-finder.zip
-│   ├── execution-poller.zip
-│   ├── frontend-builder.zip
-│   ├── bucket-cleaner.zip
-│   └── drs-agent-deployer.zip
+│   └── frontend-deployer.zip
 ├── frontend/                     # Frontend build artifacts
 └── scripts/                      # Deployment scripts
 ```
+
+`drs-agent-deployer` has a code directory (DRS replication agent installation via SSM) but is not deployed by the main stack.
 
 ### Deployment Verification
 
@@ -931,17 +697,17 @@ aws cloudformation describe-stacks \
   --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
   --output text
 
-# Verify Lambda function was updated
+# Verify a Lambda function was updated
 aws lambda get-function \
-  --function-name aws-drs-orchestration-api-handler-{environment} \
+  --function-name aws-drs-orchestration-data-management-handler-{environment} \
   --query 'Configuration.LastModified' \
   --output text
 
 # Check API Gateway endpoint
 curl https://{api-id}.execute-api.{region}.amazonaws.com/{environment}/health
 
-# Verify all Lambda functions are deployed
-for func in api-handler dr-orchestration-stepfunction execution-finder execution-poller frontend-builder bucket-cleaner drs-agent-deployer; do
+# Verify all deployed Lambda functions
+for func in data-management-handler query-handler execution-handler dr-orchestration-stepfunction frontend-deployer; do
   echo "Checking aws-drs-orchestration-${func}-{environment}..."
   aws lambda get-function --function-name aws-drs-orchestration-${func}-{environment} --query 'Configuration.LastModified' --output text
 done
@@ -972,11 +738,11 @@ make clean                     # Clean build artifacts
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| Lambda deployment fails | Code not synced to S3 | Run sync script first |
-| Frontend not updating | CloudFront cache | Run with `--deploy-frontend` |
-| Permission errors | Wrong AWS profile | Use `--profile` option |
+| Lambda deployment fails | Code not deployed to S3 | Run `./scripts/deploy-main-stack.sh qa --lambda-only` |
+| Frontend not updating | CloudFront cache | Run `./scripts/deploy-main-stack.sh qa --frontend-only` |
+| Permission errors | Wrong AWS profile | Set `AWS_PROFILE` in the environment before deploying |
 | "User pool client does not exist" | Stale `aws-config.json` | Regenerate from stack outputs |
-| CORS 403 errors | API Gateway not redeployed | Run `scripts/redeploy-api-gateway.sh` |
+| CORS 403 errors | API Gateway not redeployed | Re-run `./scripts/deploy-main-stack.sh qa` to redeploy the API Gateway stage |
 
 ### Fixing "User pool client does not exist" Error
 
@@ -998,14 +764,12 @@ cat > frontend/public/aws-config.json << EOF
 EOF
 
 # Rebuild and redeploy frontend
-cd frontend && npm run build && cd ..
-./scripts/sync-to-deployment-bucket.sh --deploy-frontend
+./scripts/deploy-main-stack.sh qa --frontend-only
 ```
 
 **Prevention:**
 - `frontend/public/aws-config.json` is gitignored - never commit it
-- GitHub Actions generates this file fresh from CloudFormation outputs
-- The sync script excludes `aws-config.json` and regenerates it from stack outputs
+- The frontend-deployer custom resource regenerates this file fresh from CloudFormation outputs during deployment
 
 ### Fixing CORS 403 Errors
 
@@ -1013,14 +777,11 @@ If OPTIONS requests return 403 instead of 200, the API Gateway deployment may no
 
 **Solution:**
 ```bash
-# Redeploy API Gateway
-./scripts/redeploy-api-gateway.sh aws-drs-orchestration-{environment} {region}
+# Redeploy the stack, which redeploys the API Gateway stage
+./scripts/deploy-main-stack.sh qa
 ```
 
-This script:
-1. Gets the API ID from CloudFormation outputs
-2. Creates a new API Gateway deployment
-3. Verifies OPTIONS endpoints return 200
+This re-syncs the API Gateway templates to S3 and redeploys the CloudFormation stack, creating a fresh API Gateway deployment so OPTIONS preflight endpoints return 200.
 
 ### Playwright Tests Fail
 
@@ -1062,8 +823,8 @@ This script:
 5. **Test in dev first**: Deploy to dev environment before production
 6. **Monitor deployments**: Watch CloudFormation events during deployment
 7. **Keep artifacts in sync**: Local code, S3 artifacts, and deployed resources should match
-8. **Use GitHub Actions**: Always use CI/CD pipeline for deployments
-9. **Check workflow status**: Use safe-push script to avoid conflicts
+8. **Use the deploy script**: Always deploy through `./scripts/deploy-main-stack.sh`
+9. **Run validation first**: Use `--validate-only` to catch issues before a full deploy
 10. **Never commit aws-config.json**: This file is environment-specific
 
 ---

@@ -35,7 +35,7 @@ AWS DRS Orchestration provides complete orchestration and management capabilitie
 - **DRS Management**: Complete source server configuration and lifecycle management
 - **Multi-Account Support**: Hub-and-spoke architecture for centralized management
 - **Modern UI**: React 19 + CloudScape Design System with 35+ components across 8 pages
-- **REST API**: 44 endpoints across 9 categories with comprehensive DRS coverage
+- **REST API**: 66 endpoints across 9 categories with comprehensive DRS coverage
 - **Tag Synchronization**: Automated EC2-to-DRS tag sync with EventBridge scheduling
 - **Enterprise RBAC**: 5 granular roles with 11 business-focused permissions
 - **Deployment Flexibility**: 4 deployment modes (standalone, API-only, external integration)
@@ -48,23 +48,23 @@ AWS DRS Orchestration provides complete orchestration and management capabilitie
 
 ![AWS DRS Orchestration - Comprehensive Architecture](../architecture/AWS-DRS-Orchestration-Architecture-Comprehensive.png)
 
-**Components**: CloudFront CDN, S3 Static Hosting, Cognito User Pool, API Gateway, 6 Lambda Functions, Step Functions, DynamoDB (4 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
+**Components**: CloudFront CDN, S3 Static Hosting, Cognito User Pool, API Gateway, 6 Lambda Functions, Step Functions, DynamoDB (7 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
 
 ### Backend-Only Architecture
 
 ![AWS DRS Orchestration - Backend Only](../architecture/AWS-DRS-Orchestration-Backend-Only.png)
 
-**Components**: Direct Lambda invocation via CLI/SDK, 6 Lambda Functions, Step Functions, DynamoDB (4 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
+**Components**: Direct Lambda invocation via CLI/SDK, 6 Lambda Functions, Step Functions, DynamoDB (7 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
 
 **Benefits**: 60% lower cost (no API Gateway), simpler architecture, native AWS authentication
 
 ### AWS Services
 
 **Core Services**:
-- **DynamoDB**: 4 tables (protection-groups, recovery-plans, execution-history, target-accounts) with camelCase schema
+- **DynamoDB**: 7 tables (protection-groups, recovery-plans, execution-history, target-accounts, source-server-inventory, drs-region-status, recovery-instances) with camelCase schema
 - **Lambda**: 6 functions (data-management-handler, execution-handler, query-handler, dr-orchestration-stepfunction, frontend-deployer, drs-agent-deployer)
 - **Step Functions**: Workflow orchestration with waitForTaskToken pattern (1-year timeout)
-- **API Gateway**: REST API with 44 endpoints across 9 categories (optional - not deployed in backend-only mode)
+- **API Gateway**: REST API with 66 endpoints across 9 categories (optional - not deployed in backend-only mode)
 - **CloudFront + S3**: Frontend hosting (optional - not deployed in API-only modes)
 - **AWS DRS**: Core disaster recovery service integration
 
@@ -141,11 +141,10 @@ The solution uses a decomposed Lambda architecture for improved maintainability,
 - Cleanup old deployment artifacts
 - CloudFormation custom resource
 
-**drs-agent-deployer** (Notifications):
-- SNS message formatting
-- Email notifications
-- Execution status updates
-- EventBridge target
+**drs-agent-deployer** (DRS Agent Installation):
+- DRS replication agent installation via SSM across accounts (in development; not yet deployed by the main stack)
+
+> Note: SNS execution and wave notifications are not produced by this function. They are published inline by the handlers via the shared module `lambda/shared/notifications.py`. There is no dedicated notification Lambda.
 
 **Performance Characteristics**:
 - Cold start times: 850-920ms (55-72% under targets)
@@ -155,7 +154,9 @@ The solution uses a decomposed Lambda architecture for improved maintainability,
 
 ### 2. API Architecture
 
-**REST API Coverage (44 Endpoints across 9 Categories)**:
+**REST API Coverage (66 Endpoints across 9 Categories)**:
+
+The complete endpoint enumeration is maintained in docs/reference/API_ENDPOINTS_CURRENT.md. The list below highlights representative endpoints per category.
 
 **Protection Groups (6 endpoints)**:
 - GET /protection-groups - List with filtering
@@ -512,7 +513,7 @@ The solution uses a decomposed Lambda architecture for improved maintainability,
 | Stack | Purpose | Key Resources |
 |-------|---------|---------------|
 | master-template.yaml | Root orchestrator | Parameter propagation, UnifiedOrchestrationRole |
-| database-stack.yaml | Data persistence | 4 DynamoDB tables with encryption, camelCase schema |
+| database-stack.yaml | Data persistence | 7 DynamoDB tables with encryption, camelCase schema |
 | lambda-stack.yaml | Compute layer | 6 Lambda functions |
 | api-auth-stack.yaml | Authentication | Cognito User Pool, Identity Pool, 5 RBAC groups |
 | api-gateway-core-stack.yaml | API Gateway base | REST API, Cognito authorizer |

@@ -8,19 +8,21 @@
 
 ## EXECUTIVE SUMMARY
 
+> Note: This analysis has been updated to the current verified counts (66 endpoints, 7 DynamoDB tables). The codebase has grown since the original analysis snapshot.
+
 The AWS DRS Orchestration Platform is **fully implemented and production-ready** with:
-- **44 REST API endpoints** (not 48 as documented)
+- **66 REST API endpoints**
 - **6 Lambda functions** (not 5 as documented)
 - **16 CloudFormation templates** (not 18 as documented)
 - **35+ React components** across 8 pages
-- **4 DynamoDB tables** with camelCase schema
+- **7 DynamoDB tables** with camelCase schema
 - **Unified Orchestration Role** consolidating 7 individual roles
 
 ### Key Discrepancies Found
 
 | Documentation | Actual Implementation | Impact |
 |---------------|----------------------|--------|
-| 48 API endpoints | 44 API endpoints | Update PRD, SRS |
+| Earlier docs (44/48) | 66 API endpoints | Update PRD, SRS |
 | 5 Lambda functions | 6 Lambda functions | Update PRD, SRS |
 | 18 CloudFormation templates | 16 CloudFormation templates | Update PRD |
 | 12 API categories | 9 API categories | Update PRD, API docs |
@@ -35,7 +37,7 @@ The AWS DRS Orchestration Platform is **fully implemented and production-ready**
 | Template | Purpose | Resources |
 |----------|---------|-----------|
 | master-template.yaml | Root orchestrator | UnifiedOrchestrationRole, nested stacks |
-| database-stack.yaml | DynamoDB tables | 4 tables (camelCase schema) |
+| database-stack.yaml | DynamoDB tables | 7 tables (camelCase schema) |
 | lambda-stack.yaml | Lambda functions | 6 functions |
 | api-auth-stack.yaml | Authentication | Cognito User Pool, 5 RBAC groups |
 | api-gateway-core-stack.yaml | API foundation | REST API, authorizer |
@@ -86,7 +88,7 @@ All Lambda functions share a **single IAM role** with 16 policy statements:
 | **query-handler** | 256 MB | 60s | Read-only queries, discovery | 12 |
 | **dr-orchestration-stepfunction** | 512 MB | 120s | Wave orchestration logic | N/A (internal) |
 | **frontend-deployer** | 2048 MB | 900s | React build and deployment | N/A (CloudFormation custom resource) |
-| **drs-agent-deployer** | 256 MB | 60s | SNS message formatting | N/A (EventBridge target) |
+| **drs-agent-deployer** | 256 MB | 60s | DRS replication agent installation via SSM across accounts (in development; not yet deployed by the main stack) | N/A (in development) |
 
 **Total**: 6 functions (not 5)
 
@@ -108,7 +110,7 @@ All Lambda functions share a **single IAM role** with 16 policy statements:
 
 ## 3. REST API ENDPOINTS
 
-### Actual Implementation: 44 Endpoints (9 Categories)
+### Actual Implementation: 66 Endpoints (9 Categories)
 
 #### 1. Protection Groups (6 endpoints)
 ```
@@ -192,13 +194,18 @@ GET    /user/permissions
 GET    /health
 ```
 
-**Total**: 44 endpoints across 9 categories (not 48 across 12)
+**Total**: 66 endpoints across 9 categories. See docs/reference/API_ENDPOINTS_CURRENT.md for the complete enumeration.
 
 ---
 
 ## 4. DYNAMODB TABLES
 
-### Actual Implementation: 4 Tables (CamelCase Schema)
+### Actual Implementation: 7 Tables (CamelCase Schema)
+
+> Three additional tables exist beyond the four detailed below:
+> - **source-server-inventory**: cached DRS source-server inventory
+> - **drs-region-status**: per-region DRS service status
+> - **recovery-instances**: launched recovery instance tracking
 
 #### Protection Groups Table
 ```

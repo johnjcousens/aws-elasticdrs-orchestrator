@@ -25,11 +25,11 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 - EventBridge scheduled rules (1-minute intervals)
 
 **Data Layer**:
-- 4 DynamoDB tables with GSI indexes (camelCase schema)
+- 7 DynamoDB tables with GSI indexes (camelCase schema)
 - S3 buckets for artifacts and static hosting
 
 **API Layer** (Optional):
-- API Gateway REST API with 44 endpoints across 9 categories
+- API Gateway REST API with 66 endpoints across 9 categories
 - Cognito User Pool with 5 RBAC roles
 
 **Frontend Layer** (Optional):
@@ -264,20 +264,14 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 
 #### FR-1.6: drs-agent-deployer
 
-**Purpose**: Format and send notifications (EventBridge target)
+**Purpose**: DRS replication agent installation via SSM across accounts (in development; not yet deployed by the main stack)
 
 **Responsibilities**:
-- Format SNS messages for execution events
-- Send email notifications
-- Format pipeline notifications
-- Format security scan notifications
+- Install the DRS replication agent via SSM across target accounts
 
-**Notification Types**:
-- Execution started
-- Execution completed
-- Execution failed
-- Wave completed
-- System health alerts
+**Status**: In development. Not deployed by the main stack.
+
+> Note: SNS execution and wave notifications are not produced by this function. They are published inline by the handlers via the shared module `lambda/shared/notifications.py`. There is no dedicated notification Lambda.
 
 **Performance Requirements**:
 - Cold start: < 1 second
