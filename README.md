@@ -17,7 +17,7 @@ Disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wav
 > **📌 Stable Checkpoint**: Tag `spec-05-inventory-sync-refactoring` marks the latest stable state with query handler read-only audit complete. If issues arise during implementation, rollback with:
 > ```bash
 > git checkout spec-05-inventory-sync-refactoring
-> ./scripts/deploy-main-stack.sh qa
+> ./scripts/deploy-main-stack.sh dev
 > ```
 
 ## Overview
@@ -167,33 +167,33 @@ The platform now supports **function-specific IAM roles** as an alternative to t
 **Deployment:**
 ```bash
 # Deploy with function-specific roles
-./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+./scripts/deploy-main-stack.sh dev --use-function-specific-roles
 
 # Deploy with unified role (default)
-./scripts/deploy-main-stack.sh qa
+./scripts/deploy-main-stack.sh dev
 ```
 
-**QA Environment Deployment:**
+**Deployment:**
 
-The QA environment (`aws-drs-orchestration-qa` in `us-east-2`) uses the new main stack architecture with function-specific roles enabled by default:
+The environment (`aws-drs-orchestration-dev` in `us-east-1`, shared-services account `139023234756`) uses the new main stack architecture with function-specific roles enabled by default:
 
 ```bash
-# Deploy QA environment with function-specific roles (default)
-./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+# Deploy with function-specific roles (default)
+AWS_PROFILE=commercial_shared-services ./scripts/deploy-main-stack.sh dev --use-function-specific-roles
 
-# Deploy QA environment with unified role
-./scripts/deploy-main-stack.sh qa
+# Deploy with unified role
+AWS_PROFILE=commercial_shared-services ./scripts/deploy-main-stack.sh dev
 
 # Validate templates before deployment
-./scripts/deploy-main-stack.sh qa --validate-only
+AWS_PROFILE=commercial_shared-services ./scripts/deploy-main-stack.sh dev --validate-only
 ```
 
-**QA Environment Details:**
-- **Account**: `123456789012` (replace with your AWS account ID)
-- **Region**: `us-east-2`
-- **Stack**: `aws-drs-orchestration-qa`
-- **Deployment Bucket**: `aws-drs-orchestration-{ACCOUNT_ID}-qa`
-- **API**: `https://{api-id}.execute-api.us-east-2.amazonaws.com/test`
+**Environment Details:**
+- **Account**: `139023234756` (shared services)
+- **Region**: `us-east-1`
+- **Stack**: `aws-drs-orchestration-dev`
+- **Deployment Bucket**: `aws-drs-orchestration-139023234756-dev`
+- **API**: `https://{api-id}.execute-api.us-east-1.amazonaws.com/dev`
 - **CloudFront**: `https://{distribution-id}.cloudfront.net`
 
 **Migration from Unified to Function-Specific Roles:**
@@ -202,13 +202,13 @@ The platform supports seamless switching between role architectures:
 
 ```bash
 # Step 1: Deploy with unified role (baseline)
-./scripts/deploy-main-stack.sh qa
+AWS_PROFILE=commercial_shared-services ./scripts/deploy-main-stack.sh dev
 
 # Step 2: Switch to function-specific roles
-./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+AWS_PROFILE=commercial_shared-services ./scripts/deploy-main-stack.sh dev --use-function-specific-roles
 
 # Step 3: Rollback if needed (no data loss)
-./scripts/deploy-main-stack.sh qa
+AWS_PROFILE=commercial_shared-services ./scripts/deploy-main-stack.sh dev
 ```
 
 **Documentation:**
@@ -218,7 +218,6 @@ The platform supports seamless switching between role architectures:
 - [IAM Role Reference](docs/iam/IAM_ROLE_REFERENCE.md) - Detailed permissions for each role with resource restrictions
 - [Deploy Main Stack Guide](docs/deployment/DEPLOY_MAIN_STACK_GUIDE.md) - Complete deployment guide with examples
 - [Architecture Decision Record](docs/architecture/ADR-001-function-specific-iam-roles.md) - Design rationale and security benefits
-- [QA Deployment Configuration](docs/deployment/QA_DEPLOYMENT_CONFIGURATION.md) - QA environment configuration details
 - [Migration Guide](docs/deployment/MIGRATION_GUIDE.md) - Migration procedures and rollback strategies
 
 ### CloudFormation Template Organization (New Architecture)
@@ -280,10 +279,10 @@ cfn/
 
 ```bash
 # Deploy with function-specific roles (new architecture)
-./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+./scripts/deploy-main-stack.sh dev --use-function-specific-roles
 
 # Deploy with unified role (new architecture, backward compatible)
-./scripts/deploy-main-stack.sh qa
+./scripts/deploy-main-stack.sh dev
 ```
 
 **Documentation:**
@@ -311,36 +310,36 @@ The solution supports two CloudFormation template architectures:
 
 ```bash
 # New Architecture - Deploy with function-specific roles
-./scripts/deploy-main-stack.sh qa --use-function-specific-roles
+./scripts/deploy-main-stack.sh dev --use-function-specific-roles
 
 # New Architecture - Deploy with unified role (default)
-./scripts/deploy-main-stack.sh qa
+./scripts/deploy-main-stack.sh dev
 
 # New Architecture - Validate only (no deployment)
-./scripts/deploy-main-stack.sh qa --validate-only
+./scripts/deploy-main-stack.sh dev --validate-only
 
 # Legacy Architecture - deprecated, archived at cfn/ARCHIVE/deploy.sh
-# ./cfn/ARCHIVE/deploy.sh qa
+# ./cfn/ARCHIVE/deploy.sh dev
 
 # Direct CloudFormation - New architecture with function-specific roles
 aws cloudformation deploy \
   --template-file cfn/main-stack.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    DeploymentBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    Environment=dev \
+    DeploymentBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=admin@example.com \
 # Direct CloudFormation - New architecture (function-specific roles)
 aws cloudformation deploy \
   --template-file cfn/main-stack.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    DeploymentBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    Environment=dev \
+    DeploymentBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=admin@example.com \
     UseFunctionSpecificRoles=true
 ```
@@ -359,35 +358,35 @@ aws cloudformation deploy \
 # Mode 1: Default Standalone (Full Stack with Frontend)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=admin@example.com
 
 # Mode 2: API-Only Standalone (No Frontend)
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=admin@example.com \
     DeployFrontend=false
 
 # Mode 3: External IAM Role Integration
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=admin@example.com \
     OrchestrationRoleArn=arn:aws:iam::111122223333:role/ExternalOrchestrationRole \
     DeployFrontend=false
@@ -397,7 +396,7 @@ aws cloudformation deploy \
 
 **Core Parameters (Both Architectures):**
 - `ProjectName` (String, default: 'aws-drs-orchestration') - Project identifier for resource naming
-- `Environment` (String, default: 'dev') - Environment name (dev, test, qa, prod)
+- `Environment` (String, default: 'dev') - Environment name (dev, test, prod)
 - `AdminEmail` (String, required) - Admin email for Cognito user pool and SNS notifications
 
 **New Architecture Parameters (main-stack.yaml):**
@@ -414,12 +413,12 @@ aws cloudformation deploy \
 ```bash
 aws cloudformation deploy \
   --template-file cfn/main-stack.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    DeploymentBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    Environment=dev \
+    DeploymentBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=admin@example.com \
     UseFunctionSpecificRoles=true \
     DeployFrontend=true
@@ -429,12 +428,12 @@ aws cloudformation deploy \
 ```bash
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    SourceBucket=aws-drs-orchestration-{ACCOUNT_ID}-qa \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=admin@example.com \
     DeployFrontend=true
 ```
@@ -442,7 +441,6 @@ aws cloudformation deploy \
 **See Documentation:**
 - [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) - Complete deployment mode documentation
 - [Deploy Main Stack Guide](docs/DEPLOY_MAIN_STACK_GUIDE.md) - New architecture deployment procedures
-- [QA Deployment Configuration](docs/QA_DEPLOYMENT_CONFIGURATION.md) - QA environment configuration details
 
 ## Configuration Example
 
@@ -704,14 +702,14 @@ aws drs create-extended-source-server \
 ### CloudFormation Deployment
 
 ```bash
-# CloudFormation deployment (QA environment)
+# CloudFormation deployment
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    SourceBucket=aws-drs-orchestration-qa \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --region us-east-1
@@ -721,16 +719,16 @@ aws cloudformation deploy \
 
 ```bash
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --query 'Stacks[0].Outputs' \
   --output table
 ```
 
-| Output           | Description              | QA Environment Value |
+| Output           | Description              | Environment Value |
 | ---------------- | ------------------------ | -------------------- |
-| CloudFrontURL    | Frontend application URL | https://d2km02vao8dqje.cloudfront.net |
-| ApiEndpoint      | REST API endpoint        | https://k8uzkghqrf.execute-api.us-east-1.amazonaws.com/qa |
-| UserPoolId       | Cognito User Pool ID     | us-east-1_GnwhL77aq |
+| CloudFrontURL    | Frontend application URL | https://{distribution-id}.cloudfront.net |
+| ApiEndpoint      | REST API endpoint        | https://{api-id}.execute-api.us-east-1.amazonaws.com/dev |
+| UserPoolId       | Cognito User Pool ID     | (from stack outputs) |
 | UserPoolClientId | Cognito App Client ID    | (from stack outputs) |
 
 ## AWS DRS Regional Availability
@@ -931,14 +929,14 @@ The project uses CloudFormation for infrastructure deployment with comprehensive
 Deploy the complete solution using AWS CloudFormation:
 
 ```bash
-# Full deployment (QA environment)
+# Full deployment
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    SourceBucket=aws-drs-orchestration-qa \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --region us-east-1
@@ -1172,14 +1170,14 @@ cd frontend
 npm install
 npm run dev  # Development server at localhost:5173
 
-# CloudFormation deployment (QA environment)
+# CloudFormation deployment
 aws cloudformation deploy \
   --template-file cfn/master-template.yaml \
-  --stack-name aws-drs-orchestration-qa \
+  --stack-name aws-drs-orchestration-dev \
   --parameter-overrides \
     ProjectName=aws-drs-orchestration \
-    Environment=qa \
-    SourceBucket=aws-drs-orchestration-qa \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration-139023234756-dev \
     AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --region us-east-1
@@ -1247,15 +1245,15 @@ The Frontend Deployer Lambda includes automated S3 bucket cleanup logic that han
 To delete a stack:
 
 ```bash
-# QA environment (new architecture)
+# New architecture
 aws cloudformation delete-stack \
-  --stack-name aws-drs-orchestration-qa \
-  --region us-east-2
+  --stack-name aws-drs-orchestration-dev \
+  --region us-east-1
 
 # Monitor deletion progress
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestration-qa \
-  --region us-east-2 \
+  --stack-name aws-drs-orchestration-dev \
+  --region us-east-1 \
   --query 'Stacks[0].StackStatus'
 ```
 
