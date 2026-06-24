@@ -64,6 +64,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **EventBridge Scheduling**: Automated EC2 → DRS tag sync with configurable intervals (1-24 hours)
 - **Immediate Sync Triggers**: Automatic manual sync when settings are updated
 - **Multi-Region Support**: Synchronizes across all 30 AWS DRS regions automatically
+- **Cross-Account Extended Source Servers**: When source servers replicate cross-account into a staging account, the orchestrator auto-extends them into the target account every 5 minutes, and tag sync operates on those extended source servers. **Prerequisite**: the staging account's DRS replication must use a customer-managed KMS key (`ebsEncryption=CUSTOM`). DRS rejects cross-account extension of any source server still using the default EBS encryption key with `ValidationException: ... cannot be extended if it has the default EBS encryption key`. Set the staging account's DRS replication configuration template (and existing source servers) to `CUSTOM` with a customer-managed key before extension/tag sync will work.
 
 ### Protection Groups & Recovery Plans
 - **Tag-Based Selection**: Servers automatically included/excluded based on current tags

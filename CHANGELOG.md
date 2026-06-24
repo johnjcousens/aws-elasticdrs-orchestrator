@@ -16,14 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shared Services Deployment (dev)**: Deployed the orchestrator to the shared-services account (`139023234756`) in `us-east-1` as the sole environment (stack `aws-drs-orchestration-dev`, 18 nested stacks). Deployment bucket created with versioning, Block Public Access, and SSE-S3.
 - **CloudFront WAF**: Re-enabled the WAF Web ACL for CloudFront (valid in us-east-1) with a `WafRuleAction` parameter (Count|Block, default Count). In Count mode the rate-limit and AWS managed rule groups observe/log only, so the first deploy cannot lock operators out; switch to Block after validating WAF metrics. Threaded through `deploy-main-stack.sh` via `WAF_RULE_ACTION`.
 - **DRS cross-account roles**: Deployed `DRSOrchestrationRole` to Development (`625738166666`) and Staging (`880882845998`) via `deploy-cross-account-roles.sh`, trusting shared-services with External ID `drs-orchestration-cross-account`.
+- **DRS cross-account extension enablement**: Set DRS replication configuration templates to customer-managed MRK encryption (`ebsEncryption=CUSTOM`) across all DRS-initialized accounts (development, production, staging, sandbox, shared-services, backup, backup-governance) in `us-east-1` and `us-west-2`. Cross-account `CreateExtendedSourceServer` rejects servers using the default EBS key, so this unblocks the orchestrator's automatic staging-account extension and tag synchronization for extended source servers. Documented the prerequisite in the README Tag Synchronization section.
 
 ### Changed
 - **Single Environment**: Retired the legacy QA environment (us-east-2, `aws-drs-orchestration-qa`). The shared-services `dev` environment (`us-east-1`) is now the only environment. Updated README, deployment steering, and `deploy-main-stack.sh` defaults (region `us-east-1`, profile `commercial_shared-services`, environment `dev`).
 - **deploy-cross-account-roles.sh**: Rewrote for the current landing zone (correct accounts, region, project, SSO profiles) and fixed a broken shebang.
+- **Archived legacy scripts**: Moved unused operational scripts from `scripts/` to `archive/scripts/`, keeping only `deploy-main-stack.sh` (deploy pipeline) and `apply_copyright_headers.py` (used by the copyright-header hook).
+- **Development us-west-2 EBS default encryption**: Set the account/region EBS default KMS key to the landing-zone MRK (was `alias/aws/ebs`) and enabled encryption-by-default, aligning with the other accounts and regions.
 
 ### Fixed
 - **Cross-account External ID**: Aligned the target/staging setup template trust-policy External ID to the orchestrator standard `drs-orchestration-cross-account` (was `${ProjectName}-${Environment}`), resolving "Unable to assume role: Access Denied" during account validation.
 - **Frontend top-nav logo**: Replaced the broken `/aws-logo.png` reference (served the SPA fallback HTML) with the public AWS-hosted logo URL.
+- **Frontend login-page logo**: Replaced the broken `/aws-logo@2x.png` reference (served the SPA fallback HTML) with the public AWS-hosted logo URL, matching the top-nav fix.
+- **Login-page disclaimer**: Updated the recommended development tool from Amazon Q Developer (being retired) to Kiro (`https://kiro.dev/`).
 
 ### Security
 - **npm audit**: Resolved all reported frontend dependency vulnerabilities (2 critical, 9 high) via non-breaking `npm audit fix` (vitest, axios, ws, @babel/core, basic-ftp, brace-expansion). `package.json` unchanged; lockfile-only.
