@@ -1,0 +1,142 @@
+# Copyright Amazon.com and Affiliates. All rights reserved.
+# This deliverable is considered Developed Content as defined in the AWS Service Terms.
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  DRS Source Network export bucket. Creates the versioned, encrypted S3 bucket
+  that AWS Elastic Disaster Recovery uses to export Source Network CloudFormation
+  templates (network replication). Deploy once per account per region in every
+  account where DRS is initialized. DRS requires S3 versioning to be enabled.
+
+  NOTE: Selecting this bucket in DRS ("Source networks -> Select S3 bucket") is a
+  one-time console step per account/region; AWS DRS exposes no public API to set
+  the export bucket (ExportSourceNetworkCfnTemplate and StartSourceNetworkRecovery
+  do not accept a bucket parameter). See the runbook step in the stack Outputs.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: 'Naming'
+        Parameters:
+          - ProjectName
+          - Environment
+      - Label:
+          default: 'Encryption'
+        Parameters:
+          - KmsKeyArn
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'drs-orchestration'
+    Description: 'Project name used in the bucket name.'
+
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: [dev, test, qa, uat, staging, prod]
+    Description: 'Environment name used in the bucket name.'
+
+  KmsKeyArn:
+    Type: String
+    Default: ''
+    Description: >-
+      Optional customer-managed KMS key ARN (e.g. the landing-zone MRK in this
+      region) for SSE-KMS bucket encryption. Leave blank to use SSE-S3 (AES256).
+
+Conditions:
+  UseKms: !Not [!Equals [!Ref KmsKeyArn, '']]
+
+Resources:
+  SourceNetworkBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      # Globally-unique, deterministic per account+region
+      BucketName: !Sub '${ProjectName}-drs-source-network-${AWS::AccountId}-${AWS::Region}'
+      # DRS REQUIRES versioning for Source Network template export
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: !If [UseKms, 'aws:kms', 'AES256']
+              KMSMasterKeyID: !If [UseKms, !Ref KmsKeyArn, !Ref 'AWS::NoValue']
+            BucketKeyEnabled: !If [UseKms, true, !Ref 'AWS::NoValue']
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireNoncurrentTemplateVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 90
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: drs-source-network-export
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  SourceNetworkBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SourceNetworkBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt SourceNetworkBucket.Arn
+              - !Sub '${SourceNetworkBucket.Arn}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+          - Sid: AllowDRSSourceNetworkExport
+            Effect: Allow
+            Principal:
+              Service: drs.amazonaws.com
+            Action:
+              - 's3:PutObject'
+              - 's3:GetBucketLocation'
+              - 's3:ListBucket'
+            Resource:
+              - !GetAtt SourceNetworkBucket.Arn
+              - !Sub '${SourceNetworkBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
+
+Outputs:
+  BucketName:
+    Description: 'DRS Source Network export bucket name'
+    Value: !Ref SourceNetworkBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-bucket-name'
+  BucketArn:
+    Description: 'DRS Source Network export bucket ARN'
+    Value: !GetAtt SourceNetworkBucket.Arn
+  ManualStep:
+    Description: 'One-time DRS console step required (no public API)'
+    Value: !Sub >-
+      In the DRS console (this account/${AWS::Region}) open Source networks,
+      choose Select S3 bucket, and select ${SourceNetworkBucket}. Applies to all
+      existing and new source networks in this account/region.
